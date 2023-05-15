@@ -1,3 +1,11 @@
+#hero {
+    background-color: #ccc;
+    height: 300px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 #board {
   display: flex;
   justify-content: space-between;
