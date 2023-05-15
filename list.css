@@ -1,16 +1,36 @@
+header {
+    background-color: #000;
+    color: #fff;
+    padding: 20px 0;
+}
+
+nav ul {
+    display: flex;
+    justify-content: space-around;
+    list-style-type: none;
+    padding: 0;
+}
+
+nav a {
+    color: #fff;
+    text-decoration: none;
+}
+
 #hero {
     background-color: #ccc;
     height: 300px;
     display: flex;
     justify-content: center;
     align-items: center;
+    border-radius: 10px;
 }
 
 #board {
-  display: flex;
-  justify-content: space-between;
-  width: 70%;
-  padding: 0 10px;
+    display: flex;
+    justify-content: space-between;
+    width: 90vw;
+    margin-top: 2%;
+    padding: 0 10px;
 }
 
 .list {
