@@ -8,7 +8,7 @@
 .list {
   background-color: #ccc;
   padding: 10px;
-  width: 200px;
+  width: 18vw;
   height: fit-content;
   max-height: 90vh;
   overflow-y: auto;
@@ -72,9 +72,13 @@
   float: right;
 }
 
+.add-card-button::after {
+  background-color: #989898;
+  color: #000;
+
 .list-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: center;
 }
 
