@@ -1,0 +1,365 @@
+#board {
+  display: flex;
+  justify-content: space-between;
+  width: 70%;
+  padding: 0 10px;
+}
+
+.list {
+  background-color: #ccc;
+  padding: 10px;
+  width: 200px;
+  height: fit-content;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: relative;
+}
+
+.list-title {
+  text-align: center;
+}
+
+.list-title:focus {
+  outline: none;
+  border-bottom: 1px dashed #000;
+}
+
+.card {
+  position: relative;
+  background-color: transparent;
+  border-radius: 10px;
+  padding-bottom: 10px;
+  padding-top: 30px;
+  padding-left: 10px;
+  padding-right: 30px;
+  width: 79%;
+  height: auto;
+  margin-bottom: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  justify-content: space-between;
+  transition: transform 0.3s ease;
+  transform: translateX(0);
+  z-index: 1;
+}
+
+.card::before {
+  content: "";
+  display: block;
+  padding-bottom: 25%; /* 16:9 Aspect Ratio */
+  width: 100%;
+}
+
+.card-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.add-card-button {
+  border-radius: 5px;
+  border-width: 0px;
+  padding: 6px 12px;
+  cursor: pointer;
+  float: right;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.list-title {
+  width: fit-content;
+  display: inline-block;
+}
+
+.card-number {
+  position: absolute;
+  right: 10px;
+  top: 35%;
+  transform: translateY(-30%);
+  font-size: 4em;
+  opacity: 0.8;
+  z-index: 2;
+  cursor: default;
+  color: #fff;
+}
+
+.card-content {
+  position: relative; /* Change from absolute to relative */
+  padding: 20px;
+  z-index: 2;
+  color: #fff;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-end;
+}
+
+.card-content > * {
+  z-index: 15;
+  position: relative;
+  color: #fff;
+}
+
+.card-name {
+  font-weight: bold;
+  font-size: 15px;
+  margin-right: 10px;
+  color: #fff;
+}
+
+.card-series {
+  font-size: 12px;
+  color: #fff;
+}
+
+/* Placeholder text styles */
+.card-title::before,
+.card-subtitle::before,
+.card-image-url::before {
+  content: attr(data-placeholder);
+  color: #000;
+  display: inline-block;
+  pointer-events: auto;
+  position: absolute; /* Changed from inline-block to absolute */
+  cursor: text;
+}
+
+/* Hide placeholder text when the element has content */
+.card-title:empty::before,
+.card-subtitle:empty::before,
+.card-image-url:empty::before {
+  display: block; /* Changed from none to block */
+}
+
+.card-title:not(:empty)::before,
+.card-subtitle:not(:empty)::before,
+.card-image-url:not(:empty)::before {
+  display: none;
+}
+
+.card-name,
+.card-series,
+.card-image-url {
+  min-height: 1em;
+  width: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.card-image-url {
+  opacity: 0; /* Make the URL field initially invisible */
+}
+
+.card-image-url:focus {
+  opacity: 1; /* Make the URL field fully visible when it receives focus */
+}
+
+/* Overlay */
+.card.filled-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  border-radius: 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+}
+
+.card.over {
+  border: 2px dashed #333;
+}
+
+/*
+.card.editing .edit-button {
+  display: none;
+}
+*/
+
+.card.editing .card-title,
+.card.editing .card-subtitle,
+.card.editing .card-image-url {
+  pointer-events: auto;
+  color: #000;
+  cursor: text;
+  padding: 2px;
+  min-height: 20px;
+  background-color: transparent;
+}
+
+.card.editing .card-title:focus,
+.card.editing .card-subtitle:focus,
+.card.editing .card-image-url:focus {
+  outline: none;
+  border: 1px solid #fff; /* Add a border */
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.card.editing .card-title::before,
+.card.editing .card-subtitle::before,
+.card.editing .card-image-url::before {
+  display: none;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  color: #fff;
+  z-index: 10;
+}
+
+.card-container {
+  position: relative;
+  overflow-y: auto;
+  width: 100%;
+  max-height: 90vh;
+  /* height: 100px; */
+}
+
+.card-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s;
+}
+
+/* Styles for each button in the group */
+.btn-group button {
+  border: none;
+  background: none;
+  color: white;
+  font-size: 1.5em;
+  cursor: pointer;
+}
+
+/* Change card numbers for top 10 */
+/*
+.card-number.less-than-ten {
+  color: #fff;
+  -webkit-text-stroke: 0px #e0e0e0;
+  text-stroke: 0px #e0e0e0;
+}
+*/
+
+.card-number.first-card {
+  color: gold;
+  -webkit-text-stroke: 0px #e0e0e0;
+  text-stroke: 0px #e0e0e0;
+}
+
+/* Dark Mode */
+#dark-mode-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: none;
+  color: inherit; /* Will inherit the color from the current theme */
+  font-size: 2em;
+  cursor: pointer;
+}
+
+body.dark-mode {
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+.dark-mode .list {
+  background-color: #1f1f1f;
+}
+
+.dark-mode .list-title:focus {
+  border-bottom: 1px dashed #e0e0e0;
+}
+
+.dark-mode .card {
+  background-color: #2c2c2c;
+}
+
+.dark-mode .empty-card {
+  border: 1px solid #fff;
+}
+
+.dark-mode .add-card-button {
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+}
+
+/*
+.dark-mode .card-number {
+  color: #e0e0e0;
+}
+*/
+
+.dark-mode .card-content {
+  color: #e0e0e0;
+}
+
+.dark-mode .card-name,
+.dark-mode .card-series {
+  color: #e0e0e0;
+}
+
+.dark-mode .card-title::before,
+.dark-mode .card-subtitle::before,
+.dark-mode .card-image-url::before {
+  color: #e0e0e0;
+}
+
+.dark-mode .card.editing .card-title,
+.dark-mode .card.editing .card-subtitle,
+.dark-mode .card.editing .card-image-url {
+  color: #e0e0e0;
+}
+
+.dark-mode .card.editing .card-title:focus,
+.dark-mode .card.editing .card-subtitle:focus,
+.dark-mode .card.editing .card-image-url:focus {
+  border: 1px solid #e0e0e0;
+}
+
+.dark-mode .card::after {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+}
+
+.dark-mode .card.over {
+  border: 2px dashed #e0e0e0;
+}
+
+/* Empty Card Styling */
+.empty-card {
+  border: 1px solid #000;
+  background-color: transparent;
+  background-image: none;
+  color: black;
+}
+
+.empty-card::after {
+  background: transparent;
+}
+
+.filled-card {
+  border: none;
+  color: white;
+  overflow: hidden;
+}
