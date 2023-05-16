@@ -1,15 +1,14 @@
 #board {
-    display: flex;
-    justify-content: space-between;
-    width: 90vw;
-    margin-top: 2%;
-    padding: 0 10px;
+  display: flex;
+  justify-content: space-between;
+  width: 70%;
+  padding: 0 10px;
 }
 
 .list {
   background-color: #ccc;
   padding: 10px;
-  width: 18vw;
+  width: 200px;
   height: fit-content;
   max-height: 90vh;
   overflow-y: auto;
@@ -73,13 +72,9 @@
   float: right;
 }
 
-.add-card-button::after {
-  background-color: #989898;
-  color: #000;
-
 .list-header {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
 }
 
@@ -274,29 +269,27 @@
 
 /* Dark Mode */
 #dark-mode-toggle {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    border: none;
-    background: none;
-    color: inherit;
-    font-size: 2em;
-    cursor: pointer;
-    padding: 14px;
-    border-radius: 50%;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: none;
+  color: inherit; /* Will inherit the color from the current theme */
+  font-size: 2em;
+  cursor: pointer;
 }
 
 body.dark-mode {
-    background-color: #121212;
-    color: #e0e0e0;
+  background-color: #121212;
+  color: #e0e0e0;
 }
 
 .dark-mode .list {
-    background-color: #1f1f1f;
+  background-color: #1f1f1f;
 }
 
 .dark-mode .list-title:focus {
-    border-bottom: 1px dashed #e0e0e0;
+  border-bottom: 1px dashed #e0e0e0;
 }
 
 .dark-mode .card {
