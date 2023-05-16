@@ -202,39 +202,122 @@ return closest;
 }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
-const createCardElement = () => {
-// same code as before, but replace the drag event listener setup with:
-initDragListeners(card, dragStart, dragEnd);
-// ...
+function createCardElement() {
+  const card = document.createElement('div');
+  card.classList.add('card');
+  card.setAttribute('draggable', 'true');
+  
+  // Add drag events to new cards
+  card.addEventListener('dragstart', dragStart);
+  card.addEventListener('dragend', dragEnd);
+
+  const cardInner = document.createElement('div');
+  cardInner.classList.add('card-inner');
+
+  const cardInfo = document.createElement('div');
+  cardInfo.classList.add('card-info');
+
+  const cardName = document.createElement('div');
+  cardName.contentEditable = true;
+  cardName.classList.add('card-name');
+  cardName.setAttribute('placeholder', 'Name'); // Set placeholder attribute
+  cardInfo.appendChild(cardName);
+
+  const cardSeries = document.createElement('div');
+  cardSeries.contentEditable = true;
+  cardSeries.classList.add('card-series');
+  cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
+  cardInfo.appendChild(cardSeries);
+
+  const cardImageUrl = document.createElement('div');
+  cardImageUrl.contentEditable = 'plaintext-only';
+  cardImageUrl.classList.add('card-image-url');
+  cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
+  cardImageUrl.addEventListener('input', () => {
+    applyImageBackground(card);
+  });
+  cardInfo.appendChild(cardImageUrl);
+  
+  const cardNumber = document.createElement('div');
+  cardNumber.classList.add('card-number');
+  cardNumber.textContent = "0";
+  card.appendChild(cardNumber);
+
+  cardInner.appendChild(cardInfo);
+  card.appendChild(cardInner);
+  
+  initDragListeners(card, dragStart, dragEnd);
+  
+  cardName.addEventListener('input', updateCardStyles);
+  cardSeries.addEventListener('input', updateCardStyles);
+  cardImageUrl.addEventListener('input', () => {
+  applyImageBackground(card);
+  updateCardStyles();
+  
+});
+  return card;
 }
 
-const createListElement = () => {
-// same code as before, but replace the drag and delete event listener setup with:
-initDragListeners(cardContainer, dragOver, dragExit);
-initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
-// ...
+function createListElement() {
+  const list = document.createElement('div');
+  list.classList.add('list');
+
+  const listHeader = document.createElement('div');
+  listHeader.classList.add('list-header');
+  list.appendChild(listHeader);
+
+  const listTitle = document.createElement('h2');
+  listTitle.contentEditable = true;
+  listTitle.classList.add('list-title');
+  listTitle.setAttribute('placeholder', 'Title');
+  listTitle.addEventListener('blur', function() {
+    console.log('New title:', this.textContent);
+  });
+  listHeader.appendChild(listTitle);
+
+  const addCardButton = document.createElement('button');
+  addCardButton.classList.add('add-card-button');
+  addCardButton.textContent = '+';
+  addCardButton.addEventListener('click', addCard);
+  listHeader.appendChild(addCardButton);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.classList.add('delete-button');
+  deleteButton.draggable = true;
+  deleteButton.textContent = 'Delete';
+  initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
+  list.appendChild(deleteButton);
+
+  const cardContainer = document.createElement('div');
+  cardContainer.classList.add('card-container');
+  initDragListeners(cardContainer, dragOver, dragExit);
+  list.appendChild(cardContainer);
+
+  list.addEventListener('dragover', dragOver);
+
+  return list;
 }
 
 function initDragListeners(element, startFunc, endFunc) {
-element.addEventListener('dragstart', startFunc);
-element.addEventListener('dragend', endFunc);
+  element.addEventListener('dragstart', startFunc);
+  element.addEventListener('dragend', endFunc);
 }
 
 function initDeleteListeners(element, overFunc, enterFunc, leaveFunc, dropFunc) {
-element.addEventListener('dragover', overFunc);
-element.addEventListener('dragenter', enterFunc);
-element.addEventListener('dragleave', leaveFunc);
-element.addEventListener('drop', dropFunc);
+  element.addEventListener('dragover', overFunc);
+  element.addEventListener('dragenter', enterFunc);
+  element.addEventListener('dragleave', leaveFunc);
+  element.addEventListener('drop', dropFunc);
 }
 
 document.querySelectorAll('.card, .card *').forEach(element => {
-initDragListeners(element.closest('.card'), dragStart, dragEnd);
+  initDragListeners(element.closest('.card'), dragStart, dragEnd);
 });
 
 document.querySelectorAll
 
 ('.delete-button').forEach(deleteButton => {
-initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
+  initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
 });
 
 document.querySelectorAll('.list, .list *').forEach(element => {
