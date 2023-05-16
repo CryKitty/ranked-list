@@ -50,13 +50,6 @@ document.querySelector('#board').addEventListener('click', function(e) {
   }
 });
 
-document.querySelector('#add-list-button').addEventListener('click', function() {
-  const board = document.querySelector('#board');
-  const newList = createListElement();
-  board.appendChild(newList);
-  newList.querySelector('.list-title').focus();
-});
-
 // Dragging & Dropping Cards
 function dragStart() {
   draggedItem = this;
@@ -371,6 +364,14 @@ function createListElement() {
 
   return list;
 }
+
+// New List Button Event Listener
+document.querySelector('#add-list-button').addEventListener('click', function() {
+  const board = document.querySelector('#board');
+  const newList = createListElement();
+  board.appendChild(newList);
+  newList.querySelector('.list-title').focus();
+});
 
 // Dark Mode
 document.addEventListener('DOMContentLoaded', (event) => {
