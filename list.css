@@ -34,6 +34,8 @@
   border-radius: 5px;
   border-width: 0px;
   padding: 15px 12px;
+  margin-left: 8px;
+  margin-right: 8px;
   cursor: pointer;
   margin-bottom: 7%;
   font-size: 1em;
@@ -44,8 +46,8 @@
   position: relative;
   background-color: transparent;
   border-radius: 10px;
-  padding-bottom: 10px;
-  padding-top: 30px;
+  padding-bottom: 5px;
+  padding-top: 50px;
   padding-left: 10px;
   padding-right: 30px;
   width: 79%;
