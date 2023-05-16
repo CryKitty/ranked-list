@@ -60,7 +60,7 @@ function createListElement() {
   listHeader.appendChild(addCardButton);
 
   const deleteButton = document.createElement('button');
-  deleteButton.id = 'delete-button';
+  deleteButton.classList.add('delete-button');
   deleteButton.draggable = true;
   deleteButton.textContent = 'Delete';
   deleteButton.addEventListener('dragover', deleteOver);
