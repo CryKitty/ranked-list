@@ -254,8 +254,6 @@ function createCardElement() {
     applyImageBackground(card);
     updateCardStyles();
   });
-
-  card.addEventListener('click', toggleEdit);
   
   return card;
 }
