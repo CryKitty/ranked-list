@@ -50,52 +50,6 @@ document.querySelector('#board').addEventListener('click', function(e) {
   }
 });
 
-// Create New List
-function createListElement() {
-  const list = document.createElement('div');
-  list.classList.add('list');
-
-  const listHeader = document.createElement('div');
-  listHeader.classList.add('list-header');
-  list.appendChild(listHeader);
-
-  const listTitle = document.createElement('h2');
-  listTitle.contentEditable = true;
-  listTitle.classList.add('list-title');
-  listTitle.setAttribute('placeholder', 'Title');
-  listTitle.addEventListener('blur', function() {
-    console.log('New title:', this.textContent);
-  });
-  listHeader.appendChild(listTitle);
-
-  const addCardButton = document.createElement('button');
-  addCardButton.classList.add('add-card-button');
-  addCardButton.textContent = '+';
-  addCardButton.addEventListener('click', addCard);
-  listHeader.appendChild(addCardButton);
-
-  const deleteButton = document.createElement('button');
-  deleteButton.classList.add('delete-button');
-  deleteButton.draggable = true;
-  deleteButton.textContent = 'Delete';
-  deleteButton.addEventListener('dragover', deleteOver);
-  deleteButton.addEventListener('dragenter', deleteEnter);
-  deleteButton.addEventListener('dragleave', deleteLeave);
-  deleteButton.addEventListener('drop', deleteDrop);
-  list.appendChild(deleteButton);
-
-  const cardContainer = document.createElement('div');
-  cardContainer.classList.add('card-container');
-  cardContainer.addEventListener('dragover', dragOver);
-  cardContainer.addEventListener('dragenter', dragEnter);
-  cardContainer.addEventListener('dragleave', dragExit);
-  list.appendChild(cardContainer);
-
-  list.addEventListener('dragover', dragOver);
-
-  return list;
-}
-
 document.querySelector('#add-list-button').addEventListener('click', function() {
   const board = document.querySelector('#board');
   const newList = createListElement();
@@ -371,6 +325,52 @@ deleteButtons.forEach(deleteButton => {
     deleteButton.style.backgroundColor = ''; // Reset the color of the delete button
   }
 });
+
+// Create New List
+function createListElement() {
+  const list = document.createElement('div');
+  list.classList.add('list');
+
+  const listHeader = document.createElement('div');
+  listHeader.classList.add('list-header');
+  list.appendChild(listHeader);
+
+  const listTitle = document.createElement('h2');
+  listTitle.contentEditable = true;
+  listTitle.classList.add('list-title');
+  listTitle.setAttribute('placeholder', 'Title');
+  listTitle.addEventListener('blur', function() {
+    console.log('New title:', this.textContent);
+  });
+  listHeader.appendChild(listTitle);
+
+  const addCardButton = document.createElement('button');
+  addCardButton.classList.add('add-card-button');
+  addCardButton.textContent = '+';
+  addCardButton.addEventListener('click', addCard);
+  listHeader.appendChild(addCardButton);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.classList.add('delete-button');
+  deleteButton.draggable = true;
+  deleteButton.textContent = 'Delete';
+  deleteButton.addEventListener('dragover', deleteOver);
+  deleteButton.addEventListener('dragenter', deleteEnter);
+  deleteButton.addEventListener('dragleave', deleteLeave);
+  deleteButton.addEventListener('drop', deleteDrop);
+  list.appendChild(deleteButton);
+
+  const cardContainer = document.createElement('div');
+  cardContainer.classList.add('card-container');
+  cardContainer.addEventListener('dragover', dragOver);
+  cardContainer.addEventListener('dragenter', dragEnter);
+  cardContainer.addEventListener('dragleave', dragExit);
+  list.appendChild(cardContainer);
+
+  list.addEventListener('dragover', dragOver);
+
+  return list;
+}
 
 // Dark Mode
 document.addEventListener('DOMContentLoaded', (event) => {
