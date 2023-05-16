@@ -206,7 +206,7 @@ function createCardElement() {
   const card = document.createElement('div');
   card.classList.add('card');
   card.setAttribute('draggable', 'true');
-  
+
   // Add drag events to new cards
   card.addEventListener('dragstart', dragStart);
   card.addEventListener('dragend', dragEnd);
@@ -218,20 +218,20 @@ function createCardElement() {
   cardInfo.classList.add('card-info');
 
   const cardName = document.createElement('div');
-  cardName.contentEditable = true;
   cardName.classList.add('card-name');
+  cardName.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardName.setAttribute('placeholder', 'Name'); // Set placeholder attribute
   cardInfo.appendChild(cardName);
 
   const cardSeries = document.createElement('div');
-  cardSeries.contentEditable = true;
   cardSeries.classList.add('card-series');
+  cardSeries.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
   cardInfo.appendChild(cardSeries);
 
   const cardImageUrl = document.createElement('div');
-  cardImageUrl.contentEditable = 'plaintext-only';
   cardImageUrl.classList.add('card-image-url');
+  cardImageUrl.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
   cardImageUrl.addEventListener('input', () => {
     applyImageBackground(card);
@@ -251,10 +251,12 @@ function createCardElement() {
   cardName.addEventListener('input', updateCardStyles);
   cardSeries.addEventListener('input', updateCardStyles);
   cardImageUrl.addEventListener('input', () => {
-  applyImageBackground(card);
-  updateCardStyles();
+    applyImageBackground(card);
+    updateCardStyles();
+  });
+
+  card.addEventListener('click', toggleEdit);
   
-});
   return card;
 }
 
