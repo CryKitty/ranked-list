@@ -39,7 +39,11 @@ function createListElement() {
   const list = document.createElement('div');
   list.classList.add('list');
 
-  const listTitle = document.createElement('div');
+  const listHeader = document.createElement('div');
+  listHeader.classList.add('list-header');
+  list.appendChild(listHeader);
+
+  const listTitle = document.createElement('h2');
   listTitle.contentEditable = true;
   listTitle.classList.add('list-title');
   listTitle.setAttribute('placeholder', 'Title'); // Set placeholder attribute
@@ -47,7 +51,23 @@ function createListElement() {
     // Replace with your own logic to save the new title
     console.log('New title:', this.textContent);
   });
-  list.appendChild(listTitle);
+  listHeader.appendChild(listTitle);
+
+  const addCardButton = document.createElement('button');
+  addCardButton.classList.add('add-card-button');
+  addCardButton.textContent = '+';
+  addCardButton.addEventListener('click', addCard);
+  listHeader.appendChild(addCardButton);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.id = 'delete-button';
+  deleteButton.draggable = true;
+  deleteButton.textContent = 'Delete';
+  deleteButton.addEventListener('dragover', deleteOver);
+  deleteButton.addEventListener('dragenter', deleteEnter);
+  deleteButton.addEventListener('dragleave', deleteLeave);
+  deleteButton.addEventListener('drop', deleteDrop);
+  list.appendChild(deleteButton);
 
   const cardContainer = document.createElement('div');
   cardContainer.classList.add('card-container');
@@ -55,12 +75,6 @@ function createListElement() {
   cardContainer.addEventListener('dragenter', dragEnter);
   cardContainer.addEventListener('dragleave', dragExit);
   list.appendChild(cardContainer);
-
-  const addCardButton = document.createElement('button');
-  addCardButton.classList.add('add-card-button');
-  addCardButton.textContent = 'Add Card';
-  addCardButton.addEventListener('click', addCard);
-  list.appendChild(addCardButton);
 
   list.addEventListener('dragover', dragOver);
 
@@ -137,11 +151,14 @@ function updateCardNumbers() {
   updateCardNumberColors();
 }
 
-// Crate New Card
 function addCard() {
   const list = this.parentNode.parentNode;
   const cardContainer = list.querySelector('.card-container');
   const newCard = createCardElement();
+  
+  newCard.addEventListener('dragstart', dragStart);
+  newCard.addEventListener('dragend', dragEnd);
+  
   cardContainer.appendChild(newCard);
   newCard.querySelector('.card-name').focus();
   updateCardNumbers();
