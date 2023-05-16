@@ -292,46 +292,20 @@ document.querySelectorAll('.card-number').forEach((element) => {
 });
 
 // Dark Mode
-// Check if localStorage is available and supported
-let darkMode;
-try {
-  darkMode = localStorage.getItem("darkMode");
-} catch (error) {
-  // localStorage is not available or supported
-  console.error(error);
-  // Use a default value for darkMode
-  darkMode = "dark";
-}
-
-// Check user preference on page load
-document.addEventListener("DOMContentLoaded", () => {
-  const currentTheme = darkMode;
-  toggleDarkLightMode(currentTheme); // Invoke the function
+document.addEventListener('DOMContentLoaded', (event) => {
+    document.body.classList.add("dark-mode");
 });
-
 
 const toggleButton = document.getElementById("dark-mode-toggle");
 
-//toggleButton.addEventListener("click", function() {
-//  if (document.body.classList.contains("dark-mode")) {
-//    document.body.classList.remove("dark-mode");
-//    toggleButton.classList.remove("fa-sun");  // Change to sun icon
-//    toggleButton.classList.add("fa-moon");  // Remove moon icon
-//  } else {
-//    document.body.classList.add("dark-mode");
-//    toggleButton.classList.remove("fa-moon");  // Remove moon icon
-//    toggleButton.classList.add("fa-sun");  // Change to sun icon
-//  }
-//});
-
-// Toggle dark/light mode on button click
-button.addEventListener("click", () => {
-  document.body.classList.toggle("dark-mode");
-  // Update localStorage with new value
-  try {
-    localStorage.setItem("darkMode", document.body.classList.contains("dark-mode") ? "dark" : "light");
-  } catch (error) {
-    // localStorage is not available or supported
-    console.error(error);
+toggleButton.addEventListener("click", function() {
+  if (document.body.classList.contains("dark-mode")) {
+    document.body.classList.remove("dark-mode");
+    toggleButton.classList.remove("fa-sun");  // Change to sun icon
+    toggleButton.classList.add("fa-moon");  // Remove moon icon
+  } else {
+    document.body.classList.add("dark-mode");
+    toggleButton.classList.remove("fa-moon");  // Remove moon icon
+    toggleButton.classList.add("fa-sun");  // Change to sun icon
   }
 });
