@@ -291,6 +291,39 @@ document.querySelectorAll('.card-number').forEach((element) => {
   }
 });
 
+// Add event listeners to the delete button
+const deleteButton = document.querySelector("#delete-button");
+deleteButton.addEventListener('dragover', deleteOver);
+deleteButton.addEventListener('dragenter', deleteEnter);
+deleteButton.addEventListener('dragleave', deleteLeave);
+deleteButton.addEventListener('drop', deleteDrop);
+
+// When a card is over the delete button
+function deleteOver(e) {
+  e.preventDefault();
+  deleteButton.style.backgroundColor = 'red'; // Change the color of the delete button to indicate it's active
+}
+
+// When a card enters the delete button area
+function deleteEnter(e) {
+  e.preventDefault();
+}
+
+// When a card leaves the delete button area
+function deleteLeave(e) {
+  deleteButton.style.backgroundColor = ''; // Reset the color of the delete button
+}
+
+// When a card is dropped on the delete button
+function deleteDrop(e) {
+  e.preventDefault();
+  if (draggedItem != null) {
+    draggedItem.remove();
+    draggedItem = null;
+  }
+  deleteButton.style.backgroundColor = ''; // Reset the color of the delete button
+}
+
 // Dark Mode
 document.addEventListener('DOMContentLoaded', (event) => {
     document.body.classList.add("dark-mode");
