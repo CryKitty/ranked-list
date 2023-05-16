@@ -284,21 +284,6 @@ function applyImageBackground(card) {
   }
 }
 
-function deleteCard() {
-  const card = this.parentNode;
-  const list = card.parentNode;
-  lastDeletedItem = { card, list };
-  list.removeChild(card);
-}
-
-function undoDelete() {
-  if (lastDeletedItem) {
-    const { card, list } = lastDeletedItem;
-    list.insertBefore(card, list.firstChild);
-    lastDeletedItem = null;
-  }
-}
-
 document.addEventListener('keydown', e => {
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
     undoDelete();
