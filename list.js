@@ -89,35 +89,24 @@ function createListElement() {
   return list;
 }
 
+// Add event listeners to Add a card buttons
+document.querySelectorAll('.add-card-button').forEach(button => {
+  button.addEventListener('click', addCard);
+});
+
 // Add event listener to Add a list button
 document.querySelector('#add-list-button').addEventListener('click', function() {
   const board = document.querySelector('#board');
   const newList = createListElement();
   board.appendChild(newList);
   newList.querySelector('.list-title').focus();
-
-  // Add event listeners to the new list
-  const newAddCardButton = newList.querySelector('.add-card-button');
-  newAddCardButton.addEventListener('click', addCard);
-
-  const newDeleteButton = newList.querySelector('.delete-button');
-  newDeleteButton.addEventListener('dragover', deleteOver);
-  newDeleteButton.addEventListener('dragenter', deleteEnter);
-  newDeleteButton.addEventListener('dragleave', deleteLeave);
-  newDeleteButton.addEventListener('drop', deleteDrop);
 });
 
-// Add event listeners to existing Add a card buttons and delete buttons
-window.addEventListener('DOMContentLoaded', (event) => {
-  document.querySelectorAll('.add-card-button').forEach(button => {
-    button.addEventListener('click', addCard);
-  });
-
-    const deleteButtons = document.querySelectorAll('.delete-button');
-  deleteButtons.forEach(deleteButton => {
-    deleteButton.addEventListener('dragover', deleteOver);
-    deleteButton.addEventListener('dragenter', deleteEnter);
-    deleteButton.addEventListener('dragleave', deleteLeave);
-    deleteButton.addEventListener('drop', deleteDrop);
-  });
+// Add event listeners to delete buttons
+const deleteButtons = document.querySelectorAll('.delete-button');
+deleteButtons.forEach(deleteButton => {
+  deleteButton.addEventListener('dragover', deleteOver);
+  deleteButton.addEventListener('dragenter', deleteEnter);
+  deleteButton.addEventListener('dragleave', deleteLeave);
+  deleteButton.addEventListener('drop', deleteDrop);
 });
