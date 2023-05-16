@@ -301,27 +301,29 @@ nav a {
 
 /* Dark Mode */
 #dark-mode-toggle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  border: none;
-  background: none;
-  color: inherit; /* Will inherit the color from the current theme */
-  font-size: 2em;
-  cursor: pointer;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    border: none;
+    background: none;
+    color: inherit;
+    font-size: 2em;
+    cursor: pointer;
+    padding: 14px;
+    border-radius: 50%;
 }
 
 body.dark-mode {
-  background-color: #121212;
-  color: #e0e0e0;
+    background-color: #121212;
+    color: #e0e0e0;
 }
 
 .dark-mode .list {
-  background-color: #1f1f1f;
+    background-color: #1f1f1f;
 }
 
 .dark-mode .list-title:focus {
-  border-bottom: 1px dashed #e0e0e0;
+    border-bottom: 1px dashed #e0e0e0;
 }
 
 .dark-mode .card {
