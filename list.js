@@ -1,6 +1,22 @@
 let draggedItem = null;
 let lastDeletedItem = null;
 
+function addCard() {
+  const list = this.parentNode.parentNode;
+  const cardContainer = list.querySelector('.card-container');
+  const newCard = createCardElement();
+  
+  newCard.addEventListener('dragstart', dragStart);
+  newCard.addEventListener('dragend', dragEnd);
+  
+  cardContainer.appendChild(newCard);
+  newCard.querySelector('.card-name').focus();
+  updateCardNumbers();
+  updateCardNumberColors();
+  updateCardNumberColors();
+  updateCardStyles();
+}
+
 document.querySelectorAll('.card, .card *').forEach(element => {
   element.addEventListener('dragstart', function(e) {
     e.stopPropagation();
@@ -149,22 +165,6 @@ function updateCardNumbers() {
     });
   });
   updateCardNumberColors();
-}
-
-function addCard() {
-  const list = this.parentNode.parentNode;
-  const cardContainer = list.querySelector('.card-container');
-  const newCard = createCardElement();
-  
-  newCard.addEventListener('dragstart', dragStart);
-  newCard.addEventListener('dragend', dragEnd);
-  
-  cardContainer.appendChild(newCard);
-  newCard.querySelector('.card-name').focus();
-  updateCardNumbers();
-  updateCardNumberColors();
-  updateCardNumberColors();
-  updateCardStyles();
 }
 
 function createCardElement() {
