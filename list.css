@@ -329,6 +329,11 @@ body.dark-mode {
   color: #e0e0e0;
 }
 
+.dark-mode .add-card-button::hover {
+  background-color: #4e4e4e;
+  color: #000;
+}
+
 /*
 .dark-mode .card-number {
   color: #e0e0e0;
