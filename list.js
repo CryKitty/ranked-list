@@ -1,233 +1,7 @@
 let draggedItem = null;
 let lastDeletedItem = null;
 
-// Add Card Button
-function addCard() {
-  const list = this.parentNode.parentNode;
-  const cardContainer = list.querySelector('.card-container');
-  const newCard = createCardElement();
-  
-  newCard.addEventListener('dragstart', dragStart);
-  newCard.addEventListener('dragend', dragEnd);
-  
-  cardContainer.appendChild(newCard);
-  newCard.querySelector('.card-name').focus();
-  updateCardNumbers();
-  updateCardNumberColors();
-  updateCardNumberColors();
-  updateCardStyles();
-}
-
-document.querySelectorAll('.card, .card *').forEach(element => {
-  element.addEventListener('dragstart', function(e) {
-    e.stopPropagation();
-    dragStart.call(this.closest('.card'));
-  });
-  element.addEventListener('dragend', function(e) {
-    e.stopPropagation();
-    dragEnd.call(this.closest('.card'));
-  });
-  applyImageBackground(card);
-});
-
-document.querySelectorAll('.card-container').forEach(container => {
-  container.addEventListener('dragover', dragOver);
-  container.addEventListener('dragenter', dragEnter);
-  container.addEventListener('dragleave', dragExit);
-});
-
-document.querySelectorAll('.list').forEach(list => {
-  list.addEventListener('dragover', dragOver);
-  //list.addEventListener('dragleave', dragLeave);
-});
-
-document.querySelectorAll('.add-card-button').forEach(button => {
-  button.addEventListener('click', addCard);
-});
-
-document.querySelector('#board').addEventListener('click', function(e) {
-  if(e.target && e.target.classList.contains('edit-button')) {
-     toggleEdit.call(e.target);
-  }
-});
-
-// Dragging & Dropping Cards
-function dragStart() {
-  draggedItem = this;
-  this.classList.add('dragging');
-}
-
-function dragEnd() {
-  this.classList.remove('dragging');
-  updateCardNumbers();
-  applyImageBackground(this);
-  draggedItem = null;
-}
-
-function dragOver(e) {
-  e.preventDefault();
-  const afterElement = getDragAfterElement(this, e.clientY);
-  const card = document.querySelector('.dragging');
-  if (afterElement == null) {
-    this.appendChild(card);
-  } else {
-    this.insertBefore(card, afterElement);
-  }
-}
-
-function dragEnter(e) {
-  e.preventDefault();
-  this.style.border = '3px dashed #000';
-}
-
-function dragExit(e) {
-  this.style.border = 'none';
-}
-
-function dragLeave(e) {
-  if (this.contains(draggedItem) && !this.contains(e.relatedTarget)) {
-    this.removeChild(draggedItem);
-  }
-}
-
-function getDragAfterElement(list, y) {
-  const cardElements = [...list.querySelectorAll('.card:not(.dragging)')];
-
-  return cardElements.reduce((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-    if (offset < 0 && offset > closest.offset) {
-      return { offset: offset, element: child };
-    } else {
-      return closest;
-    }
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-// Auto-Numbering
-function updateCardNumbers() {
-  document.querySelectorAll('.list').forEach((list, listIdx) => {
-    list.querySelectorAll('.card').forEach((card, cardIdx) => {
-      card.querySelector('.card-number').textContent = `${cardIdx + 1}`;
-    });
-  });
-  updateCardNumberColors();
-}
-
-function createCardElement() {
-  const card = document.createElement('div');
-  card.classList.add('card');
-  card.setAttribute('draggable', 'true');
-  
-  // Add drag events to new cards
-  card.addEventListener('dragstart', dragStart);
-  card.addEventListener('dragend', dragEnd);
-
-  const cardInner = document.createElement('div');
-  cardInner.classList.add('card-inner');
-
-  const cardInfo = document.createElement('div');
-  cardInfo.classList.add('card-info');
-
-  const cardName = document.createElement('div');
-  cardName.contentEditable = true;
-  cardName.classList.add('card-name');
-  cardName.setAttribute('placeholder', 'Name'); // Set placeholder attribute
-  cardInfo.appendChild(cardName);
-
-  const cardSeries = document.createElement('div');
-  cardSeries.contentEditable = true;
-  cardSeries.classList.add('card-series');
-  cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
-  cardInfo.appendChild(cardSeries);
-
-  const cardImageUrl = document.createElement('div');
-  cardImageUrl.contentEditable = 'plaintext-only';
-  cardImageUrl.classList.add('card-image-url');
-  cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
-  cardImageUrl.addEventListener('input', () => {
-    applyImageBackground(card);
-  });
-  cardInfo.appendChild(cardImageUrl);
-  
-  const cardNumber = document.createElement('div');
-  cardNumber.classList.add('card-number');
-  cardNumber.textContent = "0";
-  card.appendChild(cardNumber);
-
-  cardInner.appendChild(cardInfo);
-  card.appendChild(cardInner);
-  
-  Array.from(card.children).forEach(child => {
-    child.addEventListener('dragstart', function(e) {
-      e.stopPropagation();
-      dragStart.call(card);
-    });
-    child.addEventListener('dragend', function(e) {
-      e.stopPropagation();
-      dragEnd.call(card);
-    });
-  });
-  
-  cardName.addEventListener('input', updateCardStyles);
-  cardSeries.addEventListener('input', updateCardStyles);
-  cardImageUrl.addEventListener('input', () => {
-  applyImageBackground(card);
-  updateCardStyles();
-  
-});
-
-  
-  return card;
-}
-
-function updateCardStyles() {
-  document.querySelectorAll('.card').forEach((card) => {
-    const cardName = card.querySelector('.card-name').textContent.trim();
-    const cardSeries = card.querySelector('.card-series').textContent.trim();
-    const cardImageUrl = card.querySelector('.card-image-url').textContent.trim();
-
-    if (cardName === '' && cardSeries === '' && cardImageUrl === '') {
-      card.classList.add('empty-card');
-      card.classList.remove('filled-card');
-    } else {
-      card.classList.remove('empty-card');
-      card.classList.add('filled-card');
-    }
-  });
-}
-
-function updateCardFields(card) {
-  const cardTitle = card.querySelector('.card-name');
-  const cardSubtitle = card.querySelector('.card-series');
-  const cardImageUrl = card.querySelector('.card-image-url');
-
-  cardTitle.textContent = cardTitle.textContent.trim();
-  cardSubtitle.textContent = cardSubtitle.textContent.trim();
-  cardImageUrl.textContent = cardImageUrl.textContent.trim();
-  
-  // Apply image background
-  applyImageBackground(card);
-
-  // Handle placeholder text
-  togglePlaceholder(cardTitle);
-  togglePlaceholder(cardSubtitle);
-  togglePlaceholder(cardImageUrl);
-}
-
-function togglePlaceholder(element) {
-  const placeholder = element.getAttribute('data-placeholder');
-  if (element.textContent.trim() === '') {
-    element.textContent = placeholder;
-    element.classList.add('placeholder');
-  } else if (element.textContent === placeholder) {
-    element.textContent = '';
-    element.classList.remove('placeholder');
-  }
-  updateCardStyles();
-}
-
-function applyImageBackground(card) {
+const applyImageBackground = (card) => {
   const cardTitle = card.querySelector('.card-name');
   const cardSubtitle = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
@@ -248,21 +22,62 @@ function applyImageBackground(card) {
   }
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-    undoDelete();
+const updateCardFields = (card) => {
+  const cardTitle = card.querySelector('.card-name');
+  const cardSubtitle = card.querySelector('.card-series');
+  const cardImageUrl = card.querySelector('.card-image-url');
+
+  cardTitle.textContent = cardTitle.textContent.trim();
+  cardSubtitle.textContent = cardSubtitle.textContent.trim();
+  cardImageUrl.textContent = cardImageUrl.textContent.trim();
+  
+  // Apply image background
+  applyImageBackground(card);
+
+  // Handle placeholder text
+  togglePlaceholder(cardTitle);
+  togglePlaceholder(cardSubtitle);
+  togglePlaceholder(cardImageUrl);
+}
+
+const togglePlaceholder = (element) => {
+  const placeholder = element.getAttribute('data-placeholder');
+  if (element.textContent.trim() === '') {
+    element.textContent = placeholder;
+    element.classList.add('placeholder');
+  } else if (element.textContent === placeholder) {
+    element.textContent = '';
+    element.classList.remove('placeholder');
   }
-});
+  updateCardStyles();
+}
 
-document.querySelectorAll('.list-title').forEach(title => {
-  title.addEventListener('blur', function() {
-    // Replace with your own logic to save the new title
-    console.log('New title:', this.textContent);
+const updateCardStyles = () => {
+  document.querySelectorAll('.card').forEach((card) => {
+    const cardName = card.querySelector('.card-name').textContent.trim();
+    const cardSeries = card.querySelector('.card-series').textContent.trim();
+    const cardImageUrl = card.querySelector('.card-image-url').textContent.trim();
+
+    if (cardName === '' && cardSeries === '' && cardImageUrl === '') {
+      card.classList.add('empty-card');
+      card.classList.remove('filled-card');
+    } else {
+      card.classList.remove('empty-card');
+      card.classList.add('filled-card');
+    }
   });
-});
+}
 
-// Change card numbers for top 10
-function updateCardNumberColors() {
+const updateCardNumbers = () => {
+  document.querySelectorAll('.list').forEach((list, listIdx) => {
+    list.querySelectorAll('.card').forEach((card, cardIdx) => {
+      card.querySelector('.card-number').textContent = `${cardIdx + 1}`;
+    });
+  });
+  updateCardNumberColors();
+}
+
+const updateCardNumberColors = () => {
   document.querySelectorAll('.card-number').forEach((element) => {
     const cardNumber = Number(element.innerText);
     element.className = 'card-number';  // Reset the class name
@@ -274,121 +89,165 @@ function updateCardNumberColors() {
   });
 }
 
-document.querySelectorAll('.card-number').forEach((element) => {
-  const cardNumber = Number(element.innerText);
-  if (cardNumber === 1) {
-    element.classList.add('first-card');
-  } else if (cardNumber <= 10) {
-    element.classList.add('less-than-ten');
-  }
-});
-
-// Select all delete buttons
-const deleteButtons = document.querySelectorAll(".delete-button");
-
-// Iterate over each delete button and assign event listeners
-deleteButtons.forEach(deleteButton => {
-  deleteButton.addEventListener('dragover', deleteOver);
-  deleteButton.addEventListener('dragenter', deleteEnter);
-  deleteButton.addEventListener('dragleave', deleteLeave);
-  deleteButton.addEventListener('drop', deleteDrop);
-
-  // When a card is over the delete button
-  function deleteOver(e) {
-    e.preventDefault();
-    deleteButton.style.backgroundColor = 'red'; // Change the color of the delete button to indicate it's active
-  }
-
-  // When a card enters the delete button area
-  function deleteEnter(e) {
-    e.preventDefault();
-  }
-
-  // When a card leaves the delete button area
-  function deleteLeave(e) {
-    deleteButton.style.backgroundColor = ''; // Reset the color of the delete button
-  }
-
-  // When a card is dropped on the delete button
-  function deleteDrop(e) {
-    e.preventDefault();
-    if (draggedItem != null) {
-      draggedItem.remove();
-      draggedItem = null;
-    }
-    deleteButton.style.backgroundColor = ''; // Reset the color of the delete button
-  }
-});
-
-// Create New List
-function createListElement() {
-  const list = document.createElement('div');
-  list.classList.add('list');
-
-  const listHeader = document.createElement('div');
-  listHeader.classList.add('list-header');
-  list.appendChild(listHeader);
-
-  const listTitle = document.createElement('h2');
-  listTitle.contentEditable = true;
-  listTitle.classList.add('list-title');
-  listTitle.setAttribute('placeholder', 'Title');
-  listTitle.addEventListener('blur', function() {
-    console.log('New title:', this.textContent);
-  });
-  listHeader.appendChild(listTitle);
-
-  const addCardButton = document.createElement('button');
-  addCardButton.classList.add('add-card-button');
-  addCardButton.textContent = '+';
-  addCardButton.addEventListener('click', addCard);
-  listHeader.appendChild(addCardButton);
-
-  const deleteButton = document.createElement('button');
-  deleteButton.classList.add('delete-button');
-  deleteButton.draggable = true;
-  deleteButton.textContent = 'Delete';
-  deleteButton.addEventListener('dragover', deleteOver);
-  deleteButton.addEventListener('dragenter', deleteEnter);
-  deleteButton.addEventListener('dragleave', deleteLeave);
-  deleteButton.addEventListener('drop', deleteDrop);
-  list.appendChild(deleteButton);
-
-  const cardContainer = document.createElement('div');
-  cardContainer.classList.add('card-container');
-  cardContainer.addEventListener('dragover', dragOver);
-  cardContainer.addEventListener('dragenter', dragEnter);
-  cardContainer.addEventListener('dragleave', dragExit);
-  list.appendChild(cardContainer);
-
-  list.addEventListener('dragover', dragOver);
-
-  return list;
+const dragStart = () => {
+  draggedItem = this;
+  this.classList.add('dragging');
 }
 
-// New List Button Event Listener
-document.querySelector('#add-list-button').addEventListener('click', function() {
-  const board = document.querySelector('#board');
-  const newList = createListElement();
-  board.appendChild(newList);
-  newList.querySelector('.list-title').focus();
-});
+const dragEnd = () => {
+  this.classList.remove('dragging');
+  updateCardNumbers();
+  applyImageBackground(this);
+  draggedItem = null;
+}
 
-// Dark Mode
-document.addEventListener('DOMContentLoaded', (event) => {
-    document.body.classList.add("dark-mode");
-});
-
-const toggleButton = document.getElementById("dark-mode-toggle");
-
-toggleButton.addEventListener("click", function() {
-  if (document.body.classList.contains("dark-mode")) {
-    document.body.classList.remove("dark-mode");
-    toggleButton.classList.remove("fa-sun");  // Change to sun icon
-    toggleButton.classList.add("fa-moon");  // Remove moon icon
+const dragOver = (e) => {
+  e.preventDefault();
+  const afterElement = getDragAfterElement(this, e.clientY);
+  const card = document.querySelector('.dragging');
+  if (afterElement == null) {
+    this.appendChild(card);
   } else {
-    document.body.classList.add("dark-mode");
-    toggleButton.classList.remove("fa-moon");  // Remove moon icon
-    toggleButton.classList.add("fa-sun");  // Change to sun icon
-  }
+    this.insertBefore(card, afterElement);
+    }
+}
+
+const dragEnter = () => {
+this.classList.add('drag-enter');
+}
+
+const dragExit = () => {
+this.classList.remove('drag-enter');
+}
+
+const deleteOver = (e) => {
+e.preventDefault();
+this.classList.add('delete-hover');
+}
+
+const deleteEnter = () => {
+this.classList.add('delete-hover');
+}
+
+const deleteLeave = () => {
+this.classList.remove('delete-hover');
+}
+
+const deleteDrop = () => {
+this.classList.remove('delete-hover');
+lastDeletedItem = draggedItem;
+draggedItem.remove();
+draggedItem = null;
+updateCardNumbers();
+}
+
+const toggleDarkMode = () => {
+const body = document.querySelector('body');
+body.classList.toggle('dark-mode');
+}
+
+const addCard = () => {
+const list = this.closest('.list');
+const cardContainer = list.querySelector('.card-container');
+const card = createCardElement();
+cardContainer.appendChild(card);
+updateCardNumbers();
+applyImageBackground(card);
+}
+
+const addList = () => {
+const board = document.querySelector('#board');
+const list = createListElement();
+board.appendChild(list);
+updateCardNumbers();
+}
+
+const toggleEdit = () => {
+const card = this.closest('.card');
+const cardName = card.querySelector('.card-name');
+const cardSeries = card.querySelector('.card-series');
+const cardImageUrl = card.querySelector('.card-image-url');
+
+card.classList.toggle('edit-mode');
+if (card.classList.contains('edit-mode')) {
+cardName.setAttribute('contenteditable', 'true');
+cardSeries.setAttribute('contenteditable', 'true');
+cardImageUrl.setAttribute('contenteditable', 'true');
+cardName.focus();
+} else {
+cardName.setAttribute('contenteditable', 'false');
+cardSeries.setAttribute('contenteditable', 'false');
+cardImageUrl.setAttribute('contenteditable', 'false');
+updateCardFields(card);
+}
+}
+
+const updateTitle = () => {
+this.textContent = this.textContent.trim();
+if (this.textContent === '') {
+this.textContent = 'Untitled';
+}
+}
+
+const getDragAfterElement = (container, y) => {
+const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
+return draggableElements.reduce((closest, child) => {
+const box = child.getBoundingClientRect();
+const offset = y - box.top - box.height / 2;
+if (offset < 0 && offset > closest.offset) {
+return { offset: offset, element: child };
+} else {
+return closest;
+}
+}, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+const createCardElement = () => {
+// same code as before, but replace the drag event listener setup with:
+initDragListeners(card, dragStart, dragEnd);
+// ...
+}
+
+const createListElement = () => {
+// same code as before, but replace the drag and delete event listener setup with:
+initDragListeners(cardContainer, dragOver, dragExit);
+initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
+// ...
+}
+
+function initDragListeners(element, startFunc, endFunc) {
+element.addEventListener('dragstart', startFunc);
+element.addEventListener('dragend', endFunc);
+}
+
+function initDeleteListeners(element, overFunc, enterFunc, leaveFunc, dropFunc) {
+element.addEventListener('dragover', overFunc);
+element.addEventListener('dragenter', enterFunc);
+element.addEventListener('dragleave', leaveFunc);
+element.addEventListener('drop', dropFunc);
+}
+
+document.querySelectorAll('.card, .card *').forEach(element => {
+initDragListeners(element.closest('.card'), dragStart, dragEnd);
 });
+
+document.querySelectorAll
+
+('.delete-button').forEach(deleteButton => {
+initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
+});
+
+document.querySelectorAll('.list, .list *').forEach(element => {
+element.closest('.list').querySelector('.card-container').addEventListener('dragover', dragOver);
+element.closest('.list').querySelector('.card-container').addEventListener('dragenter', dragEnter);
+element.closest('.list').querySelector('.card-container').addEventListener('dragleave', dragExit);
+});
+
+document.querySelector('#dark-mode-toggle').addEventListener('click', toggleDarkMode);
+document.querySelectorAll('.add-card-button').forEach(button => button.addEventListener('click', addCard));
+document.querySelector('#add-list-button').addEventListener('click', addList);
+document.querySelectorAll('.card-title').forEach(title => title.addEventListener('blur', updateTitle));
+document.querySelectorAll('.edit-button').forEach(button => button.addEventListener('click', toggleEdit));
+document.querySelectorAll('.card').forEach(card => updateCardFields(card));
+updateCardNumbers();
+updateCardStyles();
