@@ -89,19 +89,19 @@ const updateCardNumberColors = () => {
   });
 }
 
-const dragStart = () => {
+const dragStart = function () {
   draggedItem = this;
   this.classList.add('dragging');
 }
 
-const dragEnd = () => {
+const dragEnd = function () {
   this.classList.remove('dragging');
   updateCardNumbers();
   applyImageBackground(this);
   draggedItem = null;
 }
 
-const dragOver = (e) => {
+const dragOver = function(e) {
   e.preventDefault();
   const afterElement = getDragAfterElement(this, e.clientY);
   const card = document.querySelector('.dragging');
@@ -109,84 +109,84 @@ const dragOver = (e) => {
     this.appendChild(card);
   } else {
     this.insertBefore(card, afterElement);
-    }
+  }
 }
 
-const dragEnter = () => {
-this.classList.add('drag-enter');
+const dragEnter = function() {
+  this.classList.add('drag-enter');
 }
 
-const dragExit = () => {
-this.classList.remove('drag-enter');
+const dragExit = function() {
+  this.classList.remove('drag-enter');
 }
 
-const deleteOver = (e) => {
-e.preventDefault();
-this.classList.add('delete-hover');
+const deleteOver = function(e) {
+  e.preventDefault();
+  this.classList.add('delete-hover');
 }
 
-const deleteEnter = () => {
-this.classList.add('delete-hover');
+const deleteEnter = function() {
+  this.classList.add('delete-hover');
 }
 
-const deleteLeave = () => {
-this.classList.remove('delete-hover');
+const deleteLeave = function() {
+  this.classList.remove('delete-hover');
 }
 
-const deleteDrop = () => {
-this.classList.remove('delete-hover');
-lastDeletedItem = draggedItem;
-draggedItem.remove();
-draggedItem = null;
-updateCardNumbers();
+const deleteDrop = function() {
+  this.classList.remove('delete-hover');
+  lastDeletedItem = draggedItem;
+  draggedItem.remove();
+  draggedItem = null;
+  updateCardNumbers();
 }
 
-const toggleDarkMode = () => {
-const body = document.querySelector('body');
-body.classList.toggle('dark-mode');
+const toggleDarkMode = function() {
+  const body = document.querySelector('body');
+  body.classList.toggle('dark-mode');
 }
 
-const addCard = () => {
-const list = this.closest('.list');
-const cardContainer = list.querySelector('.card-container');
-const card = createCardElement();
-cardContainer.appendChild(card);
-updateCardNumbers();
-applyImageBackground(card);
+const addCard = function() {
+  const list = this.closest('.list');
+  const cardContainer = list.querySelector('.card-container');
+  const card = createCardElement();
+  cardContainer.appendChild(card);
+  updateCardNumbers();
+  applyImageBackground(card);
 }
 
-const addList = () => {
-const board = document.querySelector('#board');
-const list = createListElement();
-board.appendChild(list);
-updateCardNumbers();
+const addList = function() {
+  const board = document.querySelector('#board');
+  const list = createListElement();
+  board.appendChild(list);
+  updateCardNumbers();
 }
 
-const toggleEdit = () => {
-const card = this.closest('.card');
-const cardName = card.querySelector('.card-name');
-const cardSeries = card.querySelector('.card-series');
-const cardImageUrl = card.querySelector('.card-image-url');
+const toggleEdit = function() {
+  const card = this.closest('.card');
+  const cardName = card.querySelector('.card-name');
+  const cardSeries = card.querySelector('.card-series');
+  const cardImageUrl = card.querySelector('.card-image-url');
 
-card.classList.toggle('edit-mode');
-if (card.classList.contains('edit-mode')) {
-cardName.setAttribute('contenteditable', 'true');
-cardSeries.setAttribute('contenteditable', 'true');
-cardImageUrl.setAttribute('contenteditable', 'true');
-cardName.focus();
-} else {
-cardName.setAttribute('contenteditable', 'false');
-cardSeries.setAttribute('contenteditable', 'false');
-cardImageUrl.setAttribute('contenteditable', 'false');
-updateCardFields(card);
-}
+  card.classList.toggle('edit-mode');
+  if (card.classList.contains('edit-mode')) {
+    cardName.setAttribute('contenteditable', 'true');
+    cardSeries.setAttribute('contenteditable', 'true');
+    cardImageUrl.setAttribute('contenteditable', 'true');
+    cardName.focus();
+  } else {
+    cardName.setAttribute('contenteditable', 'false');
+    cardSeries.setAttribute('contenteditable', 'false');
+    cardImageUrl.setAttribute('contenteditable', 'false');
+    updateCardFields(card);
+  }
 }
 
-const updateTitle = () => {
-this.textContent = this.textContent.trim();
-if (this.textContent === '') {
-this.textContent = 'Untitled';
-}
+const updateTitle = function() {
+  this.textContent = this.textContent.trim();
+  if (this.textContent === '') {
+    this.textContent = 'Untitled';
+  }
 }
 
 const getDragAfterElement = (container, y) => {
@@ -251,3 +251,4 @@ document.querySelectorAll('.edit-button').forEach(button => button.addEventListe
 document.querySelectorAll('.card').forEach(card => updateCardFields(card));
 updateCardNumbers();
 updateCardStyles();
+document.body.classList.add('dark-mode');
