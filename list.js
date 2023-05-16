@@ -52,22 +52,7 @@ document.querySelector('#board').addEventListener('click', function(e) {
 
 // Create New List
 function createListElement() {
-  const list = document.createElement('div');
-  list.classList.add('list');
-
-  const listHeader = document.createElement('div');
-  listHeader.classList.add('list-header');
-  list.appendChild(listHeader);
-
-  const listTitle = document.createElement('h2');
-  listTitle.contentEditable = true;
-  listTitle.classList.add('list-title');
-  listTitle.setAttribute('placeholder', 'Title'); // Set placeholder attribute
-  listTitle.addEventListener('blur', function() {
-    // Replace with your own logic to save the new title
-    console.log('New title:', this.textContent);
-  });
-  listHeader.appendChild(listTitle);
+  // (The rest of your function...)
 
   const addCardButton = document.createElement('button');
   addCardButton.classList.add('add-card-button');
@@ -93,6 +78,11 @@ function createListElement() {
   list.appendChild(cardContainer);
 
   list.addEventListener('dragover', dragOver);
+
+  list.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('dragstart', dragStart);
+    card.addEventListener('dragend', dragEnd);
+  });
 
   return list;
 }
