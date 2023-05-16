@@ -34,6 +34,47 @@ document.querySelector('#board').addEventListener('click', function(e) {
   }
 });
 
+// Create New List
+function createListElement() {
+  const list = document.createElement('div');
+  list.classList.add('list');
+
+  const listTitle = document.createElement('div');
+  listTitle.contentEditable = true;
+  listTitle.classList.add('list-title');
+  listTitle.setAttribute('placeholder', 'Title'); // Set placeholder attribute
+  listTitle.addEventListener('blur', function() {
+    // Replace with your own logic to save the new title
+    console.log('New title:', this.textContent);
+  });
+  list.appendChild(listTitle);
+
+  const cardContainer = document.createElement('div');
+  cardContainer.classList.add('card-container');
+  cardContainer.addEventListener('dragover', dragOver);
+  cardContainer.addEventListener('dragenter', dragEnter);
+  cardContainer.addEventListener('dragleave', dragExit);
+  list.appendChild(cardContainer);
+
+  const addCardButton = document.createElement('button');
+  addCardButton.classList.add('add-card-button');
+  addCardButton.textContent = 'Add Card';
+  addCardButton.addEventListener('click', addCard);
+  list.appendChild(addCardButton);
+
+  list.addEventListener('dragover', dragOver);
+
+  return list;
+}
+
+document.querySelector('#add-list-button').addEventListener('click', function() {
+  const board = document.querySelector('#board');
+  const newList = createListElement();
+  board.appendChild(newList);
+  newList.querySelector('.list-title').focus();
+});
+
+// Dragging & Dropping Cards
 function dragStart() {
   draggedItem = this;
   this.classList.add('dragging');
@@ -86,6 +127,7 @@ function getDragAfterElement(list, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
+// Auto-Numbering
 function updateCardNumbers() {
   document.querySelectorAll('.list').forEach((list, listIdx) => {
     list.querySelectorAll('.card').forEach((card, cardIdx) => {
@@ -95,6 +137,7 @@ function updateCardNumbers() {
   updateCardNumberColors();
 }
 
+// Crate New Card
 function addCard() {
   const list = this.parentNode.parentNode;
   const cardContainer = list.querySelector('.card-container');
