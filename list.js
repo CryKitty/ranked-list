@@ -1,6 +1,7 @@
 let draggedItem = null;
 let lastDeletedItem = null;
 
+// Add Card Button
 function addCard() {
   const list = this.parentNode.parentNode;
   const cardContainer = list.querySelector('.card-container');
