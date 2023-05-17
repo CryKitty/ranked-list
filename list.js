@@ -45,8 +45,9 @@ const togglePlaceholder = (element) => {
   if (element.textContent.trim() === '') {
     element.textContent = placeholder;
     element.classList.add('placeholder');
-  } else if (element.textContent === placeholder) {
-    element.textContent = '';
+  } else if (element.textContent.trim() === placeholder) {
+    element.classList.add('placeholder');
+  } else {
     element.classList.remove('placeholder');
   }
   updateCardStyles();
@@ -169,15 +170,16 @@ const toggleEdit = function() {
   const cardImageUrl = card.querySelector('.card-image-url');
 
   card.classList.toggle('edit-mode');
-  if (card.classList.contains('edit-mode')) {
-    cardName.setAttribute('contenteditable', 'true');
-    cardSeries.setAttribute('contenteditable', 'true');
-    cardImageUrl.setAttribute('contenteditable', 'true');
+  
+  const isEditMode = card.classList.contains('edit-mode');
+  
+  cardName.setAttribute('contenteditable', isEditMode);
+  cardSeries.setAttribute('contenteditable', isEditMode);
+  cardImageUrl.setAttribute('contenteditable', isEditMode);
+  
+  if (isEditMode) {
     cardName.focus();
   } else {
-    cardName.setAttribute('contenteditable', 'false');
-    cardSeries.setAttribute('contenteditable', 'false');
-    cardImageUrl.setAttribute('contenteditable', 'false');
     updateCardFields(card);
   }
 }
@@ -190,16 +192,16 @@ const updateTitle = function() {
 }
 
 const getDragAfterElement = (container, y) => {
-const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
-return draggableElements.reduce((closest, child) => {
-const box = child.getBoundingClientRect();
-const offset = y - box.top - box.height / 2;
-if (offset < 0 && offset > closest.offset) {
-return { offset: offset, element: child };
-} else {
-return closest;
-}
-}, { offset: Number.NEGATIVE_INFINITY }).element;
+  const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 function createCardElement() {
@@ -254,6 +256,12 @@ function createCardElement() {
     applyImageBackground(card);
     updateCardStyles();
   });
+  
+  const editButton = document.createElement('button');
+  editButton.classList.add('edit-button');
+  editButton.textContent = 'Edit';
+  editButton.addEventListener('click', toggleEdit);
+  card.appendChild(editButton);
   
   return card;
 }
