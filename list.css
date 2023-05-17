@@ -321,25 +321,9 @@
   transition: transform 0.5s;
 }
 
-/* Styles for each button in the group */
-/*
-.btn-group button {
-  border: none;
-  background: none;
-  color: white;
-  font-size: 1.5em;
-  cursor: pointer;
+.card.overlay-visible .card-inner::after {
+  visibility: visible;
 }
-*/
-
-/* Change card numbers for top 10 */
-/*
-.card-number.less-than-ten {
-  color: #fff;
-  -webkit-text-stroke: 0px #e0e0e0;
-  text-stroke: 0px #e0e0e0;
-}
-*/
 
 .card-number.first-card {
   color: gold;
