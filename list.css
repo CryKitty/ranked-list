@@ -123,7 +123,7 @@
 }
 
 .edit-button {
-  padding: 10px 100px;
+  padding: 10px;
   border-radius: 5px;
   font-size: 1em;
   font-weight: bold;
@@ -131,8 +131,10 @@
   background-color: #2c2c2c;
   border-radius: 5px;
   border-width: 0px;
-  margin-left: 8px;
+  margin-left: 210px;
+  transform: translateY(-95px);
   cursor: pointer;
+  z-index: 10;
 }
 
 .list-header {
@@ -289,6 +291,7 @@
   background-color: transparent;
   color: #fff;
   z-index: 10;
+  transform: translateY(35px);
 }
 
 .card-container {
