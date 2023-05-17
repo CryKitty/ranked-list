@@ -159,7 +159,8 @@ const addCard = function() {
 const addList = function() {
   const board = document.querySelector('#board');
   const list = createListElement();
-  board.appendChild(list);
+  const addButton = document.querySelector('#add-list-button');
+  board.insertBefore(list, addButton);
   updateCardNumbers();
 }
 
