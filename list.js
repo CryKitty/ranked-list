@@ -183,6 +183,9 @@ const toggleEdit = function() {
   } else {
     updateCardFields(card);
   }
+
+  // Toggle the overlay visibility
+  card.classList.toggle('overlay-visible', !isEditMode);
 }
 
 const updateTitle = function() {
@@ -344,6 +347,15 @@ document.querySelectorAll('.list, .list *').forEach(element => {
 element.closest('.list').querySelector('.card-container').addEventListener('dragover', dragOver);
 element.closest('.list').querySelector('.card-container').addEventListener('dragenter', dragEnter);
 element.closest('.list').querySelector('.card-container').addEventListener('dragleave', dragExit);
+});
+
+document.addEventListener('click', (e) => {
+  const targetCard = e.target.closest('.card');
+  document.querySelectorAll('.card.edit-mode').forEach((card) => {
+    if (card !== targetCard) {
+      toggleEdit.call(card.querySelector('.edit-button'));
+    }
+  });
 });
 
 document.querySelector('#dark-mode-toggle').addEventListener('click', toggleDarkMode);
