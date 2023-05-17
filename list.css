@@ -146,8 +146,10 @@
 
 .list-header {
   display: flex;
-  justify-content: space-evenly;
+  justify-content: space-between;
   align-items: center;
+  margin-left: 8px;
+  margin-right: 8px;
 }
 
 .list-title {
