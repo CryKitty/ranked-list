@@ -17,8 +17,8 @@ const applyImageBackground = (card) => {
   } else {
     card.style.backgroundImage = 'none';
     cardImageUrl.style.display = 'block';
-    cardTitle.style.color = 'black';
-    cardSubtitle.style.color = 'black';
+    cardTitle.style.color = 'white';
+    cardSubtitle.style.color = 'white';
   }
 }
 
