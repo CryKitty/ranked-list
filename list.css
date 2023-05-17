@@ -69,7 +69,7 @@
   background-color: transparent;
   border-radius: 10px;
   padding-bottom: 5px;
-  padding-top: 35px;
+  padding-top: 30px;
   padding-left: 10px;
   padding-right: 30px;
   width: 79%;
@@ -132,7 +132,7 @@
   border-radius: 5px;
   border-width: 0px;
   margin-left: 210px;
-  transform: translateY(-105px);
+  transform: translateY(5px);
   cursor: pointer;
   z-index: 10;
 }
@@ -205,7 +205,7 @@
 .card-series::before,
 .card-image-url::before {
   content: attr(data-placeholder);
-  color: #000;
+  color: #fff;
   display: inline-block;
   pointer-events: auto;
   position: absolute; /* Changed from inline-block to absolute */
@@ -269,7 +269,7 @@
 .card.editing .card-series,
 .card.editing .card-image-url {
   pointer-events: auto;
-  color: #000;
+  color: #fff;
   cursor: text;
   padding: 2px;
   min-height: 20px;
