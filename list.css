@@ -108,6 +108,10 @@
   color: #000;
 }
 
+.edit-button {
+  display: none;
+}
+
 .list-header {
   display: flex;
   justify-content: space-evenly;
@@ -165,8 +169,8 @@
 }
 
 /* Placeholder text styles */
-.card-title::before,
-.card-subtitle::before,
+.card-name::before,
+.card-series::before,
 .card-image-url::before {
   content: attr(data-placeholder);
   color: #000;
@@ -177,14 +181,14 @@
 }
 
 /* Hide placeholder text when the element has content */
-.card-title:empty::before,
-.card-subtitle:empty::before,
+.card-name:empty::before,
+.card-series:empty::before,
 .card-image-url:empty::before {
   display: block; /* Changed from none to block */
 }
 
-.card-title:not(:empty)::before,
-.card-subtitle:not(:empty)::before,
+.card-name:not(:empty)::before,
+.card-series:not(:empty)::before,
 .card-image-url:not(:empty)::before {
   display: none;
 }
@@ -229,8 +233,8 @@
 }
 */
 
-.card.editing .card-title,
-.card.editing .card-subtitle,
+.card.editing .card-name,
+.card.editing .card-series,
 .card.editing .card-image-url {
   pointer-events: auto;
   color: #000;
@@ -283,6 +287,7 @@
 }
 
 /* Styles for each button in the group */
+/*
 .btn-group button {
   border: none;
   background: none;
@@ -290,6 +295,7 @@
   font-size: 1.5em;
   cursor: pointer;
 }
+*/
 
 /* Change card numbers for top 10 */
 /*
@@ -361,23 +367,23 @@ body.dark-mode {
 
 .dark-mode .card-name,
 .dark-mode .card-series {
-  color: #e0e0e0;
+  color: #fff;
 }
 
-.dark-mode .card-title::before,
-.dark-mode .card-subtitle::before,
+.dark-mode .card-name::before,
+.dark-mode .card-series::before,
 .dark-mode .card-image-url::before {
   color: #e0e0e0;
 }
 
-.dark-mode .card.editing .card-title,
-.dark-mode .card.editing .card-subtitle,
+.dark-mode .card.editing .card-name,
+.dark-mode .card.editing .card-series,
 .dark-mode .card.editing .card-image-url {
   color: #e0e0e0;
 }
 
-.dark-mode .card.editing .card-title:focus,
-.dark-mode .card.editing .card-subtitle:focus,
+.dark-mode .card.editing .card-name:focus,
+.dark-mode .card.editing .card-series:focus,
 .dark-mode .card.editing .card-image-url:focus {
   border: 1px solid #e0e0e0;
 }
@@ -395,7 +401,7 @@ body.dark-mode {
   border: 1px solid #000;
   background-color: transparent;
   background-image: none;
-  color: black;
+  color: #000;
 }
 
 .empty-card::after {
@@ -404,6 +410,6 @@ body.dark-mode {
 
 .filled-card {
   border: none;
-  color: white;
+  color: #fff;
   overflow: hidden;
 }
