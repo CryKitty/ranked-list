@@ -85,6 +85,13 @@
   z-index: 1;
 }
 
+/* For screens smaller than 600px */
+@media (max-width: 600px) {
+  .card {
+    padding-top: 5vw;
+  }
+}
+
 .card::before {
   content: "";
   display: block;
@@ -389,13 +396,13 @@ body.dark-mode {
 .dark-mode .card-name::before,
 .dark-mode .card-series::before,
 .dark-mode .card-image-url::before {
-  color: #e0e0e0;
+  color: #fff;
 }
 
 .dark-mode .card.editing .card-name,
 .dark-mode .card.editing .card-series,
 .dark-mode .card.editing .card-image-url {
-  color: #e0e0e0;
+  color: #fff;
 }
 
 .dark-mode .card.editing .card-name:focus,
@@ -412,12 +419,16 @@ body.dark-mode {
   border: 2px dashed #e0e0e0;
 }
 
+.dark-mode .edit-button {
+  color: #fff;
+}
+
 /* Empty Card Styling */
 .empty-card {
   border: 1px solid #000;
   background-color: transparent;
   background-image: none;
-  color: #000;
+  color: #fff;
 }
 
 .empty-card::after {
