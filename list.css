@@ -21,6 +21,20 @@
   position: relative;
 }
 
+/* For screens smaller than 600px */
+
+@media (max-width: 600px) {
+
+  .list {
+
+    width: 90vw;  /* Set width to 90% of the viewport width */
+
+    margin-right: 5vw; /* Adjust margin to center the list */
+
+  }
+
+}
+
 #add-list-button {
   padding: 10px 100px;
   border-radius: 5px;
