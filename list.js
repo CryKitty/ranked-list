@@ -257,12 +257,23 @@ function createCardElement() {
     updateCardStyles();
   });
   
+  // Edit Button
+
   const editButton = document.createElement('button');
+
   editButton.classList.add('edit-button');
-  editButton.textContent = 'Edit';
+
+  const editIcon = document.createElement('i');
+
+  editIcon.classList.add('fas', 'fa-pencil-alt'); // 'fas' is the main Font Awesome class, 'fa-pencil-alt' is the specific icon class
+
+  editButton.appendChild(editIcon);
+
   editButton.addEventListener('click', toggleEdit);
+
   card.appendChild(editButton);
-  
+
+
   return card;
 }
 
