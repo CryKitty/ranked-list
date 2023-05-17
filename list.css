@@ -22,7 +22,7 @@
 }
 
 /* For screens smaller than 600px */
-@media screen only and (max-width: 600px) {
+@media (max-width: 600px) {
   .list {
     width: 90vw;
   }
