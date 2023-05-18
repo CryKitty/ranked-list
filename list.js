@@ -342,6 +342,18 @@ document.addEventListener('click', (e) => {
   });
 });
 
+// Resize Name & Series Fields to Fit Content
+function resizeInput() {
+    this.style.width = this.value.length + "ch";
+}
+
+const allInputs = document.querySelectorAll('.card-name, .card-series');
+allInputs.forEach(input => {
+    input.addEventListener('input', resizeInput);
+    resizeInput.call(input);  // immediately call the function to resize existing inputs
+});
+// End Resize
+
 document.querySelector('#dark-mode-toggle').addEventListener('click', toggleDarkMode);
 document.querySelectorAll('.add-card-button').forEach(button => button.addEventListener('click', addCard));
 document.querySelector('#add-list-button').addEventListener('click', addList);
