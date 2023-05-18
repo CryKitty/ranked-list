@@ -343,14 +343,22 @@ document.addEventListener('click', (e) => {
 });
 
 // Resize Name & Series Fields to Fit Content
-function resizeInput() {
-    this.style.width = this.value.length + "ch";
+function adjustInputWidth(input) {
+    const tmp = document.createElement('span');
+    tmp.innerHTML = input.value.replace(/ /g, '&nbsp;');
+    tmp.style.cssText = 'font-family:' + input.style.fontFamily + ';font-size:' + input.style.fontSize;
+    tmp.style.visibility = 'hidden';
+    document.body.appendChild(tmp);
+    input.style.width = tmp.getBoundingClientRect().width + 'px';
+    document.body.removeChild(tmp);
 }
 
-const allInputs = document.querySelectorAll('.card-name, .card-series');
+const allInputs = document.querySelectorAll('.card-name, .card-series, .card-image-url');
 allInputs.forEach(input => {
-    input.addEventListener('input', resizeInput);
-    resizeInput.call(input);  // immediately call the function to resize existing inputs
+    input.addEventListener('input', function() {
+        adjustInputWidth(this);
+    });
+    adjustInputWidth(input);  // Call the function to resize existing inputs
 });
 // End Resize
 
