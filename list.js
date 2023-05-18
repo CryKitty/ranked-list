@@ -34,25 +34,6 @@ const updateCardFields = (card) => {
   // Apply image background
   applyImageBackground(card);
 
-  // Handle placeholder text
-  togglePlaceholder(cardTitle);
-  togglePlaceholder(cardSubtitle);
-  togglePlaceholder(cardImageUrl);
-}
-
-const togglePlaceholder = (element) => {
-  const placeholder = element.getAttribute('data-placeholder');
-  if (element.textContent.trim() === '') {
-    element.textContent = placeholder;
-    element.classList.add('placeholder');
-  } else if (element.textContent.trim() === placeholder) {
-    element.classList.add('placeholder');
-  } else {
-    element.classList.remove('placeholder');
-  }
-  updateCardStyles();
-}
-
 const updateCardStyles = () => {
   document.querySelectorAll('.card').forEach((card) => {
     const cardName = card.querySelector('.card-name').textContent.trim();
@@ -223,19 +204,19 @@ function createCardElement() {
   const cardInfo = document.createElement('div');
   cardInfo.classList.add('card-info');
 
-  const cardName = document.createElement('div');
+  const cardName = document.createElement('input');
   cardName.classList.add('card-name');
-  cardName.setAttribute('contenteditable', 'true'); // Set contenteditable to true
-  cardName.setAttribute('placeholder', 'Name'); // Set placeholder attribute
+  cardName.setAttribute('contenteditable', 'true');
+  cardName.setAttribute('placeholder', 'Name');
   cardInfo.appendChild(cardName);
 
-  const cardSeries = document.createElement('div');
+  const cardSeries = document.createElement('input');
   cardSeries.classList.add('card-series');
   cardSeries.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
   cardInfo.appendChild(cardSeries);
 
-  const cardImageUrl = document.createElement('div');
+  const cardImageUrl = document.createElement('input');
   cardImageUrl.classList.add('card-image-url');
   cardImageUrl.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
