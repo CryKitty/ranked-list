@@ -11,14 +11,16 @@ const applyImageBackground = (card) => {
     card.style.backgroundImage = `url("${imageUrl}")`;
     card.style.backgroundSize = 'cover';
     card.style.backgroundPosition = 'center';
-    cardImageUrl.style.display = 'none';
     cardTitle.style.color = 'white';
     cardSubtitle.style.color = 'white';
+    if (!card.classList.contains('edit-mode')) {
+      cardImageUrl.style.display = 'none';
+    }
   } else {
     card.style.backgroundImage = 'none';
     cardImageUrl.style.display = 'block';
-    cardTitle.style.color = 'white';
-    cardSubtitle.style.color = 'white';
+    cardTitle.style.color = 'black';
+    cardSubtitle.style.color = 'black';
   }
 }
 
@@ -161,6 +163,7 @@ const toggleEdit = function() {
   cardImageUrl.readOnly = !isEditMode;
   
   if (isEditMode) {
+    cardImageUrl.style.display = 'block';
     cardName.focus();
   } else {
     updateCardFields(card);
@@ -204,18 +207,24 @@ function createCardElement() {
 
   const cardInfo = document.createElement('div');
   cardInfo.classList.add('card-info');
+  
+  const cardNameSeriesContainer = document.createElement('div');
+  cardNameSeriesContainer.style.display = 'flex';
+  cardNameSeriesContainer.style.justifyContent = 'space-between';
 
   const cardName = document.createElement('input');
   cardName.classList.add('card-name');
   cardName.setAttribute('placeholder', 'Name');
   cardName.readOnly = true;
-  cardInfo.appendChild(cardName);
+  cardNameSeriesContainer.appendChild(cardName);
 
   const cardSeries = document.createElement('input');
   cardSeries.classList.add('card-series');
   cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
   cardSeries.readOnly = true;
-  cardInfo.appendChild(cardSeries);
+  cardNameSeriesContainer.appendChild(cardSeries);
+
+  cardInfo.appendChild(cardNameSeriesContainer);
 
   const cardImageUrl = document.createElement('input');
   cardImageUrl.classList.add('card-image-url');
