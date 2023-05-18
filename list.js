@@ -232,9 +232,9 @@ function createCardElement() {
   
   initDragListeners(card, dragStart, dragEnd);
   
-  cardName.addEventListener('input', updateCardStyles);
-  cardSeries.addEventListener('input', updateCardStyles);
-  cardImageUrl.addEventListener('input', () => {
+  cardName.addEventListener('change', updateCardStyles);
+  cardSeries.addEventListener('change', updateCardStyles);
+  cardImageUrl.addEventListener('change', () => {
     applyImageBackground(card);
     updateCardStyles();
   });
