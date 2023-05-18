@@ -5,7 +5,7 @@ const applyImageBackground = (card) => {
   const cardTitle = card.querySelector('.card-name');
   const cardSubtitle = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
-  const imageUrl = cardImageUrl.textContent.trim();
+  const imageUrl = cardImageUrl.value.trim();
 
   if (imageUrl !== '') {
     card.style.backgroundImage = `url("${imageUrl}")`;
@@ -27,9 +27,9 @@ const updateCardFields = (card) => {
   const cardSubtitle = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
 
-  cardTitle.textContent = cardTitle.textContent.trim();
-  cardSubtitle.textContent = cardSubtitle.textContent.trim();
-  cardImageUrl.textContent = cardImageUrl.textContent.trim();
+  cardTitle.value = cardTitle.value.trim();
+  cardSubtitle.value = cardSubtitle.value.trim();
+  cardImageUrl.value = cardImageUrl.value.trim();
   
   // Apply image background
   applyImageBackground(card);
@@ -37,9 +37,9 @@ const updateCardFields = (card) => {
 
 const updateCardStyles = () => {
   document.querySelectorAll('.card').forEach((card) => {
-    const cardName = card.querySelector('.card-name').textContent.trim();
-    const cardSeries = card.querySelector('.card-series').textContent.trim();
-    const cardImageUrl = card.querySelector('.card-image-url').textContent.trim();
+    const cardName = card.querySelector('.card-name').value.trim();
+    const cardSeries = card.querySelector('.card-series').value.trim();
+    const cardImageUrl = card.querySelector('.card-image-url').value.trim();
 
     if (cardName === '' && cardSeries === '' && cardImageUrl === '') {
       card.classList.add('empty-card');
@@ -54,7 +54,7 @@ const updateCardStyles = () => {
 const updateCardNumbers = () => {
   document.querySelectorAll('.list').forEach((list, listIdx) => {
     list.querySelectorAll('.card').forEach((card, cardIdx) => {
-      card.querySelector('.card-number').textContent = `${cardIdx + 1}`;
+      card.querySelector('.card-number').value = `${cardIdx + 1}`;
     });
   });
   updateCardNumberColors();
@@ -171,9 +171,9 @@ const toggleEdit = function() {
 }
 
 const updateTitle = function() {
-  this.textContent = this.textContent.trim();
-  if (this.textContent === '') {
-    this.textContent = 'Untitled';
+  this.value = this.value.trim();
+  if (this.value === '') {
+    this.value = 'Untitled';
   }
 }
 
@@ -225,7 +225,7 @@ function createCardElement() {
   
   const cardNumber = document.createElement('div');
   cardNumber.classList.add('card-number');
-  cardNumber.textContent = "0";
+  cardNumber.value = "0";
   card.appendChild(cardNumber);
 
   cardInner.appendChild(cardInfo);
@@ -265,20 +265,20 @@ function createListElement() {
   listTitle.classList.add('list-title');
   listTitle.setAttribute('placeholder', 'Title');
   listTitle.addEventListener('blur', function() {
-    console.log('New title:', this.textContent);
+    console.log('New title:', this.value);
   });
   listHeader.appendChild(listTitle);
 
   const addCardButton = document.createElement('button');
   addCardButton.classList.add('add-card-button');
-  addCardButton.textContent = '+';
+  addCardButton.value = '+';
   addCardButton.addEventListener('click', addCard);
   listHeader.appendChild(addCardButton);
 
   const deleteButton = document.createElement('button');
   deleteButton.classList.add('delete-button');
   deleteButton.draggable = true;
-  deleteButton.textContent = 'Delete';
+  deleteButton.value = 'Delete';
   initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
   list.appendChild(deleteButton);
 
