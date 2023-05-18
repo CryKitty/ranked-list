@@ -206,19 +206,16 @@ function createCardElement() {
 
   const cardName = document.createElement('input');
   cardName.classList.add('card-name');
-  cardName.setAttribute('contenteditable', 'true');
   cardName.setAttribute('placeholder', 'Name');
   cardInfo.appendChild(cardName);
 
   const cardSeries = document.createElement('input');
   cardSeries.classList.add('card-series');
-  cardSeries.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
   cardInfo.appendChild(cardSeries);
 
   const cardImageUrl = document.createElement('input');
   cardImageUrl.classList.add('card-image-url');
-  cardImageUrl.setAttribute('contenteditable', 'true'); // Set contenteditable to true
   cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
   cardImageUrl.addEventListener('input', () => {
     applyImageBackground(card);
@@ -243,21 +240,13 @@ function createCardElement() {
   });
   
   // Edit Button
-
   const editButton = document.createElement('button');
-
   editButton.classList.add('edit-button');
-
   const editIcon = document.createElement('i');
-
-  editIcon.classList.add('fas', 'fa-pencil-alt'); // 'fas' is the main Font Awesome class, 'fa-pencil-alt' is the specific icon class
-
+  editIcon.classList.add('fas', 'fa-pencil-alt');
   editButton.appendChild(editIcon);
-
   editButton.addEventListener('click', toggleEdit);
-
   card.appendChild(editButton);
-
 
   return card;
 }
