@@ -156,9 +156,9 @@ const toggleEdit = function() {
   
   const isEditMode = card.classList.contains('edit-mode');
   
-  cardName.setAttribute('contenteditable', isEditMode);
-  cardSeries.setAttribute('contenteditable', isEditMode);
-  cardImageUrl.setAttribute('contenteditable', isEditMode);
+  cardName.readOnly = !isEditMode;
+  cardSeries.readOnly = !isEditMode;
+  cardImageUrl.readOnly = !isEditMode;
   
   if (isEditMode) {
     cardName.focus();
@@ -208,16 +208,19 @@ function createCardElement() {
   const cardName = document.createElement('input');
   cardName.classList.add('card-name');
   cardName.setAttribute('placeholder', 'Name');
+  cardName.readOnly = true;
   cardInfo.appendChild(cardName);
 
   const cardSeries = document.createElement('input');
   cardSeries.classList.add('card-series');
   cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
+  cardSeries.readOnly = true;
   cardInfo.appendChild(cardSeries);
 
   const cardImageUrl = document.createElement('input');
   cardImageUrl.classList.add('card-image-url');
   cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
+  cardImageUrl.readOnly = true;
   cardImageUrl.addEventListener('input', () => {
     applyImageBackground(card);
   });
@@ -226,7 +229,7 @@ function createCardElement() {
   const cardNumber = document.createElement('div');
   cardNumber.classList.add('card-number');
   cardNumber.value = "0";
-  card.appendChild(cardNumber);
+  cardInner.appendChild(cardNumber);
 
   cardInner.appendChild(cardInfo);
   card.appendChild(cardInner);
@@ -242,12 +245,13 @@ function createCardElement() {
   
   // Edit Button
   const editButton = document.createElement('button');
-  editButton.classList.add('edit-button');
+    editButton.classList.add('edit-button');
+  
   const editIcon = document.createElement('i');
-  editIcon.classList.add('fas', 'fa-pencil-alt');
-  editButton.appendChild(editIcon);
-  editButton.addEventListener('click', toggleEdit);
-  card.appendChild(editButton);
+    editIcon.classList.add('fas', 'fa-pencil-alt');
+    editButton.appendChild(editIcon);
+    editButton.addEventListener('click', toggleEdit);
+    card.appendChild(editButton);
 
   return card;
 }
@@ -261,12 +265,12 @@ function createListElement() {
   list.appendChild(listHeader);
 
   const listTitle = document.createElement('h2');
-  listTitle.contentEditable = true;
-  listTitle.classList.add('list-title');
-  listTitle.setAttribute('placeholder', 'Title');
-  listTitle.addEventListener('blur', function() {
-    console.log('New title:', this.value);
-  });
+    listTitle.contentEditable = true;
+    listTitle.classList.add('list-title');
+    listTitle.setAttribute('placeholder', 'Title');
+    listTitle.addEventListener('blur', function() {
+      console.log('New title:', this.value);
+    });
   listHeader.appendChild(listTitle);
 
   const addCardButton = document.createElement('button');
