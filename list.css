@@ -209,6 +209,10 @@
   width: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
 
 /* Make the URL field initially invisible */
