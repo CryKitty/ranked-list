@@ -344,21 +344,29 @@ document.addEventListener('click', (e) => {
 
 // Resize Name & Series Fields to Fit Content
 function adjustInputWidth(input) {
-    const tmp = document.createElement('span');
-    tmp.innerHTML = input.value.replace(/ /g, '&nbsp;');
-    tmp.style.cssText = 'font-family:' + input.style.fontFamily + ';font-size:' + input.style.fontSize;
-    tmp.style.visibility = 'hidden';
-    document.body.appendChild(tmp);
-    input.style.width = tmp.getBoundingClientRect().width + 'px';
-    document.body.removeChild(tmp);
+  const style = window.getComputedStyle(input);
+  const boxSizing = style.boxSizing;
+  const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  const border = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  const tmp = document.createElement('span');
+  tmp.innerHTML = input.value.replace(/ /g, '&nbsp;');
+  tmp.style.cssText = 'font-family:' + style.fontFamily + ';font-size:' + style.fontSize;
+  tmp.style.visibility = 'hidden';
+  document.body.appendChild(tmp);
+  let width = tmp.getBoundingClientRect().width;
+  document.body.removeChild(tmp);
+  if (boxSizing === 'border-box') {
+    width += padding + border;
+  }
+  input.style.width = width + 'px';
 }
 
 const allInputs = document.querySelectorAll('.card-name, .card-series, .card-image-url');
 allInputs.forEach(input => {
-    input.addEventListener('input', function() {
-        adjustInputWidth(this);
-    });
-    adjustInputWidth(input);  // Call the function to resize existing inputs
+  input.addEventListener('input', function() {
+    adjustInputWidth(this);
+  });
+  adjustInputWidth(input);  // Call the function to resize existing inputs
 });
 // End Resize
 
