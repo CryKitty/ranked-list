@@ -29,9 +29,9 @@ const updateCardFields = (card) => {
   const cardSubtitle = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
 
-  cardTitle.value = cardTitle.value.trim();
-  cardSubtitle.value = cardSubtitle.value.trim();
-  cardImageUrl.value = cardImageUrl.value.trim();
+    cardTitle.value = cardTitle.value.trim();
+    cardSubtitle.value = cardSubtitle.value.trim();
+    cardImageUrl.value = cardImageUrl.value.trim();
   
   // Apply image background
   applyImageBackground(card);
@@ -128,7 +128,7 @@ const deleteDrop = function() {
 
 const toggleDarkMode = function() {
   const body = document.querySelector('body');
-  body.classList.toggle('dark-mode');
+    body.classList.toggle('dark-mode');
 }
 
 const addCard = function() {
@@ -154,13 +154,13 @@ const toggleEdit = function() {
   const cardSeries = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
 
-  card.classList.toggle('edit-mode');
+    card.classList.toggle('edit-mode');
   
   const isEditMode = card.classList.contains('edit-mode');
   
-  cardName.readOnly = !isEditMode;
-  cardSeries.readOnly = !isEditMode;
-  cardImageUrl.readOnly = !isEditMode;
+    cardName.readOnly = !isEditMode;
+    cardSeries.readOnly = !isEditMode;
+    cardImageUrl.readOnly = !isEditMode;
   
   if (isEditMode) {
     cardImageUrl.style.display = 'block';
@@ -195,51 +195,49 @@ const getDragAfterElement = (container, y) => {
 
 function createCardElement() {
   const card = document.createElement('div');
-  card.classList.add('card');
-  card.setAttribute('draggable', 'true');
+    card.classList.add('card');
+    card.setAttribute('draggable', 'true');
 
-  // Add drag events to new cards
-  card.addEventListener('dragstart', dragStart);
-  card.addEventListener('dragend', dragEnd);
+    // Add drag events to new cards
+    card.addEventListener('dragstart', dragStart);
+    card.addEventListener('dragend', dragEnd);
 
   const cardInner = document.createElement('div');
-  cardInner.classList.add('card-inner');
+    cardInner.classList.add('card-inner');
 
   // Here we create new div to contain name and series
   const cardInfoBottom = document.createElement('div');
-  cardInfoBottom.classList.add('card-info-bottom');
-  cardInfoBottom.style.display = 'flex';
-  cardInfoBottom.style.flexDirection = 'column';
+    cardInfoBottom.classList.add('card-info-bottom');
+    cardInfoBottom.style.display = 'flex';
+    cardInfoBottom.style.flexDirection = 'column';
 
   const cardName = document.createElement('input');
-  cardName.classList.add('card-name');
-  cardName.setAttribute('placeholder', 'Name');
-  cardName.readOnly = true;
-  cardInfoBottom.appendChild(cardName);  // Note the change here
+    cardName.classList.add('card-name');
+    cardName.setAttribute('placeholder', 'Name');
+    cardName.readOnly = true;
+    cardInfoBottom.appendChild(cardName);
 
   const cardSeries = document.createElement('input');
-  cardSeries.classList.add('card-series');
-  cardSeries.setAttribute('placeholder', 'Series');
-  cardSeries.readOnly = true;
-  cardInfoBottom.appendChild(cardSeries);  // And here
-
-  cardInner.appendChild(cardInfoBottom);  // Finally, we add our new div to the card
+    cardSeries.classList.add('card-series');
+    cardSeries.setAttribute('placeholder', 'Series');
+    cardSeries.readOnly = true;
+    cardInfoBottom.appendChild(cardSeries);
+    cardInner.appendChild(cardInfoBottom);
 
   const cardImageUrl = document.createElement('input');
-  cardImageUrl.classList.add('card-image-url');
-  cardImageUrl.setAttribute('placeholder', 'Image URL');
-  cardImageUrl.readOnly = true;
-  cardImageUrl.addEventListener('input', () => {
-    applyImageBackground(card);
-  });
-  cardInner.appendChild(cardImageUrl);  // cardImageUrl is now appended directly to cardInner
+    cardImageUrl.classList.add('card-image-url');
+    cardImageUrl.setAttribute('placeholder', 'Image URL');
+    cardImageUrl.readOnly = true;
+    cardImageUrl.addEventListener('input', () => {
+      applyImageBackground(card);
+    });
+    cardInner.appendChild(cardImageUrl);  // cardImageUrl is now appended directly to cardInner
   
   const cardNumber = document.createElement('div');
-  cardNumber.classList.add('card-number');
-  cardNumber.innerText = "0"; // Modified line
-  cardInner.appendChild(cardNumber);
-
-  card.appendChild(cardInner);
+    cardNumber.classList.add('card-number');
+    cardNumber.innerText = "0";
+    cardInner.appendChild(cardNumber);
+    card.appendChild(cardInner);
   
   initDragListeners(card, dragStart, dragEnd);
   
@@ -265,11 +263,11 @@ function createCardElement() {
 
 function createListElement() {
   const list = document.createElement('div');
-  list.classList.add('list');
+    list.classList.add('list');
 
   const listHeader = document.createElement('div');
-  listHeader.classList.add('list-header');
-  list.appendChild(listHeader);
+    listHeader.classList.add('list-header');
+    list.appendChild(listHeader);
 
   const listTitle = document.createElement('h2');
     listTitle.contentEditable = true;
@@ -281,24 +279,23 @@ function createListElement() {
   listHeader.appendChild(listTitle);
 
   const addCardButton = document.createElement('button');
-  addCardButton.classList.add('add-card-button');
-  addCardButton.value = '+';
-  addCardButton.addEventListener('click', addCard);
-  listHeader.appendChild(addCardButton);
+    addCardButton.classList.add('add-card-button');
+    addCardButton.innerText = '+';
+    addCardButton.addEventListener('click', addCard);
+    listHeader.appendChild(addCardButton);
 
   const deleteButton = document.createElement('button');
-  deleteButton.classList.add('delete-button');
-  deleteButton.draggable = true;
-  deleteButton.value = 'Delete';
-  initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
-  list.appendChild(deleteButton);
+    deleteButton.classList.add('delete-button');
+    deleteButton.draggable = true;
+    deleteButton.innerText = 'Delete';
+    initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
+    list.appendChild(deleteButton);
 
   const cardContainer = document.createElement('div');
-  cardContainer.classList.add('card-container');
-  initDragListeners(cardContainer, dragOver, dragExit);
-  list.appendChild(cardContainer);
-
-  list.addEventListener('dragover', dragOver);
+    cardContainer.classList.add('card-container');
+    initDragListeners(cardContainer, dragOver, dragExit);
+    list.appendChild(cardContainer);
+    list.addEventListener('dragover', dragOver);
 
   return list;
 }
@@ -339,34 +336,6 @@ document.addEventListener('click', (e) => {
     }
   });
 });
-
-// Resize Name & Series Fields to Fit Content
-function adjustInputWidth(input) {
-  const style = window.getComputedStyle(input);
-  const boxSizing = style.boxSizing;
-  const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-  const border = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-  const tmp = document.createElement('span');
-  tmp.innerHTML = input.value.replace(/ /g, '&nbsp;');
-  tmp.style.cssText = 'font-family:' + style.fontFamily + ';font-size:' + style.fontSize;
-  tmp.style.visibility = 'hidden';
-  document.body.appendChild(tmp);
-  let width = tmp.getBoundingClientRect().width;
-  document.body.removeChild(tmp);
-  if (boxSizing === 'border-box') {
-    width += padding + border;
-  }
-  input.style.width = width + 'px';
-}
-
-const allInputs = document.querySelectorAll('.card-name, .card-series, .card-image-url');
-allInputs.forEach(input => {
-  input.addEventListener('input', function() {
-    adjustInputWidth(this);
-  });
-  adjustInputWidth(input);  // Call the function to resize existing inputs
-});
-// End Resize
 
 document.querySelector('#dark-mode-toggle').addEventListener('click', toggleDarkMode);
 document.querySelectorAll('.add-card-button').forEach(button => button.addEventListener('click', addCard));
