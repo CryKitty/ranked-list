@@ -215,20 +215,6 @@
   box-shadow: none;
 }
 
-/* Make the URL field initially invisible */
-/*
-.card-image-url {
-  opacity: 0; 
-}
-*/
-
-/* Make the URL field visible when it is in focus */
-/*
-.card-image-url:focus {
-  opacity: 1; 
-}
-*/
-
 /* Overlay */
 /* .card.filled-card::after { */
 .card.overlay-visible:after {
@@ -246,12 +232,6 @@
 
 .card.over {
   border: 2px dashed #333;
-}
-
-.card-name,
-.card-series {
-  width: auto;
-  margin-right: 10px;
 }
 
 .card.editing .card-name,
