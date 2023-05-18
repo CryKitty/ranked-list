@@ -105,6 +105,10 @@
   left: 0;
   right: 0;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
 }
 
 .add-card-button {
@@ -170,7 +174,7 @@
 }
 
 .card-content {
-  position: relative; /* Change from absolute to relative */
+  position: relative;
   padding: 20px;
   z-index: 2;
   color: #fff;
@@ -182,6 +186,11 @@
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+}
+
+.card-info-bottom {
+    display: flex;
+    flex-direction: column; /* This will stack name and series on top of each other */
 }
 
 .card-content > * {
