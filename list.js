@@ -33,6 +33,7 @@ const updateCardFields = (card) => {
   
   // Apply image background
   applyImageBackground(card);
+}
 
 const updateCardStyles = () => {
   document.querySelectorAll('.card').forEach((card) => {
