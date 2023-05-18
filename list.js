@@ -56,7 +56,7 @@ const updateCardStyles = () => {
 const updateCardNumbers = () => {
   document.querySelectorAll('.list').forEach((list, listIdx) => {
     list.querySelectorAll('.card').forEach((card, cardIdx) => {
-      card.querySelector('.card-number').value = `${cardIdx + 1}`;
+      card.querySelector('.card-number').innerText = `${cardIdx + 1}`; // Modified line
     });
   });
   updateCardNumberColors();
@@ -236,7 +236,7 @@ function createCardElement() {
   
   const cardNumber = document.createElement('div');
   cardNumber.classList.add('card-number');
-  cardNumber.value = "0";
+  cardNumber.innerText = "0"; // Modified line
   cardInner.appendChild(cardNumber);
 
   card.appendChild(cardInner);
