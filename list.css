@@ -248,6 +248,12 @@
   border: 2px dashed #333;
 }
 
+.card-name,
+.card-series {
+  width: auto;
+  margin-right: 10px;
+}
+
 .card.editing .card-name,
 .card.editing .card-series,
 .card.editing .card-image-url {
@@ -259,8 +265,8 @@
   background-color: transparent;
 }
 
-.card.editing .card-title:focus,
-.card.editing .card-subtitle:focus,
+.card.editing .card-name:focus,
+.card.editing .card-series:focus,
 .card.editing .card-image-url:focus {
   outline: none;
   border: 1px solid #fff;
@@ -268,8 +274,8 @@
   width: fit-content;
 }
 
-.card.editing .card-title::before,
-.card.editing .card-subtitle::before,
+.card.editing .card-name::before,
+.card.editing .card-series::before,
 .card.editing .card-image-url::before {
   display: none;
 }
