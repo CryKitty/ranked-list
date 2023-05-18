@@ -216,13 +216,18 @@
 }
 
 /* Make the URL field initially invisible */
+/*
 .card-image-url {
   opacity: 0; 
 }
+*/
+
 /* Make the URL field visible when it is in focus */
+/*
 .card-image-url:focus {
   opacity: 1; 
 }
+*/
 
 /* Overlay */
 /* .card.filled-card::after { */
