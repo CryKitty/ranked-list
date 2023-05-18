@@ -202,31 +202,6 @@
   color: #fff;
 }
 
-/* Placeholder text styles */
-.card-name::before,
-.card-series::before,
-.card-image-url::before {
-  content: attr(data-placeholder);
-  color: #fff;
-  display: inline-block;
-  pointer-events: auto;
-  position: absolute; /* Changed from inline-block to absolute */
-  cursor: text;
-}
-
-/* Hide placeholder text when the element has content */
-.card-name:empty::before,
-.card-series:empty::before,
-.card-image-url:empty::before {
-  display: block; /* Changed from none to block */
-}
-
-.card-name:not(:empty)::before,
-.card-series:not(:empty)::before,
-.card-image-url:not(:empty)::before {
-  display: none;
-}
-
 .card-name,
 .card-series,
 .card-image-url {
@@ -236,12 +211,13 @@
   word-wrap: break-word;
 }
 
+/* Make the URL field initially invisible */
 .card-image-url {
-  opacity: 0; /* Make the URL field initially invisible */
+  opacity: 0; 
 }
-
+/* Make the URL field visible when it is in focus */
 .card-image-url:focus {
-  opacity: 1; /* Make the URL field fully visible when it receives focus */
+  opacity: 1; 
 }
 
 /* Overlay */
@@ -263,12 +239,6 @@
   border: 2px dashed #333;
 }
 
-/*
-.card.editing .edit-button {
-  display: none;
-}
-*/
-
 .card.editing .card-name,
 .card.editing .card-series,
 .card.editing .card-image-url {
@@ -284,7 +254,7 @@
 .card.editing .card-subtitle:focus,
 .card.editing .card-image-url:focus {
   outline: none;
-  border: 1px solid #fff; /* Add a border */
+  border: 1px solid #fff;
   border-radius: 10px;
   width: fit-content;
 }
@@ -371,12 +341,6 @@ body.dark-mode {
   background-color: #4e4e4e;
   color: #000;
 }
-
-/*
-.dark-mode .card-number {
-  color: #e0e0e0;
-}
-*/
 
 .dark-mode .card-content {
   color: #e0e0e0;
