@@ -163,9 +163,9 @@
 
 .card-number {
   position: absolute;
-  right: 10px;
+  right: -15px;
   top: 35%;
-  transform: translateY(-30%);
+  transform: translateY(-105%);
   font-size: 4em;
   opacity: 0.8;
   z-index: 2;
@@ -261,6 +261,7 @@
   border: 1px solid #fff;
   border-radius: 10px;
   width: fit-content;
+  color: #fff;
 }
 
 .card.editing .card-name::before,
