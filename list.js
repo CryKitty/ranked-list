@@ -205,42 +205,40 @@ function createCardElement() {
   const cardInner = document.createElement('div');
   cardInner.classList.add('card-inner');
 
-  const cardInfo = document.createElement('div');
-  cardInfo.classList.add('card-info');
-  
-  const cardNameSeriesContainer = document.createElement('div');
-  cardNameSeriesContainer.style.display = 'flex';
-  cardNameSeriesContainer.style.justifyContent = 'space-between';
+  // Here we create new div to contain name and series
+  const cardInfoBottom = document.createElement('div');
+  cardInfoBottom.classList.add('card-info-bottom');
+  cardInfoBottom.style.display = 'flex';
+  cardInfoBottom.style.flexDirection = 'column';
 
   const cardName = document.createElement('input');
   cardName.classList.add('card-name');
   cardName.setAttribute('placeholder', 'Name');
   cardName.readOnly = true;
-  cardNameSeriesContainer.appendChild(cardName);
+  cardInfoBottom.appendChild(cardName);  // Note the change here
 
   const cardSeries = document.createElement('input');
   cardSeries.classList.add('card-series');
-  cardSeries.setAttribute('placeholder', 'Series'); // Set placeholder attribute
+  cardSeries.setAttribute('placeholder', 'Series');
   cardSeries.readOnly = true;
-  cardNameSeriesContainer.appendChild(cardSeries);
+  cardInfoBottom.appendChild(cardSeries);  // And here
 
-  cardInfo.appendChild(cardNameSeriesContainer);
+  cardInner.appendChild(cardInfoBottom);  // Finally, we add our new div to the card
 
   const cardImageUrl = document.createElement('input');
   cardImageUrl.classList.add('card-image-url');
-  cardImageUrl.setAttribute('placeholder', 'Image URL'); // Set placeholder attribute
+  cardImageUrl.setAttribute('placeholder', 'Image URL');
   cardImageUrl.readOnly = true;
   cardImageUrl.addEventListener('input', () => {
     applyImageBackground(card);
   });
-  cardInfo.appendChild(cardImageUrl);
+  cardInner.appendChild(cardImageUrl);  // cardImageUrl is now appended directly to cardInner
   
   const cardNumber = document.createElement('div');
   cardNumber.classList.add('card-number');
   cardNumber.value = "0";
   cardInner.appendChild(cardNumber);
 
-  cardInner.appendChild(cardInfo);
   card.appendChild(cardInner);
   
   initDragListeners(card, dragStart, dragEnd);
