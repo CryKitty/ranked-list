@@ -246,7 +246,7 @@
 
 /* Overlay */
 /* .card.filled-card::after { */
-.card.overlay-visible .card::after {
+.card.overlay-visible::after {
   visibility: visible;
   content: "";
   position: absolute;
