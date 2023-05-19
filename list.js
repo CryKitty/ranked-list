@@ -254,49 +254,49 @@ function createCardElement() {
     card.appendChild(editButton);
 
   // Delete Button
+  const deleteButton = document.createElement('button');
   const deleteIcon = document.createElement('i');
-    deleteIcon.classList.add('fas', 'fa-trash');
-    deleteButton.appendChild(deleteIcon);
-    deleteButton.classList.add('delete-button', 'hide'); // hide the button by default
-    deleteButton.addEventListener('click', function() {
-      lastDeletedItem = card;
-      card.remove();
-      updateCardNumbers();
+  deleteIcon.classList.add('fas', 'fa-trash');
+  deleteButton.appendChild(deleteIcon);
+  deleteButton.classList.add('delete-button', 'hide'); // hide the button by default
+  deleteButton.addEventListener('click', function() {
+    lastDeletedItem = card;
+    card.remove();
+    updateCardNumbers();
   });
 
-  card.appendChild(deleteButton);
   cardInner.insertBefore(deleteButton, cardNumber);
   
   return card;
 }
-
+  
 function createListElement() {
   const list = document.createElement('div');
-    list.classList.add('list');
+  list.classList.add('list');
 
   const listHeader = document.createElement('div');
-    listHeader.classList.add('list-header');
-    list.appendChild(listHeader);
+  listHeader.classList.add('list-header');
+  list.appendChild(listHeader);
 
   const listTitle = document.createElement('h2');
-    listTitle.contentEditable = true;
-    listTitle.classList.add('list-title');
-    listTitle.setAttribute('placeholder', 'Title');
-    listTitle.addEventListener('blur', function() {
-      console.log('New title:', this.value);
-    });
+  listTitle.contentEditable = true;
+  listTitle.classList.add('list-title');
+  listTitle.setAttribute('placeholder', 'Title');
+  listTitle.addEventListener('blur', function() {
+    console.log('New title:', this.textContent);
+  });
   listHeader.appendChild(listTitle);
 
   const addCardButton = document.createElement('button');
-    addCardButton.classList.add('add-card-button');
-    addCardButton.innerText = '+';
-    addCardButton.addEventListener('click', addCard);
-    listHeader.appendChild(addCardButton);
+  addCardButton.classList.add('add-card-button');
+  addCardButton.innerText = '+';
+  addCardButton.addEventListener('click', addCard);
+  listHeader.appendChild(addCardButton);
 
   const cardContainer = document.createElement('div');
-    cardContainer.classList.add('card-container');
-    list.appendChild(cardContainer);
-    list.addEventListener('dragover', dragOver);
+  cardContainer.classList.add('card-container');
+  list.appendChild(cardContainer);
+  list.addEventListener('dragover', dragOver);
 
   return list;
 }
