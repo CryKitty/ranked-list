@@ -140,6 +140,11 @@ const addCard = function() {
   applyImageBackground(card);
   
   // Make the card in edit-mode by default
+  
+  const cardName = card.querySelector('.card-name');
+  const cardSeries = card.querySelector('.card-series');
+  const cardImageUrl = card.querySelector('.card-image-url');
+  
   card.classList.add('edit-mode');
   cardName.readOnly = false;
   cardSeries.readOnly = false;
@@ -301,8 +306,6 @@ function createListElement() {
 
   const cardContainer = document.createElement('div');
     cardContainer.classList.add('card-container');
-    card.addEventListener('dragstart', dragStart);
-    card.addEventListener('dragend', dragEnd);
     list.appendChild(cardContainer);
     list.addEventListener('dragover', dragOver);
 
