@@ -141,6 +141,8 @@ const addCard = function() {
   
   // Make the card in edit-mode by default
   
+  card.querySelector('.edit-button').click();
+  
   const cardName = card.querySelector('.card-name');
   const cardSeries = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
@@ -173,11 +175,12 @@ const toggleEdit = function() {
     cardName.readOnly = !isEditMode;
     cardSeries.readOnly = !isEditMode;
     cardImageUrl.readOnly = !isEditMode;
-  
+    const deleteButton = card.querySelector('.delete-button');
+
   if (isEditMode) {
-    cardImageUrl.style.display = 'block';
-    cardName.focus();
+    deleteButton.classList.remove('hide'); // show the button in edit mode
   } else {
+    deleteButton.classList.add('hide'); // hide the button in non-edit mode
     updateCardFields(card);
   }
 
@@ -271,6 +274,18 @@ function createCardElement() {
     editButton.addEventListener('click', toggleEdit);
     card.appendChild(editButton);
 
+  // Delete Button
+  const deleteButton = document.createElement('button');
+    deleteButton.innerText = 'Delete';
+    deleteButton.classList.add('delete-button', 'hide'); // hide the button by default
+    deleteButton.addEventListener('click', function() {
+      lastDeletedItem = card;
+      card.remove();
+      updateCardNumbers();
+  });
+
+  card.appendChild(deleteButton);
+  
   return card;
 }
 
