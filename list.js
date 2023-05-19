@@ -275,8 +275,9 @@ function createCardElement() {
     card.appendChild(editButton);
 
   // Delete Button
-  const deleteButton = document.createElement('button');
-    deleteButton.innerText = 'Delete';
+  const deleteIcon = document.createElement('i');
+    deleteIcon.classList.add('fas', 'fa-trash');
+    deleteButton.appendChild(deleteIcon);
     deleteButton.classList.add('delete-button', 'hide'); // hide the button by default
     deleteButton.addEventListener('click', function() {
       lastDeletedItem = card;
@@ -285,6 +286,7 @@ function createCardElement() {
   });
 
   card.appendChild(deleteButton);
+  cardInner.insertBefore(deleteButton, cardNumber);
   
   return card;
 }
