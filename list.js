@@ -105,27 +105,6 @@ const dragExit = function() {
   this.classList.remove('drag-enter');
 }
 
-const deleteOver = function(e) {
-  e.preventDefault();
-  this.classList.add('delete-hover');
-}
-
-const deleteEnter = function() {
-  this.classList.add('delete-hover');
-}
-
-const deleteLeave = function() {
-  this.classList.remove('delete-hover');
-}
-
-const deleteDrop = function() {
-  this.classList.remove('delete-hover');
-  lastDeletedItem = draggedItem;
-  draggedItem.remove();
-  draggedItem = null;
-  updateCardNumbers();
-}
-
 const toggleDarkMode = function() {
   const body = document.querySelector('body');
     body.classList.toggle('dark-mode');
@@ -314,13 +293,6 @@ function createListElement() {
     addCardButton.addEventListener('click', addCard);
     listHeader.appendChild(addCardButton);
 
-  const deleteButton = document.createElement('button');
-    deleteButton.classList.add('delete-button');
-    deleteButton.draggable = true;
-    deleteButton.innerText = 'Delete';
-    initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
-    list.appendChild(deleteButton);
-
   const cardContainer = document.createElement('div');
     cardContainer.classList.add('card-container');
     list.appendChild(cardContainer);
@@ -334,22 +306,11 @@ function initDragListeners(element, startFunc, endFunc) {
   element.addEventListener('dragend', endFunc);
 }
 
-function initDeleteListeners(element, overFunc, enterFunc, leaveFunc, dropFunc) {
-  element.addEventListener('dragover', overFunc);
-  element.addEventListener('dragenter', enterFunc);
-  element.addEventListener('dragleave', leaveFunc);
-  element.addEventListener('drop', dropFunc);
-}
-
 document.querySelectorAll('.card, .card *').forEach(element => {
   initDragListeners(element.closest('.card'), dragStart, dragEnd);
 });
 
 document.querySelectorAll
-
-('.delete-button').forEach(deleteButton => {
-  initDeleteListeners(deleteButton, deleteOver, deleteEnter, deleteLeave, deleteDrop);
-});
 
 document.querySelectorAll('.list, .list *').forEach(element => {
 element.closest('.list').querySelector('.card-container').addEventListener('dragover', dragOver);
