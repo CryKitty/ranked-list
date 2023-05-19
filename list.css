@@ -400,3 +400,7 @@ body.dark-mode {
   color: #fff;
   overflow: hidden;
 }
+
+.hide {
+  display: none;
+}
