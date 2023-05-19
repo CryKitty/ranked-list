@@ -139,7 +139,12 @@ const addCard = function() {
   updateCardNumbers();
   applyImageBackground(card);
   
-  toggleEdit.call(card.querySelector('.edit-button'));
+  // Make the card in edit-mode by default
+  card.classList.add('edit-mode');
+  cardName.readOnly = false;
+  cardSeries.readOnly = false;
+  cardImageUrl.readOnly = false;
+  cardImageUrl.style.display = 'block';
 }
 
 const addList = function() {
@@ -241,8 +246,9 @@ function createCardElement() {
     cardInner.appendChild(cardNumber);
     card.appendChild(cardInner);
   
-  initDragListeners(card, dragStart, dragEnd);
-  
+  card.addEventListener('dragstart', dragStart);
+  card.addEventListener('dragend', dragEnd);
+
   cardName.addEventListener('change', updateCardStyles);
   cardSeries.addEventListener('change', updateCardStyles);
   cardImageUrl.addEventListener('change', () => {
@@ -295,13 +301,10 @@ function createListElement() {
 
   const cardContainer = document.createElement('div');
     cardContainer.classList.add('card-container');
-    initDragListeners(cardContainer, dragOver, dragExit);
+    card.addEventListener('dragstart', dragStart);
+    card.addEventListener('dragend', dragEnd);
     list.appendChild(cardContainer);
     list.addEventListener('dragover', dragOver);
-  
-    cardContainer.addEventListener('dragover', dragOver);
-    cardContainer.addEventListener('dragenter', dragEnter);
-    cardContainer.addEventListener('dragleave', dragExit);
 
   return list;
 }
