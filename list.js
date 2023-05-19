@@ -138,6 +138,8 @@ const addCard = function() {
   cardContainer.appendChild(card);
   updateCardNumbers();
   applyImageBackground(card);
+  
+  toggleEdit.call(card.querySelector('.edit-button'));
 }
 
 const addList = function() {
@@ -296,6 +298,10 @@ function createListElement() {
     initDragListeners(cardContainer, dragOver, dragExit);
     list.appendChild(cardContainer);
     list.addEventListener('dragover', dragOver);
+  
+    cardContainer.addEventListener('dragover', dragOver);
+    cardContainer.addEventListener('dragenter', dragEnter);
+    cardContainer.addEventListener('dragleave', dragExit);
 
   return list;
 }
