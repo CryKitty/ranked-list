@@ -210,9 +210,6 @@ function createCardElement() {
     cardNumber.innerText = "0";
     cardInner.appendChild(cardNumber);
     card.appendChild(cardInner);
-  
-  card.addEventListener('dragstart', dragStart);
-  card.addEventListener('dragend', dragEnd);
 
   cardName.addEventListener('change', updateCardStyles);
   cardSeries.addEventListener('change', updateCardStyles);
@@ -278,7 +275,6 @@ function createListElement() {
   const cardContainer = document.createElement('div');
   cardContainer.classList.add('card-container');
   list.appendChild(cardContainer);
-  list.addEventListener('dragover', dragOver);
 
   return list;
 }
