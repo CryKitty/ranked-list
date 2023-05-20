@@ -148,8 +148,8 @@
 /* For screens smaller than 600px */
 @media (max-width: 600px) {
   .edit-button {
-    top: 10px;
-    right: 10px;
+    top: 28vh;
+    right: 1vw;
   }
 }
 
