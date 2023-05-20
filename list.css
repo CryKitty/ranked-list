@@ -412,3 +412,7 @@ body.dark-mode {
 .hide {
   display: none;
 }
+
+.sortable-ghost {
+  opacity: 0.4;
+}
