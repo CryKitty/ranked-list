@@ -18,7 +18,9 @@ const applyImageBackground = (card) => {
     }
   } else {
     card.style.backgroundImage = 'none';
-    cardImageUrl.style.display = 'block';
+    if (!card.classList.contains('edit-mode')) { // Add this check here as well
+      cardImageUrl.style.display = 'block';
+    }
     cardTitle.style.color = 'white';
     cardSubtitle.style.color = 'white';
   }
@@ -74,35 +76,15 @@ const updateCardNumberColors = () => {
   });
 }
 
-const dragStart = function () {
-  draggedItem = this;
-  this.classList.add('dragging');
-}
-
-const dragEnd = function () {
-  this.classList.remove('dragging');
-  updateCardNumbers();
-  applyImageBackground(this);
-  draggedItem = null;
-}
-
-const dragOver = function(e) {
-  e.preventDefault();
-  const afterElement = getDragAfterElement(this, e.clientY);
-  const card = document.querySelector('.dragging');
-  if (afterElement == null) {
-    this.appendChild(card);
-  } else {
-    this.insertBefore(card, afterElement);
-  }
-}
-
-const dragEnter = function() {
-  this.classList.add('drag-enter');
-}
-
-const dragExit = function() {
-  this.classList.remove('drag-enter');
+function addSortable(list) {
+  new Sortable(list, {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    onEnd: function () {
+      updateCardNumbers();
+      document.querySelectorAll('.card').forEach(card => applyImageBackground(card));
+    },
+  });
 }
 
 const toggleDarkMode = function() {
@@ -192,10 +174,6 @@ function createCardElement() {
     card.classList.add('card');
     card.setAttribute('draggable', 'true');
 
-    // Add drag events to new cards
-    card.addEventListener('dragstart', dragStart);
-    card.addEventListener('dragend', dragEnd);
-
   const cardInner = document.createElement('div');
     cardInner.classList.add('card-inner');
 
@@ -257,6 +235,10 @@ function createCardElement() {
   const deleteButton = document.createElement('button');
   const deleteIcon = document.createElement('i');
   deleteIcon.classList.add('fas', 'fa-trash');
+  deleteIcon.style.color = 'white'; // White color
+  deleteButton.style.backgroundColor = 'transparent'; // No background
+  deleteButton.style.border = 'none'; // No border
+  deleteButton.style.boxShadow = 'none'; // No shadow
   deleteButton.appendChild(deleteIcon);
   deleteButton.classList.add('delete-button', 'hide'); // hide the button by default
   deleteButton.addEventListener('click', function() {
@@ -301,23 +283,6 @@ function createListElement() {
   return list;
 }
 
-function initDragListeners(element, startFunc, endFunc) {
-  element.addEventListener('dragstart', startFunc);
-  element.addEventListener('dragend', endFunc);
-}
-
-document.querySelectorAll('.card, .card *').forEach(element => {
-  initDragListeners(element.closest('.card'), dragStart, dragEnd);
-});
-
-document.querySelectorAll
-
-document.querySelectorAll('.list, .list *').forEach(element => {
-element.closest('.list').querySelector('.card-container').addEventListener('dragover', dragOver);
-element.closest('.list').querySelector('.card-container').addEventListener('dragenter', dragEnter);
-element.closest('.list').querySelector('.card-container').addEventListener('dragleave', dragExit);
-});
-
 document.addEventListener('click', (e) => {
   const targetCard = e.target.closest('.card');
   document.querySelectorAll('.card.edit-mode').forEach((card) => {
@@ -333,6 +298,7 @@ document.querySelector('#add-list-button').addEventListener('click', addList);
 document.querySelectorAll('.card-title').forEach(title => title.addEventListener('blur', updateTitle));
 document.querySelectorAll('.edit-button').forEach(button => button.addEventListener('click', toggleEdit));
 document.querySelectorAll('.card').forEach(card => updateCardFields(card));
+document.querySelectorAll('.card-container').forEach(cardContainer => addSortable(cardContainer));
 updateCardNumbers();
 updateCardStyles();
 document.body.classList.add('dark-mode');
