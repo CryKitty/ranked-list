@@ -296,7 +296,16 @@ document.querySelector('#dark-mode-toggle').addEventListener('click', toggleDark
 document.querySelectorAll('.add-card-button').forEach(button => button.addEventListener('click', addCard));
 document.querySelector('#add-list-button').addEventListener('click', addList);
 document.querySelectorAll('.card-title').forEach(title => title.addEventListener('blur', updateTitle));
-document.querySelectorAll('.edit-button').forEach(button => button.addEventListener('click', toggleEdit));
+
+// Modified event listener for edit button
+document.querySelectorAll('.edit-button').forEach(button => {
+  button.addEventListener('click', toggleEdit);
+  button.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    toggleEdit.call(this);
+  });
+});
+
 document.querySelectorAll('.card').forEach(card => updateCardFields(card));
 document.querySelectorAll('.card-container').forEach(cardContainer => addSortable(cardContainer));
 updateCardNumbers();
