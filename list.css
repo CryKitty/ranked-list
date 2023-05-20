@@ -70,7 +70,7 @@
   position: relative;
   background-color: transparent;
   border-radius: 10px;
-  padding-bottom: 5px;
+  padding-bottom: 35px;
   padding-top: 10px;
   padding-left: 10px;
   padding-right: 30px;
@@ -130,8 +130,7 @@
 
 .edit-button {
   position: absolute; /* Add this line */
-  top: 10px; /* Add this line */
-  right: 10px; /* Add this line */
+  top: 100px;
   padding: 10px;
   border-radius: 5px;
   font-size: 1em;
@@ -281,6 +280,7 @@
   position: relative;
   width: 100%;
   height: 100%;
+  margin-bottom: 8px;
   background-color: transparent;
   color: #fff;
   z-index: 10;
