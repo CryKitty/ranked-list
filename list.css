@@ -129,6 +129,9 @@
 }
 
 .edit-button {
+  position: absolute; /* Add this line */
+  top: 10px; /* Add this line */
+  right: 10px; /* Add this line */
   padding: 10px;
   border-radius: 5px;
   font-size: 1em;
@@ -146,7 +149,8 @@
 /* For screens smaller than 600px */
 @media (max-width: 600px) {
   .edit-button {
-    transform: translateY(-95px);
+    top: 10px;
+    right: 10px;
   }
 }
 
