@@ -285,8 +285,8 @@
 
 .card-inner .delete-button {
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: -90px;
+  right: -20px;
 }
 
 .card-container {
