@@ -121,6 +121,10 @@ const addList = function() {
   const addButton = document.querySelector('#add-list-button');
   board.insertBefore(list, addButton);
   updateCardNumbers();
+  
+  // Add sortable to the new list
+  const cardContainer = list.querySelector('.card-container');
+  addSortable(cardContainer);
 }
 
 const toggleEdit = function() {
