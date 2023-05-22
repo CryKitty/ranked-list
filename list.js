@@ -27,17 +27,41 @@ const applyImageBackground = (card) => {
 }
 
 const updateCardFields = (card) => {
-  const cardTitle = card.querySelector('.card-name');
-  const cardSubtitle = card.querySelector('.card-series');
+  const cardName = card.querySelector('.card-name');
+  const cardSeries = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
 
-    cardTitle.value = cardTitle.value.trim();
-    cardSubtitle.value = cardSubtitle.value.trim();
-    cardImageUrl.value = cardImageUrl.value.trim();
+  cardName.value = cardName.value.trim();
+  cardSeries.value = cardSeries.value.trim();
+  cardImageUrl.value = cardImageUrl.value.trim();
   
   // Apply image background
   applyImageBackground(card);
+
+  // Hide the series field if it's empty and the card name is not empty
+  if (cardName.value !== '' && cardSeries.value === '') {
+    cardSeries.style.display = 'none';
+  } else {
+    cardSeries.style.display = 'block';
+  }
 }
+
+// Add touchstart event for mobile devices
+card.addEventListener('touchstart', function(e) {
+  // Ignore touches on the delete button
+  if (!e.target.classList.contains('delete-button')) {
+    e.preventDefault(); // prevent the default behavior
+    toggleEdit.call(this);
+  }
+});
+
+// Update the position of the card while dragging on mobile
+card.addEventListener('touchmove', function(e) {
+  const touch = e.touches[0];
+  this.style.left = touch.pageX + 'px';
+  this.style.top = touch.pageY + 'px';
+});
+
 
 const updateCardStyles = () => {
   document.querySelectorAll('.card').forEach((card) => {
