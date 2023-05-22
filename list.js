@@ -284,7 +284,7 @@ document.querySelectorAll('.card').forEach(card => {
   card.addEventListener('click', function(e) {
     // Ignore clicks on the delete button
     if (!e.target.classList.contains('delete-button')) {
-      toggleEdit.call(this.querySelector('.edit-button'));
+      toggleEdit.call(this);
     }
   });
 
@@ -292,7 +292,7 @@ document.querySelectorAll('.card').forEach(card => {
   card.addEventListener('touchend', function(e) {
     // Ignore touches on the delete button
     if (!e.target.classList.contains('delete-button')) {
-      toggleEdit.call(this.querySelector('.edit-button'));
+      toggleEdit.call(this);
     }
   });
 });
@@ -314,7 +314,6 @@ document.addEventListener('touchend', (e) => {
     }
   });
 });
-
 
 document.querySelectorAll('.card').forEach(card => updateCardFields(card));
 document.querySelectorAll('.card-container').forEach(cardContainer => addSortable(cardContainer));
