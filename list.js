@@ -105,9 +105,6 @@ const addCard = function() {
   applyImageBackground(card);
   
   // Make the card in edit-mode by default
-  
-  card.querySelector('.edit-button').click();
-  
   const cardName = card.querySelector('.card-name');
   const cardSeries = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
