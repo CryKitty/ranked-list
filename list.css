@@ -420,3 +420,8 @@ body.dark-mode {
 .sortable-ghost {
   opacity: 0.4;
 }
+
+.card.dragging {
+  opacity: 0.5;
+  transform: scale(1.05);
+}
