@@ -80,7 +80,11 @@ function addSortable(list) {
   new Sortable(list, {
     animation: 150,
     ghostClass: 'sortable-ghost',
-    onEnd: function () {
+    onStart: function(evt) {
+      evt.item.classList.add('dragging');
+    },
+    onEnd: function(evt) {
+      evt.item.classList.remove('dragging');
       updateCardNumbers();
       document.querySelectorAll('.card').forEach(card => applyImageBackground(card));
     },
@@ -221,16 +225,6 @@ function createCardElement() {
     applyImageBackground(card);
     updateCardStyles();
   });
-  
-  // Edit Button
-  const editButton = document.createElement('button');
-    editButton.classList.add('edit-button');
-  
-  const editIcon = document.createElement('i');
-    editIcon.classList.add('fas', 'fa-pencil-alt');
-    editButton.appendChild(editIcon);
-    editButton.addEventListener('click', toggleEdit);
-    card.appendChild(editButton);
 
   // Delete Button
   const deleteButton = document.createElement('button');
@@ -297,12 +291,13 @@ document.querySelectorAll('.add-card-button').forEach(button => button.addEventL
 document.querySelector('#add-list-button').addEventListener('click', addList);
 document.querySelectorAll('.card-title').forEach(title => title.addEventListener('blur', updateTitle));
 
-// Modified event listener for edit button
-document.querySelectorAll('.edit-button').forEach(button => {
-  button.addEventListener('click', toggleEdit);
-  button.addEventListener('touchend', function(e) {
-    e.preventDefault();
-    toggleEdit.call(this);
+// Edit Mode Event Listener
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('click', function(e) {
+    // Ignore clicks on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      toggleEdit.call(this.querySelector('.edit-button'));
+    }
   });
 });
 
