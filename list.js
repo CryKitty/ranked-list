@@ -277,21 +277,12 @@ function createListElement() {
   return list;
 }
 
-document.addEventListener('click', (e) => {
-  const targetCard = e.target.closest('.card');
-  document.querySelectorAll('.card.edit-mode').forEach((card) => {
-    if (card !== targetCard) {
-      toggleEdit.call(card.querySelector('.edit-button'));
-    }
-  });
-});
-
 document.querySelector('#dark-mode-toggle').addEventListener('click', toggleDarkMode);
 document.querySelectorAll('.add-card-button').forEach(button => button.addEventListener('click', addCard));
 document.querySelector('#add-list-button').addEventListener('click', addList);
 document.querySelectorAll('.card-title').forEach(title => title.addEventListener('blur', updateTitle));
 
-// Edit Mode Event Listener
+// Toggle Edit Mode
 document.querySelectorAll('.card').forEach(card => {
   card.addEventListener('click', function(e) {
     // Ignore clicks on the delete button
@@ -299,7 +290,34 @@ document.querySelectorAll('.card').forEach(card => {
       toggleEdit.call(this.querySelector('.edit-button'));
     }
   });
+
+  // Add touchend event for mobile devices
+  card.addEventListener('touchend', function(e) {
+    // Ignore touches on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      toggleEdit.call(this.querySelector('.edit-button'));
+    }
+  });
 });
+
+document.addEventListener('click', (e) => {
+  const targetCard = e.target.closest('.card');
+  document.querySelectorAll('.card.edit-mode').forEach((card) => {
+    if (card !== targetCard) {
+      toggleEdit.call(card);
+    }
+  });
+});
+
+document.addEventListener('touchend', (e) => {
+  const targetCard = e.target.closest('.card');
+  document.querySelectorAll('.card.edit-mode').forEach((card) => {
+    if (card !== targetCard) {
+      toggleEdit.call(card);
+    }
+  });
+});
+
 
 document.querySelectorAll('.card').forEach(card => updateCardFields(card));
 document.querySelectorAll('.card-container').forEach(cardContainer => addSortable(cardContainer));
