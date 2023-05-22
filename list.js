@@ -114,6 +114,22 @@ const addCard = function() {
   cardSeries.readOnly = false;
   cardImageUrl.readOnly = false;
   cardImageUrl.style.display = 'block';
+
+  // Add event listeners to the new card
+  card.addEventListener('click', function(e) {
+    // Ignore clicks on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      toggleEdit.call(this);
+    }
+  });
+
+  // Add touchend event for mobile devices
+  card.addEventListener('touchend', function(e) {
+    // Ignore touches on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      toggleEdit.call(this);
+    }
+  });
 }
 
 const addList = function() {
