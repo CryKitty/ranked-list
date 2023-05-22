@@ -114,6 +114,7 @@ const addCard = function() {
   cardSeries.readOnly = false;
   cardImageUrl.readOnly = false;
   cardImageUrl.style.display = 'block';
+  cardName.focus(); // focus the card name field
 
   // Add event listeners to the new card
   card.addEventListener('click', function(e) {
@@ -123,8 +124,8 @@ const addCard = function() {
     }
   });
 
-  // Add touchend event for mobile devices
-  card.addEventListener('touchend', function(e) {
+  // Add touchstart event for mobile devices
+  card.addEventListener('touchstart', function(e) {
     // Ignore touches on the delete button
     if (!e.target.classList.contains('delete-button')) {
       toggleEdit.call(this);
@@ -150,17 +151,18 @@ const toggleEdit = function() {
   const cardSeries = card.querySelector('.card-series');
   const cardImageUrl = card.querySelector('.card-image-url');
 
-    card.classList.toggle('edit-mode');
+  card.classList.toggle('edit-mode');
   
   const isEditMode = card.classList.contains('edit-mode');
   
-    cardName.readOnly = !isEditMode;
-    cardSeries.readOnly = !isEditMode;
-    cardImageUrl.readOnly = !isEditMode;
-    const deleteButton = card.querySelector('.delete-button');
+  cardName.readOnly = !isEditMode;
+  cardSeries.readOnly = !isEditMode;
+  cardImageUrl.readOnly = !isEditMode;
+  const deleteButton = card.querySelector('.delete-button');
 
   if (isEditMode) {
     deleteButton.classList.remove('hide'); // show the button in edit mode
+    cardName.focus(); // focus the card name field
   } else {
     deleteButton.classList.add('hide'); // hide the button in non-edit mode
     updateCardFields(card);
