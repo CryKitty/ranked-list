@@ -107,7 +107,9 @@ const toggleDarkMode = function() {
     body.classList.toggle('dark-mode');
 }
 
-const addCard = function() {
+const addCard = function(event) {
+  event.stopPropagation(); // Stop the event from reaching the newly added card
+
   const list = this.closest('.list');
   const cardContainer = list.querySelector('.card-container');
   const card = createCardElement();
@@ -193,23 +195,15 @@ function createCardElement() {
     card.setAttribute('draggable', 'true');
   
 card.addEventListener('touchstart', function(e) {
-  longPress = false;
-  touchDuration = setTimeout(() => {
-    longPress = true;
-    // Ignore touches on the delete button
-    if (!e.target.classList.contains('delete-button')) {
-      e.preventDefault(); // prevent the default behavior
-      toggleEdit.call(this);
-    }
-  }, 500); // 500ms for long press
-});
-
-card.addEventListener('touchend', function() {
-  clearTimeout(touchDuration); // prevent long press action on touchend
+  // Ignore touches on the delete button
+  if (!e.target.classList.contains('delete-button')) {
+    e.preventDefault(); // prevent the default behavior
+    toggleEdit.call(this);
+  }
 });
 
 card.addEventListener('touchmove', function(e) {
-  if (!longPress) { // only move the card if it's not in long press mode
+  if (!this.classList.contains('edit-mode')) { // only move the card if it's not in edit mode
     const touch = e.touches[0];
     this.style.left = touch.pageX + 'px';
     this.style.top = touch.pageY + 'px';
