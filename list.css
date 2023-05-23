@@ -12,6 +12,7 @@
   padding: 10px;
   margin-right: 2vw;
   width: 18vw;
+  min-width: 18vw; /* Add this */
   height: fit-content;
   max-height: 90vh;
   overflow-y: auto;
