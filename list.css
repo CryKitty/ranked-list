@@ -42,6 +42,13 @@
   margin-left: 8px;
   cursor: pointer;
 }
+
+/* For screens smaller than 600px */
+@media (max-width: 600px) {
+  #add-list-button {
+    padding: 10px 30px;
+  }
+}
   
 .list-title {
   text-align: center;
