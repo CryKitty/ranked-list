@@ -139,22 +139,6 @@ const addCard = function() {
   cardImageUrl.readOnly = false;
   cardImageUrl.style.display = 'block';
   cardName.focus(); // focus the card name field
-
-  // Add event listeners to the new card
-  card.addEventListener('click', function(e) {
-    // Ignore clicks on the delete button
-    if (!e.target.classList.contains('delete-button')) {
-      toggleEdit.call(this);
-    }
-  });
-
-  // Add touchstart event for mobile devices
-  card.addEventListener('touchstart', function(e) {
-    // Ignore touches on the delete button
-    if (!e.target.classList.contains('delete-button')) {
-      toggleEdit.call(this);
-    }
-  });
 }
 
 const addList = function() {
@@ -279,6 +263,22 @@ function createCardElement() {
     lastDeletedItem = card;
     card.remove();
     updateCardNumbers();
+  });
+  
+    // Add event listeners to the new card
+  card.addEventListener('click', function(e) {
+    // Ignore clicks on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      toggleEdit.call(this);
+    }
+  });
+
+  // Add touchstart event for mobile devices
+  card.addEventListener('touchstart', function(e) {
+    // Ignore touches on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      toggleEdit.call(this);
+    }
   });
 
   cardInner.insertBefore(deleteButton, cardNumber);
