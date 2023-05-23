@@ -334,8 +334,8 @@ document.querySelectorAll('.card').forEach(card => {
     }
   });
 
-  // Add touchend event for mobile devices
-  card.addEventListener('touchend', function(e) {
+  // Add touchstart event for mobile devices
+  card.addEventListener('touchstart', function(e) {
     // Ignore touches on the delete button
     if (!e.target.classList.contains('delete-button')) {
       toggleEdit.call(this);
@@ -352,7 +352,7 @@ document.addEventListener('click', (e) => {
   });
 });
 
-document.addEventListener('touchend', (e) => {
+document.addEventListener('touchstart', (e) => {
   const targetCard = e.target.closest('.card');
   document.querySelectorAll('.card.edit-mode').forEach((card) => {
     if (card !== targetCard) {
