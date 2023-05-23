@@ -94,8 +94,15 @@ function addSortable(list) {
     onStart: function(evt) {
       evt.item.classList.add('dragging');
     },
+    onMove: function(evt) {
+      if (evt.pullMode && evt.originalEvent.touches) {
+        const touch = evt.originalEvent.touches[0];
+        evt.dragged.style.transform = `translate(${touch.clientX}px, ${touch.clientY}px)`;
+      }
+    },
     onEnd: function(evt) {
       evt.item.classList.remove('dragging');
+      evt.item.style.transform = '';
       updateCardNumbers();
       document.querySelectorAll('.card').forEach(card => applyImageBackground(card));
     },
