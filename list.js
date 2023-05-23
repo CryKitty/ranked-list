@@ -1,5 +1,7 @@
 let draggedItem = null;
 let lastDeletedItem = null;
+let touchDuration;
+let longPress = false;
 
 const applyImageBackground = (card) => {
   const cardTitle = card.querySelector('.card-name');
@@ -190,21 +192,29 @@ function createCardElement() {
     card.classList.add('card');
     card.setAttribute('draggable', 'true');
   
-    // Add touchstart event for mobile devices
-    card.addEventListener('touchstart', function(e) {
-      // Ignore touches on the delete button
-      if (!e.target.classList.contains('delete-button')) {
-        e.preventDefault(); // prevent the default behavior
-        toggleEdit.call(this);
-      }
-    });
+card.addEventListener('touchstart', function(e) {
+  longPress = false;
+  touchDuration = setTimeout(() => {
+    longPress = true;
+    // Ignore touches on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      e.preventDefault(); // prevent the default behavior
+      toggleEdit.call(this);
+    }
+  }, 500); // 500ms for long press
+});
 
-    // Update the position of the card while dragging on mobile
-    card.addEventListener('touchmove', function(e) {
-      const touch = e.touches[0];
-      this.style.left = touch.pageX + 'px';
-      this.style.top = touch.pageY + 'px';
-    });
+card.addEventListener('touchend', function() {
+  clearTimeout(touchDuration); // prevent long press action on touchend
+});
+
+card.addEventListener('touchmove', function(e) {
+  if (!longPress) { // only move the card if it's not in long press mode
+    const touch = e.touches[0];
+    this.style.left = touch.pageX + 'px';
+    this.style.top = touch.pageY + 'px';
+  }
+});
 
   const cardInner = document.createElement('div');
     cardInner.classList.add('card-inner');
