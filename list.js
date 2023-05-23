@@ -191,24 +191,39 @@ const getDragAfterElement = (container, y) => {
 
 function createCardElement() {
   const card = document.createElement('div');
-    card.classList.add('card');
-    card.setAttribute('draggable', 'true');
-  
-card.addEventListener('touchstart', function(e) {
-  // Ignore touches on the delete button
-  if (!e.target.classList.contains('delete-button')) {
-    e.preventDefault(); // prevent the default behavior
-    toggleEdit.call(this);
-  }
-});
+  card.classList.add('card');
+  card.setAttribute('draggable', 'true');
 
-card.addEventListener('touchmove', function(e) {
-  if (!this.classList.contains('edit-mode')) { // only move the card if it's not in edit mode
-    const touch = e.touches[0];
-    this.style.left = touch.pageX + 'px';
-    this.style.top = touch.pageY + 'px';
-  }
-});
+  let touchStartX;
+  let touchStartY;
+  let isDragging = false;
+
+  card.addEventListener('touchstart', function(e) {
+    // Ignore touches on the delete button
+    if (!e.target.classList.contains('delete-button')) {
+      e.preventDefault(); // prevent the default behavior
+      toggleEdit.call(this);
+      const touch = e.touches[0];
+      touchStartX = touch.pageX;
+      touchStartY = touch.pageY;
+      isDragging = false;
+    }
+  });
+
+  card.addEventListener('touchmove', function(e) {
+    if (!this.classList.contains('edit-mode')) { // only move the card if it's not in edit mode
+      const touch = e.touches[0];
+      const moveX = touch.pageX - touchStartX;
+      const moveY = touch.pageY - touchStartY;
+      if (Math.abs(moveX) > 10 || Math.abs(moveY) > 10) {
+        isDragging = true;
+      }
+      if (isDragging) {
+        this.style.left = touch.pageX + 'px';
+        this.style.top = touch.pageY + 'px';
+      }
+    }
+  });
 
   const cardInner = document.createElement('div');
     cardInner.classList.add('card-inner');
