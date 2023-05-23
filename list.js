@@ -41,7 +41,7 @@ const updateCardFields = (card) => {
   // Hide the series field if it's empty and the card name is not empty
   if (cardName.value !== '' && cardSeries.value === '') {
     cardSeries.style.display = 'none';
-    card.style.paddingTop = '28px'; // Add padding to the card
+    card.style.paddingTop = '18px'; // Add padding to the card
   } else {
     cardSeries.style.display = 'block';
     card.style.paddingTop = '0'; // Remove padding from the card
