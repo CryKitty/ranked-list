@@ -1,6 +1,7 @@
 #board {
   display: flex;
-  width: 93vw;
+  width: auto; /* Change this */
+  overflow-x: auto; /* Add this */
   padding: 0 10px;
   justify-content: flex-start;
   align-items: flex-start;
@@ -320,8 +321,8 @@
 /* Dark Mode */
 #dark-mode-toggle {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  bottom: 15px;
+  right: 15px;
   border: none;
   background: none;
   color: inherit; /* Will inherit the color from the current theme */
