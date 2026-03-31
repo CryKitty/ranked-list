@@ -10,6 +10,7 @@
 - Filter the board by search term or series.
 - Import a Trello board from exported JSON.
 - Save board state automatically in browser local storage.
+- Support Google and Apple sign-in with Supabase.
 - Mirror yearly game entries into the `Favorites Of All Time` column automatically.
 
 ## Stack
@@ -42,11 +43,11 @@ The import currently maps Trello lists to columns and Trello cards to Rankboard 
 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local`.
-3. Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 4. Optional: add `NEXT_PUBLIC_RAWG_API_KEY` for improved automatic game artwork results.
 5. Run the SQL in [supabase/schema.sql](/Users/avarycooney/Documents/Playground/supabase/schema.sql) in the Supabase SQL editor.
 
-Until those environment variables are set, the app saves locally in the browser on the current device. Supabase is still the path for account-based syncing across devices and users.
+Until those environment variables are set, the app saves locally in the browser on the current device. With Supabase configured, users can sign in with Google or Apple and sync their board state across devices.
 
 ## Free Deployment Path
 

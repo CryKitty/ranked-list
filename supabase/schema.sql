@@ -47,11 +47,20 @@ create table if not exists public.column_entries (
   unique (column_id, item_id)
 );
 
+create table if not exists public.board_states (
+  owner_id uuid primary key references auth.users (id) on delete cascade,
+  columns jsonb not null default '[]'::jsonb,
+  cards_by_column jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.boards enable row level security;
 alter table public.columns enable row level security;
 alter table public.items enable row level security;
 alter table public.column_entries enable row level security;
+alter table public.board_states enable row level security;
 
 create policy "profiles are readable by owner" on public.profiles
   for select using (auth.uid() = id);
@@ -117,3 +126,6 @@ create policy "owners manage column entries" on public.column_entries
         and public.boards.owner_id = auth.uid()
     )
   );
+
+create policy "owners manage board states" on public.board_states
+  for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);

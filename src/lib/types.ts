@@ -18,3 +18,8 @@ export type ColumnDefinition = {
   accent: string;
   autoMirrorToColumnId?: string;
 };
+
+export type BoardSnapshot = {
+  columns: ColumnDefinition[];
+  cardsByColumn: Record<string, CardEntry[]>;
+};

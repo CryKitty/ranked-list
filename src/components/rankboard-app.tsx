@@ -17,14 +17,16 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
+import { User } from "@supabase/supabase-js";
 import {
   Edit3,
   ImagePlus,
-  LockKeyhole,
+  LogOut,
   MoreHorizontal,
+  Moon,
   Plus,
   Save,
-  Sparkles,
+  Sun,
   Trash2,
   Upload,
   WandSparkles,
@@ -62,10 +64,19 @@ const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
   series: "",
-  columnId: "wishlist",
+  columnId: "new-column",
 };
 
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
+const THEME_STORAGE_KEY = "rankboard-theme-v1";
+const COLUMN_ACCENTS = [
+  "from-amber-300 via-orange-400 to-rose-500",
+  "from-sky-300 via-cyan-400 to-teal-500",
+  "from-fuchsia-300 via-pink-400 to-rose-500",
+  "from-violet-300 via-indigo-400 to-blue-500",
+  "from-lime-300 via-emerald-400 to-teal-500",
+  "from-red-300 via-orange-400 to-amber-500",
+];
 
 function makeId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -134,6 +145,34 @@ function buildFallbackImage(title: string) {
   `;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M21.805 12.23c0-.68-.061-1.334-.174-1.962H12v3.711h5.5a4.704 4.704 0 0 1-2.04 3.087v2.564h3.298c1.93-1.777 3.047-4.4 3.047-7.4Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 22c2.76 0 5.074-.914 6.765-2.47l-3.298-2.564c-.914.614-2.083.978-3.467.978-2.668 0-4.926-1.801-5.734-4.223H2.856v2.646A9.998 9.998 0 0 0 12 22Z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.266 13.72A5.996 5.996 0 0 1 5.945 12c0-.598.103-1.178.29-1.72V7.634H2.856A9.998 9.998 0 0 0 2 12c0 1.613.386 3.14 1.07 4.366l3.196-2.646Z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 6.056c1.5 0 2.847.516 3.907 1.53l2.93-2.93C17.07 2.999 14.756 2 12 2a9.998 9.998 0 0 0-9.144 5.634l3.38 2.646C7.072 7.857 9.33 6.056 12 6.056Z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
 }
 
 function sanitizeSearchTitle(title: string) {
@@ -364,6 +403,8 @@ function parseDropTargetId(overId: string) {
 }
 
 export function RankboardApp() {
+  const supabase = getSupabaseBrowserClient();
+  const authEnabled = Boolean(supabase);
   const [columns, setColumns] = useState<ColumnDefinition[]>(demoColumns);
   const [cardsByColumn, setCardsByColumn] =
     useState<Record<string, CardEntry[]>>(demoCardsByColumn);
@@ -382,11 +423,14 @@ export function RankboardApp() {
   const [isAutofillingDraftImage, setIsAutofillingDraftImage] = useState(false);
   const [autofillingCardId, setAutofillingCardId] = useState<string | null>(null);
   const [hasLoadedPersistedState, setHasLoadedPersistedState] = useState(false);
+  const [hasLoadedRemoteState, setHasLoadedRemoteState] = useState(false);
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(authEnabled);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const supabaseReady = Boolean(getSupabaseBrowserClient());
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -435,6 +479,15 @@ export function RankboardApp() {
   }, []);
 
   useEffect(() => {
+    try {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      setIsDarkMode(storedTheme === "dark");
+    } catch {
+      setIsDarkMode(false);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!hasLoadedPersistedState) {
       return;
     }
@@ -447,6 +500,127 @@ export function RankboardApp() {
       }),
     );
   }, [cardsByColumn, columns, hasLoadedPersistedState]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setIsAuthLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) {
+        return;
+      }
+
+      setCurrentUser(data.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase || !currentUser) {
+      setHasLoadedRemoteState(!authEnabled);
+      return;
+    }
+
+    const client = supabase;
+    const user = currentUser;
+    let cancelled = false;
+
+    async function loadBoardState() {
+      const { data, error } = await client
+        .from("board_states")
+        .select("columns, cards_by_column")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error(error);
+        setHasLoadedRemoteState(true);
+        return;
+      }
+
+      if (data?.columns && data?.cards_by_column) {
+        setColumns(data.columns as ColumnDefinition[]);
+        setCardsByColumn(data.cards_by_column as Record<string, CardEntry[]>);
+      } else {
+        await client.from("board_states").upsert({
+          owner_id: user.id,
+          columns: demoColumns,
+          cards_by_column: demoCardsByColumn,
+        });
+        setColumns(demoColumns);
+        setCardsByColumn(demoCardsByColumn);
+      }
+
+      setHasLoadedRemoteState(true);
+    }
+
+    loadBoardState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authEnabled, currentUser, supabase]);
+
+  useEffect(() => {
+    if (!supabase || !currentUser || !hasLoadedRemoteState) {
+      return;
+    }
+
+    const client = supabase;
+    const user = currentUser;
+    const timeout = window.setTimeout(() => {
+      void client.from("board_states").upsert({
+        owner_id: user.id,
+        columns,
+        cards_by_column: cardsByColumn,
+        updated_at: new Date().toISOString(),
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [cardsByColumn, columns, currentUser, hasLoadedRemoteState, supabase]);
+
+  async function handleOAuthLogin(provider: "google" | "apple") {
+    if (!supabase) {
+      return;
+    }
+
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/`,
+      },
+    });
+  }
+
+  async function handleSignOut() {
+    await supabase?.auth.signOut();
+  }
 
   function findColumnIdForEntry(entryId: string) {
     return (
@@ -840,6 +1014,27 @@ export function RankboardApp() {
     });
   }
 
+  function addColumn() {
+    const nextIndex = columns.length + 1;
+    const newColumn: ColumnDefinition = {
+      id: makeId("column"),
+      title: `New Column ${nextIndex}`,
+      description: "",
+      type: "ranked",
+      accent: COLUMN_ACCENTS[columns.length % COLUMN_ACCENTS.length] ?? COLUMN_ACCENTS[0],
+    };
+
+    setColumns((current) => [...current, newColumn]);
+    setCardsByColumn((current) => ({
+      ...current,
+      [newColumn.id]: [],
+    }));
+    setEditingColumnId(newColumn.id);
+    setEditingColumnDraft({
+      title: newColumn.title,
+    });
+  }
+
   function deleteColumn(columnId: string) {
     const column = columns.find((item) => item.id === columnId);
 
@@ -929,85 +1124,45 @@ export function RankboardApp() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffd9c7_20%,#ffefe6_42%,#f5f7ff_68%,#eff7ff_100%)] text-slate-950">
-      <main className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
-        <section className="grid gap-4 xl:grid-cols-[1.45fr_0.85fr]">
-          <div className="overflow-hidden rounded-[32px] border border-white/70 bg-white/80 p-6 shadow-[0_30px_80px_rgba(19,27,68,0.14)] backdrop-blur">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Rankboard
-                </div>
-                <h1 className="max-w-2xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-                  Trello-style ranking boards built for obsessive lists.
-                </h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                  Add a game with as much or as little metadata as you want, drag it
-                  into place, and fine-tune cards and columns inline without touching
-                  rank numbers by hand.
-                </p>
-              </div>
-
-              <div className="grid gap-3 rounded-[28px] bg-slate-950 p-4 text-white sm:grid-cols-3">
-                <Metric label="Entry Flow" value="Optional fields" />
-                <Metric label="Ranking Style" value="Auto-numbered" />
-                <Metric label="Edit Mode" value="Inline cards" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[32px] border border-white/70 bg-slate-950 p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.28em] text-slate-300">
-                  Launch Path
-                </p>
-                <h2 className="mt-2 text-2xl font-bold">Free-friendly stack</h2>
-              </div>
-              <LockKeyhole className="mt-1 h-5 w-5 text-slate-300" />
-            </div>
-
-            <div className="mt-6 grid gap-3 text-sm text-slate-300">
-              <p>`Next.js` for the app shell and responsive UI.</p>
-              <p>`@dnd-kit` for mobile-safe drag and drop.</p>
-              <p>`Supabase` for auth, database, and image storage.</p>
-              <p>`Vercel` for URL deployment on the hobby tier.</p>
-            </div>
-
-            <div
-              className={clsx(
-                "mt-6 rounded-3xl border px-4 py-3 text-sm",
-                supabaseReady
-                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100"
-                  : "border-amber-300/30 bg-amber-300/10 text-amber-100",
-              )}
-            >
-              {supabaseReady
-                ? "Supabase environment variables are present. This app is ready to connect to real auth and persistence."
-                : "Supabase is not configured yet, so the current board runs as a local demo. Add env vars to enable real users and saved data."}
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-slate-300">
-              Auto-image currently tries Wikipedia first and falls back to a 16:9
-              generated banner when no suitable artwork is found.
-            </p>
-          </div>
-        </section>
-
+    <div
+      className={clsx(
+        "min-h-screen transition-colors",
+        isDarkMode
+          ? "bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] text-slate-100"
+          : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffd9c7_20%,#ffefe6_42%,#f5f7ff_68%,#eff7ff_100%)] text-slate-950",
+      )}
+    >
+      <main className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <section className="grid gap-4">
-          <div className="rounded-[32px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur">
+          <div
+            className={clsx(
+              "rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              isDarkMode
+                ? "border-white/10 bg-white/5"
+                : "border-white/70 bg-white/80",
+            )}
+          >
             <div className="flex flex-col items-center gap-4">
-              <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-[1fr_260px_auto]">
+              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto_auto_auto]">
                 <input
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                  )}
                   placeholder="Search title or series"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                 />
 
                 <select
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950/60 text-white focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                  )}
                   value={seriesFilter}
                   onChange={(event) => setSeriesFilter(event.target.value)}
                 >
@@ -1019,19 +1174,87 @@ export function RankboardApp() {
                   ))}
                 </select>
                 <button
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-950"
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
                   onClick={() => setIsImportModalOpen(true)}
                   type="button"
                 >
                   <Upload className="h-4 w-4" />
                   Import Trello JSON
                 </button>
+                {authEnabled ? (
+                  isAuthLoading ? (
+                    <div
+                      className={clsx(
+                        "flex h-[52px] w-[52px] items-center justify-center rounded-full border",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-300"
+                          : "border-slate-200 bg-white text-slate-500",
+                      )}
+                    >
+                      <span className="text-xs font-semibold">...</span>
+                    </div>
+                  ) : currentUser ? (
+                    <button
+                      aria-label="Sign out"
+                      className={clsx(
+                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={handleSignOut}
+                      title={`Sign out ${currentUser.email ?? ""}`.trim()}
+                      type="button"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button
+                      aria-label="Continue with Google"
+                      className={clsx(
+                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={() => handleOAuthLogin("google")}
+                      title="Continue with Google"
+                      type="button"
+                    >
+                      <GoogleIcon className="h-5 w-5" />
+                    </button>
+                  )
+                ) : null}
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setIsDarkMode((current) => !current)}
+                  type="button"
+                >
+                  {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  {isDarkMode ? "Light" : "Dark"}
+                </button>
               </div>
             </div>
-
           </div>
 
-          <section className="overflow-hidden rounded-[32px] border border-white/70 bg-white/60 p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur">
+          <section
+            className={clsx(
+              "overflow-hidden rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              isDarkMode
+                ? "border-white/10 bg-white/5"
+                : "border-white/70 bg-white/60",
+            )}
+          >
             <DndContext
               sensors={sensors}
               collisionDetection={closestCorners}
@@ -1073,6 +1296,7 @@ export function RankboardApp() {
                     />
                   );
                 })}
+                <AddColumnButton isDarkMode={isDarkMode} onClick={addColumn} />
               </div>
             </DndContext>
           </section>
@@ -1353,12 +1577,29 @@ export function RankboardApp() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function AddColumnButton({
+  isDarkMode,
+  onClick,
+}: {
+  isDarkMode: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-2xl bg-white/10 px-3 py-3">
-      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-300">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-white">{value}</p>
-    </div>
+    <button
+      className={clsx(
+        "flex min-h-[720px] w-[92px] shrink-0 items-center justify-center rounded-[28px] border border-dashed transition",
+        isDarkMode
+          ? "border-white/15 bg-white/5 text-white hover:border-white/35 hover:bg-white/10"
+          : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
+      )}
+      onClick={onClick}
+      type="button"
+      aria-label="Add column"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg">
+        <Plus className="h-6 w-6" />
+      </span>
+    </button>
   );
 }
 
