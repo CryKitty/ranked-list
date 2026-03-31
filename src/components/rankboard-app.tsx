@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -69,8 +69,6 @@ const initialDraft: CardDraft = {
 
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
-const PENDING_SAVE_KEY = "rankboard-pending-save-v1";
-const PENDING_SAVE_SNAPSHOT_KEY = "rankboard-pending-save-snapshot-v1";
 const COLUMN_ACCENTS = [
   "from-amber-300 via-orange-400 to-rose-500",
   "from-sky-300 via-cyan-400 to-teal-500",
@@ -422,8 +420,6 @@ export function RankboardApp() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(authEnabled);
-  const [isSavingBoard, setIsSavingBoard] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -548,35 +544,6 @@ export function RankboardApp() {
     let cancelled = false;
 
     async function loadBoardState() {
-      const pendingSnapshotRaw = window.localStorage.getItem(PENDING_SAVE_SNAPSHOT_KEY);
-      const pendingSnapshot = pendingSnapshotRaw
-        ? (JSON.parse(pendingSnapshotRaw) as {
-            columns?: ColumnDefinition[];
-            cardsByColumn?: Record<string, CardEntry[]>;
-          })
-        : null;
-      const pendingColumns = pendingSnapshot?.columns ?? null;
-      const pendingCardsByColumn = pendingSnapshot?.cardsByColumn ?? null;
-
-      if (pendingColumns && pendingCardsByColumn) {
-        await client.from("board_states").upsert({
-          owner_id: user.id,
-          columns: pendingColumns,
-          cards_by_column: pendingCardsByColumn,
-          updated_at: new Date().toISOString(),
-        });
-
-        if (!cancelled) {
-          setColumns(pendingColumns);
-          setCardsByColumn(pendingCardsByColumn);
-          window.localStorage.removeItem(PENDING_SAVE_KEY);
-          window.localStorage.removeItem(PENDING_SAVE_SNAPSHOT_KEY);
-          setHasLoadedRemoteState(true);
-        }
-
-        return;
-      }
-
       const { data, error } = await client
         .from("board_states")
         .select("columns, cards_by_column")
@@ -657,9 +624,28 @@ export function RankboardApp() {
         cards_by_column: cardsByColumn,
         updated_at: new Date().toISOString(),
       });
-    }, 300);
+    }, 1000);
 
     return () => window.clearTimeout(timeout);
+  }, [cardsByColumn, columns, currentUser, hasLoadedRemoteState, supabase]);
+
+  useEffect(() => {
+    if (!supabase || !currentUser || !hasLoadedRemoteState) {
+      return;
+    }
+
+    const client = supabase;
+    const user = currentUser;
+    const interval = window.setInterval(() => {
+      void client.from("board_states").upsert({
+        owner_id: user.id,
+        columns,
+        cards_by_column: cardsByColumn,
+        updated_at: new Date().toISOString(),
+      });
+    }, 60_000);
+
+    return () => window.clearInterval(interval);
   }, [cardsByColumn, columns, currentUser, hasLoadedRemoteState, supabase]);
 
   useEffect(() => {
@@ -678,58 +664,6 @@ export function RankboardApp() {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isActionsMenuOpen]);
 
-  const persistBoardState = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!supabase || !currentUser) {
-        return false;
-      }
-
-      if (!options?.silent) {
-        setIsSavingBoard(true);
-      }
-
-      const { error } = await supabase.from("board_states").upsert({
-        owner_id: currentUser.id,
-        columns,
-        cards_by_column: cardsByColumn,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (!options?.silent) {
-        setIsSavingBoard(false);
-      }
-
-      if (error) {
-        console.error(error);
-        return false;
-      }
-
-      setSaveStatus("saved");
-      window.setTimeout(() => {
-        setSaveStatus("idle");
-      }, 1800);
-
-      return true;
-    },
-    [cardsByColumn, columns, currentUser, supabase],
-  );
-
-  useEffect(() => {
-    if (!supabase || !currentUser || !hasLoadedRemoteState) {
-      return;
-    }
-
-    if (window.localStorage.getItem(PENDING_SAVE_KEY) !== "1") {
-      return;
-    }
-
-    void persistBoardState().then((saved) => {
-      if (saved) {
-        window.localStorage.removeItem(PENDING_SAVE_KEY);
-      }
-    });
-  }, [currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
-
   async function handleOAuthLogin(provider: "google" | "apple") {
     if (!supabase) {
       return;
@@ -741,28 +675,6 @@ export function RankboardApp() {
         redirectTo: `${window.location.origin}/auth/callback?next=/`,
       },
     });
-  }
-
-  async function handleSave() {
-    if (!authEnabled) {
-      window.alert("Saving is not configured yet on this deployment.");
-      return;
-    }
-
-    if (currentUser) {
-      await persistBoardState();
-      return;
-    }
-
-    window.localStorage.setItem(PENDING_SAVE_KEY, "1");
-    window.localStorage.setItem(
-      PENDING_SAVE_SNAPSHOT_KEY,
-      JSON.stringify({
-        columns,
-        cardsByColumn,
-      }),
-    );
-    await handleOAuthLogin("google");
   }
 
   async function handleSignOut() {
@@ -1291,7 +1203,7 @@ export function RankboardApp() {
             )}
           >
             <div className="flex flex-col items-center gap-4">
-              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto_auto]">
+              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto]">
                 <input
                   className={clsx(
                     "rounded-2xl border px-4 py-3 outline-none transition",
@@ -1373,6 +1285,7 @@ export function RankboardApp() {
                         }}
                         type="button"
                       >
+                        <Upload className="h-4 w-4" />
                         Import from Trello
                       </button>
                       {currentUser ? (
@@ -1389,24 +1302,28 @@ export function RankboardApp() {
                           <LogOut className="h-4 w-4" />
                           Log Out
                         </button>
+                      ) : authEnabled ? (
+                        <button
+                          className={clsx(
+                            "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                            isDarkMode
+                              ? "hover:bg-white/10"
+                              : "hover:bg-slate-100",
+                          )}
+                          disabled={isAuthLoading}
+                          onClick={() => {
+                            void handleOAuthLogin("google");
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Log In
+                        </button>
                       ) : null}
                     </div>
                   ) : null}
                 </div>
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
-                  )}
-                  disabled={isAuthLoading || isSavingBoard}
-                  onClick={handleSave}
-                  type="button"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSavingBoard ? "Saving..." : saveStatus === "saved" ? "Saved" : "Save"}
-                </button>
               </div>
             </div>
           </div>
@@ -1436,6 +1353,7 @@ export function RankboardApp() {
                     <BoardColumn
                       key={column.id}
                       column={column}
+                      isDarkMode={isDarkMode}
                       cards={visibleCards}
                       filtering={filtering}
                       isEditingColumn={editingColumnId === column.id}
@@ -1468,25 +1386,42 @@ export function RankboardApp() {
 
         {editingCardId && editingCardDraft ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-2xl rounded-[32px] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]">
+            <div
+              className={clsx(
+                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  <p
+                    className={clsx(
+                      "text-sm font-semibold uppercase tracking-[0.24em]",
+                      isDarkMode ? "text-slate-400" : "text-slate-500",
+                    )}
+                  >
                     Edit Game
                   </p>
-                  <h2 className="mt-2 text-3xl font-black text-slate-950">
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Update card details
                   </h2>
                   {Object.values(cardsByColumn)
                     .flat()
                     .find((card) => card.entryId === editingCardId)?.mirroredFromEntryId ? (
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                    <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                       This entry is a mirrored copy linked to another column.
                     </p>
                   ) : null}
                 </div>
                 <button
-                  className="rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200"
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
                   onClick={cancelEditingCard}
                   type="button"
                 >
@@ -1496,9 +1431,14 @@ export function RankboardApp() {
 
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">Title</span>
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                   <input
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
                     value={editingCardDraft.title}
                     onChange={(event) =>
                       setEditingCardDraft((current) =>
@@ -1509,9 +1449,14 @@ export function RankboardApp() {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">Series</span>
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
                   <input
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
                     value={editingCardDraft.series}
                     onChange={(event) =>
                       setEditingCardDraft((current) =>
@@ -1523,11 +1468,16 @@ export function RankboardApp() {
               </div>
 
               <label className="mt-4 grid gap-2">
-                <span className="text-sm font-medium text-slate-700">
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                   Background image or GIF URL
                 </span>
                 <input
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                  )}
                   value={editingCardDraft.imageUrl}
                   onChange={(event) =>
                     setEditingCardDraft((current) =>
@@ -1538,7 +1488,12 @@ export function RankboardApp() {
               </label>
 
               <button
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-950 hover:bg-white"
+                className={clsx(
+                  "mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                  isDarkMode
+                    ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
+                )}
                 onClick={autofillEditingCardImage}
                 type="button"
               >
@@ -1549,9 +1504,14 @@ export function RankboardApp() {
               </button>
 
               <label className="mt-4 grid gap-2">
-                <span className="text-sm font-medium text-slate-700">Notes</span>
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
                 <textarea
-                  className="min-h-32 rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                  className={clsx(
+                    "min-h-32 rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                  )}
                   value={editingCardDraft.notes}
                   onChange={(event) =>
                     setEditingCardDraft((current) =>
@@ -1563,7 +1523,12 @@ export function RankboardApp() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
-                  className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
                   onClick={saveEditingCard}
                   type="button"
                 >
@@ -1571,7 +1536,12 @@ export function RankboardApp() {
                   Save Changes
                 </button>
                 <button
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-950"
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
                   onClick={cancelEditingCard}
                   type="button"
                 >
@@ -1585,22 +1555,34 @@ export function RankboardApp() {
 
         {addCardTarget ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-2xl rounded-[32px] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]">
+            <div
+              className={clsx(
+                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                     Add Game
                   </p>
-                  <h2 className="mt-2 text-3xl font-black text-slate-950">
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Add a new card in place
                   </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
                     This will be inserted into{" "}
                     {columns.find((column) => column.id === addCardTarget.columnId)?.title}.
                   </p>
                 </div>
                 <button
-                  className="rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200"
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
                   onClick={closeAddGameModal}
                   type="button"
                 >
@@ -1610,9 +1592,14 @@ export function RankboardApp() {
 
               <form className="mt-6 grid gap-4" onSubmit={handleDraftSubmit}>
                 <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">Title</span>
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                   <input
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
                     placeholder='"Tears of the Kingdom", "The Last of Us Part II", etc.'
                     value={draft.title}
                     onChange={(event) =>
@@ -1622,13 +1609,23 @@ export function RankboardApp() {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                     Background image or GIF URL
                   </span>
                   <div className="relative">
-                    <ImagePlus className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <ImagePlus
+                      className={clsx(
+                        "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
+                        isDarkMode ? "text-slate-500" : "text-slate-400",
+                      )}
+                    />
                     <input
-                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 outline-none transition focus:border-slate-950"
+                      className={clsx(
+                        "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
                       placeholder="Enter the URL of the image or GIF, or upload one from your device."
                       value={draft.imageUrl}
                       onChange={(event) =>
@@ -1642,7 +1639,12 @@ export function RankboardApp() {
                 </label>
 
                 <button
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-950 hover:bg-white"
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                      : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
+                  )}
                   onClick={handleAutofillDraftImage}
                   type="button"
                 >
@@ -1651,9 +1653,14 @@ export function RankboardApp() {
                 </button>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">Series</span>
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
                   <input
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-950"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
                     placeholder='"The Legend of Zelda", "Shin Megami Tensei", etc.'
                     value={draft.series}
                     onChange={(event) =>
@@ -1664,13 +1671,23 @@ export function RankboardApp() {
 
                 <div className="flex flex-wrap gap-3">
                   <button
-                    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className={clsx(
+                      "rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                      isDarkMode
+                        ? "bg-white text-slate-950 hover:bg-slate-200"
+                        : "bg-slate-950 text-white hover:bg-slate-800",
+                    )}
                     type="submit"
                   >
                     Add Game
                   </button>
                   <button
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-950"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
                     onClick={closeAddGameModal}
                     type="button"
                   >
@@ -1684,18 +1701,30 @@ export function RankboardApp() {
 
         {isImportModalOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-lg rounded-[32px] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]">
+            <div
+              className={clsx(
+                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                     Import Trello
                   </p>
-                  <h2 className="mt-2 text-3xl font-black text-slate-950">
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Upload a Trello JSON file
                   </h2>
                 </div>
                 <button
-                  className="rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200"
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
                   onClick={() => setIsImportModalOpen(false)}
                   type="button"
                 >
@@ -1703,7 +1732,7 @@ export function RankboardApp() {
                 </button>
               </div>
 
-              <p className="mt-4 text-sm leading-6 text-slate-600">
+              <p className={clsx("mt-4 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
                 Export your board from Trello as JSON, then upload it here to replace
                 the current board on this device.
               </p>
@@ -1718,7 +1747,12 @@ export function RankboardApp() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
-                  className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
                 >
@@ -1726,7 +1760,12 @@ export function RankboardApp() {
                   Choose JSON File
                 </button>
                 <button
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-950"
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
                   onClick={() => setIsImportModalOpen(false)}
                   type="button"
                 >
@@ -1760,7 +1799,12 @@ function AddColumnButton({
       type="button"
       aria-label="Add column"
     >
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg">
+      <span
+        className={clsx(
+          "flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
+          isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
+        )}
+      >
         <Plus className="h-6 w-6" />
       </span>
     </button>
@@ -1786,6 +1830,7 @@ function BoardColumn({
   onColumnDragStart,
   onColumnDrop,
   draggingColumnId,
+  isDarkMode,
 }: {
   column: ColumnDefinition;
   cards: CardEntry[];
@@ -1807,6 +1852,7 @@ function BoardColumn({
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   draggingColumnId: string | null;
+  isDarkMode: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -1816,15 +1862,23 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={clsx(
-        "flex min-h-[720px] w-[320px] shrink-0 flex-col rounded-[28px] border bg-slate-950 p-3 text-white shadow-[0_24px_44px_rgba(15,23,42,0.34)]",
+        "flex min-h-[720px] w-[320px] shrink-0 flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)]",
+        isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
         draggingColumnId === column.id && "opacity-60",
-        isOver ? "border-white/80" : "border-slate-800",
+        isDarkMode
+          ? isOver
+            ? "border-white/80"
+            : "border-slate-800"
+          : isOver
+            ? "border-slate-950"
+            : "border-slate-200",
       )}
     >
       <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
         <div
           className={clsx(
-            "rounded-[21px] bg-slate-950/96 p-4",
+            "rounded-[21px] p-4",
+            isDarkMode ? "bg-slate-950/96" : "bg-white/95",
             !isEditingColumn && "cursor-grab active:cursor-grabbing",
           )}
           draggable={!isEditingColumn}
@@ -1844,7 +1898,12 @@ function BoardColumn({
             {isEditingColumn && editingColumnDraft ? (
               <div className="w-full space-y-3">
                 <input
-                  className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2 text-sm outline-none transition focus:border-white/50"
+                  className={clsx(
+                    "w-full rounded-2xl border px-3 py-2 text-sm outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-white/8 text-white focus:border-white/50"
+                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                  )}
                   value={editingColumnDraft.title}
                   onChange={(event) =>
                     onColumnDraftChange((current) =>
@@ -1856,7 +1915,10 @@ function BoardColumn({
                 />
                 <div className="flex gap-2">
                   <button
-                    className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-950"
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      isDarkMode ? "bg-white text-slate-950" : "bg-slate-950 text-white",
+                    )}
                     onClick={onSaveColumnEdit}
                     type="button"
                   >
@@ -1864,7 +1926,10 @@ function BoardColumn({
                     Save
                   </button>
                   <button
-                    className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      isDarkMode ? "bg-white/10 text-white" : "bg-slate-100 text-slate-700",
+                    )}
                     onClick={onCancelColumnEdit}
                     type="button"
                   >
@@ -1878,7 +1943,12 @@ function BoardColumn({
                 <h2 className="text-lg font-bold">{column.title}</h2>
                 <div className="relative">
                   <button
-                    className="rounded-full bg-white/10 p-2 text-slate-200 transition hover:bg-white/20"
+                    className={clsx(
+                      "rounded-full p-2 transition",
+                      isDarkMode
+                        ? "bg-white/10 text-slate-200 hover:bg-white/20"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                    )}
                     onClick={onToggleMenu}
                     type="button"
                     aria-label={`Open actions for ${column.title}`}
@@ -1886,9 +1956,21 @@ function BoardColumn({
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
                   {isMenuOpen ? (
-                    <div className="absolute right-0 top-12 z-20 flex w-44 flex-col rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.34)]">
+                    <div
+                      className={clsx(
+                        "absolute right-0 top-12 z-20 flex w-44 flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-900"
+                          : "border-slate-200 bg-white",
+                      )}
+                    >
                       <button
-                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white transition hover:bg-white/10"
+                        className={clsx(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
                         onClick={() => onAddCard(column.id, 0)}
                         type="button"
                       >
@@ -1896,7 +1978,12 @@ function BoardColumn({
                         Add card
                       </button>
                       <button
-                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white transition hover:bg-white/10"
+                        className={clsx(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
                         onClick={onEditColumn}
                         type="button"
                       >
@@ -1926,6 +2013,7 @@ function BoardColumn({
             <CardTile
               key={card.entryId}
               card={card}
+              isDarkMode={isDarkMode}
               rank={isRankedColumn(column) ? index + 1 : null}
               onDelete={() => onDeleteCard(column.id, card.entryId)}
               onEdit={() => onEditCard(card)}
@@ -1939,6 +2027,7 @@ function BoardColumn({
             <>
               <AddCardRow
                 columnId={column.id}
+                isDarkMode={isDarkMode}
                 insertIndex={0}
                 onClick={() => onAddCard(column.id, 0)}
               />
@@ -1946,12 +2035,14 @@ function BoardColumn({
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
                     card={card}
+                    isDarkMode={isDarkMode}
                     rank={isRankedColumn(column) ? index + 1 : null}
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
                   />
                   <AddCardRow
                     columnId={column.id}
+                    isDarkMode={isDarkMode}
                     insertIndex={index + 1}
                     onClick={() => onAddCard(column.id, index + 1)}
                   />
@@ -1962,7 +2053,14 @@ function BoardColumn({
         )}
 
         {cards.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-[26px] border border-dashed border-white/15 bg-white/[0.03] p-6 text-center text-sm leading-6 text-slate-400">
+          <div
+            className={clsx(
+              "flex flex-1 items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6",
+              isDarkMode
+                ? "border-white/15 bg-white/[0.03] text-slate-400"
+                : "border-slate-200 bg-slate-50 text-slate-500",
+            )}
+          >
             Drop a card here or use the column menu to add one.
           </div>
         ) : null}
@@ -1973,10 +2071,12 @@ function BoardColumn({
 
 function AddCardRow({
   columnId,
+  isDarkMode,
   insertIndex,
   onClick,
 }: {
   columnId: string;
+  isDarkMode: boolean;
   insertIndex: number;
   onClick: () => void;
 }) {
@@ -1988,7 +2088,8 @@ function AddCardRow({
     <button
       ref={setNodeRef}
       className={clsx(
-        "group flex h-4 items-center gap-3 text-slate-300 opacity-0 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group flex h-4 items-center gap-3 opacity-0 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
+        isDarkMode ? "text-slate-300" : "text-slate-400",
         isOver && "opacity-100",
       )}
       onClick={onClick}
@@ -1997,22 +2098,34 @@ function AddCardRow({
     >
       <span
         className={clsx(
-          "h-px flex-1 bg-white/10 transition group-hover:bg-white/25 group-focus:bg-white/25",
-          isOver && "bg-white/35",
+          "h-px flex-1 transition",
+          isDarkMode
+            ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
+            : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
+          isOver && (isDarkMode ? "bg-white/35" : "bg-slate-400"),
         )}
       />
       <span
         className={clsx(
-          "flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-slate-950 text-white transition group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900",
-          isOver && "border-white/40 bg-slate-900",
+          "flex h-7 w-7 items-center justify-center rounded-full border transition",
+          isDarkMode
+            ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
+            : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50",
+          isOver &&
+            (isDarkMode
+              ? "border-white/40 bg-slate-900"
+              : "border-slate-500 bg-slate-50"),
         )}
       >
         <Plus className="h-4 w-4" />
       </span>
       <span
         className={clsx(
-          "h-px flex-1 bg-white/10 transition group-hover:bg-white/25 group-focus:bg-white/25",
-          isOver && "bg-white/35",
+          "h-px flex-1 transition",
+          isDarkMode
+            ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
+            : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
+          isOver && (isDarkMode ? "bg-white/35" : "bg-slate-400"),
         )}
       />
     </button>
@@ -2021,11 +2134,13 @@ function AddCardRow({
 
 function SortableCard({
   card,
+  isDarkMode,
   rank,
   onDelete,
   onEdit,
 }: {
   card: CardEntry;
+  isDarkMode: boolean;
   rank: number | null;
   onDelete: () => void;
   onEdit: () => void;
@@ -2045,6 +2160,7 @@ function SortableCard({
     >
       <CardTile
         card={card}
+        isDarkMode={isDarkMode}
         rank={rank}
         isDragging={isDragging}
         dragProps={{ ...attributes, ...listeners }}
@@ -2057,6 +2173,7 @@ function SortableCard({
 
 function CardTile({
   card,
+  isDarkMode,
   rank,
   dragProps,
   isDragging = false,
@@ -2064,6 +2181,7 @@ function CardTile({
   onEdit,
 }: {
   card: CardEntry;
+  isDarkMode: boolean;
   rank: number | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
   isDragging?: boolean;
@@ -2093,7 +2211,12 @@ function CardTile({
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4">
-          <div className="rounded-[22px] bg-black/30 p-4 backdrop-blur-sm">
+          <div
+            className={clsx(
+              "rounded-[22px] p-4 backdrop-blur-sm",
+              isDarkMode ? "bg-black/30" : "bg-white/20",
+            )}
+          >
             <h3 className="mt-2 text-xl font-bold text-white">{card.title}</h3>
             {card.notes ? (
               <p className="mt-2 text-sm leading-6 text-slate-200">{card.notes}</p>
