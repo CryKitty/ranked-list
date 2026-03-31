@@ -39,7 +39,7 @@ import {
 import { demoCardsByColumn, demoColumns } from "@/lib/demo-data";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { BoardSnapshot, CardEntry, ColumnDefinition } from "@/lib/types";
+import { BoardSnapshot, CardEntry, ColumnDefinition, SavedBoard } from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -82,6 +82,19 @@ const initialDraft: CardDraft = {
   series: "",
   columnId: "new-column",
 };
+
+function createEmptyBoard(title = "New Board"): SavedBoard {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: makeId("board"),
+    title,
+    columns: demoColumns,
+    cardsByColumn: demoCardsByColumn,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
 
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
@@ -416,9 +429,12 @@ function normalizeTitleForComparison(title: string) {
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
-  const [columns, setColumns] = useState<ColumnDefinition[]>(demoColumns);
+  const defaultBoard = createEmptyBoard("Rankboard");
+  const [boards, setBoards] = useState<SavedBoard[]>([defaultBoard]);
+  const [activeBoardId, setActiveBoardId] = useState(defaultBoard.id);
+  const [columns, setColumns] = useState<ColumnDefinition[]>(defaultBoard.columns);
   const [cardsByColumn, setCardsByColumn] =
-    useState<Record<string, CardEntry[]>>(demoCardsByColumn);
+    useState<Record<string, CardEntry[]>>(defaultBoard.cardsByColumn);
   const [draft, setDraft] = useState<CardDraft>(initialDraft);
   const [addCardTarget, setAddCardTarget] = useState<AddCardTarget | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -443,6 +459,9 @@ export function RankboardApp() {
   const [isAuthLoading, setIsAuthLoading] = useState(authEnabled);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
+  const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
+  const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+  const [newBoardTitle, setNewBoardTitle] = useState("");
   const [history, setHistory] = useState<BoardSnapshot[]>([]);
   const [draftDuplicateAction, setDraftDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
@@ -514,19 +533,45 @@ export function RankboardApp() {
         return;
       }
 
-      const parsedState = JSON.parse(storedValue) as {
-        columns?: ColumnDefinition[];
-        cardsByColumn?: Record<string, CardEntry[]>;
-      };
+      const parsedState = JSON.parse(storedValue) as
+        | {
+            version?: number;
+            activeBoardId?: string;
+            boards?: SavedBoard[];
+          }
+        | {
+            columns?: ColumnDefinition[];
+            cardsByColumn?: Record<string, CardEntry[]>;
+          };
 
-      if (parsedState.columns) {
-        skipNextHistoryRef.current = true;
-        setColumns(parsedState.columns);
-      }
+      if ("boards" in parsedState && Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
+        const nextBoards = parsedState.boards;
+        const nextActiveBoardId =
+          parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
+            ? parsedState.activeBoardId
+            : nextBoards[0].id;
+        const nextActiveBoard =
+          nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
 
-      if (parsedState.cardsByColumn) {
         skipNextHistoryRef.current = true;
-        setCardsByColumn(parsedState.cardsByColumn);
+        setBoards(nextBoards);
+        setActiveBoardId(nextActiveBoardId);
+        setColumns(nextActiveBoard.columns);
+        setCardsByColumn(nextActiveBoard.cardsByColumn);
+      } else {
+        const legacyColumns = "columns" in parsedState ? parsedState.columns : undefined;
+        const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
+        const migratedBoard: SavedBoard = {
+          ...createEmptyBoard("Rankboard"),
+          columns: legacyColumns ?? demoColumns,
+          cardsByColumn: legacyCards ?? demoCardsByColumn,
+        };
+
+        skipNextHistoryRef.current = true;
+        setBoards([migratedBoard]);
+        setActiveBoardId(migratedBoard.id);
+        setColumns(migratedBoard.columns);
+        setCardsByColumn(migratedBoard.cardsByColumn);
       }
     } catch {
       // Ignore bad local data and fall back to demo content.
@@ -562,11 +607,12 @@ export function RankboardApp() {
     window.localStorage.setItem(
       LOCAL_STORAGE_KEY,
       JSON.stringify({
-        columns,
-        cardsByColumn,
+        version: 2,
+        activeBoardId,
+        boards,
       }),
     );
-  }, [cardsByColumn, columns, hasLoadedPersistedState]);
+  }, [activeBoardId, boards, hasLoadedPersistedState]);
 
   useEffect(() => {
     if (!hasLoadedPersistedState) {
@@ -593,6 +639,21 @@ export function RankboardApp() {
 
     previousSnapshotRef.current = nextSnapshot;
   }, [cardsByColumn, columns, hasLoadedPersistedState]);
+
+  useEffect(() => {
+    setBoards((current) =>
+      current.map((board) =>
+        board.id === activeBoardId
+          ? {
+              ...board,
+              columns,
+              cardsByColumn,
+              updatedAt: new Date().toISOString(),
+            }
+          : board,
+      ),
+    );
+  }, [activeBoardId, cardsByColumn, columns]);
 
   useEffect(() => {
     latestColumnsRef.current = columns;
@@ -651,7 +712,7 @@ export function RankboardApp() {
     async function loadBoardState() {
       const { data, error } = await client
         .from("board_states")
-        .select("columns, cards_by_column")
+        .select("*")
         .eq("owner_id", user.id)
         .maybeSingle();
 
@@ -667,8 +728,22 @@ export function RankboardApp() {
 
       const localColumns = latestColumnsRef.current;
       const localCardsByColumn = latestCardsByColumnRef.current;
+      const localBoards = boards;
       const localBoardHasContent = !isStarterBoard(localColumns, localCardsByColumn);
-      const remoteColumns = (data?.columns as ColumnDefinition[] | undefined) ?? null;
+      const columnsPayload =
+        (data?.columns as
+          | ColumnDefinition[]
+          | { version?: number; boards?: SavedBoard[]; activeBoardId?: string }
+          | undefined) ?? null;
+      const remoteBoardsPayload =
+        columnsPayload &&
+        !Array.isArray(columnsPayload) &&
+        columnsPayload.version === 2 &&
+        Array.isArray(columnsPayload.boards) &&
+        columnsPayload.boards.length > 0
+          ? columnsPayload
+          : null;
+      const remoteColumns = Array.isArray(columnsPayload) ? columnsPayload : null;
       const remoteCardsByColumn =
         (data?.cards_by_column as Record<string, CardEntry[]> | undefined) ?? null;
       const remoteBoardExists = Boolean(remoteColumns && remoteCardsByColumn);
@@ -677,24 +752,59 @@ export function RankboardApp() {
           ? isStarterBoard(remoteColumns, remoteCardsByColumn)
           : false;
 
-      if (remoteBoardExists && remoteColumns && remoteCardsByColumn) {
+      if (remoteBoardsPayload) {
+        const remoteBoards = remoteBoardsPayload.boards ?? [];
+        if (remoteBoards.length === 0) {
+          setHasLoadedRemoteState(true);
+          return;
+        }
+        const remoteActiveBoardId =
+          remoteBoardsPayload.activeBoardId &&
+          remoteBoards.some((board) => board.id === remoteBoardsPayload.activeBoardId)
+            ? remoteBoardsPayload.activeBoardId
+            : remoteBoards[0].id;
+        const nextActiveBoard =
+          remoteBoards.find((board) => board.id === remoteActiveBoardId) ??
+          remoteBoards[0];
+        skipNextHistoryRef.current = true;
+        setBoards(remoteBoards);
+        setActiveBoardId(remoteActiveBoardId);
+        setColumns(nextActiveBoard.columns);
+        skipNextHistoryRef.current = true;
+        setCardsByColumn(nextActiveBoard.cardsByColumn);
+      } else if (remoteBoardExists && remoteColumns && remoteCardsByColumn) {
         if (remoteBoardIsStarter && localBoardHasContent) {
           await client.from("board_states").upsert({
             owner_id: user.id,
-            columns: localColumns,
+            columns: {
+              version: 2,
+              activeBoardId,
+              boards: localBoards,
+            },
             cards_by_column: localCardsByColumn,
             updated_at: new Date().toISOString(),
           });
         } else {
+          const migratedBoard: SavedBoard = {
+            ...createEmptyBoard("Rankboard"),
+            columns: remoteColumns,
+            cardsByColumn: remoteCardsByColumn,
+          };
           skipNextHistoryRef.current = true;
-          setColumns(remoteColumns);
+          setBoards([migratedBoard]);
+          setActiveBoardId(migratedBoard.id);
+          setColumns(migratedBoard.columns);
           skipNextHistoryRef.current = true;
-          setCardsByColumn(remoteCardsByColumn);
+          setCardsByColumn(migratedBoard.cardsByColumn);
         }
       } else {
         await client.from("board_states").upsert({
           owner_id: user.id,
-          columns: localColumns,
+          columns: {
+            version: 2,
+            activeBoardId,
+            boards: localBoards,
+          },
           cards_by_column: localCardsByColumn,
           updated_at: new Date().toISOString(),
         });
@@ -710,6 +820,8 @@ export function RankboardApp() {
     };
   }, [
     authEnabled,
+    activeBoardId,
+    boards,
     currentUser,
     hasLoadedPersistedState,
     supabase,
@@ -725,14 +837,18 @@ export function RankboardApp() {
     const timeout = window.setTimeout(() => {
       void client.from("board_states").upsert({
         owner_id: user.id,
-        columns,
+        columns: {
+          version: 2,
+          activeBoardId,
+          boards,
+        },
         cards_by_column: cardsByColumn,
         updated_at: new Date().toISOString(),
       });
     }, 1000);
 
     return () => window.clearTimeout(timeout);
-  }, [cardsByColumn, columns, currentUser, hasLoadedRemoteState, supabase]);
+  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, supabase]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !hasLoadedRemoteState) {
@@ -744,14 +860,18 @@ export function RankboardApp() {
     const interval = window.setInterval(() => {
       void client.from("board_states").upsert({
         owner_id: user.id,
-        columns,
+        columns: {
+          version: 2,
+          activeBoardId,
+          boards,
+        },
         cards_by_column: cardsByColumn,
         updated_at: new Date().toISOString(),
       });
     }, 60_000);
 
     return () => window.clearInterval(interval);
-  }, [cardsByColumn, columns, currentUser, hasLoadedRemoteState, supabase]);
+  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, supabase]);
 
   useEffect(() => {
     if (!isActionsMenuOpen) {
@@ -1400,6 +1520,40 @@ export function RankboardApp() {
     setHistory((current) => current.slice(0, -1));
   }
 
+  function switchBoard(boardId: string) {
+    const nextBoard = boards.find((board) => board.id === boardId);
+
+    if (!nextBoard) {
+      return;
+    }
+
+    skipNextHistoryRef.current = true;
+    setActiveBoardId(nextBoard.id);
+    setColumns(nextBoard.columns);
+    setCardsByColumn(nextBoard.cardsByColumn);
+    setHistory([]);
+    setIsBoardsMenuOpen(false);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  function createBoardFromModal() {
+    const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
+    const nextBoard = createEmptyBoard(title);
+
+    skipNextHistoryRef.current = true;
+    setBoards((current) => [...current, nextBoard]);
+    setActiveBoardId(nextBoard.id);
+    setColumns(nextBoard.columns);
+    setCardsByColumn(nextBoard.cardsByColumn);
+    setHistory([]);
+    setNewBoardTitle("");
+    setIsCreateBoardModalOpen(false);
+    setIsBoardsMenuOpen(false);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
   async function handleImportTrelloBoard(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
@@ -1564,6 +1718,60 @@ export function RankboardApp() {
                         <Upload className="h-4 w-4" />
                         Import from Trello
                       </button>
+                      <div className="rounded-2xl">
+                        <button
+                          className={clsx(
+                            "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                            isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                          )}
+                          onClick={() => setIsBoardsMenuOpen((current) => !current)}
+                          type="button"
+                        >
+                          <span>Boards</span>
+                          <span className="text-xs opacity-70">{isBoardsMenuOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isBoardsMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "mt-1 space-y-1 rounded-2xl px-2 pb-2",
+                              isDarkMode ? "bg-white/5" : "bg-slate-50",
+                            )}
+                          >
+                            {boards.map((board) => (
+                              <button
+                                key={board.id}
+                                className={clsx(
+                                  "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                  isDarkMode
+                                    ? "hover:bg-white/10"
+                                    : "hover:bg-white",
+                                  board.id === activeBoardId &&
+                                    (isDarkMode ? "text-white" : "text-slate-950"),
+                                )}
+                                onClick={() => switchBoard(board.id)}
+                                type="button"
+                              >
+                                <span className="truncate">{board.title}</span>
+                                {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
+                              </button>
+                            ))}
+                            <button
+                              className={clsx(
+                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
+                              onClick={() => {
+                                setIsCreateBoardModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <Plus className="h-4 w-4" />
+                              New Board
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                       {currentUser ? (
                         <button
                           className={clsx(
@@ -1748,6 +1956,56 @@ export function RankboardApp() {
                               <Upload className="h-4 w-4" />
                               Import from Trello
                             </button>
+                            <div className="rounded-2xl">
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                                )}
+                                onClick={() => setIsBoardsMenuOpen((current) => !current)}
+                                type="button"
+                              >
+                                <span>Boards</span>
+                                <span className="text-xs opacity-70">{isBoardsMenuOpen ? "▾" : "▸"}</span>
+                              </button>
+                              {isBoardsMenuOpen ? (
+                                <div
+                                  className={clsx(
+                                    "mt-1 space-y-1 rounded-2xl px-2 pb-2",
+                                    isDarkMode ? "bg-white/5" : "bg-slate-50",
+                                  )}
+                                >
+                                  {boards.map((board) => (
+                                    <button
+                                      key={board.id}
+                                      className={clsx(
+                                        "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                        isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                      )}
+                                      onClick={() => switchBoard(board.id)}
+                                      type="button"
+                                    >
+                                      <span className="truncate">{board.title}</span>
+                                      {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
+                                    </button>
+                                  ))}
+                                  <button
+                                    className={clsx(
+                                      "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                      isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                    )}
+                                    onClick={() => {
+                                      setIsCreateBoardModalOpen(true);
+                                      setIsActionsMenuOpen(false);
+                                    }}
+                                    type="button"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    New Board
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
                             {currentUser ? (
                               <button
                                 className={clsx(
@@ -2326,6 +2584,93 @@ export function RankboardApp() {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
                   onClick={() => setIsImportModalOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isCreateBoardModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+            <div
+              className={clsx(
+                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    New Board
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Create a new board
+                  </h2>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => {
+                    setIsCreateBoardModalOpen(false);
+                    setNewBoardTitle("");
+                  }}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <label className="mt-6 grid gap-2">
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                  Board title
+                </span>
+                <input
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                  )}
+                  placeholder="Favorites, Waifus, Horror Games..."
+                  value={newBoardTitle}
+                  onChange={(event) => setNewBoardTitle(event.target.value)}
+                />
+              </label>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={createBoardFromModal}
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Board
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => {
+                    setIsCreateBoardModalOpen(false);
+                    setNewBoardTitle("");
+                  }}
                   type="button"
                 >
                   Cancel

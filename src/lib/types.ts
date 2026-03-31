@@ -23,3 +23,10 @@ export type BoardSnapshot = {
   columns: ColumnDefinition[];
   cardsByColumn: Record<string, CardEntry[]>;
 };
+
+export type SavedBoard = BoardSnapshot & {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
