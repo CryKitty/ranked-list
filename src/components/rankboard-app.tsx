@@ -1579,7 +1579,7 @@ export function RankboardApp() {
               collisionDetection={closestCorners}
               onDragEnd={handleDragEnd}
             >
-              <div className="flex gap-4 overflow-x-auto pb-3">
+              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 sm:snap-none">
                 {columns.map((column) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
@@ -2127,7 +2127,7 @@ function AddColumnButton({
   return (
     <button
       className={clsx(
-        "flex min-h-[720px] w-[92px] shrink-0 items-center justify-center rounded-[28px] border border-dashed transition",
+        "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? "border-white/15 bg-white/5 text-white hover:border-white/35 hover:bg-white/10"
           : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
@@ -2208,7 +2208,7 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={clsx(
-        "flex min-h-[720px] w-[320px] shrink-0 flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)]",
+        "flex min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
@@ -2219,6 +2219,10 @@ function BoardColumn({
             ? "border-slate-950"
             : "border-slate-200",
       )}
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "720px",
+      }}
     >
       <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
         <div
@@ -2417,7 +2421,6 @@ function BoardColumn({
             <CardTile
               key={card.entryId}
               card={card}
-              isDarkMode={isDarkMode}
               rank={isRankedColumn(column) ? index + 1 : null}
               onDelete={() => onDeleteCard(column.id, card.entryId)}
               onEdit={() => onEditCard(card)}
@@ -2593,6 +2596,10 @@ function CardTile({
         "group relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-[0_20px_40px_rgba(15,23,42,0.25)] touch-none cursor-grab active:cursor-grabbing",
         isDragging && "rotate-1 scale-[1.01]",
       )}
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "220px",
+      }}
     >
       <div
         className="relative min-h-[220px] bg-cover bg-center"
