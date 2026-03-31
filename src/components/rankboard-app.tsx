@@ -402,6 +402,25 @@ function parseDropTargetId(overId: string) {
   };
 }
 
+function isStarterBoard(
+  boardColumns: ColumnDefinition[],
+  boardCardsByColumn: Record<string, CardEntry[]>,
+) {
+  if (boardColumns.length !== demoColumns.length) {
+    return false;
+  }
+
+  if (boardColumns[0]?.id !== demoColumns[0]?.id) {
+    return false;
+  }
+
+  if (boardColumns[0]?.title !== demoColumns[0]?.title) {
+    return false;
+  }
+
+  return Object.values(boardCardsByColumn).every((cards) => cards.length === 0);
+}
+
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
@@ -537,6 +556,10 @@ export function RankboardApp() {
   }, [supabase]);
 
   useEffect(() => {
+    if (!hasLoadedPersistedState) {
+      return;
+    }
+
     if (!supabase || !currentUser) {
       setHasLoadedRemoteState(!authEnabled);
       return;
@@ -563,17 +586,37 @@ export function RankboardApp() {
         return;
       }
 
-      if (data?.columns && data?.cards_by_column) {
-        setColumns(data.columns as ColumnDefinition[]);
-        setCardsByColumn(data.cards_by_column as Record<string, CardEntry[]>);
+      const localColumns = columns;
+      const localCardsByColumn = cardsByColumn;
+      const localBoardHasContent = !isStarterBoard(localColumns, localCardsByColumn);
+      const remoteColumns = (data?.columns as ColumnDefinition[] | undefined) ?? null;
+      const remoteCardsByColumn =
+        (data?.cards_by_column as Record<string, CardEntry[]> | undefined) ?? null;
+      const remoteBoardExists = Boolean(remoteColumns && remoteCardsByColumn);
+      const remoteBoardIsStarter =
+        remoteColumns && remoteCardsByColumn
+          ? isStarterBoard(remoteColumns, remoteCardsByColumn)
+          : false;
+
+      if (remoteBoardExists && remoteColumns && remoteCardsByColumn) {
+        if (remoteBoardIsStarter && localBoardHasContent) {
+          await client.from("board_states").upsert({
+            owner_id: user.id,
+            columns: localColumns,
+            cards_by_column: localCardsByColumn,
+            updated_at: new Date().toISOString(),
+          });
+        } else {
+          setColumns(remoteColumns);
+          setCardsByColumn(remoteCardsByColumn);
+        }
       } else {
         await client.from("board_states").upsert({
           owner_id: user.id,
-          columns: demoColumns,
-          cards_by_column: demoCardsByColumn,
+          columns: localColumns,
+          cards_by_column: localCardsByColumn,
+          updated_at: new Date().toISOString(),
         });
-        setColumns(demoColumns);
-        setCardsByColumn(demoCardsByColumn);
       }
 
       setHasLoadedRemoteState(true);
@@ -584,7 +627,14 @@ export function RankboardApp() {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, currentUser, supabase]);
+  }, [
+    authEnabled,
+    cardsByColumn,
+    columns,
+    currentUser,
+    hasLoadedPersistedState,
+    supabase,
+  ]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !hasLoadedRemoteState) {
