@@ -70,6 +70,7 @@ const initialDraft: CardDraft = {
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
 const PENDING_SAVE_KEY = "rankboard-pending-save-v1";
+const PENDING_SAVE_SNAPSHOT_KEY = "rankboard-pending-save-snapshot-v1";
 const COLUMN_ACCENTS = [
   "from-amber-300 via-orange-400 to-rose-500",
   "from-sky-300 via-cyan-400 to-teal-500",
@@ -547,6 +548,35 @@ export function RankboardApp() {
     let cancelled = false;
 
     async function loadBoardState() {
+      const pendingSnapshotRaw = window.localStorage.getItem(PENDING_SAVE_SNAPSHOT_KEY);
+      const pendingSnapshot = pendingSnapshotRaw
+        ? (JSON.parse(pendingSnapshotRaw) as {
+            columns?: ColumnDefinition[];
+            cardsByColumn?: Record<string, CardEntry[]>;
+          })
+        : null;
+      const pendingColumns = pendingSnapshot?.columns ?? null;
+      const pendingCardsByColumn = pendingSnapshot?.cardsByColumn ?? null;
+
+      if (pendingColumns && pendingCardsByColumn) {
+        await client.from("board_states").upsert({
+          owner_id: user.id,
+          columns: pendingColumns,
+          cards_by_column: pendingCardsByColumn,
+          updated_at: new Date().toISOString(),
+        });
+
+        if (!cancelled) {
+          setColumns(pendingColumns);
+          setCardsByColumn(pendingCardsByColumn);
+          window.localStorage.removeItem(PENDING_SAVE_KEY);
+          window.localStorage.removeItem(PENDING_SAVE_SNAPSHOT_KEY);
+          setHasLoadedRemoteState(true);
+        }
+
+        return;
+      }
+
       const { data, error } = await client
         .from("board_states")
         .select("columns, cards_by_column")
@@ -725,6 +755,13 @@ export function RankboardApp() {
     }
 
     window.localStorage.setItem(PENDING_SAVE_KEY, "1");
+    window.localStorage.setItem(
+      PENDING_SAVE_SNAPSHOT_KEY,
+      JSON.stringify({
+        columns,
+        cardsByColumn,
+      }),
+    );
     await handleOAuthLogin("google");
   }
 
@@ -1247,7 +1284,7 @@ export function RankboardApp() {
         <section className="grid gap-4">
           <div
             className={clsx(
-              "rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-50 rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/80",
@@ -1376,7 +1413,7 @@ export function RankboardApp() {
 
           <section
             className={clsx(
-              "overflow-hidden rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 overflow-hidden rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
