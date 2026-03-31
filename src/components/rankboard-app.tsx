@@ -545,6 +545,16 @@ export function RankboardApp() {
   }, []);
 
   useEffect(() => {
+    const preference = currentUser?.user_metadata?.theme_preference;
+
+    if (preference === "dark") {
+      setIsDarkMode(true);
+    } else if (preference === "light") {
+      setIsDarkMode(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
     if (!hasLoadedPersistedState) {
       return;
     }
@@ -770,6 +780,20 @@ export function RankboardApp() {
         redirectTo: `${window.location.origin}/auth/callback?next=/`,
       },
     });
+  }
+
+  async function toggleThemePreference() {
+    const nextIsDarkMode = !isDarkMode;
+    setIsDarkMode(nextIsDarkMode);
+
+    if (supabase && currentUser) {
+      await supabase.auth.updateUser({
+        data: {
+          ...currentUser.user_metadata,
+          theme_preference: nextIsDarkMode ? "dark" : "light",
+        },
+      });
+    }
   }
 
   async function handleSignOut() {
@@ -1516,7 +1540,7 @@ export function RankboardApp() {
                             : "hover:bg-slate-100",
                         )}
                         onClick={() => {
-                          setIsDarkMode((current) => !current);
+                          void toggleThemePreference();
                           setIsActionsMenuOpen(false);
                         }}
                         type="button"
@@ -1592,7 +1616,7 @@ export function RankboardApp() {
               onClick={() => setIsMobileActionsOpen(true)}
               type="button"
             >
-              <Settings2 className="h-5 w-5" />
+              <Plus className="h-6 w-6" />
             </button>
 
             {isMobileActionsOpen ? (
@@ -1700,7 +1724,7 @@ export function RankboardApp() {
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
                               )}
                               onClick={() => {
-                                setIsDarkMode((current) => !current);
+                                void toggleThemePreference();
                                 setIsActionsMenuOpen(false);
                                 setIsMobileActionsOpen(false);
                               }}
@@ -2634,6 +2658,7 @@ function BoardColumn({
                 columnId={column.id}
                 isDarkMode={isDarkMode}
                 insertIndex={0}
+                alwaysVisible={cards.length === 0}
                 onClick={() => onAddCard(column.id, 0)}
               />
               {cards.map((card, index) => (
@@ -2648,6 +2673,7 @@ function BoardColumn({
                     columnId={column.id}
                     isDarkMode={isDarkMode}
                     insertIndex={index + 1}
+                    alwaysVisible={index === cards.length - 1}
                     onClick={() => onAddCard(column.id, index + 1)}
                   />
                 </div>
@@ -2677,11 +2703,13 @@ function AddCardRow({
   columnId,
   isDarkMode,
   insertIndex,
+  alwaysVisible = false,
   onClick,
 }: {
   columnId: string;
   isDarkMode: boolean;
   insertIndex: number;
+  alwaysVisible?: boolean;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -2694,6 +2722,7 @@ function AddCardRow({
       className={clsx(
         "group flex h-4 items-center gap-3 opacity-0 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
+        alwaysVisible && "h-8 opacity-100",
         isOver && "opacity-100",
       )}
       onClick={onClick}
