@@ -19,12 +19,14 @@ import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
 import { User } from "@supabase/supabase-js";
 import {
+  ArrowUpDown,
   Edit3,
   ImagePlus,
   LogOut,
   MoreHorizontal,
   Moon,
   Plus,
+  RotateCcw,
   Save,
   Sun,
   Trash2,
@@ -35,7 +37,7 @@ import {
 import { demoCardsByColumn, demoColumns } from "@/lib/demo-data";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { CardEntry, ColumnDefinition } from "@/lib/types";
+import { BoardSnapshot, CardEntry, ColumnDefinition } from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -438,12 +440,15 @@ export function RankboardApp() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(authEnabled);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [history, setHistory] = useState<BoardSnapshot[]>([]);
   const [draftDuplicateAction, setDraftDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
   const [editingDuplicateAction, setEditingDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
+  const skipNextHistoryRef = useRef(true);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
@@ -505,10 +510,12 @@ export function RankboardApp() {
       };
 
       if (parsedState.columns) {
+        skipNextHistoryRef.current = true;
         setColumns(parsedState.columns);
       }
 
       if (parsedState.cardsByColumn) {
+        skipNextHistoryRef.current = true;
         setCardsByColumn(parsedState.cardsByColumn);
       }
     } catch {
@@ -539,6 +546,32 @@ export function RankboardApp() {
         cardsByColumn,
       }),
     );
+  }, [cardsByColumn, columns, hasLoadedPersistedState]);
+
+  useEffect(() => {
+    if (!hasLoadedPersistedState) {
+      return;
+    }
+
+    const nextSnapshot: BoardSnapshot = { columns, cardsByColumn };
+    const previousSnapshot = previousSnapshotRef.current;
+
+    if (skipNextHistoryRef.current) {
+      skipNextHistoryRef.current = false;
+      previousSnapshotRef.current = nextSnapshot;
+      return;
+    }
+
+    if (previousSnapshot) {
+      const previousSerialized = JSON.stringify(previousSnapshot);
+      const nextSerialized = JSON.stringify(nextSnapshot);
+
+      if (previousSerialized !== nextSerialized) {
+        setHistory((current) => [...current.slice(-19), previousSnapshot]);
+      }
+    }
+
+    previousSnapshotRef.current = nextSnapshot;
   }, [cardsByColumn, columns, hasLoadedPersistedState]);
 
   useEffect(() => {
@@ -628,7 +661,9 @@ export function RankboardApp() {
             updated_at: new Date().toISOString(),
           });
         } else {
+          skipNextHistoryRef.current = true;
           setColumns(remoteColumns);
+          skipNextHistoryRef.current = true;
           setCardsByColumn(remoteCardsByColumn);
         }
       } else {
@@ -1314,6 +1349,20 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
   }
 
+  function handleUndo() {
+    const previous = history[history.length - 1];
+
+    if (!previous) {
+      return;
+    }
+
+    skipNextHistoryRef.current = true;
+    setColumns(previous.columns);
+    skipNextHistoryRef.current = true;
+    setCardsByColumn(previous.cardsByColumn);
+    setHistory((current) => current.slice(0, -1));
+  }
+
   async function handleImportTrelloBoard(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
@@ -1378,7 +1427,7 @@ export function RankboardApp() {
             )}
           >
             <div className="flex flex-col items-center gap-4">
-              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto]">
+              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto_auto]">
                 <input
                   className={clsx(
                     "rounded-2xl border px-4 py-3 outline-none transition",
@@ -1408,6 +1457,20 @@ export function RankboardApp() {
                     </option>
                   ))}
                 </select>
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
+                  )}
+                  disabled={history.length === 0}
+                  onClick={handleUndo}
+                  type="button"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Undo
+                </button>
                 <div className="relative" ref={actionsMenuRef}>
                   <button
                     aria-label="More actions"
@@ -2284,7 +2347,10 @@ function BoardColumn({
                           onClick={onToggleSortMenu}
                           type="button"
                         >
-                          <span>Sort</span>
+                          <span className="inline-flex items-center gap-2">
+                            <ArrowUpDown className="h-4 w-4" />
+                            Sort
+                          </span>
                           <span className="text-xs opacity-70">{isSortMenuOpen ? "▾" : "▸"}</span>
                         </button>
                         {isSortMenuOpen ? (
@@ -2373,7 +2439,6 @@ function BoardColumn({
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
                     card={card}
-                    isDarkMode={isDarkMode}
                     rank={isRankedColumn(column) ? index + 1 : null}
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
@@ -2472,13 +2537,11 @@ function AddCardRow({
 
 function SortableCard({
   card,
-  isDarkMode,
   rank,
   onDelete,
   onEdit,
 }: {
   card: CardEntry;
-  isDarkMode: boolean;
   rank: number | null;
   onDelete: () => void;
   onEdit: () => void;
@@ -2498,7 +2561,6 @@ function SortableCard({
     >
       <CardTile
         card={card}
-        isDarkMode={isDarkMode}
         rank={rank}
         isDragging={isDragging}
         dragProps={{ ...attributes, ...listeners }}
@@ -2511,7 +2573,6 @@ function SortableCard({
 
 function CardTile({
   card,
-  isDarkMode,
   rank,
   dragProps,
   isDragging = false,
@@ -2519,7 +2580,6 @@ function CardTile({
   onEdit,
 }: {
   card: CardEntry;
-  isDarkMode: boolean;
   rank: number | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
   isDragging?: boolean;
@@ -2549,17 +2609,10 @@ function CardTile({
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4">
-          <div
-            className={clsx(
-              "rounded-[18px] px-4 py-3 backdrop-blur-[2px]",
-              isDarkMode ? "bg-black/18" : "bg-white/12",
-            )}
-          >
-            <h3 className="text-xl font-bold text-white">{card.title}</h3>
-            {card.notes ? (
-              <p className="mt-2 text-sm leading-6 text-slate-200">{card.notes}</p>
-            ) : null}
-          </div>
+          <h3 className="truncate text-xl font-bold text-white">{card.title}</h3>
+          {card.notes ? (
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
+          ) : null}
         </div>
       </div>
 
