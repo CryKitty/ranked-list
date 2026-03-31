@@ -426,6 +426,52 @@ function normalizeTitleForComparison(title: string) {
   return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
 }
 
+function getBoardVocabulary(boardTitle: string) {
+  const normalizedTitle = boardTitle.toLowerCase();
+
+  if (
+    normalizedTitle.includes("waifu") ||
+    normalizedTitle.includes("husbando") ||
+    normalizedTitle.includes("character")
+  ) {
+    return {
+      singular: "Character",
+      titleExamples: '"Makima", "2B", "Rin Tohsaka", etc.',
+      seriesExamples: '"Chainsaw Man", "NieR", "Fate", etc.',
+    };
+  }
+
+  if (normalizedTitle.includes("movie") || normalizedTitle.includes("film")) {
+    return {
+      singular: "Movie",
+      titleExamples: '"The Lighthouse", "Blade Runner 2049", etc.',
+      seriesExamples: '"Alien", "Scream", "Mad Max", etc.',
+    };
+  }
+
+  if (normalizedTitle.includes("show") || normalizedTitle.includes("tv")) {
+    return {
+      singular: "Show",
+      titleExamples: '"Severance", "Breaking Bad", etc.',
+      seriesExamples: '"Star Trek", "Love Live!", "Monogatari", etc.',
+    };
+  }
+
+  if (normalizedTitle.includes("anime")) {
+    return {
+      singular: "Anime",
+      titleExamples: '"Frieren", "Mob Psycho 100", etc.',
+      seriesExamples: '"Gundam", "Fate", "Monogatari", etc.',
+    };
+  }
+
+  return {
+    singular: "Game",
+    titleExamples: '"Tears of the Kingdom", "The Last of Us Part II", etc.',
+    seriesExamples: '"The Legend of Zelda", "Shin Megami Tensei", etc.',
+  };
+}
+
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
@@ -497,6 +543,9 @@ export function RankboardApp() {
         .filter(Boolean),
     ),
   ).sort((a, b) => a.localeCompare(b));
+  const activeBoardTitle =
+    boards.find((board) => board.id === activeBoardId)?.title ?? "Rankboard";
+  const boardVocabulary = getBoardVocabulary(activeBoardTitle);
 
   function findDuplicateCard(title: string, excludeItemId?: string) {
     const normalizedTitle = normalizeTitleForComparison(title);
@@ -2071,6 +2120,7 @@ export function RankboardApp() {
                     <BoardColumn
                       key={column.id}
                       column={column}
+                      addLabel={boardVocabulary.singular}
                       isDarkMode={isDarkMode}
                       cards={visibleCards}
                       filtering={filtering}
@@ -2338,10 +2388,10 @@ export function RankboardApp() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Add Game
+                    {`Add ${boardVocabulary.singular}`}
                   </p>
                   <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Add a new card in place
+                    {`Add ${boardVocabulary.singular}`}
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
                     This will be inserted into{" "}
@@ -2363,92 +2413,91 @@ export function RankboardApp() {
               </div>
 
               <form className="mt-6 grid gap-4" onSubmit={handleDraftSubmit}>
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
-                  <input
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder='"Tears of the Kingdom", "The Last of Us Part II", etc.'
-                    value={draft.title}
-                    onChange={(event) =>
-                      {
-                        setDraftDuplicateAction(null);
-                        setDraft((current) => ({ ...current, title: event.target.value }));
-                      }
-                    }
-                  />
-                </label>
-
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                    Background image or GIF URL
-                  </span>
-                  <div className="relative">
-                    <ImagePlus
-                      className={clsx(
-                        "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
-                        isDarkMode ? "text-slate-500" : "text-slate-400",
-                      )}
-                    />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                     <input
                       className={clsx(
-                        "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
+                        "rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
                           ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
                           : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                       )}
-                      placeholder="Enter the URL of the image or GIF, or upload one from your device."
-                      value={draft.imageUrl}
-                      onChange={(event) =>
-                        {
+                      placeholder={boardVocabulary.titleExamples}
+                      value={draft.title}
+                      onChange={(event) => {
+                        setDraftDuplicateAction(null);
+                        setDraft((current) => ({ ...current, title: event.target.value }));
+                      }}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                    <input
+                      list="series-suggestions"
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      placeholder={boardVocabulary.seriesExamples}
+                      value={draft.series}
+                      onChange={(event) => {
+                        setDraftDuplicateAction(null);
+                        setDraft((current) => ({ ...current, series: event.target.value }));
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                      Background image or GIF URL
+                    </span>
+                    <div className="relative">
+                      <ImagePlus
+                        className={clsx(
+                          "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
+                          isDarkMode ? "text-slate-500" : "text-slate-400",
+                        )}
+                      />
+                      <input
+                        className={clsx(
+                          "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        )}
+                        placeholder="Enter the URL of the image or GIF, or upload one from your device."
+                        value={draft.imageUrl}
+                        onChange={(event) => {
                           setDraftDuplicateAction(null);
                           setDraft((current) => ({
                             ...current,
                             imageUrl: event.target.value,
                           }));
-                        }
-                      }
-                    />
-                  </div>
-                </label>
+                        }}
+                      />
+                    </div>
+                  </label>
 
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                      : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                  )}
-                  onClick={handleAutofillDraftImage}
-                  type="button"
-                >
-                  <WandSparkles className="h-4 w-4" />
-                  {isAutofillingDraftImage ? "Finding artwork..." : "Auto-Find Artwork"}
-                </button>
-
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
-                  <input
+                  <button
                     className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
                       isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
                     )}
-                    placeholder='"The Legend of Zelda", "Shin Megami Tensei", etc.'
-                    value={draft.series}
-                    onChange={(event) =>
-                      {
-                        setDraftDuplicateAction(null);
-                        setDraft((current) => ({ ...current, series: event.target.value }));
-                      }
-                    }
-                  />
-                </label>
+                    onClick={handleAutofillDraftImage}
+                    type="button"
+                  >
+                    <WandSparkles className="h-4 w-4" />
+                    {isAutofillingDraftImage ? "Finding..." : "Auto-Find"}
+                  </button>
+                </div>
 
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -2460,7 +2509,7 @@ export function RankboardApp() {
                     )}
                     type="submit"
                   >
-                    Add Game
+                    {`Add ${boardVocabulary.singular}`}
                   </button>
                   {draftDuplicateAction ? (
                     <div
@@ -2717,6 +2766,7 @@ function AddColumnButton({
 
 function BoardColumn({
   column,
+  addLabel,
   cards,
   filtering,
   isEditingColumn,
@@ -2740,6 +2790,7 @@ function BoardColumn({
   isDarkMode,
 }: {
   column: ColumnDefinition;
+  addLabel: string;
   cards: CardEntry[];
   filtering: boolean;
   isEditingColumn: boolean;
@@ -2892,7 +2943,7 @@ function BoardColumn({
                         type="button"
                       >
                         <Plus className="h-4 w-4" />
-                        Add card
+                        {`Add ${addLabel}`}
                       </button>
                       <button
                         className={clsx(
