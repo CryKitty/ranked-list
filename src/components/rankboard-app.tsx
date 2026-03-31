@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -69,6 +69,7 @@ const initialDraft: CardDraft = {
 
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
+const PENDING_SAVE_KEY = "rankboard-pending-save-v1";
 const COLUMN_ACCENTS = [
   "from-amber-300 via-orange-400 to-rose-500",
   "from-sky-300 via-cyan-400 to-teal-500",
@@ -145,34 +146,6 @@ function buildFallbackImage(title: string) {
   `;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
-function GoogleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M21.805 12.23c0-.68-.061-1.334-.174-1.962H12v3.711h5.5a4.704 4.704 0 0 1-2.04 3.087v2.564h3.298c1.93-1.777 3.047-4.4 3.047-7.4Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 22c2.76 0 5.074-.914 6.765-2.47l-3.298-2.564c-.914.614-2.083.978-3.467.978-2.668 0-4.926-1.801-5.734-4.223H2.856v2.646A9.998 9.998 0 0 0 12 22Z"
-        fill="#34A853"
-      />
-      <path
-        d="M6.266 13.72A5.996 5.996 0 0 1 5.945 12c0-.598.103-1.178.29-1.72V7.634H2.856A9.998 9.998 0 0 0 2 12c0 1.613.386 3.14 1.07 4.366l3.196-2.646Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 6.056c1.5 0 2.847.516 3.907 1.53l2.93-2.93C17.07 2.999 14.756 2 12 2a9.998 9.998 0 0 0-9.144 5.634l3.38 2.646C7.072 7.857 9.33 6.056 12 6.056Z"
-        fill="#EA4335"
-      />
-    </svg>
-  );
 }
 
 function sanitizeSearchTitle(title: string) {
@@ -448,7 +421,11 @@ export function RankboardApp() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(authEnabled);
+  const [isSavingBoard, setIsSavingBoard] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
@@ -655,6 +632,74 @@ export function RankboardApp() {
     return () => window.clearTimeout(timeout);
   }, [cardsByColumn, columns, currentUser, hasLoadedRemoteState, supabase]);
 
+  useEffect(() => {
+    if (!isActionsMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!actionsMenuRef.current?.contains(event.target as Node)) {
+        setIsActionsMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isActionsMenuOpen]);
+
+  const persistBoardState = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!supabase || !currentUser) {
+        return false;
+      }
+
+      if (!options?.silent) {
+        setIsSavingBoard(true);
+      }
+
+      const { error } = await supabase.from("board_states").upsert({
+        owner_id: currentUser.id,
+        columns,
+        cards_by_column: cardsByColumn,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (!options?.silent) {
+        setIsSavingBoard(false);
+      }
+
+      if (error) {
+        console.error(error);
+        return false;
+      }
+
+      setSaveStatus("saved");
+      window.setTimeout(() => {
+        setSaveStatus("idle");
+      }, 1800);
+
+      return true;
+    },
+    [cardsByColumn, columns, currentUser, supabase],
+  );
+
+  useEffect(() => {
+    if (!supabase || !currentUser || !hasLoadedRemoteState) {
+      return;
+    }
+
+    if (window.localStorage.getItem(PENDING_SAVE_KEY) !== "1") {
+      return;
+    }
+
+    void persistBoardState().then((saved) => {
+      if (saved) {
+        window.localStorage.removeItem(PENDING_SAVE_KEY);
+      }
+    });
+  }, [currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
+
   async function handleOAuthLogin(provider: "google" | "apple") {
     if (!supabase) {
       return;
@@ -668,8 +713,24 @@ export function RankboardApp() {
     });
   }
 
+  async function handleSave() {
+    if (!authEnabled) {
+      window.alert("Saving is not configured yet on this deployment.");
+      return;
+    }
+
+    if (currentUser) {
+      await persistBoardState();
+      return;
+    }
+
+    window.localStorage.setItem(PENDING_SAVE_KEY, "1");
+    await handleOAuthLogin("google");
+  }
+
   async function handleSignOut() {
     await supabase?.auth.signOut();
+    setIsActionsMenuOpen(false);
   }
 
   function findColumnIdForEntry(entryId: string) {
@@ -1193,7 +1254,7 @@ export function RankboardApp() {
             )}
           >
             <div className="flex flex-col items-center gap-4">
-              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto_auto_auto]">
+              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto_auto]">
                 <input
                   className={clsx(
                     "rounded-2xl border px-4 py-3 outline-none transition",
@@ -1223,75 +1284,91 @@ export function RankboardApp() {
                     </option>
                   ))}
                 </select>
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() => setIsImportModalOpen(true)}
-                  type="button"
-                >
-                  <Upload className="h-4 w-4" />
-                  Import Trello JSON
-                </button>
-                {authEnabled ? (
-                  isAuthLoading ? (
+                <div className="relative" ref={actionsMenuRef}>
+                  <button
+                    aria-label="More actions"
+                    className={clsx(
+                      "inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl border transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    onClick={() => setIsActionsMenuOpen((current) => !current)}
+                    type="button"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                  {isActionsMenuOpen ? (
                     <div
                       className={clsx(
-                        "flex h-[52px] w-[52px] items-center justify-center rounded-full border",
+                        "absolute right-0 z-40 mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                         isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-300"
-                          : "border-slate-200 bg-white text-slate-500",
+                          ? "border-white/10 bg-slate-950/95 text-slate-100"
+                          : "border-slate-200 bg-white/95 text-slate-700",
                       )}
                     >
-                      <span className="text-xs font-semibold">...</span>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode
+                            ? "hover:bg-white/10"
+                            : "hover:bg-slate-100",
+                        )}
+                        onClick={() => {
+                          setIsDarkMode((current) => !current);
+                          setIsActionsMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                        {isDarkMode ? "Lumos" : "Nox"}
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode
+                            ? "hover:bg-white/10"
+                            : "hover:bg-slate-100",
+                        )}
+                        onClick={() => {
+                          setIsImportModalOpen(true);
+                          setIsActionsMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        Import from Trello
+                      </button>
+                      {currentUser ? (
+                        <button
+                          className={clsx(
+                            "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                            isDarkMode
+                              ? "hover:bg-white/10"
+                              : "hover:bg-slate-100",
+                          )}
+                          onClick={handleSignOut}
+                          type="button"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Log Out
+                        </button>
+                      ) : null}
                     </div>
-                  ) : currentUser ? (
-                    <button
-                      aria-label="Sign out"
-                      className={clsx(
-                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      onClick={handleSignOut}
-                      title={`Sign out ${currentUser.email ?? ""}`.trim()}
-                      type="button"
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </button>
-                  ) : (
-                    <button
-                      aria-label="Continue with Google"
-                      className={clsx(
-                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      onClick={() => handleOAuthLogin("google")}
-                      title="Continue with Google"
-                      type="button"
-                    >
-                      <GoogleIcon className="h-5 w-5" />
-                    </button>
-                  )
-                ) : null}
+                  ) : null}
+                </div>
                 <button
                   className={clsx(
                     "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
                     isDarkMode
-                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
                   )}
-                  onClick={() => setIsDarkMode((current) => !current)}
+                  disabled={isAuthLoading || isSavingBoard}
+                  onClick={handleSave}
                   type="button"
                 >
-                  {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  {isDarkMode ? "Light" : "Dark"}
+                  <Save className="h-4 w-4" />
+                  {isSavingBoard ? "Saving..." : saveStatus === "saved" ? "Saved" : "Save"}
                 </button>
               </div>
             </div>
