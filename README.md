@@ -44,7 +44,7 @@ The import currently maps Trello lists to columns and Trello cards to Rankboard 
 2. Copy `.env.example` to `.env.local`.
 3. Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 4. Optional: add `NEXT_PUBLIC_RAWG_API_KEY` for improved automatic game artwork results.
-5. Run the SQL in [supabase/schema.sql](/Users/avarycooney/Documents/Playground/rankboard/supabase/schema.sql) in the Supabase SQL editor.
+5. Run the SQL in [supabase/schema.sql](/Users/avarycooney/Documents/Playground/supabase/schema.sql) in the Supabase SQL editor.
 
 Until those environment variables are set, the app saves locally in the browser on the current device. Supabase is still the path for account-based syncing across devices and users.
 
