@@ -393,6 +393,10 @@ function isStarterBoard(
   return Object.values(boardCardsByColumn).every((cards) => cards.length === 0);
 }
 
+function normalizeTitleForComparison(title: string) {
+  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+}
+
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
@@ -442,6 +446,31 @@ export function RankboardApp() {
         .filter(Boolean),
     ),
   ).sort((a, b) => a.localeCompare(b));
+
+  function findDuplicateCard(title: string) {
+    const normalizedTitle = normalizeTitleForComparison(title);
+
+    if (!normalizedTitle) {
+      return null;
+    }
+
+    for (const column of columns) {
+      const duplicate = (cardsByColumn[column.id] ?? []).find(
+        (card) =>
+          !card.mirroredFromEntryId &&
+          normalizeTitleForComparison(card.title) === normalizedTitle,
+      );
+
+      if (duplicate) {
+        return {
+          column,
+          card: duplicate,
+        };
+      }
+    }
+
+    return null;
+  }
 
   useEffect(() => {
     try {
@@ -874,6 +903,31 @@ export function RankboardApp() {
     const title = draft.title.trim() || "Untitled Game";
     const series = draft.series.trim();
     const imageUrl = draft.imageUrl.trim();
+    const duplicate = findDuplicateCard(title);
+
+    if (duplicate) {
+      const choice = window.prompt(
+        `"${duplicate.card.title}" already exists in "${duplicate.column.title}". Type:\n1 to discard this new card\n2 to update the existing card\n3 to allow a duplicate`,
+        "1",
+      );
+
+      if (choice === null || choice === "1") {
+        closeAddGameModal();
+        return;
+      }
+
+      if (choice === "2") {
+        updateCardsForItem(duplicate.card.itemId, (card) => ({
+          ...card,
+          title,
+          imageUrl: imageUrl || card.imageUrl,
+          series: series || card.series,
+        }));
+        closeAddGameModal();
+        return;
+      }
+    }
+
     const itemId = slugify(title) || makeId("item");
     const newCard: CardEntry = {
       entryId: makeId("entry"),
@@ -1145,6 +1199,31 @@ export function RankboardApp() {
     setOpenColumnMenuId(null);
   }
 
+  function sortColumnCards(
+    columnId: string,
+    mode: "title-asc" | "title-desc" | "rank-asc" | "rank-desc",
+  ) {
+    setCardsByColumn((current) => {
+      const cards = current[columnId] ?? [];
+      const nextCards = [...cards];
+
+      if (mode === "title-asc") {
+        nextCards.sort((a, b) => a.title.localeCompare(b.title));
+      } else if (mode === "title-desc") {
+        nextCards.sort((a, b) => b.title.localeCompare(a.title));
+      } else if (mode === "rank-desc") {
+        nextCards.reverse();
+      }
+
+      return {
+        ...current,
+        [columnId]: nextCards,
+      };
+    });
+
+    setOpenColumnMenuId(null);
+  }
+
   async function handleImportTrelloBoard(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
@@ -1193,6 +1272,12 @@ export function RankboardApp() {
       )}
     >
       <main className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <datalist id="series-suggestions">
+          {allSeries.map((series) => (
+            <option key={series} value={series} />
+          ))}
+        </datalist>
+
         <section className="grid gap-4">
           <div
             className={clsx(
@@ -1365,6 +1450,7 @@ export function RankboardApp() {
                       onDeleteCard={handleDeleteCard}
                       onEditCard={startEditingCard}
                       onAddCard={openAddGameModal}
+                      onSortCards={sortColumnCards}
                       isMenuOpen={openColumnMenuId === column.id}
                       onToggleMenu={() =>
                         setOpenColumnMenuId((current) =>
@@ -1433,6 +1519,7 @@ export function RankboardApp() {
                 <label className="grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                   <input
+                    list="series-suggestions"
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
                       isDarkMode
@@ -1451,6 +1538,7 @@ export function RankboardApp() {
                 <label className="grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
                   <input
+                    list="series-suggestions"
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
                       isDarkMode
@@ -1824,6 +1912,7 @@ function BoardColumn({
   onDeleteCard,
   onEditCard,
   onAddCard,
+  onSortCards,
   isMenuOpen,
   onToggleMenu,
   onDeleteColumn,
@@ -1846,6 +1935,10 @@ function BoardColumn({
   onDeleteCard: (columnId: string, entryId: string) => void;
   onEditCard: (card: CardEntry) => void;
   onAddCard: (columnId: string, insertIndex: number) => void;
+  onSortCards: (
+    columnId: string,
+    mode: "title-asc" | "title-desc" | "rank-asc" | "rank-desc",
+  ) => void;
   isMenuOpen: boolean;
   onToggleMenu: () => void;
   onDeleteColumn: (columnId: string) => void;
@@ -1991,7 +2084,60 @@ function BoardColumn({
                         Rename
                       </button>
                       <button
-                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-300 transition hover:bg-rose-400/10"
+                        className={clsx(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={() => onSortCards(column.id, "title-asc")}
+                        type="button"
+                      >
+                        Sort A-Z
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={() => onSortCards(column.id, "title-desc")}
+                        type="button"
+                      >
+                        Sort Z-A
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={() => onSortCards(column.id, "rank-asc")}
+                        type="button"
+                      >
+                        Ascending
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={() => onSortCards(column.id, "rank-desc")}
+                        type="button"
+                      >
+                        Descending
+                      </button>
+                      <button
+                        className={clsx(
+                          "mt-1 flex items-center gap-2 rounded-xl border-t px-3 py-2 pt-3 text-sm transition hover:bg-rose-400/10",
+                          isDarkMode
+                            ? "border-white/10 text-rose-300"
+                            : "border-slate-200 text-rose-500",
+                        )}
                         onClick={() => onDeleteColumn(column.id)}
                         type="button"
                       >
@@ -2213,11 +2359,11 @@ function CardTile({
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <div
             className={clsx(
-              "rounded-[22px] p-4 backdrop-blur-sm",
-              isDarkMode ? "bg-black/30" : "bg-white/20",
+              "rounded-[18px] px-4 py-3 backdrop-blur-[2px]",
+              isDarkMode ? "bg-black/18" : "bg-white/12",
             )}
           >
-            <h3 className="mt-2 text-xl font-bold text-white">{card.title}</h3>
+            <h3 className="text-xl font-bold text-white">{card.title}</h3>
             {card.notes ? (
               <p className="mt-2 text-sm leading-6 text-slate-200">{card.notes}</p>
             ) : null}
