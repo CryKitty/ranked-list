@@ -454,8 +454,8 @@ export function RankboardApp() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 140,
-        tolerance: 8,
+        delay: 1000,
+        tolerance: 12,
       },
     }),
   );
@@ -1427,7 +1427,7 @@ export function RankboardApp() {
             )}
           >
             <div className="flex flex-col items-center gap-4">
-              <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-[1fr_260px_auto_auto]">
+              <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-[1fr_260px_auto_auto] sm:gap-4">
                 <input
                   className={clsx(
                     "rounded-2xl border px-4 py-3 outline-none transition",
@@ -1459,7 +1459,7 @@ export function RankboardApp() {
                 </select>
                 <button
                   className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:px-4",
                     isDarkMode
                       ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
@@ -1469,13 +1469,13 @@ export function RankboardApp() {
                   type="button"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  Undo
+                  <span className="hidden sm:inline">Undo</span>
                 </button>
                 <div className="relative" ref={actionsMenuRef}>
                   <button
                     aria-label="More actions"
                     className={clsx(
-                      "inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl border transition",
+                      "inline-flex h-[52px] w-full items-center justify-center rounded-2xl border transition sm:w-[52px]",
                       isDarkMode
                         ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -2360,7 +2360,7 @@ function BoardColumn({
                         {isSortMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute left-full top-0 ml-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "absolute right-full top-0 mr-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
