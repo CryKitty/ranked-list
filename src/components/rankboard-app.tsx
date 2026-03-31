@@ -60,6 +60,18 @@ type ColumnEditorDraft = {
   title: string;
 };
 
+type DuplicateMatch = {
+  column: ColumnDefinition;
+  card: CardEntry;
+};
+
+type PendingDuplicateAction = {
+  match: DuplicateMatch;
+  title: string;
+  imageUrl: string;
+  series: string;
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -415,6 +427,7 @@ export function RankboardApp() {
   const [editingColumnDraft, setEditingColumnDraft] =
     useState<ColumnEditorDraft | null>(null);
   const [openColumnMenuId, setOpenColumnMenuId] = useState<string | null>(null);
+  const [openColumnSortMenuId, setOpenColumnSortMenuId] = useState<string | null>(null);
   const [isAutofillingDraftImage, setIsAutofillingDraftImage] = useState(false);
   const [autofillingCardId, setAutofillingCardId] = useState<string | null>(null);
   const [hasLoadedPersistedState, setHasLoadedPersistedState] = useState(false);
@@ -425,6 +438,10 @@ export function RankboardApp() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(authEnabled);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [draftDuplicateAction, setDraftDuplicateAction] =
+    useState<PendingDuplicateAction | null>(null);
+  const [editingDuplicateAction, setEditingDuplicateAction] =
+    useState<PendingDuplicateAction | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -447,7 +464,7 @@ export function RankboardApp() {
     ),
   ).sort((a, b) => a.localeCompare(b));
 
-  function findDuplicateCard(title: string) {
+  function findDuplicateCard(title: string, excludeItemId?: string) {
     const normalizedTitle = normalizeTitleForComparison(title);
 
     if (!normalizedTitle) {
@@ -458,6 +475,7 @@ export function RankboardApp() {
       const duplicate = (cardsByColumn[column.id] ?? []).find(
         (card) =>
           !card.mirroredFromEntryId &&
+          card.itemId !== excludeItemId &&
           normalizeTitleForComparison(card.title) === normalizedTitle,
       );
 
@@ -906,26 +924,21 @@ export function RankboardApp() {
     const duplicate = findDuplicateCard(title);
 
     if (duplicate) {
-      const choice = window.prompt(
-        `"${duplicate.card.title}" already exists in "${duplicate.column.title}". Type:\n1 to discard this new card\n2 to update the existing card\n3 to allow a duplicate`,
-        "1",
-      );
+      setDraftDuplicateAction({
+        match: duplicate,
+        title,
+        imageUrl,
+        series,
+      });
+      return;
+    }
 
-      if (choice === null || choice === "1") {
-        closeAddGameModal();
-        return;
-      }
+    finalizeAddCard(title, series, imageUrl);
+  }
 
-      if (choice === "2") {
-        updateCardsForItem(duplicate.card.itemId, (card) => ({
-          ...card,
-          title,
-          imageUrl: imageUrl || card.imageUrl,
-          series: series || card.series,
-        }));
-        closeAddGameModal();
-        return;
-      }
+  function finalizeAddCard(title: string, series: string, imageUrl: string) {
+    if (!addCardTarget) {
+      return;
     }
 
     const itemId = slugify(title) || makeId("item");
@@ -955,6 +968,7 @@ export function RankboardApp() {
     setCardsByColumn(nextState);
     setDraft(initialDraft);
     setAddCardTarget(null);
+    setDraftDuplicateAction(null);
   }
 
   function openAddGameModal(columnId: string, insertIndex: number) {
@@ -964,12 +978,15 @@ export function RankboardApp() {
     });
     setAddCardTarget({ columnId, insertIndex });
     setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setDraftDuplicateAction(null);
   }
 
   function closeAddGameModal() {
     setAddCardTarget(null);
     setDraft(initialDraft);
     setIsAutofillingDraftImage(false);
+    setDraftDuplicateAction(null);
   }
 
   function handleDeleteCard(columnId: string, entryId: string) {
@@ -1023,12 +1040,14 @@ export function RankboardApp() {
     setEditingCardId(card.entryId);
     setEditingCardItemId(card.itemId);
     setEditingCardDraft(createCardDraft(card));
+    setEditingDuplicateAction(null);
   }
 
   function cancelEditingCard() {
     setEditingCardId(null);
     setEditingCardItemId(null);
     setEditingCardDraft(null);
+    setEditingDuplicateAction(null);
   }
 
   function saveEditingCard() {
@@ -1040,6 +1059,17 @@ export function RankboardApp() {
     const imageUrl = editingCardDraft.imageUrl.trim();
     const series = editingCardDraft.series.trim();
     const notes = editingCardDraft.notes.trim();
+    const duplicate = findDuplicateCard(title, editingCardItemId);
+
+    if (duplicate) {
+      setEditingDuplicateAction({
+        match: duplicate,
+        title,
+        imageUrl,
+        series,
+      });
+      return;
+    }
 
     updateCardsForItem(editingCardItemId, (card) => ({
       ...card,
@@ -1199,9 +1229,70 @@ export function RankboardApp() {
     setOpenColumnMenuId(null);
   }
 
+  function resolveDraftDuplicate(choice: "discard" | "update" | "duplicate") {
+    if (!draftDuplicateAction) {
+      return;
+    }
+
+    if (choice === "discard") {
+      closeAddGameModal();
+      return;
+    }
+
+    if (choice === "update") {
+      updateCardsForItem(draftDuplicateAction.match.card.itemId, (card) => ({
+        ...card,
+        title: draftDuplicateAction.title,
+        imageUrl: draftDuplicateAction.imageUrl || card.imageUrl,
+        series: draftDuplicateAction.series || card.series,
+      }));
+      closeAddGameModal();
+      return;
+    }
+
+    finalizeAddCard(
+      draftDuplicateAction.title,
+      draftDuplicateAction.series,
+      draftDuplicateAction.imageUrl,
+    );
+  }
+
+  function resolveEditingDuplicate(choice: "discard" | "update" | "duplicate") {
+    if (!editingDuplicateAction || !editingCardDraft || !editingCardItemId) {
+      return;
+    }
+
+    if (choice === "discard") {
+      cancelEditingCard();
+      return;
+    }
+
+    if (choice === "update") {
+      updateCardsForItem(editingDuplicateAction.match.card.itemId, (card) => ({
+        ...card,
+        title: editingDuplicateAction.title,
+        imageUrl: editingDuplicateAction.imageUrl || card.imageUrl,
+        series: editingDuplicateAction.series || card.series,
+      }));
+      cancelEditingCard();
+      return;
+    }
+
+    const notes = editingCardDraft.notes.trim();
+    updateCardsForItem(editingCardItemId, (card) => ({
+      ...card,
+      title: editingDuplicateAction.title,
+      imageUrl: editingDuplicateAction.imageUrl,
+      series: editingDuplicateAction.series,
+      notes: notes || undefined,
+      itemId: slugify(editingDuplicateAction.title) || card.itemId,
+    }));
+    cancelEditingCard();
+  }
+
   function sortColumnCards(
     columnId: string,
-    mode: "title-asc" | "title-desc" | "rank-asc" | "rank-desc",
+    mode: "title-asc" | "title-desc",
   ) {
     setCardsByColumn((current) => {
       const cards = current[columnId] ?? [];
@@ -1209,10 +1300,8 @@ export function RankboardApp() {
 
       if (mode === "title-asc") {
         nextCards.sort((a, b) => a.title.localeCompare(b.title));
-      } else if (mode === "title-desc") {
+      } else {
         nextCards.sort((a, b) => b.title.localeCompare(a.title));
-      } else if (mode === "rank-desc") {
-        nextCards.reverse();
       }
 
       return {
@@ -1222,6 +1311,7 @@ export function RankboardApp() {
     });
 
     setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
   }
 
   async function handleImportTrelloBoard(
@@ -1452,8 +1542,14 @@ export function RankboardApp() {
                       onAddCard={openAddGameModal}
                       onSortCards={sortColumnCards}
                       isMenuOpen={openColumnMenuId === column.id}
+                      isSortMenuOpen={openColumnSortMenuId === column.id}
                       onToggleMenu={() =>
                         setOpenColumnMenuId((current) =>
+                          current === column.id ? null : column.id,
+                        )
+                      }
+                      onToggleSortMenu={() =>
+                        setOpenColumnSortMenuId((current) =>
                           current === column.id ? null : column.id,
                         )
                       }
@@ -1528,9 +1624,12 @@ export function RankboardApp() {
                     )}
                     value={editingCardDraft.title}
                     onChange={(event) =>
-                      setEditingCardDraft((current) =>
-                        current ? { ...current, title: event.target.value } : current,
-                      )
+                      {
+                        setEditingDuplicateAction(null);
+                        setEditingCardDraft((current) =>
+                          current ? { ...current, title: event.target.value } : current,
+                        );
+                      }
                     }
                   />
                 </label>
@@ -1547,9 +1646,12 @@ export function RankboardApp() {
                     )}
                     value={editingCardDraft.series}
                     onChange={(event) =>
-                      setEditingCardDraft((current) =>
-                        current ? { ...current, series: event.target.value } : current,
-                      )
+                      {
+                        setEditingDuplicateAction(null);
+                        setEditingCardDraft((current) =>
+                          current ? { ...current, series: event.target.value } : current,
+                        );
+                      }
                     }
                   />
                 </label>
@@ -1568,9 +1670,12 @@ export function RankboardApp() {
                   )}
                   value={editingCardDraft.imageUrl}
                   onChange={(event) =>
-                    setEditingCardDraft((current) =>
-                      current ? { ...current, imageUrl: event.target.value } : current,
-                    )
+                    {
+                      setEditingDuplicateAction(null);
+                      setEditingCardDraft((current) =>
+                        current ? { ...current, imageUrl: event.target.value } : current,
+                      );
+                    }
                   }
                 />
               </label>
@@ -1623,6 +1728,42 @@ export function RankboardApp() {
                   <Save className="h-4 w-4" />
                   Save Changes
                 </button>
+                {editingDuplicateAction ? (
+                  <div
+                    className={clsx(
+                      "flex min-w-full flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm",
+                      isDarkMode
+                        ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+                        : "border-amber-300 bg-amber-50 text-amber-900",
+                    )}
+                    >
+                      <span className="mr-2">
+                        &quot;{editingDuplicateAction.match.card.title}&quot; already exists in
+                        &nbsp;&quot;{editingDuplicateAction.match.column.title}&quot;.
+                      </span>
+                    <button
+                      className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
+                      onClick={() => resolveEditingDuplicate("discard")}
+                      type="button"
+                    >
+                      Discard
+                    </button>
+                    <button
+                      className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
+                      onClick={() => resolveEditingDuplicate("update")}
+                      type="button"
+                    >
+                      Update Original
+                    </button>
+                    <button
+                      className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
+                      onClick={() => resolveEditingDuplicate("duplicate")}
+                      type="button"
+                    >
+                      Allow Duplicate
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   className={clsx(
                     "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
@@ -1691,7 +1832,10 @@ export function RankboardApp() {
                     placeholder='"Tears of the Kingdom", "The Last of Us Part II", etc.'
                     value={draft.title}
                     onChange={(event) =>
-                      setDraft((current) => ({ ...current, title: event.target.value }))
+                      {
+                        setDraftDuplicateAction(null);
+                        setDraft((current) => ({ ...current, title: event.target.value }));
+                      }
                     }
                   />
                 </label>
@@ -1717,10 +1861,13 @@ export function RankboardApp() {
                       placeholder="Enter the URL of the image or GIF, or upload one from your device."
                       value={draft.imageUrl}
                       onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          imageUrl: event.target.value,
-                        }))
+                        {
+                          setDraftDuplicateAction(null);
+                          setDraft((current) => ({
+                            ...current,
+                            imageUrl: event.target.value,
+                          }));
+                        }
                       }
                     />
                   </div>
@@ -1752,7 +1899,10 @@ export function RankboardApp() {
                     placeholder='"The Legend of Zelda", "Shin Megami Tensei", etc.'
                     value={draft.series}
                     onChange={(event) =>
-                      setDraft((current) => ({ ...current, series: event.target.value }))
+                      {
+                        setDraftDuplicateAction(null);
+                        setDraft((current) => ({ ...current, series: event.target.value }));
+                      }
                     }
                   />
                 </label>
@@ -1769,6 +1919,42 @@ export function RankboardApp() {
                   >
                     Add Game
                   </button>
+                  {draftDuplicateAction ? (
+                    <div
+                      className={clsx(
+                        "flex min-w-full flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm",
+                        isDarkMode
+                          ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+                          : "border-amber-300 bg-amber-50 text-amber-900",
+                      )}
+                    >
+                      <span className="mr-2">
+                        &quot;{draftDuplicateAction.match.card.title}&quot; already exists in
+                        &nbsp;&quot;{draftDuplicateAction.match.column.title}&quot;.
+                      </span>
+                      <button
+                        className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
+                        onClick={() => resolveDraftDuplicate("discard")}
+                        type="button"
+                      >
+                        Discard
+                      </button>
+                      <button
+                        className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
+                        onClick={() => resolveDraftDuplicate("update")}
+                        type="button"
+                      >
+                        Update Original
+                      </button>
+                      <button
+                        className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
+                        onClick={() => resolveDraftDuplicate("duplicate")}
+                        type="button"
+                      >
+                        Allow Duplicate
+                      </button>
+                    </div>
+                  ) : null}
                   <button
                     className={clsx(
                       "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
@@ -1914,7 +2100,9 @@ function BoardColumn({
   onAddCard,
   onSortCards,
   isMenuOpen,
+  isSortMenuOpen,
   onToggleMenu,
+  onToggleSortMenu,
   onDeleteColumn,
   onColumnDragStart,
   onColumnDrop,
@@ -1937,10 +2125,12 @@ function BoardColumn({
   onAddCard: (columnId: string, insertIndex: number) => void;
   onSortCards: (
     columnId: string,
-    mode: "title-asc" | "title-desc" | "rank-asc" | "rank-desc",
+    mode: "title-asc" | "title-desc",
   ) => void;
   isMenuOpen: boolean;
+  isSortMenuOpen: boolean;
   onToggleMenu: () => void;
+  onToggleSortMenu: () => void;
   onDeleteColumn: (columnId: string) => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
@@ -2083,54 +2273,56 @@ function BoardColumn({
                         <Edit3 className="h-4 w-4" />
                         Rename
                       </button>
-                      <button
-                        className={clsx(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                        onClick={() => onSortCards(column.id, "title-asc")}
-                        type="button"
-                      >
-                        Sort A-Z
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                        onClick={() => onSortCards(column.id, "title-desc")}
-                        type="button"
-                      >
-                        Sort Z-A
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                        onClick={() => onSortCards(column.id, "rank-asc")}
-                        type="button"
-                      >
-                        Ascending
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                        onClick={() => onSortCards(column.id, "rank-desc")}
-                        type="button"
-                      >
-                        Descending
-                      </button>
+                      <div className="relative">
+                        <button
+                          className={clsx(
+                            "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
+                            isDarkMode
+                              ? "text-white hover:bg-white/10"
+                              : "text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={onToggleSortMenu}
+                          type="button"
+                        >
+                          <span>Sort</span>
+                          <span className="text-xs opacity-70">{isSortMenuOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isSortMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "absolute left-full top-0 ml-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900"
+                                : "border-slate-200 bg-white",
+                            )}
+                          >
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onSortCards(column.id, "title-asc")}
+                              type="button"
+                            >
+                              A-Z
+                            </button>
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onSortCards(column.id, "title-desc")}
+                              type="button"
+                            >
+                              Z-A
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                       <button
                         className={clsx(
                           "mt-1 flex items-center gap-2 rounded-xl border-t px-3 py-2 pt-3 text-sm transition hover:bg-rose-400/10",
