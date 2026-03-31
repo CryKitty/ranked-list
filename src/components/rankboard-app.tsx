@@ -29,6 +29,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Settings2,
   Sun,
   Trash2,
   Upload,
@@ -451,6 +452,8 @@ export function RankboardApp() {
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
+  const latestColumnsRef = useRef(columns);
+  const latestCardsByColumnRef = useRef(cardsByColumn);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
@@ -461,7 +464,7 @@ export function RankboardApp() {
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 260,
+        delay: 180,
         tolerance: 10,
       },
     }),
@@ -582,6 +585,11 @@ export function RankboardApp() {
   }, [cardsByColumn, columns, hasLoadedPersistedState]);
 
   useEffect(() => {
+    latestColumnsRef.current = columns;
+    latestCardsByColumnRef.current = cardsByColumn;
+  }, [cardsByColumn, columns]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
@@ -647,8 +655,8 @@ export function RankboardApp() {
         return;
       }
 
-      const localColumns = columns;
-      const localCardsByColumn = cardsByColumn;
+      const localColumns = latestColumnsRef.current;
+      const localCardsByColumn = latestCardsByColumnRef.current;
       const localBoardHasContent = !isStarterBoard(localColumns, localCardsByColumn);
       const remoteColumns = (data?.columns as ColumnDefinition[] | undefined) ?? null;
       const remoteCardsByColumn =
@@ -692,8 +700,6 @@ export function RankboardApp() {
     };
   }, [
     authEnabled,
-    cardsByColumn,
-    columns,
     currentUser,
     hasLoadedPersistedState,
     supabase,
@@ -1476,13 +1482,13 @@ export function RankboardApp() {
                   type="button"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  <span className="hidden sm:inline">Undo</span>
+                  <span>Undo</span>
                 </button>
                 <div className="relative" ref={actionsMenuRef}>
                   <button
-                    aria-label="More actions"
+                    aria-label="Settings"
                     className={clsx(
-                      "inline-flex h-[52px] w-full items-center justify-center rounded-2xl border transition sm:w-[52px]",
+                      "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 transition sm:w-auto",
                       isDarkMode
                         ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -1490,7 +1496,8 @@ export function RankboardApp() {
                     onClick={() => setIsActionsMenuOpen((current) => !current)}
                     type="button"
                   >
-                    <MoreHorizontal className="h-4 w-4" />
+                    <Settings2 className="h-4 w-4" />
+                    <span>Settings</span>
                   </button>
                   {isActionsMenuOpen ? (
                     <div
@@ -1585,7 +1592,7 @@ export function RankboardApp() {
               onClick={() => setIsMobileActionsOpen(true)}
               type="button"
             >
-              <MoreHorizontal className="h-5 w-5" />
+              <Settings2 className="h-5 w-5" />
             </button>
 
             {isMobileActionsOpen ? (
@@ -1650,7 +1657,7 @@ export function RankboardApp() {
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         className={clsx(
-                          "inline-flex items-center justify-center rounded-2xl border px-3 py-3 text-sm font-semibold transition",
+                          "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
@@ -1660,13 +1667,14 @@ export function RankboardApp() {
                         type="button"
                       >
                         <RotateCcw className="h-4 w-4" />
+                        <span>Undo</span>
                       </button>
 
                       <div className="relative" ref={actionsMenuRef}>
                         <button
-                          aria-label="More actions"
+                          aria-label="Settings"
                           className={clsx(
-                            "inline-flex h-[52px] w-full items-center justify-center rounded-2xl border transition",
+                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
                             isDarkMode
                               ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                               : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -1674,7 +1682,8 @@ export function RankboardApp() {
                           onClick={() => setIsActionsMenuOpen((current) => !current)}
                           type="button"
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <Settings2 className="h-4 w-4" />
+                          <span>Settings</span>
                         </button>
                         {isActionsMenuOpen ? (
                           <div
@@ -2782,7 +2791,7 @@ function CardTile({
     <article
       {...dragProps}
       className={clsx(
-        "group relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-[0_20px_40px_rgba(15,23,42,0.25)] touch-none cursor-grab active:cursor-grabbing",
+        "group relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-[0_20px_40px_rgba(15,23,42,0.25)] cursor-grab active:cursor-grabbing",
         isDragging && "rotate-1 scale-[1.01]",
       )}
       style={{
