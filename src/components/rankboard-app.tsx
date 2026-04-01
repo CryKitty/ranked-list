@@ -1618,10 +1618,13 @@ export function RankboardApp() {
         }
         const normalizedRemoteBoards = remoteBoards.map((board) => normalizeSavedBoard(board));
         const remoteActiveBoardId =
-          remoteBoardsPayload.activeBoardId &&
-          normalizedRemoteBoards.some((board) => board.id === remoteBoardsPayload.activeBoardId)
-            ? remoteBoardsPayload.activeBoardId
-            : normalizedRemoteBoards[0].id;
+          localActiveBoardId &&
+          normalizedRemoteBoards.some((board) => board.id === localActiveBoardId)
+            ? localActiveBoardId
+            : remoteBoardsPayload.activeBoardId &&
+                normalizedRemoteBoards.some((board) => board.id === remoteBoardsPayload.activeBoardId)
+              ? remoteBoardsPayload.activeBoardId
+              : normalizedRemoteBoards[0].id;
         const nextActiveBoard =
           normalizedRemoteBoards.find((board) => board.id === remoteActiveBoardId) ??
           normalizedRemoteBoards[0];
@@ -3799,18 +3802,6 @@ export function RankboardApp() {
                                     <span>Show Series</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
                                   </button>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })} type="button">
-                                    <span>Series Field</span>
-                                    <span className="text-xs opacity-70">{activeBoardSettings.includeSeriesField ? "On" : "Off"}</span>
-                                  </button>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })} type="button">
-                                    <span>Artwork Field</span>
-                                    <span className="text-xs opacity-70">{activeBoardSettings.includeImageField ? "On" : "Off"}</span>
-                                  </button>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })} type="button">
-                                    <span>Notes Field</span>
-                                    <span className="text-xs opacity-70">{activeBoardSettings.includeNotesField ? "On" : "Off"}</span>
-                                  </button>
                                   <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
                                     <span>Collapse Cards</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
@@ -4990,7 +4981,7 @@ export function RankboardApp() {
           >
             <div
               className={clsx(
-                "w-full max-w-5xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -5023,7 +5014,7 @@ export function RankboardApp() {
                 </button>
               </div>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-6 grid max-h-[58vh] gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
                 {artworkPicker.options.map((imageUrl) => (
                   <button
                     key={imageUrl}
@@ -5035,7 +5026,7 @@ export function RankboardApp() {
                     type="button"
                   >
                     <div
-                      className="aspect-video bg-cover bg-center"
+                      className="aspect-video max-h-[180px] bg-cover bg-center"
                       style={{ backgroundImage: `url(${imageUrl})` }}
                     />
                     <div className="px-4 py-3 text-sm font-semibold">
@@ -6651,6 +6642,8 @@ function CardTile({
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
+  const [showCollapsedActions, setShowCollapsedActions] = useState(false);
+  const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
     tierKey === "top10"
       ? "border-amber-300/80 shadow-[0_20px_40px_rgba(251,191,36,0.22)]"
@@ -6660,14 +6653,35 @@ function CardTile({
           ? "border-fuchsia-300/80 shadow-[0_20px_40px_rgba(232,121,249,0.18)]"
           : "border-white/10 shadow-[0_20px_40px_rgba(15,23,42,0.25)]";
 
+  useEffect(() => {
+    if (!collapseCards || !showCollapsedActions) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!cardRef.current?.contains(event.target as Node)) {
+        setShowCollapsedActions(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [collapseCards, showCollapsedActions]);
+
   return (
     <article
+      ref={cardRef}
       {...dragProps}
       className={clsx(
         "group relative shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
         tierBorderClass,
         isDragging && "rotate-1 scale-[1.01]",
       )}
+      onClick={() => {
+        if (collapseCards) {
+          setShowCollapsedActions(true);
+        }
+      }}
       style={{
         contentVisibility: "auto",
         containIntrinsicSize: collapseCards ? "82px" : "180px",
@@ -6737,12 +6751,18 @@ function CardTile({
       ) : null}
 
       <div className={clsx(
-        "absolute right-3 z-10 flex items-center gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
-        card.mirroredFromEntryId ? "top-14" : "top-3",
+        collapseCards
+          ? "absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
+          : "absolute right-3 z-10 flex items-center gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+        collapseCards
+          ? showCollapsedActions && "opacity-100"
+          : card.mirroredFromEntryId
+            ? "top-14"
+            : "top-3",
       )}>
         {onEdit ? (
           <button
-            className="rounded-full bg-slate-950/75 p-2 text-white backdrop-blur transition hover:bg-slate-950"
+            className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
             onClick={(event) => {
               event.stopPropagation();
               onEdit();
@@ -6757,7 +6777,7 @@ function CardTile({
 
         {onDelete ? (
           <button
-            className="rounded-full bg-slate-950/75 p-2 text-white backdrop-blur transition hover:bg-slate-950"
+            className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
             onClick={(event) => {
               event.stopPropagation();
               onDelete();
