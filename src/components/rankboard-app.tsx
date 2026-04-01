@@ -365,99 +365,6 @@ function buildBackupSnapshot(
   };
 }
 
-async function fetchWikipediaArtworkByTitle(title: string) {
-  const trimmedTitle = title.trim();
-
-  if (!trimmedTitle) {
-    return null;
-  }
-
-  const url = new URL("https://en.wikipedia.org/w/api.php");
-  url.searchParams.set("action", "query");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("origin", "*");
-  url.searchParams.set("redirects", "1");
-  url.searchParams.set("titles", trimmedTitle);
-  url.searchParams.set("prop", "pageimages");
-  url.searchParams.set("piprop", "original");
-  url.searchParams.set("pithumbsize", "1600");
-
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = (await response.json()) as {
-    query?: {
-      pages?: Record<
-        string,
-        {
-          missing?: boolean;
-          original?: { source?: string };
-          thumbnail?: { source?: string };
-        }
-      >;
-    };
-  };
-
-  const page = Object.values(data.query?.pages ?? {}).find((item) => !item.missing);
-
-  return page?.original?.source ?? page?.thumbnail?.source ?? null;
-}
-
-async function fetchWikipediaArtworkCandidatesBySearch(query: string) {
-  const trimmedQuery = query.trim();
-
-  if (!trimmedQuery) {
-    return [];
-  }
-
-  const url = new URL("https://en.wikipedia.org/w/api.php");
-  url.searchParams.set("action", "query");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("origin", "*");
-  url.searchParams.set("generator", "search");
-  url.searchParams.set("gsrsearch", trimmedQuery);
-  url.searchParams.set("gsrlimit", "8");
-  url.searchParams.set("prop", "pageimages");
-  url.searchParams.set("piprop", "original");
-  url.searchParams.set("pithumbsize", "1600");
-
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    return [];
-  }
-
-  const data = (await response.json()) as {
-    query?: {
-      pages?: Record<
-        string,
-        {
-          title?: string;
-          original?: { source?: string };
-          thumbnail?: { source?: string };
-        }
-      >;
-    };
-  };
-
-  const normalizedQuery = trimmedQuery.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const pages = Object.values(data.query?.pages ?? {});
-
-  return [...pages]
-    .sort((left, right) => {
-      const leftTitle = (left.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const rightTitle = (right.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const leftExact = leftTitle.includes(normalizedQuery) ? 1 : 0;
-      const rightExact = rightTitle.includes(normalizedQuery) ? 1 : 0;
-      return rightExact - leftExact;
-    })
-    .map((page) => page.original?.source ?? page.thumbnail?.source ?? null)
-    .filter((value): value is string => Boolean(value));
-}
-
 async function fetchWikipediaMetadataBySearch(query: string) {
   const trimmedQuery = query.trim();
 
@@ -603,161 +510,22 @@ async function fetchBestWikipediaMetadata(
   return bestScore >= 45 ? bestMatch : null;
 }
 
-async function findArtworkOptions(title: string, series = "") {
-  const query = title.trim();
-  const queryWithSeries = [series.trim(), query].filter(Boolean).join(" ");
+function openGoogleImageSearch(title: string, series = "", mode: ArtworkSearchMode = "image") {
+  const query = [series.trim(), title.trim()].filter(Boolean).join(" ").trim();
 
-  if (!query) {
-    return [];
+  if (!query || typeof window === "undefined") {
+    return;
   }
 
-  const normalizedQuery = sanitizeSearchTitle(queryWithSeries || query);
-  const subtitleStrippedQuery = query.split(":")[0]?.trim() ?? query;
-  const normalizedSubtitleQuery = sanitizeSearchTitle([series.trim(), subtitleStrippedQuery].filter(Boolean).join(" "));
-  const rawgKey = process.env.NEXT_PUBLIC_RAWG_API_KEY;
-  const candidates: string[] = [];
+  const url = new URL("https://www.google.com/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("tbm", "isch");
 
-  function pushCandidate(url: string | null | undefined) {
-    if (!url || candidates.includes(url)) {
-      return;
-    }
-    candidates.push(url);
+  if (mode === "gif") {
+    url.searchParams.set("tbs", "itp:animated");
   }
 
-  if (rawgKey) {
-    try {
-      const rawgUrl = new URL("https://api.rawg.io/api/games");
-      rawgUrl.searchParams.set("key", rawgKey);
-      rawgUrl.searchParams.set("search", normalizedQuery || queryWithSeries || query);
-      rawgUrl.searchParams.set("page_size", "8");
-
-      const rawgResponse = await fetch(rawgUrl.toString());
-
-      if (rawgResponse.ok) {
-        const rawgData = (await rawgResponse.json()) as {
-          results?: Array<{
-            name?: string;
-            background_image?: string;
-            background_image_additional?: string;
-          }>;
-        };
-
-        const normalizedRawgQuery = (normalizedQuery || queryWithSeries || query)
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, "");
-        const rankedResults = [...(rawgData.results ?? [])].sort((left, right) => {
-          const leftName = (left.name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-          const rightName = (right.name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-          const leftExact = leftName === normalizedRawgQuery ? 1 : 0;
-          const rightExact = rightName === normalizedRawgQuery ? 1 : 0;
-          return rightExact - leftExact;
-        });
-
-        for (const result of rankedResults) {
-          pushCandidate(result.background_image_additional);
-          pushCandidate(result.background_image);
-          if (candidates.length >= 4) {
-            return candidates.slice(0, 4);
-          }
-        }
-      }
-    } catch {
-      // Fall back to Wikipedia results.
-    }
-  }
-
-  const titleCandidates = Array.from(
-    new Set([
-      queryWithSeries,
-      query,
-      normalizedQuery,
-      [series.trim(), subtitleStrippedQuery].filter(Boolean).join(" "),
-      subtitleStrippedQuery,
-      normalizedSubtitleQuery,
-    ].filter(Boolean)),
-  );
-
-  for (const candidate of titleCandidates) {
-    pushCandidate(await fetchWikipediaArtworkByTitle(candidate));
-    if (candidates.length >= 4) {
-      return candidates.slice(0, 4);
-    }
-  }
-
-  const searchCandidates = Array.from(
-    new Set([
-      `${queryWithSeries} video game`,
-      `${series} ${query} wallpaper`,
-      `${query} video game`,
-      `${normalizedQuery} video game`,
-      `${series} ${subtitleStrippedQuery} video game`,
-      `${subtitleStrippedQuery} video game`,
-      `${normalizedSubtitleQuery} video game`,
-      queryWithSeries,
-      query,
-      normalizedQuery,
-      subtitleStrippedQuery,
-      normalizedSubtitleQuery,
-    ]),
-  );
-
-  for (const candidate of searchCandidates) {
-    const images = await fetchWikipediaArtworkCandidatesBySearch(candidate);
-    for (const image of images) {
-      pushCandidate(image);
-      if (candidates.length >= 4) {
-        return candidates.slice(0, 4);
-      }
-    }
-  }
-
-  return candidates.slice(0, 4);
-}
-
-async function findGifOptions(title: string) {
-  const query = title.trim();
-  const tenorKey = process.env.NEXT_PUBLIC_TENOR_API_KEY;
-
-  if (!query || !tenorKey) {
-    return [];
-  }
-
-  try {
-    const tenorUrl = new URL("https://tenor.googleapis.com/v2/search");
-    tenorUrl.searchParams.set("q", query);
-    tenorUrl.searchParams.set("key", tenorKey);
-    tenorUrl.searchParams.set("client_key", process.env.NEXT_PUBLIC_TENOR_CLIENT_KEY || "rankboard");
-    tenorUrl.searchParams.set("limit", "4");
-    tenorUrl.searchParams.set("media_filter", "gif");
-
-    const response = await fetch(tenorUrl.toString());
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = (await response.json()) as {
-      results?: Array<{
-        media_formats?: {
-          gif?: { url?: string };
-          mediumgif?: { url?: string };
-          tinygif?: { url?: string };
-        };
-      }>;
-    };
-
-    return (data.results ?? [])
-      .map((result) =>
-        result.media_formats?.gif?.url ||
-        result.media_formats?.mediumgif?.url ||
-        result.media_formats?.tinygif?.url ||
-        null,
-      )
-      .filter((value): value is string => Boolean(value))
-      .slice(0, 4);
-  } catch {
-    return [];
-  }
+  window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
 
 function createCardDraft(card: CardEntry): CardEditorDraft {
@@ -1261,8 +1029,6 @@ export function RankboardApp() {
   const [openColumnMirrorMenuId, setOpenColumnMirrorMenuId] = useState<string | null>(null);
   const [openColumnMaintenanceMenuId, setOpenColumnMaintenanceMenuId] = useState<string | null>(null);
   const [columnTierFilters, setColumnTierFilters] = useState<Record<string, TierFilter>>({});
-  const [isAutofillingDraftImage, setIsAutofillingDraftImage] = useState(false);
-  const [autofillingCardId, setAutofillingCardId] = useState<string | null>(null);
   const [hasLoadedPersistedState, setHasLoadedPersistedState] = useState(false);
   const [hasLoadedRemoteState, setHasLoadedRemoteState] = useState(false);
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
@@ -1306,8 +1072,6 @@ export function RankboardApp() {
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
   const [isEditFieldSettingsOpen, setIsEditFieldSettingsOpen] = useState(false);
   const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
-  const [draftArtworkSearchMode, setDraftArtworkSearchMode] = useState<ArtworkSearchMode | null>(null);
-  const [editingArtworkSearchMode, setEditingArtworkSearchMode] = useState<ArtworkSearchMode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
@@ -1348,7 +1112,6 @@ export function RankboardApp() {
   const activeBoardTitle =
     activeBoard.title ?? "Rankboard";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
-  const canSearchGifs = Boolean(process.env.NEXT_PUBLIC_TENOR_API_KEY);
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const shouldShowSeriesField =
@@ -2520,8 +2283,6 @@ export function RankboardApp() {
   function closeAddGameModal() {
     setAddCardTarget(null);
     setDraft(initialDraft);
-    setIsAutofillingDraftImage(false);
-    setDraftArtworkSearchMode(null);
     setDraftDuplicateAction(null);
     setArtworkPicker(null);
     setIsAddFieldSettingsOpen(false);
@@ -2646,37 +2407,8 @@ export function RankboardApp() {
     setPendingMirrorDelete(null);
   }
 
-  async function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
-    const title = draft.title.trim();
-    const series = draft.series.trim();
-
-    if (!title) {
-      return;
-    }
-
-    setIsAutofillingDraftImage(true);
-    setDraftArtworkSearchMode(mode);
-
-    try {
-      const foundImages =
-        mode === "gif"
-          ? await findGifOptions(title)
-          : await findArtworkOptions(title, series);
-      if (foundImages.length === 1) {
-        setDraft((current) => ({
-          ...current,
-          imageUrl: foundImages[0] ?? "",
-        }));
-      } else if (foundImages.length > 1) {
-        setArtworkPicker({
-          target: "draft",
-          options: foundImages,
-        });
-      }
-    } finally {
-      setIsAutofillingDraftImage(false);
-      setDraftArtworkSearchMode(null);
-    }
+  function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
+    openGoogleImageSearch(draft.title, draft.series, mode);
   }
 
   function startEditingCard(card: CardEntry) {
@@ -2734,40 +2466,12 @@ export function RankboardApp() {
     cancelEditingCard();
   }
 
-  async function autofillEditingCardImage(mode: ArtworkSearchMode = "image") {
-    if (!editingCardDraft || !editingCardItemId) {
+  function autofillEditingCardImage(mode: ArtworkSearchMode = "image") {
+    if (!editingCardDraft) {
       return;
     }
 
-    const title = editingCardDraft.title.trim() || "Untitled Game";
-    const series = editingCardDraft.series.trim();
-    setAutofillingCardId(editingCardItemId);
-    setEditingArtworkSearchMode(mode);
-
-    try {
-      const foundImages =
-        mode === "gif"
-          ? await findGifOptions(title)
-          : await findArtworkOptions(title, series);
-      if (foundImages.length === 1) {
-        setEditingCardDraft((current) =>
-          current
-            ? {
-                ...current,
-                imageUrl: foundImages[0] ?? "",
-              }
-            : current,
-        );
-      } else if (foundImages.length > 1) {
-        setArtworkPicker({
-          target: "editing",
-          options: foundImages,
-        });
-      }
-    } finally {
-      setAutofillingCardId(null);
-      setEditingArtworkSearchMode(null);
-    }
+    openGoogleImageSearch(editingCardDraft.title, editingCardDraft.series, mode);
   }
 
   function selectArtworkOption(imageUrl: string) {
@@ -5070,26 +4774,26 @@ export function RankboardApp() {
                         ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
                         : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
                     )}
-                    onClick={() => void autofillEditingCardImage("image")}
+                    onClick={() => autofillEditingCardImage("image")}
                     type="button"
+                    title="Search Google Images in a new tab"
                   >
                     <ImagePlus className="h-4 w-4" />
-                    {autofillingCardId === editingCardItemId && editingArtworkSearchMode === "image" ? "Finding..." : "Image"}
+                    Image
                   </button>
                   <button
                     className={clsx(
                       "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
                       isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:border-white/10 disabled:text-slate-500"
-                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:border-slate-200 disabled:text-slate-400",
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
                     )}
-                    disabled={!canSearchGifs}
-                    onClick={() => void autofillEditingCardImage("gif")}
+                    onClick={() => autofillEditingCardImage("gif")}
                     type="button"
-                    title={canSearchGifs ? "Find a GIF with Tenor" : "Configure NEXT_PUBLIC_TENOR_API_KEY to enable GIF search"}
+                    title="Search Google Images for animated GIFs in a new tab"
                   >
                     <Clapperboard className="h-4 w-4" />
-                    {autofillingCardId === editingCardItemId && editingArtworkSearchMode === "gif" ? "Finding..." : "GIF"}
+                    GIF
                   </button>
                 </div>
               ) : null}
@@ -5351,26 +5055,26 @@ export function RankboardApp() {
                           ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
                           : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
                       )}
-                      onClick={() => void handleAutofillDraftImage("image")}
+                      onClick={() => handleAutofillDraftImage("image")}
                       type="button"
+                      title="Search Google Images in a new tab"
                     >
                       <ImagePlus className="h-4 w-4" />
-                      {isAutofillingDraftImage && draftArtworkSearchMode === "image" ? "Finding..." : "Image"}
+                      Image
                     </button>
                     <button
                       className={clsx(
                         "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
                         isDarkMode
-                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:border-white/10 disabled:text-slate-500"
-                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:border-slate-200 disabled:text-slate-400",
+                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
                       )}
-                      disabled={!canSearchGifs}
-                      onClick={() => void handleAutofillDraftImage("gif")}
+                      onClick={() => handleAutofillDraftImage("gif")}
                       type="button"
-                      title={canSearchGifs ? "Find a GIF with Tenor" : "Configure NEXT_PUBLIC_TENOR_API_KEY to enable GIF search"}
+                      title="Search Google Images for animated GIFs in a new tab"
                     >
                       <Clapperboard className="h-4 w-4" />
-                      {isAutofillingDraftImage && draftArtworkSearchMode === "gif" ? "Finding..." : "GIF"}
+                      GIF
                     </button>
                   </div>
                 ) : null}
