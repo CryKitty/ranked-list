@@ -1146,6 +1146,7 @@ export function RankboardApp() {
   const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
+  const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
@@ -1770,6 +1771,7 @@ export function RankboardApp() {
       setIsBoardsMenuOpen(false);
       setIsCustomizationMenuOpen(false);
       setIsMaintenanceMenuOpen(false);
+      setIsTransferMenuOpen(false);
       return;
     }
 
@@ -3690,6 +3692,7 @@ export function RankboardApp() {
                             setIsBoardsMenuOpen((current) => !current);
                             setIsCustomizationMenuOpen(false);
                             setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
                           }}
                         />
                         {isBoardsMenuOpen ? (
@@ -3743,6 +3746,7 @@ export function RankboardApp() {
                             setIsCustomizationMenuOpen((current) => !current);
                             setIsBoardsMenuOpen(false);
                             setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
                           }}
                         />
                         {isCustomizationMenuOpen ? (
@@ -3793,6 +3797,7 @@ export function RankboardApp() {
                             setIsMaintenanceMenuOpen((current) => !current);
                             setIsBoardsMenuOpen(false);
                             setIsCustomizationMenuOpen(false);
+                            setIsTransferMenuOpen(false);
                           }}
                         />
                         {isMaintenanceMenuOpen ? (
@@ -3812,31 +3817,43 @@ export function RankboardApp() {
                           </div>
                         ) : null}
                       </div>
-                      <button
-                        className={clsx(
-                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                        )}
-                        onClick={() => {
-                          setIsImportModalOpen(true);
-                          setIsActionsMenuOpen(false);
-                        }}
-                        type="button"
-                      >
-                        <Upload className="h-4 w-4" />
-                        Import
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                        )}
-                        onClick={exportActiveBoardAsJson}
-                        type="button"
-                      >
-                        <Save className="h-4 w-4" />
-                        Export JSON
-                      </button>
+                      <div className="rounded-2xl">
+                        <MenuSectionButton
+                          icon={<Upload className="h-4 w-4" />}
+                          label="Import/Export"
+                          isDarkMode={isDarkMode}
+                          isOpen={isTransferMenuOpen}
+                          onClick={() => {
+                            setIsTransferMenuOpen((current) => !current);
+                            setIsBoardsMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                          }}
+                        />
+                        {isTransferMenuOpen ? (
+                          <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={() => {
+                                setIsImportModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <Upload className="h-4 w-4" />
+                              Import
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={exportActiveBoardAsJson}
+                              type="button"
+                            >
+                              <Save className="h-4 w-4" />
+                              Export
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                       <button
                         className={clsx(
                           "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
@@ -4038,6 +4055,7 @@ export function RankboardApp() {
                                   setIsBoardsMenuOpen((current) => !current);
                                   setIsCustomizationMenuOpen(false);
                                   setIsMaintenanceMenuOpen(false);
+                                  setIsTransferMenuOpen(false);
                                 }}
                               />
                               {isBoardsMenuOpen ? (
@@ -4079,6 +4097,7 @@ export function RankboardApp() {
                                   setIsCustomizationMenuOpen((current) => !current);
                                   setIsBoardsMenuOpen(false);
                                   setIsMaintenanceMenuOpen(false);
+                                  setIsTransferMenuOpen(false);
                                 }}
                               />
                               {isCustomizationMenuOpen ? (
@@ -4108,6 +4127,7 @@ export function RankboardApp() {
                                   setIsMaintenanceMenuOpen((current) => !current);
                                   setIsBoardsMenuOpen(false);
                                   setIsCustomizationMenuOpen(false);
+                                  setIsTransferMenuOpen(false);
                                 }}
                               />
                               {isMaintenanceMenuOpen ? (
@@ -4127,26 +4147,44 @@ export function RankboardApp() {
                                 </div>
                               ) : null}
                             </div>
-                            <button
-                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
-                              onClick={() => {
-                                setIsImportModalOpen(true);
-                                setIsActionsMenuOpen(false);
-                                setIsMobileActionsOpen(false);
-                              }}
-                              type="button"
-                            >
-                              <Upload className="h-4 w-4" />
-                              Import
-                            </button>
-                            <button
-                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
-                              onClick={exportActiveBoardAsJson}
-                              type="button"
-                            >
-                              <Save className="h-4 w-4" />
-                              Export JSON
-                            </button>
+                            <div className="rounded-2xl">
+                              <MenuSectionButton
+                                icon={<Upload className="h-4 w-4" />}
+                                label="Import/Export"
+                                isDarkMode={isDarkMode}
+                                isOpen={isTransferMenuOpen}
+                                onClick={() => {
+                                  setIsTransferMenuOpen((current) => !current);
+                                  setIsBoardsMenuOpen(false);
+                                  setIsCustomizationMenuOpen(false);
+                                  setIsMaintenanceMenuOpen(false);
+                                }}
+                              />
+                              {isTransferMenuOpen ? (
+                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                                  <button
+                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={() => {
+                                      setIsImportModalOpen(true);
+                                      setIsActionsMenuOpen(false);
+                                      setIsMobileActionsOpen(false);
+                                    }}
+                                    type="button"
+                                  >
+                                    <Upload className="h-4 w-4" />
+                                    Import
+                                  </button>
+                                  <button
+                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={exportActiveBoardAsJson}
+                                    type="button"
+                                  >
+                                    <Save className="h-4 w-4" />
+                                    Export
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
                             <button
                               className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
                               onClick={() => {
@@ -4365,6 +4403,7 @@ export function RankboardApp() {
                                 setIsBoardsMenuOpen((current) => !current);
                                 setIsCustomizationMenuOpen(false);
                                 setIsMaintenanceMenuOpen(false);
+                                setIsTransferMenuOpen(false);
                               }}
                             />
                             {isBoardsMenuOpen ? (
@@ -4413,6 +4452,7 @@ export function RankboardApp() {
                                 setIsCustomizationMenuOpen((current) => !current);
                                 setIsBoardsMenuOpen(false);
                                 setIsMaintenanceMenuOpen(false);
+                                setIsTransferMenuOpen(false);
                               }}
                             />
                             {isCustomizationMenuOpen ? (
@@ -4442,6 +4482,7 @@ export function RankboardApp() {
                                 setIsMaintenanceMenuOpen((current) => !current);
                                 setIsBoardsMenuOpen(false);
                                 setIsCustomizationMenuOpen(false);
+                                setIsTransferMenuOpen(false);
                               }}
                             />
                             {isMaintenanceMenuOpen ? (
@@ -4461,31 +4502,49 @@ export function RankboardApp() {
                               </div>
                             ) : null}
                           </div>
-                          <button
-                            className={clsx(
-                              "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                              isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                            )}
-                            onClick={() => {
-                              setIsImportModalOpen(true);
-                              setIsActionsMenuOpen(false);
-                            }}
-                            type="button"
-                          >
-                            <Upload className="h-4 w-4" />
-                            Import
-                          </button>
-                          <button
-                            className={clsx(
-                              "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                              isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                            )}
-                            onClick={exportActiveBoardAsJson}
-                            type="button"
-                          >
-                            <Save className="h-4 w-4" />
-                            Export JSON
-                          </button>
+                          <div className="rounded-2xl">
+                            <MenuSectionButton
+                              icon={<Upload className="h-4 w-4" />}
+                              label="Import/Export"
+                              isDarkMode={isDarkMode}
+                              isOpen={isTransferMenuOpen}
+                              onClick={() => {
+                                setIsTransferMenuOpen((current) => !current);
+                                setIsBoardsMenuOpen(false);
+                                setIsCustomizationMenuOpen(false);
+                                setIsMaintenanceMenuOpen(false);
+                              }}
+                            />
+                            {isTransferMenuOpen ? (
+                              <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  )}
+                                  onClick={() => {
+                                    setIsImportModalOpen(true);
+                                    setIsActionsMenuOpen(false);
+                                  }}
+                                  type="button"
+                                >
+                                  <Upload className="h-4 w-4" />
+                                  Import
+                                </button>
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  )}
+                                  onClick={exportActiveBoardAsJson}
+                                  type="button"
+                                >
+                                  <Save className="h-4 w-4" />
+                                  Export
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
                           <button
                             className={clsx(
                               "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
