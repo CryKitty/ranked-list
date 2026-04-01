@@ -6377,7 +6377,7 @@ function CardTile({
     <article
       {...dragProps}
       className={clsx(
-        "group relative overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
+        "group relative shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
         tierBorderClass,
         isDragging && "rotate-1 scale-[1.01]",
       )}
