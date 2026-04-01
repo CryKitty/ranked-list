@@ -110,6 +110,7 @@ type TitleTidySuggestion = {
   columnId: string;
   columnTitle: string;
   entryId: string;
+  itemId: string;
   originalTitle: string;
   proposedTitle: string;
 };
@@ -119,6 +120,7 @@ type SeriesScrapeSuggestion = {
   columnId: string;
   columnTitle: string;
   entryId: string;
+  itemId: string;
   title: string;
   proposedSeries: string;
   proposedReleaseYear: string;
@@ -389,6 +391,63 @@ async function fetchWikipediaArtworkCandidatesBySearch(query: string) {
     })
     .map((page) => page.original?.source ?? page.thumbnail?.source ?? null)
     .filter((value): value is string => Boolean(value));
+}
+
+async function fetchWikipediaMetadataBySearch(query: string) {
+  const trimmedQuery = query.trim();
+
+  if (!trimmedQuery) {
+    return null;
+  }
+
+  const url = new URL("https://en.wikipedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+  url.searchParams.set("generator", "search");
+  url.searchParams.set("gsrsearch", trimmedQuery);
+  url.searchParams.set("gsrlimit", "5");
+  url.searchParams.set("prop", "extracts");
+  url.searchParams.set("exintro", "1");
+  url.searchParams.set("explaintext", "1");
+
+  const response = await fetch(url.toString());
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as {
+    query?: {
+      pages?: Record<
+        string,
+        {
+          title?: string;
+          extract?: string;
+        }
+      >;
+    };
+  };
+
+  const normalizedQuery = trimmedQuery.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const pages = Object.values(data.query?.pages ?? {});
+  const bestPage =
+    [...pages].sort((left, right) => {
+      const leftTitle = (left.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const rightTitle = (right.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const leftExact = leftTitle.includes(normalizedQuery) ? 1 : 0;
+      const rightExact = rightTitle.includes(normalizedQuery) ? 1 : 0;
+      return rightExact - leftExact;
+    })[0] ?? null;
+
+  if (!bestPage) {
+    return null;
+  }
+
+  return {
+    title: bestPage.title ?? "",
+    extract: bestPage.extract ?? "",
+  };
 }
 
 async function findArtworkOptions(title: string, series = "") {
@@ -703,6 +762,11 @@ function getSuggestedReleaseYearFromTitle(title: string) {
   return match?.[0] ?? "";
 }
 
+function getSuggestedReleaseYearFromWikipediaExtract(extract: string) {
+  const match = extract.match(/\b(19|20)\d{2}\b/);
+  return match?.[0] ?? "";
+}
+
 function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = []) {
   const trimmed = title.trim();
 
@@ -854,6 +918,7 @@ export function RankboardApp() {
   const [openColumnSortMenuId, setOpenColumnSortMenuId] = useState<string | null>(null);
   const [openColumnFilterMenuId, setOpenColumnFilterMenuId] = useState<string | null>(null);
   const [openColumnMirrorMenuId, setOpenColumnMirrorMenuId] = useState<string | null>(null);
+  const [openColumnMaintenanceMenuId, setOpenColumnMaintenanceMenuId] = useState<string | null>(null);
   const [columnTierFilters, setColumnTierFilters] = useState<Record<string, TierFilter>>({});
   const [isAutofillingDraftImage, setIsAutofillingDraftImage] = useState(false);
   const [autofillingCardId, setAutofillingCardId] = useState<string | null>(null);
@@ -891,6 +956,7 @@ export function RankboardApp() {
   const [artworkPicker, setArtworkPicker] = useState<ArtworkPickerState | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
+  const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
@@ -969,6 +1035,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
     setEditingCardId(null);
     setEditingCardItemId(null);
     setEditingCardDraft(null);
@@ -1492,6 +1559,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
   }, [openColumnMenuId]);
 
   useEffect(() => {
@@ -1503,6 +1571,7 @@ export function RankboardApp() {
         setOpenColumnSortMenuId(null);
         setOpenColumnFilterMenuId(null);
         setOpenColumnMirrorMenuId(null);
+        setOpenColumnMaintenanceMenuId(null);
       }
     }
 
@@ -1910,6 +1979,7 @@ export function RankboardApp() {
         title,
         imageUrl,
         series,
+        releaseYear,
         notes,
       });
       return;
@@ -1993,6 +2063,7 @@ export function RankboardApp() {
     setIsAutofillingDraftImage(false);
     setDraftDuplicateAction(null);
     setArtworkPicker(null);
+    setIsAddFieldSettingsOpen(false);
   }
 
   function openQuickAddModal() {
@@ -2551,10 +2622,13 @@ export function RankboardApp() {
     };
   }
 
-  function openDuplicateCleanupModal() {
+  function openDuplicateCleanupModal(scopeColumnId?: string) {
     const suggestions: DuplicateCleanupSuggestion[] = [];
+    const scopedColumns = scopeColumnId
+      ? columns.filter((column) => column.id === scopeColumnId)
+      : columns;
 
-    for (const column of columns) {
+    for (const column of scopedColumns) {
       const grouped = new Map<string, CardEntry[]>();
 
       for (const card of cardsByColumn[column.id] ?? []) {
@@ -2594,6 +2668,11 @@ export function RankboardApp() {
     setIsDuplicateCleanupModalOpen(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
   }
 
   function removeDuplicateCleanupSuggestion(suggestionId: string) {
@@ -2626,10 +2705,13 @@ export function RankboardApp() {
     setDuplicateCleanupSuggestions([]);
   }
 
-  function openTitleTidyModal() {
+  function openTitleTidyModal(scopeColumnId?: string) {
     const suggestions: TitleTidySuggestion[] = [];
+    const scopedColumns = scopeColumnId
+      ? columns.filter((column) => column.id === scopeColumnId)
+      : columns;
 
-    for (const column of columns) {
+    for (const column of scopedColumns) {
       for (const card of cardsByColumn[column.id] ?? []) {
         const proposedTitle = getSuggestedTitleCleanup(card.title);
 
@@ -2642,6 +2724,7 @@ export function RankboardApp() {
           columnId: column.id,
           columnTitle: column.title,
           entryId: card.entryId,
+          itemId: card.itemId,
           originalTitle: card.title,
           proposedTitle,
         });
@@ -2652,6 +2735,11 @@ export function RankboardApp() {
     setIsTitleTidyModalOpen(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
   }
 
   function updateTitleTidySuggestion(suggestionId: string, proposedTitle: string) {
@@ -2674,7 +2762,7 @@ export function RankboardApp() {
   function applyTitleTidySuggestions() {
     const titleUpdates = new Map(
       titleTidySuggestions
-        .map((suggestion) => [suggestion.entryId, suggestion.proposedTitle.trim()] as const)
+        .map((suggestion) => [suggestion.itemId, suggestion.proposedTitle.trim()] as const)
         .filter(([, title]) => title.length > 0),
     );
 
@@ -2683,7 +2771,7 @@ export function RankboardApp() {
 
       for (const [columnId, cards] of Object.entries(current)) {
         nextState[columnId] = cards.map((card) => {
-          const updatedTitle = titleUpdates.get(card.entryId);
+          const updatedTitle = titleUpdates.get(card.itemId);
           return updatedTitle ? { ...card, title: updatedTitle } : card;
         });
       }
@@ -2695,25 +2783,40 @@ export function RankboardApp() {
     setTitleTidySuggestions([]);
   }
 
-  function openSeriesScrapeModal() {
+  async function openSeriesScrapeModal(scopeColumnId?: string) {
     const suggestions: SeriesScrapeSuggestion[] = [];
     const existingSeries = Array.from(
       new Set(
         Object.values(cardsByColumn)
           .flat()
           .map((card) => card.series.trim())
-          .filter(Boolean),
+        .filter(Boolean),
       ),
     );
+    const scopedColumns = scopeColumnId
+      ? columns.filter((column) => column.id === scopeColumnId)
+      : columns;
 
-    for (const column of columns) {
+    for (const column of scopedColumns) {
       for (const card of cardsByColumn[column.id] ?? []) {
         if (card.series.trim() && card.releaseYear?.trim()) {
           continue;
         }
 
-        const proposedSeries = card.series.trim() || getSuggestedSeriesFromTitle(card.title, existingSeries);
-        const proposedReleaseYear = card.releaseYear?.trim() || getSuggestedReleaseYearFromTitle(card.title);
+        const wikipediaMetadata = await fetchWikipediaMetadataBySearch(
+          `${card.title} ${(card.series || "").trim()} video game`.trim(),
+        );
+        const wikipediaSeries = wikipediaMetadata?.title
+          ? getSuggestedSeriesFromTitle(wikipediaMetadata.title, existingSeries)
+          : null;
+        const proposedSeries =
+          card.series.trim() ||
+          wikipediaSeries ||
+          getSuggestedSeriesFromTitle(card.title, existingSeries);
+        const proposedReleaseYear =
+          card.releaseYear?.trim() ||
+          getSuggestedReleaseYearFromWikipediaExtract(wikipediaMetadata?.extract ?? "") ||
+          getSuggestedReleaseYearFromTitle(card.title);
 
         if (!proposedSeries && !proposedReleaseYear) {
           continue;
@@ -2724,6 +2827,7 @@ export function RankboardApp() {
           columnId: column.id,
           columnTitle: column.title,
           entryId: card.entryId,
+          itemId: card.itemId,
           title: card.title,
           proposedSeries: proposedSeries ?? "",
           proposedReleaseYear,
@@ -2735,6 +2839,11 @@ export function RankboardApp() {
     setIsSeriesScrapeModalOpen(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
   }
 
   function updateSeriesScrapeSuggestion(suggestionId: string, proposedSeries: string) {
@@ -2770,7 +2879,7 @@ export function RankboardApp() {
   function applySeriesScrapeSuggestions() {
     const suggestionUpdates = new Map(
       seriesScrapeSuggestions.map((suggestion) => [
-        suggestion.entryId,
+        suggestion.itemId,
         {
           series: suggestion.proposedSeries.trim(),
           releaseYear: suggestion.proposedReleaseYear.trim(),
@@ -2783,7 +2892,7 @@ export function RankboardApp() {
 
       for (const [columnId, cards] of Object.entries(current)) {
         nextState[columnId] = cards.map((card) => {
-          const updatedValues = suggestionUpdates.get(card.entryId);
+          const updatedValues = suggestionUpdates.get(card.itemId);
 
           if (!updatedValues) {
             return card;
@@ -3053,15 +3162,15 @@ export function RankboardApp() {
                         />
                         {isMaintenanceMenuOpen ? (
                           <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openDuplicateCleanupModal} type="button">
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
                               <Trash2 className="h-4 w-4" />
                               Delete Duplicates
                             </button>
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openTitleTidyModal} type="button">
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
                               <Sparkles className="h-4 w-4" />
                               Tidy Titles
                             </button>
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openSeriesScrapeModal} type="button">
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                               <WandSparkles className="h-4 w-4" />
                               Scrape Series
                             </button>
@@ -3369,15 +3478,15 @@ export function RankboardApp() {
                               />
                               {isMaintenanceMenuOpen ? (
                                 <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openDuplicateCleanupModal} type="button">
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
                                     <Trash2 className="h-4 w-4" />
                                     Delete Duplicates
                                   </button>
-                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openTitleTidyModal} type="button">
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
                                     <Sparkles className="h-4 w-4" />
                                     Tidy Titles
                                   </button>
-                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openSeriesScrapeModal} type="button">
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                                     <WandSparkles className="h-4 w-4" />
                                     Scrape Series
                                   </button>
@@ -3581,6 +3690,7 @@ export function RankboardApp() {
                       isSortMenuOpen={openColumnSortMenuId === column.id}
                       isFilterMenuOpen={openColumnFilterMenuId === column.id}
                       isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
+                      isMaintenanceMenuOpen={openColumnMaintenanceMenuId === column.id}
                       onToggleMenu={() =>
                         setOpenColumnMenuId((current) => {
                           const nextId = current === column.id ? null : column.id;
@@ -3618,10 +3728,27 @@ export function RankboardApp() {
                           if (nextId === column.id) {
                             setOpenColumnSortMenuId(null);
                             setOpenColumnFilterMenuId(null);
+                            setOpenColumnMaintenanceMenuId(null);
                           }
                           return nextId;
                         })
                       }
+                      onToggleMaintenanceMenu={() =>
+                        setOpenColumnMaintenanceMenuId((current) => {
+                          const nextId = current === column.id ? null : column.id;
+                          if (nextId === column.id) {
+                            setOpenColumnSortMenuId(null);
+                            setOpenColumnFilterMenuId(null);
+                            setOpenColumnMirrorMenuId(null);
+                          }
+                          return nextId;
+                        })
+                      }
+                      onOpenDuplicateCleanup={() => openDuplicateCleanupModal(column.id)}
+                      onOpenTitleTidy={() => openTitleTidyModal(column.id)}
+                      onOpenSeriesScrape={() => {
+                        void openSeriesScrapeModal(column.id);
+                      }}
                       onDeleteColumn={deleteColumn}
                       onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
                       onLinkMirrorMatches={linkMatchingMirrorCards}
@@ -3645,7 +3772,7 @@ export function RankboardApp() {
           >
             <div
               className={clsx(
-                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "relative w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -4184,6 +4311,66 @@ export function RankboardApp() {
                   </button>
                 </div>
               </form>
+
+              <div className="absolute bottom-5 right-5">
+                <button
+                  className={clsx(
+                    "inline-flex h-11 w-11 items-center justify-center rounded-full border transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setIsAddFieldSettingsOpen((current) => !current)}
+                  type="button"
+                  aria-label="Customize add fields"
+                >
+                  <Settings2 className="h-4 w-4" />
+                </button>
+                {isAddFieldSettingsOpen ? (
+                  <div
+                    className={clsx(
+                      "absolute bottom-14 right-0 z-10 min-w-[220px] rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-900"
+                        : "border-slate-200 bg-white",
+                    )}
+                  >
+                    <button
+                      className={clsx(
+                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                      )}
+                      onClick={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
+                      type="button"
+                    >
+                      <span>Series field</span>
+                      <span className="text-xs opacity-70">{activeBoardSettings.includeSeriesField ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      className={clsx(
+                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                      )}
+                      onClick={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
+                      type="button"
+                    >
+                      <span>Artwork field</span>
+                      <span className="text-xs opacity-70">{activeBoardSettings.includeImageField ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      className={clsx(
+                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                      )}
+                      onClick={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                      type="button"
+                    >
+                      <span>Notes field</span>
+                      <span className="text-xs opacity-70">{activeBoardSettings.includeNotesField ? "On" : "Off"}</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         ) : null}
@@ -5005,10 +5192,15 @@ function BoardColumn({
   isSortMenuOpen,
   isFilterMenuOpen,
   isMirrorMenuOpen,
+  isMaintenanceMenuOpen,
   onToggleMenu,
   onToggleSortMenu,
   onToggleFilterMenu,
   onToggleMirrorMenu,
+  onToggleMaintenanceMenu,
+  onOpenDuplicateCleanup,
+  onOpenTitleTidy,
+  onOpenSeriesScrape,
   onDeleteColumn,
   onToggleBoardMirrorColumn,
   onLinkMirrorMatches,
@@ -5047,10 +5239,15 @@ function BoardColumn({
   isSortMenuOpen: boolean;
   isFilterMenuOpen: boolean;
   isMirrorMenuOpen: boolean;
+  isMaintenanceMenuOpen: boolean;
   onToggleMenu: () => void;
   onToggleSortMenu: () => void;
   onToggleFilterMenu: () => void;
   onToggleMirrorMenu: () => void;
+  onToggleMaintenanceMenu: () => void;
+  onOpenDuplicateCleanup: () => void;
+  onOpenTitleTidy: () => void;
+  onOpenSeriesScrape: () => void;
   onDeleteColumn: (columnId: string) => void;
   onToggleBoardMirrorColumn: (columnId: string) => void;
   onLinkMirrorMatches: (columnId: string) => void;
@@ -5357,6 +5554,71 @@ function BoardColumn({
                               type="button"
                             >
                               Link Duplicates
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="relative">
+                        <button
+                          className={clsx(
+                            "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
+                            isDarkMode
+                              ? "text-white hover:bg-white/10"
+                              : "text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={onToggleMaintenanceMenu}
+                          type="button"
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <WandSparkles className="h-4 w-4" />
+                            Maintenance
+                          </span>
+                          <span className="text-xs opacity-70">{isMaintenanceMenuOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isMaintenanceMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "mt-1 flex flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900"
+                                : "border-slate-200 bg-white",
+                            )}
+                          >
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={onOpenDuplicateCleanup}
+                              type="button"
+                            >
+                              Delete Duplicates
+                            </button>
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={onOpenTitleTidy}
+                              type="button"
+                            >
+                              Tidy Titles
+                            </button>
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={onOpenSeriesScrape}
+                              type="button"
+                            >
+                              Scrape Series
                             </button>
                           </div>
                         ) : null}
