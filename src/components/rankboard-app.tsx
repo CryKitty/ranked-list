@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -825,6 +825,82 @@ export function RankboardApp() {
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const shouldShowSeriesField = activeBoardKind !== "show";
 
+  const resetToSignedOutBoard = useCallback(() => {
+    const signedOutBoard = createEmptyBoard("Rankboard");
+
+    skipNextHistoryRef.current = true;
+    previousSnapshotRef.current = {
+      columns: signedOutBoard.columns,
+      cardsByColumn: signedOutBoard.cardsByColumn,
+    };
+    latestBoardsRef.current = [signedOutBoard];
+    latestActiveBoardIdRef.current = signedOutBoard.id;
+    latestColumnsRef.current = signedOutBoard.columns;
+    latestCardsByColumnRef.current = signedOutBoard.cardsByColumn;
+
+    setBoards([signedOutBoard]);
+    setActiveBoardId(signedOutBoard.id);
+    setColumns(signedOutBoard.columns);
+    setCardsByColumn(signedOutBoard.cardsByColumn);
+    setHistory([]);
+    setSearchTerm("");
+    setSeriesFilter("");
+    setIsEditingBoardTitle(false);
+    setBoardTitleDraft("");
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    setIsBoardsMenuOpen(false);
+    setIsCustomizationMenuOpen(false);
+    setIsMaintenanceMenuOpen(false);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setEditingCardId(null);
+    setEditingCardItemId(null);
+    setEditingCardDraft(null);
+    setEditingColumnId(null);
+    setEditingColumnDraft(null);
+    setAddCardTarget(null);
+    setDraft(initialDraft);
+    setHasLoadedRemoteState(true);
+
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // Ignore storage failures during sign out reset.
+    }
+  }, []);
+
+  const persistBoardState = useCallback(async (options?: {
+    boards?: SavedBoard[];
+    activeBoardId?: string;
+    cardsByColumn?: Record<string, CardEntry[]>;
+  }) => {
+    if (!supabase || !currentUser) {
+      return;
+    }
+
+    const nextBoards = options?.boards ?? latestBoardsRef.current;
+    const nextActiveBoardId = options?.activeBoardId ?? latestActiveBoardIdRef.current;
+    const nextCardsByColumn = options?.cardsByColumn ?? latestCardsByColumnRef.current;
+
+    const { error } = await supabase.from("board_states").upsert({
+      owner_id: currentUser.id,
+      columns: {
+        version: 2,
+        activeBoardId: nextActiveBoardId,
+        boards: nextBoards,
+      },
+      cards_by_column: nextCardsByColumn,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error(error);
+    }
+  }, [currentUser, supabase]);
+
   function findDuplicateCard(
     title: string,
     columnId: string,
@@ -857,6 +933,11 @@ export function RankboardApp() {
   }
 
   useEffect(() => {
+    if (authEnabled) {
+      setHasLoadedPersistedState(true);
+      return;
+    }
+
     try {
       const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
 
@@ -911,7 +992,7 @@ export function RankboardApp() {
     } finally {
       setHasLoadedPersistedState(true);
     }
-  }, []);
+  }, [authEnabled]);
 
   useEffect(() => {
     try {
@@ -937,6 +1018,15 @@ export function RankboardApp() {
       return;
     }
 
+    if (authEnabled && !isAuthLoading && !currentUser) {
+      try {
+        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+      } catch {
+        // Ignore local storage cleanup failures.
+      }
+      return;
+    }
+
     window.localStorage.setItem(
       LOCAL_STORAGE_KEY,
       JSON.stringify({
@@ -945,7 +1035,7 @@ export function RankboardApp() {
         boards,
       }),
     );
-  }, [activeBoardId, boards, hasLoadedPersistedState]);
+  }, [activeBoardId, authEnabled, boards, currentUser, hasLoadedPersistedState, isAuthLoading]);
 
   useEffect(() => {
     if (!hasLoadedPersistedState) {
@@ -1043,12 +1133,20 @@ export function RankboardApp() {
   }, [supabase]);
 
   useEffect(() => {
+    if (!authEnabled || isAuthLoading || !hasLoadedPersistedState || currentUser) {
+      return;
+    }
+
+    resetToSignedOutBoard();
+  }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading, resetToSignedOutBoard]);
+
+  useEffect(() => {
     if (!hasLoadedPersistedState) {
       return;
     }
 
     if (!supabase || !currentUser) {
-      setHasLoadedRemoteState(!authEnabled);
+      setHasLoadedRemoteState(true);
       return;
     }
 
@@ -1179,46 +1277,32 @@ export function RankboardApp() {
       return;
     }
 
-    const client = supabase;
-    const user = currentUser;
     const timeout = window.setTimeout(() => {
-      void client.from("board_states").upsert({
-        owner_id: user.id,
-        columns: {
-          version: 2,
-          activeBoardId,
-          boards,
-        },
-        cards_by_column: cardsByColumn,
-        updated_at: new Date().toISOString(),
+      void persistBoardState({
+        boards,
+        activeBoardId,
+        cardsByColumn,
       });
     }, 1000);
 
     return () => window.clearTimeout(timeout);
-  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, supabase]);
+  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !hasLoadedRemoteState) {
       return;
     }
 
-    const client = supabase;
-    const user = currentUser;
     const interval = window.setInterval(() => {
-      void client.from("board_states").upsert({
-        owner_id: user.id,
-        columns: {
-          version: 2,
-          activeBoardId,
-          boards,
-        },
-        cards_by_column: cardsByColumn,
-        updated_at: new Date().toISOString(),
+      void persistBoardState({
+        boards,
+        activeBoardId,
+        cardsByColumn,
       });
     }, 60_000);
 
     return () => window.clearInterval(interval);
-  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, supabase]);
+  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
 
   useEffect(() => {
     if (!isActionsMenuOpen) {
@@ -1244,7 +1328,6 @@ export function RankboardApp() {
         setOpenColumnMenuId(null);
         setOpenColumnSortMenuId(null);
         setOpenColumnFilterMenuId(null);
-        setOpenColumnMirrorMenuId(null);
         setOpenColumnMirrorMenuId(null);
       }
     }
@@ -1282,8 +1365,12 @@ export function RankboardApp() {
   }
 
   async function handleSignOut() {
+    await persistBoardState();
     await supabase?.auth.signOut();
+    setCurrentUser(null);
+    resetToSignedOutBoard();
     setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
   }
 
   function findColumnIdForEntry(entryId: string) {
@@ -2152,6 +2239,7 @@ export function RankboardApp() {
 
   function saveBoardTitle() {
     const nextTitle = boardTitleDraft.trim();
+    let nextBoardsSnapshot = latestBoardsRef.current;
 
     setBoards((current) => {
       const nextBoards = current.map((board) =>
@@ -2165,10 +2253,16 @@ export function RankboardApp() {
       );
 
       latestBoardsRef.current = nextBoards;
+      nextBoardsSnapshot = nextBoards;
       return nextBoards;
     });
 
     cancelEditingBoardTitle();
+    void persistBoardState({
+      boards: nextBoardsSnapshot,
+      activeBoardId,
+      cardsByColumn: latestCardsByColumnRef.current,
+    });
   }
 
   function createBoardFromModal() {
@@ -2472,7 +2566,7 @@ export function RankboardApp() {
         <section className="grid gap-4">
           <div
             className={clsx(
-              "relative z-[220] hidden rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:block",
+              "relative z-40 hidden isolate rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:block",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/80",
@@ -3047,7 +3141,7 @@ export function RankboardApp() {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 overflow-x-hidden overflow-y-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -3141,7 +3235,7 @@ export function RankboardApp() {
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
-              <div className="relative z-10 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
+              <div className="relative z-10 flex items-start snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
                 {columns.map((column) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
@@ -3178,24 +3272,45 @@ export function RankboardApp() {
                       isFilterMenuOpen={openColumnFilterMenuId === column.id}
                       isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
                       onToggleMenu={() =>
-                        setOpenColumnMenuId((current) =>
-                          current === column.id ? null : column.id,
-                        )
+                        setOpenColumnMenuId((current) => {
+                          const nextId = current === column.id ? null : column.id;
+                          if (nextId !== column.id) {
+                            setOpenColumnSortMenuId(null);
+                            setOpenColumnFilterMenuId(null);
+                            setOpenColumnMirrorMenuId(null);
+                          }
+                          return nextId;
+                        })
                       }
                       onToggleSortMenu={() =>
-                        setOpenColumnSortMenuId((current) =>
-                          current === column.id ? null : column.id,
-                        )
+                        setOpenColumnSortMenuId((current) => {
+                          const nextId = current === column.id ? null : column.id;
+                          if (nextId === column.id) {
+                            setOpenColumnFilterMenuId(null);
+                            setOpenColumnMirrorMenuId(null);
+                          }
+                          return nextId;
+                        })
                       }
                       onToggleFilterMenu={() =>
-                        setOpenColumnFilterMenuId((current) =>
-                          current === column.id ? null : column.id,
-                        )
+                        setOpenColumnFilterMenuId((current) => {
+                          const nextId = current === column.id ? null : column.id;
+                          if (nextId === column.id) {
+                            setOpenColumnSortMenuId(null);
+                            setOpenColumnMirrorMenuId(null);
+                          }
+                          return nextId;
+                        })
                       }
                       onToggleMirrorMenu={() =>
-                        setOpenColumnMirrorMenuId((current) =>
-                          current === column.id ? null : column.id,
-                        )
+                        setOpenColumnMirrorMenuId((current) => {
+                          const nextId = current === column.id ? null : column.id;
+                          if (nextId === column.id) {
+                            setOpenColumnSortMenuId(null);
+                            setOpenColumnFilterMenuId(null);
+                          }
+                          return nextId;
+                        })
                       }
                       onDeleteColumn={deleteColumn}
                       onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
@@ -4423,7 +4538,7 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex min-h-[720px] w-[320px] shrink-0 snap-start flex-col overflow-visible rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
+        "relative z-10 flex min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
@@ -4435,27 +4550,30 @@ function BoardColumn({
             : "border-slate-200",
       )}
     >
-      <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
-        <div
-          className={clsx(
-            "sticky top-4 z-10 rounded-[21px] p-4 backdrop-blur",
-            isDarkMode ? "bg-slate-950/96" : "bg-white/95",
-            !isEditingColumn && "cursor-grab active:cursor-grabbing",
-          )}
-          draggable={!isEditingColumn}
-          onDragStart={() => onColumnDragStart(column.id)}
-          onDragOver={(event) => {
-            event.preventDefault();
-          }}
-          onDrop={() => {
-            if (draggingColumnId) {
-              onColumnDrop(draggingColumnId, column.id);
-              onColumnDragStart(null);
-            }
-          }}
-          onDragEnd={() => onColumnDragStart(null)}
-        >
-          <div className="flex items-start justify-between gap-3">
+      <div
+        className="sticky top-4 z-30 self-start"
+        draggable={!isEditingColumn}
+        onDragStart={() => onColumnDragStart(column.id)}
+        onDragOver={(event) => {
+          event.preventDefault();
+        }}
+        onDrop={() => {
+          if (draggingColumnId) {
+            onColumnDrop(draggingColumnId, column.id);
+            onColumnDragStart(null);
+          }
+        }}
+        onDragEnd={() => onColumnDragStart(null)}
+      >
+        <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
+          <div
+            className={clsx(
+              "rounded-[21px] p-4 backdrop-blur",
+              isDarkMode ? "bg-slate-950/96" : "bg-white/95",
+              !isEditingColumn && "cursor-grab active:cursor-grabbing",
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
             {isEditingColumn && editingColumnDraft ? (
               <div className="w-full space-y-3">
                 <input
@@ -4519,7 +4637,7 @@ function BoardColumn({
                   {isMenuOpen ? (
                     <div
                       className={clsx(
-                        "absolute right-0 top-12 z-20 flex w-44 flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                        "absolute right-0 top-12 z-50 flex w-56 flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                         isDarkMode
                           ? "border-white/10 bg-slate-900"
                           : "border-slate-200 bg-white",
@@ -4572,7 +4690,7 @@ function BoardColumn({
                         {isSortMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-full top-0 z-[270] mr-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "mt-1 flex flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
@@ -4628,7 +4746,7 @@ function BoardColumn({
                           {isFilterMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute right-full top-0 z-[270] mr-2 flex min-w-[140px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                "mt-1 flex flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900"
                                   : "border-slate-200 bg-white",
@@ -4673,7 +4791,7 @@ function BoardColumn({
                         {isMirrorMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-full top-0 z-[270] mr-2 flex min-w-[160px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "mt-1 flex flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
@@ -4724,6 +4842,7 @@ function BoardColumn({
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
       </div>
