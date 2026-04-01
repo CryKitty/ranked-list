@@ -429,25 +429,82 @@ async function fetchWikipediaMetadataBySearch(query: string) {
     };
   };
 
-  const normalizedQuery = trimmedQuery.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const pages = Object.values(data.query?.pages ?? {});
-  const bestPage =
-    [...pages].sort((left, right) => {
-      const leftTitle = (left.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const rightTitle = (right.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const leftExact = leftTitle.includes(normalizedQuery) ? 1 : 0;
-      const rightExact = rightTitle.includes(normalizedQuery) ? 1 : 0;
-      return rightExact - leftExact;
-    })[0] ?? null;
+  return Object.values(data.query?.pages ?? {})
+    .map((page) => ({
+      title: page.title ?? "",
+      extract: page.extract ?? "",
+    }))
+    .filter((page) => page.title || page.extract);
+}
 
-  if (!bestPage) {
-    return null;
+function stripWikipediaQualifier(title: string) {
+  return title.replace(/\s+\([^)]*\)\s*$/g, "").trim();
+}
+
+function getMeaningfulTitleTokens(title: string) {
+  return normalizeTitleForComparison(stripWikipediaQualifier(title))
+    .split(" ")
+    .filter(
+      (token) =>
+        token.length > 1 &&
+        !new Set([
+          "the",
+          "a",
+          "an",
+          "of",
+          "and",
+          "for",
+          "to",
+          "in",
+          "on",
+          "at",
+          "video",
+          "game",
+        ]).has(token),
+    );
+}
+
+function scoreWikipediaMetadata(metadata: { title: string; extract: string }, searchTitle: string) {
+  const normalizedSearch = sanitizeSearchTitle(searchTitle);
+  const normalizedPageTitle = sanitizeSearchTitle(stripWikipediaQualifier(metadata.title));
+  const searchTokens = getMeaningfulTitleTokens(searchTitle);
+  const pageTitleTokens = new Set(getMeaningfulTitleTokens(metadata.title));
+  const normalizedExtract = normalizeTitleForComparison(metadata.extract);
+  const fullTokenMatches = searchTokens.filter(
+    (token) =>
+      pageTitleTokens.has(token) ||
+      normalizedExtract.includes(token),
+  ).length;
+
+  let score = 0;
+
+  if (normalizedPageTitle === normalizedSearch) {
+    score += 120;
+  } else if (normalizedPageTitle.includes(normalizedSearch)) {
+    score += 90;
+  } else if (normalizedSearch.includes(normalizedPageTitle)) {
+    score += 50;
   }
 
-  return {
-    title: bestPage.title ?? "",
-    extract: bestPage.extract ?? "",
-  };
+  score += fullTokenMatches * 18;
+
+  if (searchTokens.length > 0 && fullTokenMatches === searchTokens.length) {
+    score += 45;
+  } else if (searchTokens.length > 0 && fullTokenMatches <= Math.floor(searchTokens.length / 2)) {
+    score -= 30;
+  }
+
+  const suspiciousPattern =
+    /\b(award|awards|character|franchise|series|novel|manga|comic|disambiguation)\b/i;
+  if (suspiciousPattern.test(metadata.title) || suspiciousPattern.test(metadata.extract)) {
+    score -= 35;
+  }
+
+  if (/\(video game\)/i.test(metadata.title) && searchTokens.length > 1 && !normalizedPageTitle.includes(normalizedSearch)) {
+    score -= 15;
+  }
+
+  return score;
 }
 
 async function fetchBestWikipediaMetadata(
@@ -457,19 +514,28 @@ async function fetchBestWikipediaMetadata(
   const queries = Array.from(
     new Set([
       `${title} video game`,
-      ...existingSeries.slice(0, 8).map((series) => `${series} ${title} video game`),
       title,
+      `${title} game`,
+      ...existingSeries.slice(0, 8).map((series) => `${series} ${title} video game`),
     ]),
   );
 
+  let bestMatch: { title: string; extract: string } | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
   for (const query of queries) {
-    const metadata = await fetchWikipediaMetadataBySearch(query);
-    if (metadata) {
-      return metadata;
+    const candidates = await fetchWikipediaMetadataBySearch(query);
+
+    for (const candidate of candidates ?? []) {
+      const score = scoreWikipediaMetadata(candidate, title);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = candidate;
+      }
     }
   }
 
-  return null;
+  return bestScore >= 45 ? bestMatch : null;
 }
 
 async function findArtworkOptions(title: string, series = "") {
@@ -787,6 +853,23 @@ function getSuggestedReleaseYearFromTitle(title: string) {
 function getSuggestedReleaseYearFromWikipediaExtract(extract: string) {
   const match = extract.match(/\b(19|20)\d{2}\b/);
   return match?.[0] ?? "";
+}
+
+function getSuggestedReleaseYearFromWikipediaMetadata(
+  metadata: { title: string; extract: string } | null,
+  searchTitle: string,
+) {
+  if (!metadata) {
+    return "";
+  }
+
+  const score = scoreWikipediaMetadata(metadata, searchTitle);
+
+  if (score < 70) {
+    return "";
+  }
+
+  return getSuggestedReleaseYearFromWikipediaExtract(metadata.extract);
 }
 
 function getSuggestedSeriesFromWikipediaExtract(
@@ -1382,10 +1465,10 @@ export function RankboardApp() {
 
   useEffect(() => {
     if (
+      authEnabled ||
       hasAutoOpenedBoardSetupRef.current ||
       isCreateBoardModalOpen ||
-      !hasLoadedPersistedState ||
-      (authEnabled && !hasLoadedRemoteState)
+      !hasLoadedPersistedState
     ) {
       return;
     }
@@ -2869,7 +2952,7 @@ export function RankboardApp() {
           getSuggestedSeriesFromTitle(card.title, existingSeries);
         const proposedReleaseYear =
           card.releaseYear?.trim() ||
-          getSuggestedReleaseYearFromWikipediaExtract(wikipediaMetadata?.extract ?? "") ||
+          getSuggestedReleaseYearFromWikipediaMetadata(wikipediaMetadata, card.title) ||
           getSuggestedReleaseYearFromTitle(card.title);
 
         if (!proposedSeries && !proposedReleaseYear) {
@@ -6001,13 +6084,13 @@ function CardTile({
       )}
       style={{
         contentVisibility: "auto",
-        containIntrinsicSize: "220px",
+        containIntrinsicSize: collapseCards ? "82px" : "180px",
       }}
     >
       <div
         className={clsx(
           "relative bg-cover bg-center",
-          collapseCards ? "min-h-[82px]" : "min-h-[220px]",
+          collapseCards ? "min-h-[82px]" : "aspect-video",
         )}
         style={{
           backgroundImage: collapseCards ? undefined : `url(${card.imageUrl || buildFallbackImage(card.title)})`,
