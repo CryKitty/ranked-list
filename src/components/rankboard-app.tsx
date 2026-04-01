@@ -1087,7 +1087,6 @@ export function RankboardApp() {
   const [isPersisting, setIsPersisting] = useState(false);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -1670,7 +1669,9 @@ export function RankboardApp() {
     }
 
     function handlePointerDown(event: PointerEvent) {
-      if (!actionsMenuRef.current?.contains(event.target as Node)) {
+      const target = event.target as HTMLElement | null;
+
+      if (!target?.closest("[data-actions-menu-root='true']")) {
         setIsActionsMenuOpen(false);
       }
     }
@@ -2979,21 +2980,36 @@ export function RankboardApp() {
   }
 
   function buildSeriesScrapeFallbackSuggestions(scopeColumnId?: string) {
+    const existingSeries = Array.from(
+      new Set(
+        Object.values(cardsByColumn)
+          .flat()
+          .map((card) => card.series.trim())
+          .filter(Boolean),
+      ),
+    );
     const scopedColumns = scopeColumnId
       ? columns.filter((column) => column.id === scopeColumnId)
       : columns;
 
     return scopedColumns.flatMap((column) =>
-      (cardsByColumn[column.id] ?? []).map((card) => ({
-        id: `${column.id}-${card.entryId}`,
-        columnId: column.id,
-        columnTitle: column.title,
-        entryId: card.entryId,
-        itemId: card.itemId,
-        title: card.title,
-        proposedSeries: card.series.trim(),
-        proposedReleaseYear: card.releaseYear?.trim() ?? "",
-      })),
+      (cardsByColumn[column.id] ?? []).map((card) => {
+        const currentSeries = card.series.trim();
+        const currentReleaseYear = card.releaseYear?.trim() ?? "";
+        const heuristicSeries = getSuggestedSeriesFromTitle(card.title, existingSeries) ?? "";
+        const heuristicReleaseYear = getSuggestedReleaseYearFromTitle(card.title);
+
+        return {
+          id: `${column.id}-${card.entryId}`,
+          columnId: column.id,
+          columnTitle: column.title,
+          entryId: card.entryId,
+          itemId: card.itemId,
+          title: card.title,
+          proposedSeries: heuristicSeries || currentSeries,
+          proposedReleaseYear: heuristicReleaseYear || currentReleaseYear,
+        };
+      }),
     );
   }
 
@@ -3188,7 +3204,7 @@ export function RankboardApp() {
                   <RotateCcw className="h-4 w-4" />
                   <span>Undo</span>
                 </button>
-                <div className="relative" ref={actionsMenuRef}>
+                <div className="relative" data-actions-menu-root="true">
                   <button
                     aria-label="Settings"
                     className={clsx(
@@ -3525,7 +3541,7 @@ export function RankboardApp() {
                         <span>Undo</span>
                       </button>
 
-                      <div className="relative" ref={actionsMenuRef}>
+                      <div className="relative" data-actions-menu-root="true">
                         <button
                           aria-label="Settings"
                           className={clsx(
@@ -3856,7 +3872,7 @@ export function RankboardApp() {
                       <RotateCcw className="h-4 w-4" />
                       <span>Undo</span>
                     </button>
-                    <div className="relative" ref={actionsMenuRef}>
+                    <div className="relative" data-actions-menu-root="true">
                       <button
                         aria-label="Settings"
                         className={clsx(
@@ -4047,7 +4063,7 @@ export function RankboardApp() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="hidden lg:block xl:hidden" ref={actionsMenuRef}>
+                  <div className="hidden lg:block xl:hidden" data-actions-menu-root="true">
                     <button
                       aria-label="Open actions"
                       className={clsx(
