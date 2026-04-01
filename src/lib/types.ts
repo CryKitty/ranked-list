@@ -29,6 +29,9 @@ export type BoardSettings = {
   showSeriesOnCards: boolean;
   collapseCards: boolean;
   showTierHighlights: boolean;
+  includeSeriesField: boolean;
+  includeImageField: boolean;
+  includeNotesField: boolean;
 };
 
 export type SavedBoard = BoardSnapshot & {

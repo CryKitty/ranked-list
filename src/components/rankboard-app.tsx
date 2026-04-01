@@ -52,6 +52,7 @@ type CardDraft = {
   title: string;
   imageUrl: string;
   series: string;
+  notes: string;
   columnId: string;
   newColumnTitle: string;
 };
@@ -82,6 +83,7 @@ type PendingDuplicateAction = {
   title: string;
   imageUrl: string;
   series: string;
+  notes?: string;
 };
 
 type RankBadge = {
@@ -118,10 +120,16 @@ type SeriesScrapeSuggestion = {
   proposedSeries: string;
 };
 
+type ArtworkPickerState = {
+  target: "draft" | "editing";
+  options: string[];
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
   series: "",
+  notes: "",
   columnId: "",
   newColumnTitle: "",
 };
@@ -131,6 +139,9 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   showSeriesOnCards: false,
   collapseCards: false,
   showTierHighlights: true,
+  includeSeriesField: true,
+  includeImageField: true,
+  includeNotesField: true,
 };
 
 function createStarterBoardSnapshot(): BoardSnapshot {
@@ -158,7 +169,7 @@ function createEmptyBoard(title = "New Board"): SavedBoard {
   return {
     id: makeId("board"),
     title,
-    settings: { ...DEFAULT_BOARD_SETTINGS },
+    settings: getDefaultBoardSettings(title),
     columns: starterSnapshot.columns,
     cardsByColumn: starterSnapshot.cardsByColumn,
     createdAt: timestamp,
@@ -323,11 +334,11 @@ async function fetchWikipediaArtworkByTitle(title: string) {
   return page?.original?.source ?? page?.thumbnail?.source ?? null;
 }
 
-async function fetchWikipediaArtworkBySearch(query: string) {
+async function fetchWikipediaArtworkCandidatesBySearch(query: string) {
   const trimmedQuery = query.trim();
 
   if (!trimmedQuery) {
-    return null;
+    return [];
   }
 
   const url = new URL("https://en.wikipedia.org/w/api.php");
@@ -336,7 +347,7 @@ async function fetchWikipediaArtworkBySearch(query: string) {
   url.searchParams.set("origin", "*");
   url.searchParams.set("generator", "search");
   url.searchParams.set("gsrsearch", trimmedQuery);
-  url.searchParams.set("gsrlimit", "5");
+  url.searchParams.set("gsrlimit", "8");
   url.searchParams.set("prop", "pageimages");
   url.searchParams.set("piprop", "original");
   url.searchParams.set("pithumbsize", "1600");
@@ -344,7 +355,7 @@ async function fetchWikipediaArtworkBySearch(query: string) {
   const response = await fetch(url.toString());
 
   if (!response.ok) {
-    return null;
+    return [];
   }
 
   const data = (await response.json()) as {
@@ -362,37 +373,46 @@ async function fetchWikipediaArtworkBySearch(query: string) {
 
   const normalizedQuery = trimmedQuery.toLowerCase().replace(/[^a-z0-9]/g, "");
   const pages = Object.values(data.query?.pages ?? {});
-  const bestPage =
-    [...pages].sort((left, right) => {
+
+  return [...pages]
+    .sort((left, right) => {
       const leftTitle = (left.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const rightTitle = (right.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const leftExact = leftTitle.includes(normalizedQuery) ? 1 : 0;
       const rightExact = rightTitle.includes(normalizedQuery) ? 1 : 0;
       return rightExact - leftExact;
-    })[0] ?? null;
-
-  return bestPage?.original?.source ?? bestPage?.thumbnail?.source ?? null;
+    })
+    .map((page) => page.original?.source ?? page.thumbnail?.source ?? null)
+    .filter((value): value is string => Boolean(value));
 }
 
-async function findGameArtwork(title: string) {
+async function findArtworkOptions(title: string, series = "") {
   const query = title.trim();
+  const queryWithSeries = [series.trim(), query].filter(Boolean).join(" ");
 
   if (!query) {
-    return null;
+    return [];
   }
 
-  const normalizedQuery = sanitizeSearchTitle(query);
+  const normalizedQuery = sanitizeSearchTitle(queryWithSeries || query);
   const subtitleStrippedQuery = query.split(":")[0]?.trim() ?? query;
-  const normalizedSubtitleQuery = sanitizeSearchTitle(subtitleStrippedQuery);
+  const normalizedSubtitleQuery = sanitizeSearchTitle([series.trim(), subtitleStrippedQuery].filter(Boolean).join(" "));
   const rawgKey = process.env.NEXT_PUBLIC_RAWG_API_KEY;
+  const candidates: string[] = [];
+
+  function pushCandidate(url: string | null | undefined) {
+    if (!url || candidates.includes(url)) {
+      return;
+    }
+    candidates.push(url);
+  }
 
   if (rawgKey) {
     try {
       const rawgUrl = new URL("https://api.rawg.io/api/games");
       rawgUrl.searchParams.set("key", rawgKey);
-      rawgUrl.searchParams.set("search", normalizedQuery || query);
-      rawgUrl.searchParams.set("search_exact", "true");
-      rawgUrl.searchParams.set("page_size", "5");
+      rawgUrl.searchParams.set("search", normalizedQuery || queryWithSeries || query);
+      rawgUrl.searchParams.set("page_size", "8");
 
       const rawgResponse = await fetch(rawgUrl.toString());
 
@@ -405,7 +425,7 @@ async function findGameArtwork(title: string) {
           }>;
         };
 
-        const normalizedRawgQuery = (normalizedQuery || query)
+        const normalizedRawgQuery = (normalizedQuery || queryWithSeries || query)
           .toLowerCase()
           .replace(/[^a-z0-9]/g, "");
         const rankedResults = [...(rawgData.results ?? [])].sort((left, right) => {
@@ -416,42 +436,47 @@ async function findGameArtwork(title: string) {
           return rightExact - leftExact;
         });
 
-        const rawgImage = rankedResults.find(
-          (result) => result.background_image_additional || result.background_image,
-        );
-
-        if (rawgImage) {
-          return rawgImage.background_image_additional ?? rawgImage.background_image ?? null;
+        for (const result of rankedResults) {
+          pushCandidate(result.background_image_additional);
+          pushCandidate(result.background_image);
+          if (candidates.length >= 4) {
+            return candidates.slice(0, 4);
+          }
         }
       }
     } catch {
-      // Fall back to Wikipedia and generated artwork.
+      // Fall back to Wikipedia results.
     }
   }
 
   const titleCandidates = Array.from(
     new Set([
+      queryWithSeries,
       query,
       normalizedQuery,
+      [series.trim(), subtitleStrippedQuery].filter(Boolean).join(" "),
       subtitleStrippedQuery,
       normalizedSubtitleQuery,
     ].filter(Boolean)),
   );
 
   for (const candidate of titleCandidates) {
-    const image = await fetchWikipediaArtworkByTitle(candidate);
-
-    if (image) {
-      return image;
+    pushCandidate(await fetchWikipediaArtworkByTitle(candidate));
+    if (candidates.length >= 4) {
+      return candidates.slice(0, 4);
     }
   }
 
   const searchCandidates = Array.from(
     new Set([
+      `${queryWithSeries} video game`,
+      `${series} ${query} wallpaper`,
       `${query} video game`,
       `${normalizedQuery} video game`,
+      `${series} ${subtitleStrippedQuery} video game`,
       `${subtitleStrippedQuery} video game`,
       `${normalizedSubtitleQuery} video game`,
+      queryWithSeries,
       query,
       normalizedQuery,
       subtitleStrippedQuery,
@@ -460,14 +485,16 @@ async function findGameArtwork(title: string) {
   );
 
   for (const candidate of searchCandidates) {
-    const image = await fetchWikipediaArtworkBySearch(candidate);
-
-    if (image) {
-      return image;
+    const images = await fetchWikipediaArtworkCandidatesBySearch(candidate);
+    for (const image of images) {
+      pushCandidate(image);
+      if (candidates.length >= 4) {
+        return candidates.slice(0, 4);
+      }
     }
   }
 
-  return null;
+  return candidates.slice(0, 4);
 }
 
 function createCardDraft(card: CardEntry): CardEditorDraft {
@@ -524,7 +551,7 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
   return {
     ...board,
     settings: {
-      ...DEFAULT_BOARD_SETTINGS,
+      ...getDefaultBoardSettings(board.title),
       ...board.settings,
     },
   } satisfies SavedBoard;
@@ -728,6 +755,46 @@ function getBoardVocabulary(boardTitle: string) {
   };
 }
 
+function getDefaultBoardSettings(boardTitle: string): BoardSettings {
+  const boardKind = getBoardKind(boardTitle);
+
+  return {
+    ...DEFAULT_BOARD_SETTINGS,
+    includeSeriesField: boardKind !== "show",
+    includeImageField: true,
+    includeNotesField: true,
+  };
+}
+
+function getUserDisplayName(user: User | null) {
+  if (!user) {
+    return "";
+  }
+
+  const metadata = user.user_metadata ?? {};
+  return (
+    metadata.full_name ||
+    metadata.name ||
+    metadata.user_name ||
+    metadata.email ||
+    user.email ||
+    "Account"
+  );
+}
+
+function formatLastSavedAt(savedAt: string | null) {
+  if (!savedAt) {
+    return "Not saved yet";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(savedAt));
+}
+
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
@@ -770,6 +837,9 @@ export function RankboardApp() {
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
+  const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
+    getDefaultBoardSettings("New Board"),
+  );
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
   const [history, setHistory] = useState<BoardSnapshot[]>([]);
@@ -783,6 +853,9 @@ export function RankboardApp() {
   const [isTitleTidyModalOpen, setIsTitleTidyModalOpen] = useState(false);
   const [seriesScrapeSuggestions, setSeriesScrapeSuggestions] = useState<SeriesScrapeSuggestion[]>([]);
   const [isSeriesScrapeModalOpen, setIsSeriesScrapeModalOpen] = useState(false);
+  const [artworkPicker, setArtworkPicker] = useState<ArtworkPickerState | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [isPersisting, setIsPersisting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
@@ -793,6 +866,7 @@ export function RankboardApp() {
   const latestBoardsRef = useRef(boards);
   const latestActiveBoardIdRef = useRef(activeBoardId);
   const isSigningOutRef = useRef(false);
+  const hasAutoOpenedBoardSetupRef = useRef(false);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
@@ -824,7 +898,10 @@ export function RankboardApp() {
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
   const activeBoardKind = getBoardKind(activeBoardTitle);
-  const shouldShowSeriesField = activeBoardKind !== "show";
+  const shouldShowSeriesField =
+    activeBoardSettings.includeSeriesField && activeBoardKind !== "show";
+  const shouldShowImageField = activeBoardSettings.includeImageField;
+  const shouldShowNotesField = activeBoardSettings.includeNotesField;
 
   const resetToSignedOutBoard = useCallback(() => {
     const signedOutBoard = createEmptyBoard("Rankboard");
@@ -886,19 +963,28 @@ export function RankboardApp() {
     const nextActiveBoardId = options?.activeBoardId ?? latestActiveBoardIdRef.current;
     const nextCardsByColumn = options?.cardsByColumn ?? latestCardsByColumnRef.current;
 
-    const { error } = await supabase.from("board_states").upsert({
-      owner_id: currentUser.id,
-      columns: {
-        version: 2,
-        activeBoardId: nextActiveBoardId,
-        boards: nextBoards,
-      },
-      cards_by_column: nextCardsByColumn,
-      updated_at: new Date().toISOString(),
-    });
+    setIsPersisting(true);
 
-    if (error) {
-      console.error(error);
+    try {
+      const { error } = await supabase.from("board_states").upsert({
+        owner_id: currentUser.id,
+        columns: {
+          version: 2,
+          activeBoardId: nextActiveBoardId,
+          boards: nextBoards,
+        },
+        cards_by_column: nextCardsByColumn,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      setLastSavedAt(new Date().toISOString());
+    } finally {
+      setIsPersisting(false);
     }
   }, [currentUser, supabase]);
 
@@ -1036,6 +1122,9 @@ export function RankboardApp() {
         boards,
       }),
     );
+    if (!authEnabled || !currentUser) {
+      setLastSavedAt(new Date().toISOString());
+    }
   }, [activeBoardId, authEnabled, boards, currentUser, hasLoadedPersistedState, isAuthLoading]);
 
   useEffect(() => {
@@ -1145,6 +1234,35 @@ export function RankboardApp() {
   }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading, resetToSignedOutBoard]);
 
   useEffect(() => {
+    if (
+      hasAutoOpenedBoardSetupRef.current ||
+      isCreateBoardModalOpen ||
+      !hasLoadedPersistedState ||
+      (authEnabled && !hasLoadedRemoteState)
+    ) {
+      return;
+    }
+
+    if (boards.length === 1 && activeBoardTitle === "Rankboard" && isStarterBoard(columns, cardsByColumn)) {
+      hasAutoOpenedBoardSetupRef.current = true;
+      setNewBoardTitle("");
+      setNewBoardSettings(getDefaultBoardSettings("New Board"));
+      setIsCreateBoardModalOpen(true);
+      setIsActionsMenuOpen(false);
+      setIsMobileActionsOpen(false);
+    }
+  }, [
+    activeBoardTitle,
+    authEnabled,
+    boards.length,
+    cardsByColumn,
+    columns,
+    hasLoadedPersistedState,
+    hasLoadedRemoteState,
+    isCreateBoardModalOpen,
+  ]);
+
+  useEffect(() => {
     if (!hasLoadedPersistedState) {
       return;
     }
@@ -1173,6 +1291,10 @@ export function RankboardApp() {
         console.error(error);
         setHasLoadedRemoteState(true);
         return;
+      }
+
+      if (typeof data?.updated_at === "string") {
+        setLastSavedAt(data.updated_at);
       }
 
       const localColumns = latestColumnsRef.current;
@@ -1726,6 +1848,7 @@ export function RankboardApp() {
     const title = draft.title.trim() || `Untitled ${boardVocabulary.singular}`;
     const series = draft.series.trim();
     const imageUrl = draft.imageUrl.trim();
+    const notes = draft.notes.trim();
     const selectedColumnId =
       draft.columnId === NEW_COLUMN_OPTION ? "" : draft.columnId || addCardTarget.columnId;
     const duplicate = selectedColumnId
@@ -1738,14 +1861,15 @@ export function RankboardApp() {
         title,
         imageUrl,
         series,
+        notes,
       });
       return;
     }
 
-    finalizeAddCard(title, series, imageUrl);
+    finalizeAddCard(title, series, imageUrl, notes);
   }
 
-  function finalizeAddCard(title: string, series: string, imageUrl: string) {
+  function finalizeAddCard(title: string, series: string, imageUrl: string, notes: string) {
     if (!addCardTarget) {
       return;
     }
@@ -1776,6 +1900,7 @@ export function RankboardApp() {
       title,
       imageUrl,
       series,
+      notes: notes || undefined,
     };
 
     const column = nextColumns.find((item) => item.id === destinationColumnId);
@@ -1817,6 +1942,7 @@ export function RankboardApp() {
     setDraft(initialDraft);
     setIsAutofillingDraftImage(false);
     setDraftDuplicateAction(null);
+    setArtworkPicker(null);
   }
 
   function openQuickAddModal() {
@@ -1864,23 +1990,27 @@ export function RankboardApp() {
 
   async function handleAutofillDraftImage() {
     const title = draft.title.trim();
+    const series = draft.series.trim();
 
     if (!title) {
-      setDraft((current) => ({
-        ...current,
-        imageUrl: "",
-      }));
       return;
     }
 
     setIsAutofillingDraftImage(true);
 
     try {
-      const foundImage = await findGameArtwork(title);
-      setDraft((current) => ({
-        ...current,
-        imageUrl: foundImage ?? "",
-      }));
+      const foundImages = await findArtworkOptions(title, series);
+      if (foundImages.length === 1) {
+        setDraft((current) => ({
+          ...current,
+          imageUrl: foundImages[0] ?? "",
+        }));
+      } else if (foundImages.length > 1) {
+        setArtworkPicker({
+          target: "draft",
+          options: foundImages,
+        });
+      }
     } finally {
       setIsAutofillingDraftImage(false);
     }
@@ -1920,6 +2050,7 @@ export function RankboardApp() {
         title,
         imageUrl,
         series,
+        notes,
       });
       return;
     }
@@ -1942,21 +2073,53 @@ export function RankboardApp() {
     }
 
     const title = editingCardDraft.title.trim() || "Untitled Game";
+    const series = editingCardDraft.series.trim();
     setAutofillingCardId(editingCardItemId);
 
     try {
-      const foundImage = await findGameArtwork(title);
+      const foundImages = await findArtworkOptions(title, series);
+      if (foundImages.length === 1) {
+        setEditingCardDraft((current) =>
+          current
+            ? {
+                ...current,
+                imageUrl: foundImages[0] ?? "",
+              }
+            : current,
+        );
+      } else if (foundImages.length > 1) {
+        setArtworkPicker({
+          target: "editing",
+          options: foundImages,
+        });
+      }
+    } finally {
+      setAutofillingCardId(null);
+    }
+  }
+
+  function selectArtworkOption(imageUrl: string) {
+    if (!artworkPicker) {
+      return;
+    }
+
+    if (artworkPicker.target === "draft") {
+      setDraft((current) => ({
+        ...current,
+        imageUrl,
+      }));
+    } else {
       setEditingCardDraft((current) =>
         current
           ? {
               ...current,
-              imageUrl: foundImage ?? "",
+              imageUrl,
             }
           : current,
       );
-    } finally {
-      setAutofillingCardId(null);
     }
+
+    setArtworkPicker(null);
   }
 
   function startEditingColumn(column: ColumnDefinition) {
@@ -2110,6 +2273,7 @@ export function RankboardApp() {
         title: draftDuplicateAction.title,
         imageUrl: draftDuplicateAction.imageUrl || card.imageUrl,
         series: draftDuplicateAction.series || card.series,
+        notes: draftDuplicateAction.notes || card.notes,
       }));
       closeAddGameModal();
       return;
@@ -2119,6 +2283,7 @@ export function RankboardApp() {
       draftDuplicateAction.title,
       draftDuplicateAction.series,
       draftDuplicateAction.imageUrl,
+      draft.notes.trim(),
     );
   }
 
@@ -2138,6 +2303,7 @@ export function RankboardApp() {
         title: editingDuplicateAction.title,
         imageUrl: editingDuplicateAction.imageUrl || card.imageUrl,
         series: editingDuplicateAction.series || card.series,
+        notes: editingDuplicateAction.notes || card.notes,
       }));
       cancelEditingCard();
       return;
@@ -2262,6 +2428,10 @@ export function RankboardApp() {
           ? {
               ...board,
               title: nextTitle || board.title,
+              settings: {
+                ...board.settings,
+                includeSeriesField: getDefaultBoardSettings(nextTitle || board.title).includeSeriesField,
+              },
               updatedAt: new Date().toISOString(),
             }
           : board,
@@ -2280,9 +2450,24 @@ export function RankboardApp() {
     });
   }
 
+  const openCreateBoardModal = useCallback(() => {
+    const suggestedTitle = "";
+    setNewBoardTitle(suggestedTitle);
+    setNewBoardSettings(getDefaultBoardSettings("New Board"));
+    setIsCreateBoardModalOpen(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }, []);
+
   function createBoardFromModal() {
     const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
-    const nextBoard = createEmptyBoard(title);
+    const nextBoard: SavedBoard = {
+      ...createEmptyBoard(title),
+      settings: {
+        ...getDefaultBoardSettings(title),
+        ...newBoardSettings,
+      },
+    };
 
     skipNextHistoryRef.current = true;
     setBoards((current) => [...current, nextBoard]);
@@ -2291,6 +2476,7 @@ export function RankboardApp() {
     setCardsByColumn(nextBoard.cardsByColumn);
     setHistory([]);
     setNewBoardTitle("");
+    setNewBoardSettings(getDefaultBoardSettings("New Board"));
     setIsCreateBoardModalOpen(false);
     setIsBoardsMenuOpen(false);
     setIsActionsMenuOpen(false);
@@ -2581,7 +2767,7 @@ export function RankboardApp() {
         <section className="grid gap-4">
           <div
             className={clsx(
-              "relative z-40 hidden isolate rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:block",
+              "hidden",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/80",
@@ -2699,8 +2885,7 @@ export function RankboardApp() {
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                               )}
                               onClick={() => {
-                                setIsCreateBoardModalOpen(true);
-                                setIsActionsMenuOpen(false);
+                                openCreateBoardModal();
                               }}
                               type="button"
                             >
@@ -2857,7 +3042,7 @@ export function RankboardApp() {
             </div>
           </div>
 
-          <div className="sm:hidden">
+          <div>
             <button
               aria-label="Open actions"
               className={clsx(
@@ -2879,7 +3064,7 @@ export function RankboardApp() {
               >
                 <div
                   className={clsx(
-                    "mx-auto mt-[28vh] max-w-md rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)]",
+                    "mx-auto mt-[14vh] max-w-3xl rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] sm:mt-[10vh] sm:p-5",
                     isDarkMode
                       ? "border-white/10 bg-slate-900 text-slate-100"
                       : "border-white/70 bg-white text-slate-950",
@@ -2887,9 +3072,14 @@ export function RankboardApp() {
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">
-                      Actions
-                    </h2>
+                    <div>
+                      <h2 className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">
+                        Actions
+                      </h2>
+                      <p className={clsx("mt-1 text-xs", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                        {isPersisting ? "Saving..." : `Last saved ${formatLastSavedAt(lastSavedAt)}`}
+                      </p>
+                    </div>
                     <button
                       className={clsx(
                         "rounded-full p-2 transition",
@@ -2904,7 +3094,7 @@ export function RankboardApp() {
                     </button>
                   </div>
 
-                    <div className="grid gap-3">
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_260px]">
                       <input
                       className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
@@ -2937,7 +3127,7 @@ export function RankboardApp() {
 
                     <button
                       className={clsx(
-                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition sm:col-span-2",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                           : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -2949,7 +3139,7 @@ export function RankboardApp() {
                       {`Add ${boardVocabulary.singular}`}
                     </button>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-3 sm:col-span-2 sm:grid-cols-[auto_auto_1fr]">
                       <button
                         className={clsx(
                           "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
@@ -2983,7 +3173,7 @@ export function RankboardApp() {
                         {isActionsMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-0 z-40 mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                              "absolute right-0 z-40 mt-2 min-w-[260px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                               isDarkMode
                                 ? "border-white/10 bg-slate-950/95 text-slate-100"
                                 : "border-slate-200 bg-white/95 text-slate-700",
@@ -3020,8 +3210,7 @@ export function RankboardApp() {
                                   <button
                                     className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                     onClick={() => {
-                                      setIsCreateBoardModalOpen(true);
-                                      setIsActionsMenuOpen(false);
+                                      openCreateBoardModal();
                                     }}
                                     type="button"
                                   >
@@ -3048,6 +3237,18 @@ export function RankboardApp() {
                                   <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })} type="button">
                                     <span>Show Series</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
+                                  </button>
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })} type="button">
+                                    <span>Series Field</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.includeSeriesField ? "On" : "Off"}</span>
+                                  </button>
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })} type="button">
+                                    <span>Artwork Field</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.includeImageField ? "On" : "Off"}</span>
+                                  </button>
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })} type="button">
+                                    <span>Notes Field</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.includeNotesField ? "On" : "Off"}</span>
                                   </button>
                                   <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ collapseCards: !activeBoardSettings.collapseCards })} type="button">
                                     <span>Collapse Cards</span>
@@ -3123,7 +3324,7 @@ export function RankboardApp() {
                                 type="button"
                               >
                                 <LogOut className="h-4 w-4" />
-                                Log Out
+                                {getUserDisplayName(currentUser)}
                               </button>
                             ) : authEnabled ? (
                               <button
@@ -3646,52 +3847,75 @@ export function RankboardApp() {
                   ) : null}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      Background image or GIF URL
-                    </span>
-                    <div className="relative">
-                      <ImagePlus
-                        className={clsx(
-                          "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
-                          isDarkMode ? "text-slate-500" : "text-slate-400",
-                        )}
-                      />
-                      <input
-                        className={clsx(
-                          "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                        )}
-                        placeholder="Enter the URL of the image or GIF, or upload one from your device."
-                        value={draft.imageUrl}
-                        onChange={(event) => {
-                          setDraftDuplicateAction(null);
-                          setDraft((current) => ({
-                            ...current,
-                            imageUrl: event.target.value,
-                          }));
-                        }}
-                      />
-                    </div>
-                  </label>
+                {shouldShowImageField ? (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <label className="grid gap-2">
+                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                        Background image or GIF URL
+                      </span>
+                      <div className="relative">
+                        <ImagePlus
+                          className={clsx(
+                            "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
+                            isDarkMode ? "text-slate-500" : "text-slate-400",
+                          )}
+                        />
+                        <input
+                          className={clsx(
+                            "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                          )}
+                          placeholder="Enter the URL of the image or GIF, or upload one from your device."
+                          value={draft.imageUrl}
+                          onChange={(event) => {
+                            setDraftDuplicateAction(null);
+                            setDraft((current) => ({
+                              ...current,
+                              imageUrl: event.target.value,
+                            }));
+                          }}
+                        />
+                      </div>
+                    </label>
 
-                  <button
-                    className={clsx(
-                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                    )}
-                    onClick={handleAutofillDraftImage}
-                    type="button"
-                  >
-                    <WandSparkles className="h-4 w-4" />
-                    {isAutofillingDraftImage ? "Finding..." : "Auto-Find"}
-                  </button>
-                </div>
+                    <button
+                      className={clsx(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
+                      )}
+                      onClick={handleAutofillDraftImage}
+                      type="button"
+                    >
+                      <WandSparkles className="h-4 w-4" />
+                      {isAutofillingDraftImage ? "Finding..." : "Find Art"}
+                    </button>
+                  </div>
+                ) : null}
+
+                {shouldShowNotesField ? (
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
+                    <textarea
+                      className={clsx(
+                        "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      value={draft.notes}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          notes: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                ) : null}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2">
@@ -3824,6 +4048,71 @@ export function RankboardApp() {
           </div>
         ) : null}
 
+        {artworkPicker ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setArtworkPicker(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-5xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Artwork
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Choose artwork
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Pick the best match from the images found for this title.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setArtworkPicker(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {artworkPicker.options.map((imageUrl) => (
+                  <button
+                    key={imageUrl}
+                    className={clsx(
+                      "overflow-hidden rounded-[24px] border text-left transition hover:-translate-y-0.5",
+                      isDarkMode ? "border-white/10 bg-slate-950/60" : "border-slate-200 bg-slate-50",
+                    )}
+                    onClick={() => selectArtworkOption(imageUrl)}
+                    type="button"
+                  >
+                    <div
+                      className="aspect-video bg-cover bg-center"
+                      style={{ backgroundImage: `url(${imageUrl})` }}
+                    />
+                    <div className="px-4 py-3 text-sm font-semibold">
+                      Use this image
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {isImportModalOpen ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -3911,6 +4200,7 @@ export function RankboardApp() {
             onClick={() => {
               setIsCreateBoardModalOpen(false);
               setNewBoardTitle("");
+              setNewBoardSettings(getDefaultBoardSettings("New Board"));
             }}
           >
             <div
@@ -3925,11 +4215,14 @@ export function RankboardApp() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    New Board
+                    Board Setup
                   </p>
                   <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Create a new board
+                    What are you ranking?
                   </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Give the board a title and choose which fields should appear when adding new cards.
+                  </p>
                 </div>
                 <button
                   className={clsx(
@@ -3941,6 +4234,7 @@ export function RankboardApp() {
                   onClick={() => {
                     setIsCreateBoardModalOpen(false);
                     setNewBoardTitle("");
+                    setNewBoardSettings(getDefaultBoardSettings("New Board"));
                   }}
                   type="button"
                 >
@@ -3961,9 +4255,74 @@ export function RankboardApp() {
                   )}
                   placeholder="Favorites, Waifus, Horror Games..."
                   value={newBoardTitle}
-                  onChange={(event) => setNewBoardTitle(event.target.value)}
+                  onChange={(event) => {
+                    const nextTitle = event.target.value;
+                    const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board");
+                    setNewBoardTitle(nextTitle);
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      includeSeriesField: nextDefaults.includeSeriesField,
+                    }));
+                  }}
                 />
               </label>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <button
+                  className={clsx(
+                    "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
+                  )}
+                  onClick={() =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      includeSeriesField: !current.includeSeriesField,
+                    }))
+                  }
+                  type="button"
+                >
+                  <span>Series field</span>
+                  <span className="text-xs opacity-70">{newBoardSettings.includeSeriesField ? "On" : "Off"}</span>
+                </button>
+                <button
+                  className={clsx(
+                    "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
+                  )}
+                  onClick={() =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      includeImageField: !current.includeImageField,
+                    }))
+                  }
+                  type="button"
+                >
+                  <span>Artwork field</span>
+                  <span className="text-xs opacity-70">{newBoardSettings.includeImageField ? "On" : "Off"}</span>
+                </button>
+                <button
+                  className={clsx(
+                    "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
+                  )}
+                  onClick={() =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      includeNotesField: !current.includeNotesField,
+                    }))
+                  }
+                  type="button"
+                >
+                  <span>Notes field</span>
+                  <span className="text-xs opacity-70">{newBoardSettings.includeNotesField ? "On" : "Off"}</span>
+                </button>
+              </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
@@ -3989,6 +4348,7 @@ export function RankboardApp() {
                   onClick={() => {
                     setIsCreateBoardModalOpen(false);
                     setNewBoardTitle("");
+                    setNewBoardSettings(getDefaultBoardSettings("New Board"));
                   }}
                   type="button"
                 >
@@ -5157,7 +5517,18 @@ function CardTile({
 
         <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
           {rankBadge ? (
-            <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-950">
+            <div
+              className={clsx(
+                "rounded-full px-3 py-1 text-xs font-black",
+                tierKey === "top10"
+                  ? "bg-amber-300 text-amber-950"
+                  : tierKey === "top15"
+                    ? "bg-cyan-300 text-cyan-950"
+                    : tierKey === "top20"
+                      ? "bg-fuchsia-300 text-fuchsia-950"
+                      : "bg-white text-slate-950",
+              )}
+            >
               {rankBadge.label ? `${rankBadge.label} #${rankBadge.value}` : `#${rankBadge.value}`}
             </div>
           ) : null}
