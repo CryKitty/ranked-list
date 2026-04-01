@@ -450,6 +450,28 @@ async function fetchWikipediaMetadataBySearch(query: string) {
   };
 }
 
+async function fetchBestWikipediaMetadata(
+  title: string,
+  existingSeries: string[] = [],
+) {
+  const queries = Array.from(
+    new Set([
+      `${title} video game`,
+      ...existingSeries.slice(0, 8).map((series) => `${series} ${title} video game`),
+      title,
+    ]),
+  );
+
+  for (const query of queries) {
+    const metadata = await fetchWikipediaMetadataBySearch(query);
+    if (metadata) {
+      return metadata;
+    }
+  }
+
+  return null;
+}
+
 async function findArtworkOptions(title: string, series = "") {
   const query = title.trim();
   const queryWithSeries = [series.trim(), query].filter(Boolean).join(" ");
@@ -953,6 +975,7 @@ export function RankboardApp() {
   const [isTitleTidyModalOpen, setIsTitleTidyModalOpen] = useState(false);
   const [seriesScrapeSuggestions, setSeriesScrapeSuggestions] = useState<SeriesScrapeSuggestion[]>([]);
   const [isSeriesScrapeModalOpen, setIsSeriesScrapeModalOpen] = useState(false);
+  const [isSeriesScrapeLoading, setIsSeriesScrapeLoading] = useState(false);
   const [artworkPicker, setArtworkPicker] = useState<ArtworkPickerState | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
@@ -2783,8 +2806,7 @@ export function RankboardApp() {
     setTitleTidySuggestions([]);
   }
 
-  async function openSeriesScrapeModal(scopeColumnId?: string) {
-    const suggestions: SeriesScrapeSuggestion[] = [];
+  async function buildSeriesScrapeSuggestions(scopeColumnId?: string) {
     const existingSeries = Array.from(
       new Set(
         Object.values(cardsByColumn)
@@ -2796,16 +2818,21 @@ export function RankboardApp() {
     const scopedColumns = scopeColumnId
       ? columns.filter((column) => column.id === scopeColumnId)
       : columns;
+    const cardsToInspect = scopedColumns.flatMap((column) =>
+      (cardsByColumn[column.id] ?? []).map((card) => ({
+        columnId: column.id,
+        columnTitle: column.title,
+        card,
+      })),
+    );
 
-    for (const column of scopedColumns) {
-      for (const card of cardsByColumn[column.id] ?? []) {
+    const suggestions = await Promise.all(
+      cardsToInspect.map(async ({ columnId, columnTitle, card }) => {
         if (card.series.trim() && card.releaseYear?.trim()) {
-          continue;
+          return null;
         }
 
-        const wikipediaMetadata = await fetchWikipediaMetadataBySearch(
-          `${card.title} ${(card.series || "").trim()} video game`.trim(),
-        );
+        const wikipediaMetadata = await fetchBestWikipediaMetadata(card.title, existingSeries);
         const wikipediaSeries = wikipediaMetadata?.title
           ? getSuggestedSeriesFromTitle(wikipediaMetadata.title, existingSeries)
           : null;
@@ -2819,24 +2846,29 @@ export function RankboardApp() {
           getSuggestedReleaseYearFromTitle(card.title);
 
         if (!proposedSeries && !proposedReleaseYear) {
-          continue;
+          return null;
         }
 
-        suggestions.push({
-          id: `${column.id}-${card.entryId}`,
-          columnId: column.id,
-          columnTitle: column.title,
+        return {
+          id: `${columnId}-${card.entryId}`,
+          columnId,
+          columnTitle,
           entryId: card.entryId,
           itemId: card.itemId,
           title: card.title,
           proposedSeries: proposedSeries ?? "",
           proposedReleaseYear,
-        });
-      }
-    }
+        } satisfies SeriesScrapeSuggestion;
+      }),
+    );
 
-    setSeriesScrapeSuggestions(suggestions);
+    return suggestions.filter((suggestion): suggestion is SeriesScrapeSuggestion => Boolean(suggestion));
+  }
+
+  function openSeriesScrapeModal(scopeColumnId?: string) {
+    setSeriesScrapeSuggestions([]);
     setIsSeriesScrapeModalOpen(true);
+    setIsSeriesScrapeLoading(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
     setOpenColumnMenuId(null);
@@ -2844,6 +2876,14 @@ export function RankboardApp() {
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
+
+    void buildSeriesScrapeSuggestions(scopeColumnId)
+      .then((suggestions) => {
+        setSeriesScrapeSuggestions(suggestions);
+      })
+      .finally(() => {
+        setIsSeriesScrapeLoading(false);
+      });
   }
 
   function updateSeriesScrapeSuggestion(suggestionId: string, proposedSeries: string) {
@@ -5006,6 +5046,7 @@ export function RankboardApp() {
                   onClick={() => {
                     setIsSeriesScrapeModalOpen(false);
                     setSeriesScrapeSuggestions([]);
+                    setIsSeriesScrapeLoading(false);
                   }}
                   type="button"
                 >
@@ -5014,7 +5055,16 @@ export function RankboardApp() {
               </div>
 
               <div className="mt-6 max-h-[52vh] space-y-3 overflow-y-auto pr-1">
-                {seriesScrapeSuggestions.length === 0 ? (
+                {isSeriesScrapeLoading ? (
+                  <div
+                    className={clsx(
+                      "rounded-3xl border px-4 py-6 text-sm",
+                      isDarkMode ? "border-white/10 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+                    )}
+                  >
+                    Looking up likely series and release years...
+                  </div>
+                ) : seriesScrapeSuggestions.length === 0 ? (
                   <div
                     className={clsx(
                       "rounded-3xl border px-4 py-6 text-sm",
@@ -5122,6 +5172,7 @@ export function RankboardApp() {
                   onClick={() => {
                     setIsSeriesScrapeModalOpen(false);
                     setSeriesScrapeSuggestions([]);
+                    setIsSeriesScrapeLoading(false);
                   }}
                   type="button"
                 >
@@ -5285,7 +5336,7 @@ function BoardColumn({
       )}
     >
       <div
-        className="sticky top-4 z-30 self-start"
+        className="sticky top-4 z-30 w-full"
         draggable={!isEditingColumn}
         onDragStart={() => onColumnDragStart(column.id)}
         onDragOver={(event) => {
@@ -5307,9 +5358,9 @@ function BoardColumn({
               !isEditingColumn && "cursor-grab active:cursor-grabbing",
             )}
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-start gap-3">
             {isEditingColumn && editingColumnDraft ? (
-              <div className="w-full space-y-3">
+              <div className="col-span-3 w-full space-y-3">
                 <input
                   className={clsx(
                     "w-full rounded-2xl border px-3 py-2 text-sm outline-none transition",
@@ -5353,7 +5404,8 @@ function BoardColumn({
               </div>
             ) : (
               <>
-                <h2 className="text-lg font-bold">{column.title}</h2>
+                <div />
+                <h2 className="w-full text-center text-lg font-bold">{column.title}</h2>
                 <div className="relative" data-column-menu-root="true">
                   <button
                     className={clsx(
