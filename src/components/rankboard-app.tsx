@@ -2541,7 +2541,7 @@ export function RankboardApp() {
                   {isActionsMenuOpen ? (
                     <div
                       className={clsx(
-                        "absolute right-0 z-40 mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                        "absolute right-0 z-[120] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/95 text-slate-100"
                           : "border-slate-200 bg-white/95 text-slate-700",
@@ -3047,7 +3047,7 @@ export function RankboardApp() {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 overflow-x-hidden overflow-y-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -3141,7 +3141,7 @@ export function RankboardApp() {
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
-              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
+              <div className="relative z-10 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
                 {columns.map((column) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
@@ -4423,7 +4423,7 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={clsx(
-        "flex min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
+        "relative z-10 flex min-h-[720px] w-[320px] shrink-0 snap-start flex-col overflow-visible rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
@@ -4434,10 +4434,6 @@ function BoardColumn({
             ? "border-slate-950"
             : "border-slate-200",
       )}
-      style={{
-        contentVisibility: "auto",
-        containIntrinsicSize: "720px",
-      }}
     >
       <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
         <div
@@ -4576,7 +4572,7 @@ function BoardColumn({
                         {isSortMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-full top-0 mr-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "absolute right-full top-0 z-[130] mr-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
@@ -4632,7 +4628,7 @@ function BoardColumn({
                           {isFilterMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute right-full top-0 mr-2 flex min-w-[140px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                "absolute right-full top-0 z-[130] mr-2 flex min-w-[140px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900"
                                   : "border-slate-200 bg-white",
@@ -4677,7 +4673,7 @@ function BoardColumn({
                         {isMirrorMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-full top-0 mr-2 flex min-w-[160px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "absolute right-full top-0 z-[130] mr-2 flex min-w-[160px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
