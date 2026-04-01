@@ -89,6 +89,8 @@ type RankBadge = {
   value: number;
 };
 
+type TierFilter = "all" | "top10" | "top15" | "top20";
+
 type DuplicateCleanupSuggestion = {
   id: string;
   columnId: string;
@@ -128,6 +130,7 @@ const NEW_COLUMN_OPTION = "__new_column__";
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   showSeriesOnCards: false,
   collapseCards: false,
+  showTierHighlights: true,
 };
 
 function createStarterBoardSnapshot(): BoardSnapshot {
@@ -196,6 +199,34 @@ function filterCards(
 
     return matchesSearch && matchesSeries;
   });
+}
+
+function getTierKey(rank: number | null): Exclude<TierFilter, "all"> | null {
+  if (!rank) {
+    return null;
+  }
+
+  if (rank <= 10) {
+    return "top10";
+  }
+
+  if (rank <= 15) {
+    return "top15";
+  }
+
+  if (rank <= 20) {
+    return "top20";
+  }
+
+  return null;
+}
+
+function matchesTierFilter(rank: number | null, tierFilter: TierFilter) {
+  if (tierFilter === "all") {
+    return true;
+  }
+
+  return getTierKey(rank) === tierFilter;
 }
 
 function slugify(value: string) {
@@ -719,6 +750,8 @@ export function RankboardApp() {
     useState<ColumnEditorDraft | null>(null);
   const [openColumnMenuId, setOpenColumnMenuId] = useState<string | null>(null);
   const [openColumnSortMenuId, setOpenColumnSortMenuId] = useState<string | null>(null);
+  const [openColumnFilterMenuId, setOpenColumnFilterMenuId] = useState<string | null>(null);
+  const [columnTierFilters, setColumnTierFilters] = useState<Record<string, TierFilter>>({});
   const [isAutofillingDraftImage, setIsAutofillingDraftImage] = useState(false);
   const [autofillingCardId, setAutofillingCardId] = useState<string | null>(null);
   const [hasLoadedPersistedState, setHasLoadedPersistedState] = useState(false);
@@ -788,6 +821,8 @@ export function RankboardApp() {
     activeBoard.title ?? "Rankboard";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
+  const activeBoardKind = getBoardKind(activeBoardTitle);
+  const shouldShowSeriesField = activeBoardKind !== "show";
 
   function findDuplicateCard(
     title: string,
@@ -1207,6 +1242,7 @@ export function RankboardApp() {
       if (!target?.closest("[data-column-menu-root='true']")) {
         setOpenColumnMenuId(null);
         setOpenColumnSortMenuId(null);
+        setOpenColumnFilterMenuId(null);
       }
     }
 
@@ -1665,6 +1701,7 @@ export function RankboardApp() {
     setAddCardTarget({ columnId, insertIndex });
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
     setDraftDuplicateAction(null);
   }
 
@@ -1861,6 +1898,7 @@ export function RankboardApp() {
 
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
   }
 
   function moveColumnToTarget(sourceColumnId: string, targetColumnId: string) {
@@ -2031,6 +2069,16 @@ export function RankboardApp() {
 
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+  }
+
+  function setColumnTierFilter(columnId: string, tierFilter: TierFilter) {
+    setColumnTierFilters((current) => ({
+      ...current,
+      [columnId]: tierFilter,
+    }));
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMenuId(null);
   }
 
   function handleUndo() {
@@ -2581,6 +2629,17 @@ export function RankboardApp() {
                               <span>Collapse Cards</span>
                               <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
                             </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
+                              onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                              type="button"
+                            >
+                              <span>Tier Highlights</span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
+                            </button>
                           </div>
                         ) : null}
                       </div>
@@ -2877,6 +2936,10 @@ export function RankboardApp() {
                                     <span>Collapse Cards</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
                                   </button>
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })} type="button">
+                                    <span>Tier Highlights</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
+                                  </button>
                                 </div>
                               ) : null}
                             </div>
@@ -3086,9 +3149,11 @@ export function RankboardApp() {
                       addLabel={boardVocabulary.singular}
                       collapseCards={activeBoardSettings.collapseCards}
                       showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
+                      showTierHighlights={activeBoardSettings.showTierHighlights}
                       disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                       isDarkMode={isDarkMode}
                       cards={visibleCards}
+                      activeTierFilter={columnTierFilters[column.id] ?? "all"}
                       filtering={filtering}
                       isEditingColumn={editingColumnId === column.id}
                       editingColumnDraft={editingColumnDraft}
@@ -3102,6 +3167,7 @@ export function RankboardApp() {
                       onSortCards={sortColumnCards}
                       isMenuOpen={openColumnMenuId === column.id}
                       isSortMenuOpen={openColumnSortMenuId === column.id}
+                      isFilterMenuOpen={openColumnFilterMenuId === column.id}
                       onToggleMenu={() =>
                         setOpenColumnMenuId((current) =>
                           current === column.id ? null : column.id,
@@ -3112,9 +3178,15 @@ export function RankboardApp() {
                           current === column.id ? null : column.id,
                         )
                       }
+                      onToggleFilterMenu={() =>
+                        setOpenColumnFilterMenuId((current) =>
+                          current === column.id ? null : column.id,
+                        )
+                      }
                       onDeleteColumn={deleteColumn}
                       onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
                       onLinkMirrorMatches={linkMatchingMirrorCards}
+                      onSetTierFilter={setColumnTierFilter}
                       onColumnDragStart={setDraggingColumnId}
                       onColumnDrop={moveColumnToTarget}
                       draggingColumnId={draggingColumnId}
@@ -3180,7 +3252,6 @@ export function RankboardApp() {
                 <label className="grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                   <input
-                    list="series-suggestions"
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
                       isDarkMode
@@ -3199,27 +3270,29 @@ export function RankboardApp() {
                   />
                 </label>
 
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
-                  <input
-                    list="series-suggestions"
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    value={editingCardDraft.series}
-                    onChange={(event) =>
-                      {
-                        setEditingDuplicateAction(null);
-                        setEditingCardDraft((current) =>
-                          current ? { ...current, series: event.target.value } : current,
-                        );
+                {shouldShowSeriesField ? (
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                    <input
+                      list="series-suggestions"
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      value={editingCardDraft.series}
+                      onChange={(event) =>
+                        {
+                          setEditingDuplicateAction(null);
+                          setEditingCardDraft((current) =>
+                            current ? { ...current, series: event.target.value } : current,
+                          );
+                        }
                       }
-                    }
-                  />
-                </label>
+                    />
+                  </label>
+                ) : null}
               </div>
 
               <label className="mt-4 grid gap-2">
@@ -3404,27 +3477,29 @@ export function RankboardApp() {
                         setDraftDuplicateAction(null);
                         setDraft((current) => ({ ...current, title: event.target.value }));
                       }}
-                    />
-                  </label>
+                      />
+                    </label>
 
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
-                    <input
-                      list="series-suggestions"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      placeholder={boardVocabulary.seriesExamples}
-                      value={draft.series}
-                      onChange={(event) => {
-                        setDraftDuplicateAction(null);
-                        setDraft((current) => ({ ...current, series: event.target.value }));
-                      }}
-                    />
-                  </label>
+                  {shouldShowSeriesField ? (
+                    <label className="grid gap-2">
+                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                      <input
+                        list="series-suggestions"
+                        className={clsx(
+                          "rounded-2xl border px-4 py-3 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        )}
+                        placeholder={boardVocabulary.seriesExamples}
+                        value={draft.series}
+                        onChange={(event) => {
+                          setDraftDuplicateAction(null);
+                          setDraft((current) => ({ ...current, series: event.target.value }));
+                        }}
+                      />
+                    </label>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -4245,8 +4320,10 @@ function BoardColumn({
   addLabel,
   collapseCards,
   showSeriesOnCards,
+  showTierHighlights,
   disableAddAffordances,
   cards,
+  activeTierFilter,
   filtering,
   isEditingColumn,
   editingColumnDraft,
@@ -4260,11 +4337,14 @@ function BoardColumn({
   onSortCards,
   isMenuOpen,
   isSortMenuOpen,
+  isFilterMenuOpen,
   onToggleMenu,
   onToggleSortMenu,
+  onToggleFilterMenu,
   onDeleteColumn,
   onToggleBoardMirrorColumn,
   onLinkMirrorMatches,
+  onSetTierFilter,
   onColumnDragStart,
   onColumnDrop,
   draggingColumnId,
@@ -4275,8 +4355,10 @@ function BoardColumn({
   addLabel: string;
   collapseCards: boolean;
   showSeriesOnCards: boolean;
+  showTierHighlights: boolean;
   disableAddAffordances: boolean;
   cards: CardEntry[];
+  activeTierFilter: TierFilter;
   filtering: boolean;
   isEditingColumn: boolean;
   editingColumnDraft: ColumnEditorDraft | null;
@@ -4295,11 +4377,14 @@ function BoardColumn({
   ) => void;
   isMenuOpen: boolean;
   isSortMenuOpen: boolean;
+  isFilterMenuOpen: boolean;
   onToggleMenu: () => void;
   onToggleSortMenu: () => void;
+  onToggleFilterMenu: () => void;
   onDeleteColumn: (columnId: string) => void;
   onToggleBoardMirrorColumn: (columnId: string) => void;
   onLinkMirrorMatches: (columnId: string) => void;
+  onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   draggingColumnId: string | null;
@@ -4307,6 +4392,13 @@ function BoardColumn({
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
+  });
+  const isTierFiltering = activeTierFilter !== "all";
+  const tierFilteredCards = cards.filter((card) => {
+    const originalRank = isRankedColumn(column)
+      ? fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1
+      : null;
+    return matchesTierFilter(originalRank, activeTierFilter);
   });
 
   return (
@@ -4499,6 +4591,54 @@ function BoardColumn({
                           </div>
                         ) : null}
                       </div>
+                      {isRankedColumn(column) ? (
+                        <div className="relative">
+                          <button
+                            className={clsx(
+                              "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
+                              isDarkMode
+                                ? "text-white hover:bg-white/10"
+                                : "text-slate-700 hover:bg-slate-100",
+                            )}
+                            onClick={onToggleFilterMenu}
+                            type="button"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Sparkles className="h-4 w-4" />
+                              Filter
+                            </span>
+                            <span className="text-xs opacity-70">
+                              {activeTierFilter === "all" ? "All" : activeTierFilter.replace("top", "Top ")}
+                            </span>
+                          </button>
+                          {isFilterMenuOpen ? (
+                            <div
+                              className={clsx(
+                                "absolute right-full top-0 mr-2 flex min-w-[140px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900"
+                                  : "border-slate-200 bg-white",
+                              )}
+                            >
+                              {(["all", "top10", "top15", "top20"] as TierFilter[]).map((tierOption) => (
+                                <button
+                                  key={tierOption}
+                                  className={clsx(
+                                    "rounded-xl px-3 py-2 text-left text-sm transition",
+                                    isDarkMode
+                                      ? "text-white hover:bg-white/10"
+                                      : "text-slate-700 hover:bg-slate-100",
+                                  )}
+                                  onClick={() => onSetTierFilter(column.id, tierOption)}
+                                  type="button"
+                                >
+                                  {tierOption === "all" ? "All" : tierOption.replace("top", "Top ")}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <button
                         className={clsx(
                           "flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
@@ -4553,19 +4693,20 @@ function BoardColumn({
       </div>
 
       <div className="mt-3 flex flex-1 flex-col gap-3">
-        {filtering ? (
-          cards.map((card, index) => (
+        {filtering || isTierFiltering ? (
+          tierFilteredCards.map((card, index) => (
             <CardTile
               key={card.entryId}
               card={card}
               collapseCards={collapseCards}
               showSeries={showSeriesOnCards}
-                    rankBadge={
+              showTierHighlights={showTierHighlights}
+              rankBadge={
                       isRankedColumn(column)
                         ? {
-                            value:
-                              fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
-                          }
+                      value:
+                        fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
+                    }
                   : null
               }
               secondaryRankBadge={
@@ -4582,7 +4723,7 @@ function BoardColumn({
           ))
         ) : (
           <SortableContext
-            items={cards.map((card) => card.entryId)}
+            items={tierFilteredCards.map((card) => card.entryId)}
             strategy={rectSortingStrategy}
           >
             <>
@@ -4591,16 +4732,17 @@ function BoardColumn({
                   columnId={column.id}
                   isDarkMode={isDarkMode}
                   insertIndex={0}
-                  alwaysVisible={cards.length === 0}
+                  alwaysVisible={tierFilteredCards.length === 0}
                   onClick={() => onAddCard(column.id, 0)}
                 />
               ) : null}
-              {cards.map((card, index) => (
+              {tierFilteredCards.map((card, index) => (
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
                     card={card}
                     collapseCards={collapseCards}
                     showSeries={showSeriesOnCards}
+                    showTierHighlights={showTierHighlights}
                     rankBadge={
                       isRankedColumn(column)
                         ? {
@@ -4616,7 +4758,7 @@ function BoardColumn({
                       columnId={column.id}
                       isDarkMode={isDarkMode}
                       insertIndex={index + 1}
-                      alwaysVisible={index === cards.length - 1}
+                      alwaysVisible={index === tierFilteredCards.length - 1}
                       onClick={() => onAddCard(column.id, index + 1)}
                     />
                   ) : null}
@@ -4626,7 +4768,7 @@ function BoardColumn({
           </SortableContext>
         )}
 
-        {cards.length === 0 ? (
+        {tierFilteredCards.length === 0 ? (
           <div
             className={clsx(
               "flex flex-1 items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6",
@@ -4715,6 +4857,7 @@ function SortableCard({
   card,
   collapseCards,
   showSeries,
+  showTierHighlights,
   rankBadge,
   secondaryRankBadge,
   onDelete,
@@ -4723,6 +4866,7 @@ function SortableCard({
   card: CardEntry;
   collapseCards: boolean;
   showSeries: boolean;
+  showTierHighlights: boolean;
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   onDelete: () => void;
@@ -4745,6 +4889,7 @@ function SortableCard({
         card={card}
         collapseCards={collapseCards}
         showSeries={showSeries}
+        showTierHighlights={showTierHighlights}
         rankBadge={rankBadge}
         secondaryRankBadge={secondaryRankBadge}
         isDragging={isDragging}
@@ -4760,6 +4905,7 @@ function CardTile({
   card,
   collapseCards,
   showSeries,
+  showTierHighlights,
   rankBadge,
   secondaryRankBadge,
   dragProps,
@@ -4770,6 +4916,7 @@ function CardTile({
   card: CardEntry;
   collapseCards: boolean;
   showSeries: boolean;
+  showTierHighlights: boolean;
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
@@ -4777,11 +4924,22 @@ function CardTile({
   onDelete?: () => void;
   onEdit?: () => void;
 }) {
+  const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
+  const tierBorderClass =
+    tierKey === "top10"
+      ? "border-amber-300/80 shadow-[0_20px_40px_rgba(251,191,36,0.22)]"
+      : tierKey === "top15"
+        ? "border-cyan-300/80 shadow-[0_20px_40px_rgba(34,211,238,0.2)]"
+        : tierKey === "top20"
+          ? "border-fuchsia-300/80 shadow-[0_20px_40px_rgba(232,121,249,0.18)]"
+          : "border-white/10 shadow-[0_20px_40px_rgba(15,23,42,0.25)]";
+
   return (
     <article
       {...dragProps}
       className={clsx(
-        "group relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-[0_20px_40px_rgba(15,23,42,0.25)] cursor-grab active:cursor-grabbing",
+        "group relative overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
+        tierBorderClass,
         isDragging && "rotate-1 scale-[1.01]",
       )}
       style={{

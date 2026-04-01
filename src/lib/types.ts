@@ -28,6 +28,7 @@ export type BoardSnapshot = {
 export type BoardSettings = {
   showSeriesOnCards: boolean;
   collapseCards: boolean;
+  showTierHighlights: boolean;
 };
 
 export type SavedBoard = BoardSnapshot & {
