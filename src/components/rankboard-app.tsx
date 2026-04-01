@@ -157,6 +157,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   includeSeriesField: true,
   includeImageField: true,
   includeNotesField: true,
+  restoreShowSeriesOnExpand: false,
 };
 
 function createStarterBoardSnapshot(): BoardSnapshot {
@@ -2822,6 +2823,23 @@ export function RankboardApp() {
     );
   }
 
+  function toggleCollapseCardsSetting() {
+    if (activeBoardSettings.collapseCards) {
+      updateActiveBoardSettings({
+        collapseCards: false,
+        showSeriesOnCards: activeBoardSettings.restoreShowSeriesOnExpand ?? false,
+        restoreShowSeriesOnExpand: false,
+      });
+      return;
+    }
+
+    updateActiveBoardSettings({
+      collapseCards: true,
+      showSeriesOnCards: false,
+      restoreShowSeriesOnExpand: activeBoardSettings.showSeriesOnCards,
+    });
+  }
+
   function startEditingBoardTitle() {
     setBoardTitleDraft(activeBoardTitle);
     setIsEditingBoardTitle(true);
@@ -3468,7 +3486,7 @@ export function RankboardApp() {
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                               )}
-                              onClick={() => updateActiveBoardSettings({ collapseCards: !activeBoardSettings.collapseCards })}
+                              onClick={toggleCollapseCardsSetting}
                               type="button"
                             >
                               <span>Collapse Cards</span>
@@ -3793,7 +3811,7 @@ export function RankboardApp() {
                                     <span>Notes Field</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.includeNotesField ? "On" : "Off"}</span>
                                   </button>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ collapseCards: !activeBoardSettings.collapseCards })} type="button">
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
                                     <span>Collapse Cards</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
                                   </button>
@@ -4119,7 +4137,7 @@ export function RankboardApp() {
                                   <span>Show Series</span>
                                   <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
                                 </button>
-                                <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ collapseCards: !activeBoardSettings.collapseCards })} type="button">
+                                <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
                                   <span>Collapse Cards</span>
                                   <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
                                 </button>
@@ -6693,7 +6711,7 @@ function CardTile({
           ) : null}
         </div>
 
-        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-6" : "bottom-0")}>
+        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-11" : "bottom-0")}>
           {!collapseCards && displaySeries ? (
             <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
               {displaySeries}

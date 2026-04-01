@@ -35,6 +35,7 @@ export type BoardSettings = {
   includeSeriesField: boolean;
   includeImageField: boolean;
   includeNotesField: boolean;
+  restoreShowSeriesOnExpand?: boolean;
 };
 
 export type SavedBoard = BoardSnapshot & {
