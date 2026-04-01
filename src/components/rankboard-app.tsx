@@ -751,6 +751,7 @@ export function RankboardApp() {
   const [openColumnMenuId, setOpenColumnMenuId] = useState<string | null>(null);
   const [openColumnSortMenuId, setOpenColumnSortMenuId] = useState<string | null>(null);
   const [openColumnFilterMenuId, setOpenColumnFilterMenuId] = useState<string | null>(null);
+  const [openColumnMirrorMenuId, setOpenColumnMirrorMenuId] = useState<string | null>(null);
   const [columnTierFilters, setColumnTierFilters] = useState<Record<string, TierFilter>>({});
   const [isAutofillingDraftImage, setIsAutofillingDraftImage] = useState(false);
   const [autofillingCardId, setAutofillingCardId] = useState<string | null>(null);
@@ -1243,6 +1244,8 @@ export function RankboardApp() {
         setOpenColumnMenuId(null);
         setOpenColumnSortMenuId(null);
         setOpenColumnFilterMenuId(null);
+        setOpenColumnMirrorMenuId(null);
+        setOpenColumnMirrorMenuId(null);
       }
     }
 
@@ -1439,6 +1442,7 @@ export function RankboardApp() {
 
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
+    setOpenColumnMirrorMenuId(null);
   }
 
   function syncBoardMirrorColumns(
@@ -1702,6 +1706,7 @@ export function RankboardApp() {
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
     setDraftDuplicateAction(null);
   }
 
@@ -1899,6 +1904,7 @@ export function RankboardApp() {
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
   }
 
   function moveColumnToTarget(sourceColumnId: string, targetColumnId: string) {
@@ -2070,6 +2076,7 @@ export function RankboardApp() {
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
   }
 
   function setColumnTierFilter(columnId: string, tierFilter: TierFilter) {
@@ -2079,6 +2086,7 @@ export function RankboardApp() {
     }));
     setOpenColumnFilterMenuId(null);
     setOpenColumnMenuId(null);
+    setOpenColumnMirrorMenuId(null);
   }
 
   function handleUndo() {
@@ -3039,7 +3047,7 @@ export function RankboardApp() {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 overflow-hidden rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -3133,7 +3141,7 @@ export function RankboardApp() {
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
-              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 sm:snap-none">
+              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
                 {columns.map((column) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
@@ -3168,6 +3176,7 @@ export function RankboardApp() {
                       isMenuOpen={openColumnMenuId === column.id}
                       isSortMenuOpen={openColumnSortMenuId === column.id}
                       isFilterMenuOpen={openColumnFilterMenuId === column.id}
+                      isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
                       onToggleMenu={() =>
                         setOpenColumnMenuId((current) =>
                           current === column.id ? null : column.id,
@@ -3180,6 +3189,11 @@ export function RankboardApp() {
                       }
                       onToggleFilterMenu={() =>
                         setOpenColumnFilterMenuId((current) =>
+                          current === column.id ? null : column.id,
+                        )
+                      }
+                      onToggleMirrorMenu={() =>
+                        setOpenColumnMirrorMenuId((current) =>
                           current === column.id ? null : column.id,
                         )
                       }
@@ -4338,9 +4352,11 @@ function BoardColumn({
   isMenuOpen,
   isSortMenuOpen,
   isFilterMenuOpen,
+  isMirrorMenuOpen,
   onToggleMenu,
   onToggleSortMenu,
   onToggleFilterMenu,
+  onToggleMirrorMenu,
   onDeleteColumn,
   onToggleBoardMirrorColumn,
   onLinkMirrorMatches,
@@ -4378,9 +4394,11 @@ function BoardColumn({
   isMenuOpen: boolean;
   isSortMenuOpen: boolean;
   isFilterMenuOpen: boolean;
+  isMirrorMenuOpen: boolean;
   onToggleMenu: () => void;
   onToggleSortMenu: () => void;
   onToggleFilterMenu: () => void;
+  onToggleMirrorMenu: () => void;
   onDeleteColumn: (columnId: string) => void;
   onToggleBoardMirrorColumn: (columnId: string) => void;
   onLinkMirrorMatches: (columnId: string) => void;
@@ -4424,7 +4442,7 @@ function BoardColumn({
       <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
         <div
           className={clsx(
-            "sticky top-0 z-10 rounded-[21px] p-4 backdrop-blur",
+            "sticky top-4 z-10 rounded-[21px] p-4 backdrop-blur",
             isDarkMode ? "bg-slate-950/96" : "bg-white/95",
             !isEditingColumn && "cursor-grab active:cursor-grabbing",
           )}
@@ -4639,37 +4657,59 @@ function BoardColumn({
                           ) : null}
                         </div>
                       ) : null}
-                      <button
-                        className={clsx(
-                          "flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                        onClick={() => onToggleBoardMirrorColumn(column.id)}
-                        type="button"
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <Link2 className="h-4 w-4" />
-                          Mirror board
-                        </span>
-                        <span className="text-xs opacity-70">{column.mirrorsEntireBoard ? "On" : "Off"}</span>
-                      </button>
-                      {column.mirrorsEntireBoard ? (
+                      <div className="relative">
                         <button
                           className={clsx(
-                            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                            "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
                             isDarkMode
                               ? "text-white hover:bg-white/10"
                               : "text-slate-700 hover:bg-slate-100",
                           )}
-                          onClick={() => onLinkMirrorMatches(column.id)}
+                          onClick={onToggleMirrorMenu}
                           type="button"
                         >
-                          <Link2 className="h-4 w-4" />
-                          Link matching cards
+                          <span className="inline-flex items-center gap-2">
+                            <Link2 className="h-4 w-4" />
+                            Mirror
+                          </span>
+                          <span className="text-xs opacity-70">{isMirrorMenuOpen ? "▾" : "▸"}</span>
                         </button>
-                      ) : null}
+                        {isMirrorMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "absolute right-full top-0 mr-2 flex min-w-[160px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900"
+                                : "border-slate-200 bg-white",
+                            )}
+                          >
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onToggleBoardMirrorColumn(column.id)}
+                              type="button"
+                            >
+                              {column.mirrorsEntireBoard ? "Turn Off" : "Turn On"}
+                            </button>
+                            <button
+                              className={clsx(
+                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onLinkMirrorMatches(column.id)}
+                              type="button"
+                            >
+                              Link Duplicates
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                       <button
                         className={clsx(
                           "mt-1 flex items-center gap-2 rounded-xl border-t px-3 py-2 pt-3 text-sm transition hover:bg-rose-400/10",
@@ -4727,15 +4767,14 @@ function BoardColumn({
             strategy={rectSortingStrategy}
           >
             <>
-              {!disableAddAffordances ? (
-                <AddCardRow
-                  columnId={column.id}
-                  isDarkMode={isDarkMode}
-                  insertIndex={0}
-                  alwaysVisible={tierFilteredCards.length === 0}
-                  onClick={() => onAddCard(column.id, 0)}
-                />
-              ) : null}
+              <AddCardRow
+                columnId={column.id}
+                isDarkMode={isDarkMode}
+                insertIndex={0}
+                alwaysVisible={tierFilteredCards.length === 0}
+                interactive={!disableAddAffordances}
+                onClick={() => onAddCard(column.id, 0)}
+              />
               {tierFilteredCards.map((card, index) => (
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
@@ -4753,15 +4792,14 @@ function BoardColumn({
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
                   />
-                  {!disableAddAffordances ? (
-                    <AddCardRow
-                      columnId={column.id}
-                      isDarkMode={isDarkMode}
-                      insertIndex={index + 1}
-                      alwaysVisible={index === tierFilteredCards.length - 1}
-                      onClick={() => onAddCard(column.id, index + 1)}
-                    />
-                  ) : null}
+                  <AddCardRow
+                    columnId={column.id}
+                    isDarkMode={isDarkMode}
+                    insertIndex={index + 1}
+                    alwaysVisible={index === tierFilteredCards.length - 1}
+                    interactive={!disableAddAffordances}
+                    onClick={() => onAddCard(column.id, index + 1)}
+                  />
                 </div>
               ))}
             </>
@@ -4792,31 +4830,22 @@ function AddCardRow({
   isDarkMode,
   insertIndex,
   alwaysVisible = false,
+  interactive = true,
   onClick,
 }: {
   columnId: string;
   isDarkMode: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
+  interactive?: boolean;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  return (
-    <button
-      ref={setNodeRef}
-      className={clsx(
-        "group flex h-4 items-center gap-3 opacity-0 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
-        isDarkMode ? "text-slate-300" : "text-slate-400",
-        alwaysVisible && "h-8 opacity-100",
-        isOver && "opacity-100",
-      )}
-      onClick={onClick}
-      type="button"
-      aria-label="Add game here"
-    >
+  const rowContent = (
+    <>
       <span
         className={clsx(
           "h-px flex-1 transition",
@@ -4829,10 +4858,12 @@ function AddCardRow({
       <span
         className={clsx(
           "flex h-7 w-7 items-center justify-center rounded-full border transition",
-          isDarkMode
-            ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
-            : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50",
-          isOver &&
+          interactive
+            ? isDarkMode
+              ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
+              : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50"
+            : "border-transparent bg-transparent text-transparent",
+          isOver && interactive &&
             (isDarkMode
               ? "border-white/40 bg-slate-900"
               : "border-slate-500 bg-slate-50"),
@@ -4849,6 +4880,39 @@ function AddCardRow({
           isOver && (isDarkMode ? "bg-white/35" : "bg-slate-400"),
         )}
       />
+    </>
+  );
+
+  if (!interactive) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={clsx(
+          "group flex h-4 items-center gap-3 opacity-0",
+          isDarkMode ? "text-slate-300" : "text-slate-400",
+          alwaysVisible && "h-8 opacity-100",
+        )}
+        aria-hidden="true"
+      >
+        {rowContent}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      ref={setNodeRef}
+      className={clsx(
+        "group flex h-4 items-center gap-3 opacity-0 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
+        isDarkMode ? "text-slate-300" : "text-slate-400",
+        alwaysVisible && "h-8 opacity-100",
+        isOver && "opacity-100",
+      )}
+      onClick={onClick}
+      type="button"
+      aria-label="Add game here"
+    >
+      {rowContent}
     </button>
   );
 }
