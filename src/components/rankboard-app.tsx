@@ -510,8 +510,8 @@ async function fetchBestWikipediaMetadata(
   return bestScore >= 45 ? bestMatch : null;
 }
 
-function openGoogleImageSearch(title: string, series = "", mode: ArtworkSearchMode = "image") {
-  const query = [series.trim(), title.trim()].filter(Boolean).join(" ").trim();
+function openGoogleImageSearch(title: string, mode: ArtworkSearchMode = "image") {
+  const query = title.trim();
 
   if (!query || typeof window === "undefined") {
     return;
@@ -1006,7 +1006,7 @@ function formatLastSavedAt(savedAt: string | null) {
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
-  const defaultBoard = createEmptyBoard("Rankboard");
+  const defaultBoard = createEmptyBoard("Rankr");
   const [boards, setBoards] = useState<SavedBoard[]>([defaultBoard]);
   const [activeBoardId, setActiveBoardId] = useState(defaultBoard.id);
   const [columns, setColumns] = useState<ColumnDefinition[]>(defaultBoard.columns);
@@ -1110,7 +1110,7 @@ export function RankboardApp() {
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? normalizeSavedBoard(defaultBoard);
   const activeBoardTitle =
-    activeBoard.title ?? "Rankboard";
+    activeBoard.title ?? "Rankr";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
   const activeBoardKind = getBoardKind(activeBoardTitle);
@@ -1120,7 +1120,7 @@ export function RankboardApp() {
   const shouldShowNotesField = activeBoardSettings.includeNotesField;
 
   const resetToSignedOutBoard = useCallback(() => {
-    const signedOutBoard = createEmptyBoard("Rankboard");
+    const signedOutBoard = createEmptyBoard("Rankr");
 
     skipNextHistoryRef.current = true;
     previousSnapshotRef.current = {
@@ -1355,7 +1355,7 @@ export function RankboardApp() {
         const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
         const starterSnapshot = createStarterBoardSnapshot();
         const migratedBoard: SavedBoard = {
-          ...createEmptyBoard("Rankboard"),
+          ...createEmptyBoard("Rankr"),
           columns: legacyColumns ?? starterSnapshot.columns,
           cardsByColumn: legacyCards ?? starterSnapshot.cardsByColumn,
         };
@@ -1536,7 +1536,7 @@ export function RankboardApp() {
       return;
     }
 
-    if (boards.length === 1 && activeBoardTitle === "Rankboard" && isStarterBoard(columns, cardsByColumn)) {
+    if (boards.length === 1 && activeBoardTitle === "Rankr" && isStarterBoard(columns, cardsByColumn)) {
       hasAutoOpenedBoardSetupRef.current = true;
       setNewBoardTitle("");
       setNewBoardSettings(getDefaultBoardSettings("New Board"));
@@ -1656,7 +1656,7 @@ export function RankboardApp() {
           writeLocalBackupSnapshot(snapshot);
         } else {
           const migratedBoard: SavedBoard = {
-            ...createEmptyBoard("Rankboard"),
+            ...createEmptyBoard("Rankr"),
             columns: remoteColumns,
             cardsByColumn: remoteCardsByColumn,
           };
@@ -2185,13 +2185,16 @@ export function RankboardApp() {
       return;
     }
 
-    const title = draft.title.trim() || `Untitled ${boardVocabulary.singular}`;
-    const series = draft.series.trim();
-    const imageUrl = draft.imageUrl.trim();
-    const notes = draft.notes.trim();
-    const releaseYear = draft.releaseYear.trim();
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? "").trim() || `Untitled ${boardVocabulary.singular}`;
+    const series = String(formData.get("series") ?? "").trim();
+    const imageUrl = String(formData.get("imageUrl") ?? "").trim();
+    const notes = String(formData.get("notes") ?? "").trim();
+    const releaseYear = String(formData.get("releaseYear") ?? "").trim();
+    const columnId = String(formData.get("columnId") ?? "").trim();
+    const newColumnTitle = String(formData.get("newColumnTitle") ?? "").trim();
     const selectedColumnId =
-      draft.columnId === NEW_COLUMN_OPTION ? "" : draft.columnId || addCardTarget.columnId;
+      columnId === NEW_COLUMN_OPTION ? "" : columnId || addCardTarget.columnId;
     const duplicate = selectedColumnId
       ? findDuplicateCard(title, selectedColumnId)
       : null;
@@ -2208,21 +2211,31 @@ export function RankboardApp() {
       return;
     }
 
-    finalizeAddCard(title, series, imageUrl, notes, releaseYear);
+    finalizeAddCard(title, series, imageUrl, notes, releaseYear, columnId, newColumnTitle);
   }
 
-  function finalizeAddCard(title: string, series: string, imageUrl: string, notes: string, releaseYear: string) {
+  function finalizeAddCard(
+    title: string,
+    series: string,
+    imageUrl: string,
+    notes: string,
+    releaseYear: string,
+    selectedColumnIdOverride?: string,
+    newColumnTitleOverride?: string,
+  ) {
     if (!addCardTarget) {
       return;
     }
 
     let nextColumns = columns;
-    let destinationColumnId = draft.columnId || addCardTarget.columnId;
+    const selectedColumnId = selectedColumnIdOverride ?? draft.columnId;
+    const newColumnTitle = newColumnTitleOverride ?? draft.newColumnTitle;
+    let destinationColumnId = selectedColumnId || addCardTarget.columnId;
     let destinationInsertIndex = addCardTarget.insertIndex;
     let nextCardsByColumn = cardsByColumn;
 
-    if (draft.columnId === NEW_COLUMN_OPTION) {
-      const newColumn = createColumnDefinition(columns.length + 1, draft.newColumnTitle);
+    if (selectedColumnId === NEW_COLUMN_OPTION) {
+      const newColumn = createColumnDefinition(columns.length + 1, newColumnTitle);
       nextColumns = [...columns, newColumn];
       destinationColumnId = newColumn.id;
       destinationInsertIndex = 0;
@@ -2408,7 +2421,7 @@ export function RankboardApp() {
   }
 
   function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
-    openGoogleImageSearch(draft.title, draft.series, mode);
+    openGoogleImageSearch(draft.title, mode);
   }
 
   function startEditingCard(card: CardEntry) {
@@ -2426,16 +2439,19 @@ export function RankboardApp() {
     setIsEditFieldSettingsOpen(false);
   }
 
-  function saveEditingCard() {
+  function handleEditingCardSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     if (!editingCardDraft || !editingCardItemId) {
       return;
     }
 
-    const title = editingCardDraft.title.trim() || "Untitled Game";
-    const imageUrl = editingCardDraft.imageUrl.trim();
-    const series = editingCardDraft.series.trim();
-    const releaseYear = editingCardDraft.releaseYear.trim();
-    const notes = editingCardDraft.notes.trim();
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? "").trim() || "Untitled Game";
+    const imageUrl = String(formData.get("imageUrl") ?? "").trim();
+    const series = String(formData.get("series") ?? "").trim();
+    const releaseYear = String(formData.get("releaseYear") ?? "").trim();
+    const notes = String(formData.get("notes") ?? "").trim();
     const editingColumnId = editingCardId ? findColumnIdForEntry(editingCardId) : null;
     const duplicate = editingColumnId
       ? findDuplicateCard(title, editingColumnId, editingCardItemId)
@@ -2471,7 +2487,7 @@ export function RankboardApp() {
       return;
     }
 
-    openGoogleImageSearch(editingCardDraft.title, editingCardDraft.series, mode);
+    openGoogleImageSearch(editingCardDraft.title, mode);
   }
 
   function selectArtworkOption(imageUrl: string) {
@@ -2678,8 +2694,8 @@ export function RankboardApp() {
       draftDuplicateAction.title,
       draftDuplicateAction.series,
       draftDuplicateAction.imageUrl,
-      draft.notes.trim(),
-      draft.releaseYear.trim(),
+      draftDuplicateAction.notes ?? "",
+      draftDuplicateAction.releaseYear ?? "",
     );
   }
 
@@ -2699,22 +2715,20 @@ export function RankboardApp() {
         title: editingDuplicateAction.title,
         imageUrl: editingDuplicateAction.imageUrl || card.imageUrl,
         series: editingDuplicateAction.series || card.series,
-        releaseYear: editingCardDraft.releaseYear.trim() || card.releaseYear,
+        releaseYear: editingDuplicateAction.releaseYear || card.releaseYear,
         notes: editingDuplicateAction.notes || card.notes,
       }));
       cancelEditingCard();
       return;
     }
 
-    const releaseYear = editingCardDraft.releaseYear.trim();
-    const notes = editingCardDraft.notes.trim();
     updateCardsForItem(editingCardItemId, (card) => ({
       ...card,
       title: editingDuplicateAction.title,
       imageUrl: editingDuplicateAction.imageUrl,
       series: editingDuplicateAction.series,
-      releaseYear: releaseYear || undefined,
-      notes: notes || undefined,
+      releaseYear: editingDuplicateAction.releaseYear || undefined,
+      notes: editingDuplicateAction.notes || undefined,
       itemId: slugify(editingDuplicateAction.title) || card.itemId,
     }));
     cancelEditingCard();
@@ -4253,6 +4267,7 @@ export function RankboardApp() {
                   </div>
                   <div className="hidden items-center gap-2 xl:flex">
                     <input
+                      name="title"
                       className={clsx(
                         "w-[240px] rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
@@ -4670,10 +4685,12 @@ export function RankboardApp() {
                 </button>
               </div>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <form className="mt-6" onSubmit={handleEditingCardSubmit}>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                   <input
+                    name="title"
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
                       isDarkMode
@@ -4696,6 +4713,7 @@ export function RankboardApp() {
                   <label className="grid gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
                     <input
+                      name="series"
                       list="series-suggestions"
                       className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
@@ -4719,6 +4737,7 @@ export function RankboardApp() {
                 <label className="grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
                   <input
+                    name="releaseYear"
                     inputMode="numeric"
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
@@ -4749,6 +4768,7 @@ export function RankboardApp() {
                       Background image or GIF URL
                     </span>
                     <input
+                      name="imageUrl"
                       className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
@@ -4802,6 +4822,7 @@ export function RankboardApp() {
                 <label className="mt-4 grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
                   <textarea
+                    name="notes"
                     className={clsx(
                       "min-h-32 rounded-2xl border px-4 py-3 outline-none transition",
                       isDarkMode
@@ -4826,8 +4847,7 @@ export function RankboardApp() {
                       ? "bg-white text-slate-950 hover:bg-slate-200"
                       : "bg-slate-950 text-white hover:bg-slate-800",
                   )}
-                  onClick={saveEditingCard}
-                  type="button"
+                  type="submit"
                 >
                   <Save className="h-4 w-4" />
                   Save Changes
@@ -4908,6 +4928,7 @@ export function RankboardApp() {
                   ) : null}
                 </div>
               </div>
+              </form>
             </div>
           </div>
         ) : null}
@@ -4976,6 +4997,7 @@ export function RankboardApp() {
                     <label className="grid gap-2">
                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
                       <input
+                        name="series"
                         list="series-suggestions"
                         className={clsx(
                           "rounded-2xl border px-4 py-3 outline-none transition",
@@ -4996,6 +5018,7 @@ export function RankboardApp() {
                 <label className="grid gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
                   <input
+                    name="releaseYear"
                     inputMode="numeric"
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
@@ -5029,6 +5052,7 @@ export function RankboardApp() {
                           )}
                         />
                         <input
+                          name="imageUrl"
                           className={clsx(
                             "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
                             isDarkMode
@@ -5083,6 +5107,7 @@ export function RankboardApp() {
                   <label className="grid gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
                     <textarea
+                      name="notes"
                       className={clsx(
                         "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
@@ -5106,6 +5131,7 @@ export function RankboardApp() {
                       Column
                     </span>
                     <select
+                      name="columnId"
                       className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
@@ -5135,6 +5161,7 @@ export function RankboardApp() {
                         New column title
                       </span>
                       <input
+                        name="newColumnTitle"
                         className={clsx(
                           "rounded-2xl border px-4 py-3 outline-none transition",
                           isDarkMode
