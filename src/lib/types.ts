@@ -17,6 +17,7 @@ export type ColumnDefinition = {
   type: ColumnType;
   accent: string;
   autoMirrorToColumnId?: string;
+  mirrorsEntireBoard?: boolean;
 };
 
 export type BoardSnapshot = {

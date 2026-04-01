@@ -42,6 +42,7 @@ import {
   Upload,
   WandSparkles,
   X,
+  Link2,
 } from "lucide-react";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -718,6 +719,7 @@ export function RankboardApp() {
   const [hasLoadedPersistedState, setHasLoadedPersistedState] = useState(false);
   const [hasLoadedRemoteState, setHasLoadedRemoteState] = useState(false);
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
+  const [isCardDragging, setIsCardDragging] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -782,30 +784,35 @@ export function RankboardApp() {
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
 
-  function findDuplicateCard(title: string, excludeItemId?: string) {
+  function findDuplicateCard(
+    title: string,
+    columnId: string,
+    excludeItemId?: string,
+  ) {
     const normalizedTitle = normalizeTitleForComparison(title);
 
-    if (!normalizedTitle) {
+    if (!normalizedTitle || !columnId) {
       return null;
     }
 
-    for (const column of columns) {
-      const duplicate = (cardsByColumn[column.id] ?? []).find(
-        (card) =>
-          !card.mirroredFromEntryId &&
-          card.itemId !== excludeItemId &&
-          normalizeTitleForComparison(card.title) === normalizedTitle,
-      );
+    const column = columns.find((item) => item.id === columnId);
 
-      if (duplicate) {
-        return {
-          column,
-          card: duplicate,
-        };
-      }
+    if (!column) {
+      return null;
     }
 
-    return null;
+    const duplicate = (cardsByColumn[column.id] ?? []).find(
+      (card) =>
+        card.itemId !== excludeItemId &&
+        normalizeTitleForComparison(card.title) === normalizedTitle,
+    );
+
+    return duplicate
+      ? {
+          column,
+          card: duplicate,
+        }
+      : null;
   }
 
   useEffect(() => {
@@ -943,6 +950,15 @@ export function RankboardApp() {
   useEffect(() => {
     latestColumnsRef.current = columns;
     latestCardsByColumnRef.current = cardsByColumn;
+  }, [cardsByColumn, columns]);
+
+  useEffect(() => {
+    const syncedState = syncBoardMirrorColumns(columns, cardsByColumn);
+
+    if (syncedState !== cardsByColumn) {
+      skipNextHistoryRef.current = true;
+      setCardsByColumn(syncedState);
+    }
   }, [cardsByColumn, columns]);
 
   useEffect(() => {
@@ -1181,7 +1197,9 @@ export function RankboardApp() {
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
-      if (!columnMenuBoundaryRef.current?.contains(event.target as Node)) {
+      const target = event.target as HTMLElement | null;
+
+      if (!target?.closest("[data-column-menu-root='true']")) {
         setOpenColumnMenuId(null);
         setOpenColumnSortMenuId(null);
       }
@@ -1325,7 +1343,83 @@ export function RankboardApp() {
     });
   }
 
+  function syncBoardMirrorColumns(
+    currentColumns: ColumnDefinition[],
+    currentCardsByColumn: Record<string, CardEntry[]>,
+  ) {
+    let didChange = false;
+    const nextState = { ...currentCardsByColumn };
+    const boardMirrorColumns = currentColumns.filter((column) => column.mirrorsEntireBoard);
+
+    for (const mirrorColumn of boardMirrorColumns) {
+      const existingMirrorCards = currentCardsByColumn[mirrorColumn.id] ?? [];
+      const sourceCardsInOrder: CardEntry[] = [];
+
+      for (const column of currentColumns) {
+        if (column.id === mirrorColumn.id || column.mirrorsEntireBoard) {
+          continue;
+        }
+
+        for (const sourceCard of currentCardsByColumn[column.id] ?? []) {
+          if (sourceCard.mirroredFromEntryId) {
+            continue;
+          }
+
+          sourceCardsInOrder.push(sourceCard);
+        }
+      }
+
+      const sourceById = new Map(sourceCardsInOrder.map((card) => [card.entryId, card]));
+      const syncedCards: CardEntry[] = [];
+
+      for (const existingMirror of existingMirrorCards) {
+        const sourceId = existingMirror.mirroredFromEntryId;
+
+        if (!sourceId) {
+          continue;
+        }
+
+        const sourceCard = sourceById.get(sourceId);
+
+        if (!sourceCard) {
+          continue;
+        }
+
+        syncedCards.push({
+          ...sourceCard,
+          entryId: existingMirror.entryId,
+          mirroredFromEntryId: sourceId,
+        });
+        sourceById.delete(sourceId);
+      }
+
+      for (const sourceCard of sourceCardsInOrder) {
+        if (!sourceById.has(sourceCard.entryId)) {
+          continue;
+        }
+
+        syncedCards.push({
+          ...sourceCard,
+          entryId: makeId("mirror"),
+          mirroredFromEntryId: sourceCard.entryId,
+        });
+      }
+
+      const currentSerialized = JSON.stringify(existingMirrorCards);
+      const nextSerialized = JSON.stringify(syncedCards);
+
+      if (currentSerialized !== nextSerialized) {
+        nextState[mirrorColumn.id] = syncedCards;
+        didChange = true;
+      }
+    }
+
+    return didChange ? nextState : currentCardsByColumn;
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setIsCardDragging(false);
+
     if (filtering || !event.over) {
       return;
     }
@@ -1416,7 +1510,11 @@ export function RankboardApp() {
     const title = draft.title.trim() || `Untitled ${boardVocabulary.singular}`;
     const series = draft.series.trim();
     const imageUrl = draft.imageUrl.trim();
-    const duplicate = findDuplicateCard(title);
+    const selectedColumnId =
+      draft.columnId === NEW_COLUMN_OPTION ? "" : draft.columnId || addCardTarget.columnId;
+    const duplicate = selectedColumnId
+      ? findDuplicateCard(title, selectedColumnId)
+      : null;
 
     if (duplicate) {
       setDraftDuplicateAction({
@@ -1504,7 +1602,7 @@ export function RankboardApp() {
   }
 
   function openQuickAddModal() {
-    const fallbackColumnId = columns[0]?.id ?? "";
+    const fallbackColumnId = columns.find((column) => !column.mirrorsEntireBoard)?.id ?? "";
     const selectedColumnId = fallbackColumnId || NEW_COLUMN_OPTION;
     const insertIndex = fallbackColumnId
       ? (cardsByColumn[fallbackColumnId] ?? []).length
@@ -1593,7 +1691,10 @@ export function RankboardApp() {
     const imageUrl = editingCardDraft.imageUrl.trim();
     const series = editingCardDraft.series.trim();
     const notes = editingCardDraft.notes.trim();
-    const duplicate = findDuplicateCard(title, editingCardItemId);
+    const editingColumnId = editingCardId ? findColumnIdForEntry(editingCardId) : null;
+    const duplicate = editingColumnId
+      ? findDuplicateCard(title, editingColumnId, editingCardItemId)
+      : null;
 
     if (duplicate) {
       setEditingDuplicateAction({
@@ -1670,6 +1771,22 @@ export function RankboardApp() {
     );
 
     cancelEditingColumn();
+  }
+
+  function toggleBoardMirrorColumn(columnId: string) {
+    setColumns((current) =>
+      current.map((column) =>
+        column.id === columnId
+          ? {
+              ...column,
+              mirrorsEntireBoard: !column.mirrorsEntireBoard,
+            }
+          : column,
+      ),
+    );
+
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
   }
 
   function moveColumnToTarget(sourceColumnId: string, targetColumnId: string) {
@@ -2875,6 +2992,8 @@ export function RankboardApp() {
             <DndContext
               sensors={sensors}
               collisionDetection={closestCorners}
+              onDragStart={() => setIsCardDragging(true)}
+              onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
               <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 sm:snap-none">
@@ -2892,6 +3011,7 @@ export function RankboardApp() {
                       addLabel={boardVocabulary.singular}
                       collapseCards={activeBoardSettings.collapseCards}
                       showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
+                      disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                       isDarkMode={isDarkMode}
                       cards={visibleCards}
                       filtering={filtering}
@@ -2918,6 +3038,7 @@ export function RankboardApp() {
                         )
                       }
                       onDeleteColumn={deleteColumn}
+                      onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
                       onColumnDragStart={setDraggingColumnId}
                       onColumnDrop={moveColumnToTarget}
                       draggingColumnId={draggingColumnId}
@@ -3297,7 +3418,7 @@ export function RankboardApp() {
                         }))
                       }
                     >
-                      {columns.map((column) => (
+                      {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => (
                         <option key={column.id} value={column.id}>
                           {column.title}
                         </option>
@@ -4047,6 +4168,7 @@ function BoardColumn({
   addLabel,
   collapseCards,
   showSeriesOnCards,
+  disableAddAffordances,
   cards,
   filtering,
   isEditingColumn,
@@ -4064,6 +4186,7 @@ function BoardColumn({
   onToggleMenu,
   onToggleSortMenu,
   onDeleteColumn,
+  onToggleBoardMirrorColumn,
   onColumnDragStart,
   onColumnDrop,
   draggingColumnId,
@@ -4073,6 +4196,7 @@ function BoardColumn({
   addLabel: string;
   collapseCards: boolean;
   showSeriesOnCards: boolean;
+  disableAddAffordances: boolean;
   cards: CardEntry[];
   filtering: boolean;
   isEditingColumn: boolean;
@@ -4095,6 +4219,7 @@ function BoardColumn({
   onToggleMenu: () => void;
   onToggleSortMenu: () => void;
   onDeleteColumn: (columnId: string) => void;
+  onToggleBoardMirrorColumn: (columnId: string) => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   draggingColumnId: string | null;
@@ -4191,7 +4316,7 @@ function BoardColumn({
             ) : (
               <>
                 <h2 className="text-lg font-bold">{column.title}</h2>
-                <div className="relative">
+                <div className="relative" data-column-menu-root="true">
                   <button
                     className={clsx(
                       "rounded-full p-2 transition",
@@ -4221,6 +4346,7 @@ function BoardColumn({
                             ? "text-white hover:bg-white/10"
                             : "text-slate-700 hover:bg-slate-100",
                         )}
+                        disabled={column.mirrorsEntireBoard}
                         onClick={() => onAddCard(column.id, 0)}
                         type="button"
                       >
@@ -4295,6 +4421,22 @@ function BoardColumn({
                       </div>
                       <button
                         className={clsx(
+                          "flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={() => onToggleBoardMirrorColumn(column.id)}
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Link2 className="h-4 w-4" />
+                          Mirror board
+                        </span>
+                        <span className="text-xs opacity-70">{column.mirrorsEntireBoard ? "On" : "Off"}</span>
+                      </button>
+                      <button
+                        className={clsx(
                           "mt-1 flex items-center gap-2 rounded-xl border-t px-3 py-2 pt-3 text-sm transition hover:bg-rose-400/10",
                           isDarkMode
                             ? "border-white/10 text-rose-300"
@@ -4334,13 +4476,15 @@ function BoardColumn({
             strategy={rectSortingStrategy}
           >
             <>
-              <AddCardRow
-                columnId={column.id}
-                isDarkMode={isDarkMode}
-                insertIndex={0}
-                alwaysVisible={cards.length === 0}
-                onClick={() => onAddCard(column.id, 0)}
-              />
+              {!disableAddAffordances ? (
+                <AddCardRow
+                  columnId={column.id}
+                  isDarkMode={isDarkMode}
+                  insertIndex={0}
+                  alwaysVisible={cards.length === 0}
+                  onClick={() => onAddCard(column.id, 0)}
+                />
+              ) : null}
               {cards.map((card, index) => (
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
@@ -4351,13 +4495,15 @@ function BoardColumn({
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
                   />
-                  <AddCardRow
-                    columnId={column.id}
-                    isDarkMode={isDarkMode}
-                    insertIndex={index + 1}
-                    alwaysVisible={index === cards.length - 1}
-                    onClick={() => onAddCard(column.id, index + 1)}
-                  />
+                  {!disableAddAffordances ? (
+                    <AddCardRow
+                      columnId={column.id}
+                      isDarkMode={isDarkMode}
+                      insertIndex={index + 1}
+                      alwaysVisible={index === cards.length - 1}
+                      onClick={() => onAddCard(column.id, index + 1)}
+                    />
+                  ) : null}
                 </div>
               ))}
             </>
@@ -4373,7 +4519,9 @@ function BoardColumn({
                 : "border-slate-200 bg-slate-50 text-slate-500",
             )}
           >
-            Drop a card here or use the column menu to add one.
+            {column.mirrorsEntireBoard
+              ? "This column mirrors cards from the rest of the board."
+              : "Drop a card here or use the column menu to add one."}
           </div>
         ) : null}
       </div>
@@ -4555,7 +4703,20 @@ function CardTile({
         </div>
       </div>
 
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+      {card.mirroredFromEntryId ? (
+        <div
+          className="absolute right-3 top-3 z-10 rounded-full bg-slate-950/75 p-2 text-white backdrop-blur"
+          aria-label="Mirrored card"
+          title="Mirrored card"
+        >
+          <Link2 className="h-4 w-4" />
+        </div>
+      ) : null}
+
+      <div className={clsx(
+        "absolute right-3 z-10 flex items-center gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+        card.mirroredFromEntryId ? "top-14" : "top-3",
+      )}>
         {onEdit ? (
           <button
             className="rounded-full bg-slate-950/75 p-2 text-white backdrop-blur transition hover:bg-slate-950"
