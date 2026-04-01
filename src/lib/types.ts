@@ -20,6 +20,7 @@ export type ColumnDefinition = {
   autoMirrorToColumnId?: string;
   mirrorsEntireBoard?: boolean;
   excludedMirrorItemIds?: string[];
+  excludeFromBoardMirrors?: boolean;
 };
 
 export type BoardSnapshot = {

@@ -714,6 +714,7 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
     columns: board.columns.map((column) => ({
       ...column,
       excludedMirrorItemIds: column.excludedMirrorItemIds ?? [],
+      excludeFromBoardMirrors: column.excludeFromBoardMirrors ?? false,
     })),
     settings: {
       ...getDefaultBoardSettings(board.title),
@@ -945,6 +946,47 @@ function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = [
   }
 
   return candidates[0] ?? null;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getDisplayCardText(title: string, series: string, showSeries: boolean) {
+  const trimmedTitle = title.trim();
+  const trimmedSeries = series.trim();
+
+  if (!showSeries || !trimmedSeries) {
+    return {
+      displayTitle: trimmedTitle,
+      displaySeries: "",
+    };
+  }
+
+  const normalizedTitle = normalizeTitleForComparison(trimmedTitle);
+  const normalizedSeries = normalizeTitleForComparison(trimmedSeries);
+
+  if (normalizedTitle === normalizedSeries) {
+    return {
+      displayTitle: trimmedTitle,
+      displaySeries: "",
+    };
+  }
+
+  const prefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}(?:\\s*[:\\-–—]\\s*|\\s+)`, "i");
+  const strippedTitle = trimmedTitle.replace(prefixPattern, "").trim();
+
+  if (strippedTitle && strippedTitle.length < trimmedTitle.length) {
+    return {
+      displayTitle: strippedTitle,
+      displaySeries: trimmedSeries,
+    };
+  }
+
+  return {
+    displayTitle: trimmedTitle,
+    displaySeries: trimmedSeries,
+  };
 }
 
 function getBoardVocabulary(boardTitle: string) {
@@ -1942,7 +1984,7 @@ export function RankboardApp() {
       const sourceCardsInOrder: CardEntry[] = [];
 
       for (const column of currentColumns) {
-        if (column.id === mirrorColumn.id || column.mirrorsEntireBoard) {
+        if (column.id === mirrorColumn.id || column.mirrorsEntireBoard || column.excludeFromBoardMirrors) {
           continue;
         }
 
@@ -2512,6 +2554,24 @@ export function RankboardApp() {
           ? {
               ...column,
               mirrorsEntireBoard: !column.mirrorsEntireBoard,
+            }
+          : column,
+      ),
+    );
+
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+  }
+
+  function toggleExcludeColumnFromBoardMirrors(columnId: string) {
+    setColumns((current) =>
+      current.map((column) =>
+        column.id === columnId
+          ? {
+              ...column,
+              excludeFromBoardMirrors: !column.excludeFromBoardMirrors,
             }
           : column,
       ),
@@ -4280,6 +4340,7 @@ export function RankboardApp() {
                       }}
                       onDeleteColumn={deleteColumn}
                       onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
+                      onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
                       onLinkMirrorMatches={linkMatchingMirrorCards}
                       onSetTierFilter={setColumnTierFilter}
                       onColumnDragStart={setDraggingColumnId}
@@ -5855,6 +5916,7 @@ function BoardColumn({
   onOpenSeriesScrape,
   onDeleteColumn,
   onToggleBoardMirrorColumn,
+  onToggleExcludeFromBoardMirrors,
   onLinkMirrorMatches,
   onSetTierFilter,
   onColumnDragStart,
@@ -5902,6 +5964,7 @@ function BoardColumn({
   onOpenSeriesScrape: () => void;
   onDeleteColumn: (columnId: string) => void;
   onToggleBoardMirrorColumn: (columnId: string) => void;
+  onToggleExcludeFromBoardMirrors: (columnId: string) => void;
   onLinkMirrorMatches: (columnId: string) => void;
   onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
@@ -6195,6 +6258,20 @@ function BoardColumn({
                             >
                               {column.mirrorsEntireBoard ? "Turn Off" : "Turn On"}
                             </button>
+                            {!column.mirrorsEntireBoard ? (
+                              <button
+                                className={clsx(
+                                  "rounded-xl px-3 py-2 text-left text-sm transition",
+                                  isDarkMode
+                                    ? "text-white hover:bg-white/10"
+                                    : "text-slate-700 hover:bg-slate-100",
+                                )}
+                                onClick={() => onToggleExcludeFromBoardMirrors(column.id)}
+                                type="button"
+                              >
+                                {column.excludeFromBoardMirrors ? "Include Source Cards" : "Exclude Source Cards"}
+                              </button>
+                            ) : null}
                             <button
                               className={clsx(
                                 "rounded-xl px-3 py-2 text-left text-sm transition",
@@ -6555,6 +6632,7 @@ function CardTile({
   onEdit?: () => void;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
+  const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
   const tierBorderClass =
     tierKey === "top10"
       ? "border-amber-300/80 shadow-[0_20px_40px_rgba(251,191,36,0.22)]"
@@ -6615,13 +6693,15 @@ function CardTile({
           ) : null}
         </div>
 
-        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1" : "bottom-0")}>
-          {!collapseCards && showSeries && card.series ? (
+        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-6" : "bottom-0")}>
+          {!collapseCards && displaySeries ? (
             <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-              {card.series}
+              {displaySeries}
             </p>
           ) : null}
-          <h3 className="truncate text-xl font-bold text-white">{card.title}</h3>
+          <h3 className={clsx("truncate font-bold text-white", collapseCards ? "text-center text-lg" : "text-xl")}>
+            {displayTitle}
+          </h3>
           {!collapseCards && card.notes ? (
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
           ) : null}
