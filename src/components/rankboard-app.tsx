@@ -1307,6 +1307,21 @@ export function RankboardApp() {
 
   useEffect(() => {
     if (authEnabled) {
+      try {
+        const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+
+        if (storedValue) {
+          const parsedState = JSON.parse(storedValue) as {
+            activeBoardId?: string;
+          };
+
+          if (parsedState.activeBoardId) {
+            setActiveBoardId(parsedState.activeBoardId);
+          }
+        }
+      } catch {
+        // Ignore local preference parsing failures for auth-enabled mode.
+      }
       setHasLoadedPersistedState(true);
       return;
     }
