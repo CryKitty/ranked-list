@@ -131,6 +131,14 @@ type ArtworkPickerState = {
   options: string[];
 };
 
+type PendingMirrorDelete = {
+  columnId: string;
+  entryId: string;
+  itemId: string;
+  title: string;
+  columnTitle: string;
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -1087,6 +1095,7 @@ export function RankboardApp() {
   const [isSeriesScrapeLoading, setIsSeriesScrapeLoading] = useState(false);
   const [seriesScrapeScopeColumnId, setSeriesScrapeScopeColumnId] = useState<string | undefined>(undefined);
   const [artworkPicker, setArtworkPicker] = useState<ArtworkPickerState | null>(null);
+  const [pendingMirrorDelete, setPendingMirrorDelete] = useState<PendingMirrorDelete | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
@@ -2237,38 +2246,14 @@ export function RankboardApp() {
     }
 
     if (column?.mirrorsEntireBoard && card.mirroredFromEntryId) {
-      const deleteEverywhere = window.confirm(
-        `Delete every linked copy of "${card.title}"?\n\nPress OK to delete it everywhere, or Cancel to choose whether to remove only this mirror copy.`,
-      );
-
-      if (!deleteEverywhere) {
-        const deleteMirrorOnly = window.confirm(
-          `Remove only this mirrored copy from "${column.title}"?\n\nOK removes just this clone. Cancel keeps both copies.`,
-        );
-
-        if (!deleteMirrorOnly) {
-          return;
-        }
-
-        setColumns((current) =>
-          current.map((item) =>
-            item.id === columnId
-              ? {
-                  ...item,
-                  excludedMirrorItemIds: Array.from(
-                    new Set([...(item.excludedMirrorItemIds ?? []), card.itemId]),
-                  ),
-                }
-              : item,
-          ),
-        );
-        setCardsByColumn((current) => ({
-          ...current,
-          [columnId]: (current[columnId] ?? []).filter((item) => item.entryId !== entryId),
-        }));
-        setEditingCardId((current) => (current === entryId ? null : current));
-        return;
-      }
+      setPendingMirrorDelete({
+        columnId,
+        entryId,
+        itemId: card.itemId,
+        title: card.title,
+        columnTitle: column.title,
+      });
+      return;
     }
 
     if (card.mirroredFromEntryId || column?.mirrorsEntireBoard) {
@@ -2306,6 +2291,49 @@ export function RankboardApp() {
 
     setCardsByColumn(nextState);
     setEditingCardId((current) => (current === entryId ? null : current));
+  }
+
+  function deleteAllLinkedCopies(itemId: string, entryId: string) {
+    setCardsByColumn((current) => {
+      const nextState: Record<string, CardEntry[]> = {};
+
+      for (const [currentColumnId, cards] of Object.entries(current)) {
+        nextState[currentColumnId] = cards.filter((item) => item.itemId !== itemId);
+      }
+
+      return nextState;
+    });
+    setColumns((current) =>
+      current.map((item) => ({
+        ...item,
+        excludedMirrorItemIds: (item.excludedMirrorItemIds ?? []).filter(
+          (excludedItemId) => excludedItemId !== itemId,
+        ),
+      })),
+    );
+    setEditingCardId((current) => (current === entryId ? null : current));
+    setPendingMirrorDelete(null);
+  }
+
+  function deleteOnlyMirrorCopy(columnId: string, entryId: string, itemId: string) {
+    setColumns((current) =>
+      current.map((item) =>
+        item.id === columnId
+          ? {
+              ...item,
+              excludedMirrorItemIds: Array.from(
+                new Set([...(item.excludedMirrorItemIds ?? []), itemId]),
+              ),
+            }
+          : item,
+      ),
+    );
+    setCardsByColumn((current) => ({
+      ...current,
+      [columnId]: (current[columnId] ?? []).filter((item) => item.entryId !== entryId),
+    }));
+    setEditingCardId((current) => (current === entryId ? null : current));
+    setPendingMirrorDelete(null);
   }
 
   async function handleAutofillDraftImage() {
@@ -5013,6 +5041,100 @@ export function RankboardApp() {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
                   onClick={() => setIsImportModalOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingMirrorDelete ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingMirrorDelete(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Linked Card
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Delete linked copy?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    <strong>{pendingMirrorDelete.title}</strong> is linked to another card. Choose whether to remove both copies or just the clone in <strong>{pendingMirrorDelete.columnTitle}</strong>.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingMirrorDelete(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={() =>
+                    deleteAllLinkedCopies(
+                      pendingMirrorDelete.itemId,
+                      pendingMirrorDelete.entryId,
+                    )
+                  }
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Both Copies
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() =>
+                    deleteOnlyMirrorCopy(
+                      pendingMirrorDelete.columnId,
+                      pendingMirrorDelete.entryId,
+                      pendingMirrorDelete.itemId,
+                    )
+                  }
+                  type="button"
+                >
+                  Delete This Copy
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingMirrorDelete(null)}
                   type="button"
                 >
                   Cancel
