@@ -27,7 +27,6 @@ import {
   Gamepad2,
   Heart,
   ImagePlus,
-  LayoutGrid,
   LogOut,
   MoreHorizontal,
   Moon,
@@ -1768,7 +1767,6 @@ export function RankboardApp() {
 
   useEffect(() => {
     if (!isActionsMenuOpen) {
-      setIsBoardsMenuOpen(false);
       setIsCustomizationMenuOpen(false);
       setIsMaintenanceMenuOpen(false);
       setIsTransferMenuOpen(false);
@@ -1787,6 +1785,24 @@ export function RankboardApp() {
 
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isActionsMenuOpen]);
+
+  useEffect(() => {
+    if (!isBoardsMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null;
+
+      if (!target?.closest("[data-board-switcher-root='true']")) {
+        setIsBoardsMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isBoardsMenuOpen]);
 
   useEffect(() => {
     if (openColumnMenuId) {
@@ -3667,7 +3683,10 @@ export function RankboardApp() {
                         ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
-                    onClick={() => setIsActionsMenuOpen((current) => !current)}
+                    onClick={() => {
+                      setIsBoardsMenuOpen(false);
+                      setIsActionsMenuOpen((current) => !current);
+                    }}
                     type="button"
                   >
                     <Settings2 className="h-4 w-4" />
@@ -3682,73 +3701,18 @@ export function RankboardApp() {
                           : "border-slate-200 bg-white/95 text-slate-700",
                       )}
                     >
-                      <div className="rounded-2xl">
-                        <MenuSectionButton
-                          icon={<LayoutGrid className="h-4 w-4" />}
-                          label="Boards"
-                          isDarkMode={isDarkMode}
-                          isOpen={isBoardsMenuOpen}
-                          onClick={() => {
-                            setIsBoardsMenuOpen((current) => !current);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                          }}
-                        />
-                        {isBoardsMenuOpen ? (
-                          <div
-                            className={clsx(
-                              "mt-1 space-y-1 rounded-2xl px-2 pb-2",
-                              isDarkMode ? "bg-white/5" : "bg-slate-50",
-                            )}
-                          >
-                            {boards.map((board) => (
-                              <button
-                                key={board.id}
-                                className={clsx(
-                                  "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                  board.id === activeBoardId && (isDarkMode ? "text-white" : "text-slate-950"),
-                                )}
-                                onClick={() => switchBoard(board.id)}
-                                type="button"
-                              >
-                                <span className="inline-flex min-w-0 items-center gap-2">
-                                  <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
-                                  <span className="truncate">{board.title}</span>
-                                </span>
-                                {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
-                              </button>
-                            ))}
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                              )}
+                          <div className="rounded-2xl">
+                            <MenuSectionButton
+                              icon={<Sparkles className="h-4 w-4" />}
+                              label="Customization"
+                              isDarkMode={isDarkMode}
+                              isOpen={isCustomizationMenuOpen}
                               onClick={() => {
-                                openCreateBoardModal();
+                                setIsCustomizationMenuOpen((current) => !current);
+                                setIsMaintenanceMenuOpen(false);
+                                setIsTransferMenuOpen(false);
                               }}
-                              type="button"
-                            >
-                              <Plus className="h-4 w-4" />
-                              New Board
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="rounded-2xl">
-                        <MenuSectionButton
-                          icon={<Sparkles className="h-4 w-4" />}
-                          label="Customization"
-                          isDarkMode={isDarkMode}
-                          isOpen={isCustomizationMenuOpen}
-                          onClick={() => {
-                            setIsCustomizationMenuOpen((current) => !current);
-                            setIsBoardsMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                          }}
-                        />
+                            />
                         {isCustomizationMenuOpen ? (
                           <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
                             <button
@@ -3917,7 +3881,10 @@ export function RankboardApp() {
                   ? "bg-slate-950 text-white"
                   : "bg-white text-slate-950",
               )}
-              onClick={() => setIsMobileActionsOpen(true)}
+              onClick={() => {
+                setIsBoardsMenuOpen(false);
+                setIsMobileActionsOpen(true);
+              }}
               type="button"
             >
               <Plus className="h-6 w-6" />
@@ -4030,7 +3997,10 @@ export function RankboardApp() {
                               ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                               : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                           )}
-                          onClick={() => setIsActionsMenuOpen((current) => !current)}
+                          onClick={() => {
+                            setIsBoardsMenuOpen(false);
+                            setIsActionsMenuOpen((current) => !current);
+                          }}
                           type="button"
                         >
                           <Settings2 className="h-4 w-4" />
@@ -4047,55 +4017,12 @@ export function RankboardApp() {
                           >
                             <div className="rounded-2xl">
                               <MenuSectionButton
-                                icon={<LayoutGrid className="h-4 w-4" />}
-                                label="Boards"
-                                isDarkMode={isDarkMode}
-                                isOpen={isBoardsMenuOpen}
-                                onClick={() => {
-                                  setIsBoardsMenuOpen((current) => !current);
-                                  setIsCustomizationMenuOpen(false);
-                                  setIsMaintenanceMenuOpen(false);
-                                  setIsTransferMenuOpen(false);
-                                }}
-                              />
-                              {isBoardsMenuOpen ? (
-                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                  {boards.map((board) => (
-                                    <button
-                                      key={board.id}
-                                      className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                      onClick={() => switchBoard(board.id)}
-                                      type="button"
-                                    >
-                                      <span className="inline-flex min-w-0 items-center gap-2">
-                                        <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
-                                        <span className="truncate">{board.title}</span>
-                                      </span>
-                                      {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
-                                    </button>
-                                  ))}
-                                  <button
-                                    className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={() => {
-                                      openCreateBoardModal();
-                                    }}
-                                    type="button"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                    New Board
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                            <div className="rounded-2xl">
-                              <MenuSectionButton
                                 icon={<Sparkles className="h-4 w-4" />}
                                 label="Customization"
                                 isDarkMode={isDarkMode}
                                 isOpen={isCustomizationMenuOpen}
                                 onClick={() => {
                                   setIsCustomizationMenuOpen((current) => !current);
-                                  setIsBoardsMenuOpen(false);
                                   setIsMaintenanceMenuOpen(false);
                                   setIsTransferMenuOpen(false);
                                 }}
@@ -4301,14 +4228,70 @@ export function RankboardApp() {
               ) : (
                 <div className="group flex items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      className={clsx(
-                        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
-                        isDarkMode ? "bg-white/10 text-white" : "bg-white text-slate-950",
-                      )}
-                    >
-                      <BoardKindIcon boardTitle={activeBoardTitle} className="h-5 w-5" />
-                    </span>
+                    <div className="relative shrink-0" data-board-switcher-root="true">
+                      <button
+                        aria-label="Switch board"
+                        className={clsx(
+                          "inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
+                          isDarkMode
+                            ? "bg-white/10 text-white hover:bg-white/15"
+                            : "bg-white text-slate-950 hover:bg-slate-100",
+                        )}
+                        onClick={() => {
+                          setIsBoardsMenuOpen((current) => !current);
+                          setIsActionsMenuOpen(false);
+                          setIsMobileActionsOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <BoardKindIcon boardTitle={activeBoardTitle} className="h-5 w-5" />
+                      </button>
+                      {isBoardsMenuOpen ? (
+                        <div
+                          className={clsx(
+                            "absolute left-0 top-full z-[270] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/95 text-slate-100"
+                              : "border-slate-200 bg-white/95 text-slate-700",
+                          )}
+                        >
+                          <div className={clsx("space-y-1 rounded-2xl", isDarkMode ? "bg-white/0" : "bg-transparent")}>
+                            {boards.map((board) => (
+                              <button
+                                key={board.id}
+                                className={clsx(
+                                  "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-50",
+                                  board.id === activeBoardId && (isDarkMode ? "text-white" : "text-slate-950"),
+                                )}
+                                onClick={() => switchBoard(board.id)}
+                                type="button"
+                              >
+                                <span className="inline-flex min-w-0 items-center gap-2">
+                                  <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
+                                  <span className="truncate">{board.title}</span>
+                                </span>
+                                {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
+                              </button>
+                            ))}
+                            <button
+                              className={clsx(
+                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-50",
+                              )}
+                              onClick={() => {
+                                openCreateBoardModal();
+                                setIsBoardsMenuOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <Plus className="h-4 w-4" />
+                              New Board
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                     <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
                       {activeBoardTitle}
                     </h1>
@@ -4378,7 +4361,10 @@ export function RankboardApp() {
                             ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                         )}
-                        onClick={() => setIsActionsMenuOpen((current) => !current)}
+                        onClick={() => {
+                          setIsBoardsMenuOpen(false);
+                          setIsActionsMenuOpen((current) => !current);
+                        }}
                         type="button"
                       >
                         <Settings2 className="h-4 w-4" />
@@ -4395,62 +4381,12 @@ export function RankboardApp() {
                         >
                           <div className="rounded-2xl">
                             <MenuSectionButton
-                              icon={<LayoutGrid className="h-4 w-4" />}
-                              label="Boards"
-                              isDarkMode={isDarkMode}
-                              isOpen={isBoardsMenuOpen}
-                              onClick={() => {
-                                setIsBoardsMenuOpen((current) => !current);
-                                setIsCustomizationMenuOpen(false);
-                                setIsMaintenanceMenuOpen(false);
-                                setIsTransferMenuOpen(false);
-                              }}
-                            />
-                            {isBoardsMenuOpen ? (
-                              <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                {boards.map((board) => (
-                                  <button
-                                    key={board.id}
-                                    className={clsx(
-                                      "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-                                      isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                      board.id === activeBoardId && (isDarkMode ? "text-white" : "text-slate-950"),
-                                    )}
-                                    onClick={() => switchBoard(board.id)}
-                                    type="button"
-                                  >
-                                    <span className="inline-flex min-w-0 items-center gap-2">
-                                      <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
-                                      <span className="truncate">{board.title}</span>
-                                    </span>
-                                    {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
-                                  </button>
-                                ))}
-                                <button
-                                  className={clsx(
-                                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                  )}
-                                  onClick={() => {
-                                    openCreateBoardModal();
-                                  }}
-                                  type="button"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  New Board
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="rounded-2xl">
-                            <MenuSectionButton
                               icon={<Sparkles className="h-4 w-4" />}
                               label="Customization"
                               isDarkMode={isDarkMode}
                               isOpen={isCustomizationMenuOpen}
                               onClick={() => {
                                 setIsCustomizationMenuOpen((current) => !current);
-                                setIsBoardsMenuOpen(false);
                                 setIsMaintenanceMenuOpen(false);
                                 setIsTransferMenuOpen(false);
                               }}
@@ -4599,7 +4535,10 @@ export function RankboardApp() {
                         "inline-flex h-11 w-11 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.18)]",
                         isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
                       )}
-                      onClick={() => setIsMobileActionsOpen(true)}
+                      onClick={() => {
+                        setIsBoardsMenuOpen(false);
+                        setIsMobileActionsOpen(true);
+                      }}
                       type="button"
                     >
                       <Plus className="h-5 w-5" />
@@ -5585,7 +5524,7 @@ export function RankboardApp() {
           >
             <div
               className={clsx(
-                "w-full max-w-5xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -5597,12 +5536,9 @@ export function RankboardApp() {
                   <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                     Pairwise Quiz
                   </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("mt-2 text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
                     Which ranks higher?
                   </h2>
-                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Choose the stronger pick for <strong>{pairwiseQuizState.columnTitle}</strong>. The quiz is building a full ranking from simple head-to-head choices.
-                  </p>
                 </div>
                 <button
                   className={clsx(
@@ -5618,13 +5554,13 @@ export function RankboardApp() {
                 </button>
               </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid flex-1 gap-3 overflow-y-auto pr-1 md:mt-6 md:grid-cols-2 md:gap-4">
                 {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
                   card ? (
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "overflow-hidden rounded-[28px] border text-left shadow-[0_20px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5",
+                        "overflow-hidden rounded-[24px] border text-left shadow-[0_20px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/70"
                           : "border-slate-200 bg-slate-50",
@@ -5633,14 +5569,14 @@ export function RankboardApp() {
                       type="button"
                     >
                       <div
-                        className="aspect-video bg-cover bg-center"
+                        className="aspect-video max-h-[160px] bg-cover bg-center sm:max-h-[220px]"
                         style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
                       />
-                      <div className="p-5">
+                      <div className="p-4 sm:p-5">
                         <p className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                           {index === 0 ? "Option A" : "Option B"}
                         </p>
-                        <h3 className={clsx("mt-2 text-2xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                        <h3 className={clsx("mt-2 text-xl font-black leading-tight sm:text-2xl", isDarkMode ? "text-white" : "text-slate-950")}>
                           {card.title}
                         </h3>
                         {card.series ? (
@@ -5648,17 +5584,13 @@ export function RankboardApp() {
                             {card.series}
                           </p>
                         ) : null}
-                        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
-                          <ArrowLeftRight className="h-4 w-4" />
-                          Choose this
-                        </div>
                       </div>
                     </button>
                   ) : null,
                 )}
               </div>
 
-              <div className="mt-6 flex items-center justify-between gap-3 text-sm">
+              <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm sm:mt-6 sm:pt-6">
                 <span className={clsx(isDarkMode ? "text-slate-300" : "text-slate-600")}>
                   {`Compared ${pairwiseQuizState.comparisons} ${pairwiseQuizState.comparisons === 1 ? "time" : "times"}`}
                 </span>
