@@ -24,9 +24,14 @@ export type BoardSnapshot = {
   cardsByColumn: Record<string, CardEntry[]>;
 };
 
+export type BoardSettings = {
+  showSeriesOnCards: boolean;
+};
+
 export type SavedBoard = BoardSnapshot & {
   id: string;
   title: string;
+  settings: BoardSettings;
   createdAt: string;
   updatedAt: string;
 };

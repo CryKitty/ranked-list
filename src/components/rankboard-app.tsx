@@ -21,31 +21,38 @@ import clsx from "clsx";
 import { User } from "@supabase/supabase-js";
 import {
   ArrowUpDown,
+  Clapperboard,
   Edit3,
+  Gamepad2,
+  Heart,
   ImagePlus,
+  LayoutGrid,
   LogOut,
   MoreHorizontal,
   Moon,
+  Pencil,
   Plus,
   RotateCcw,
   Save,
   Settings2,
+  Sparkles,
   Sun,
   Trash2,
+  Tv,
   Upload,
   WandSparkles,
   X,
 } from "lucide-react";
-import { demoCardsByColumn, demoColumns } from "@/lib/demo-data";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { BoardSnapshot, CardEntry, ColumnDefinition, SavedBoard } from "@/lib/types";
+import { BoardSettings, BoardSnapshot, CardEntry, ColumnDefinition, SavedBoard } from "@/lib/types";
 
 type CardDraft = {
   title: string;
   imageUrl: string;
   series: string;
   columnId: string;
+  newColumnTitle: string;
 };
 
 type AddCardTarget = {
@@ -80,17 +87,43 @@ const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
   series: "",
-  columnId: "new-column",
+  columnId: "",
+  newColumnTitle: "",
 };
+
+const NEW_COLUMN_OPTION = "__new_column__";
+const DEFAULT_BOARD_SETTINGS: BoardSettings = {
+  showSeriesOnCards: false,
+};
+
+function createStarterBoardSnapshot(): BoardSnapshot {
+  const starterColumnId = makeId("column");
+  const starterColumn: ColumnDefinition = {
+    id: starterColumnId,
+    title: "New Column",
+    description: "",
+    type: "ranked",
+    accent: COLUMN_ACCENTS[0] ?? "from-amber-300 via-orange-400 to-rose-500",
+  };
+
+  return {
+    columns: [starterColumn],
+    cardsByColumn: {
+      [starterColumnId]: [],
+    },
+  };
+}
 
 function createEmptyBoard(title = "New Board"): SavedBoard {
   const timestamp = new Date().toISOString();
+  const starterSnapshot = createStarterBoardSnapshot();
 
   return {
     id: makeId("board"),
     title,
-    columns: demoColumns,
-    cardsByColumn: demoCardsByColumn,
+    settings: { ...DEFAULT_BOARD_SETTINGS },
+    columns: starterSnapshot.columns,
+    cardsByColumn: starterSnapshot.cardsByColumn,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -407,19 +440,76 @@ function isStarterBoard(
   boardColumns: ColumnDefinition[],
   boardCardsByColumn: Record<string, CardEntry[]>,
 ) {
-  if (boardColumns.length !== demoColumns.length) {
+  if (boardColumns.length !== 1) {
     return false;
   }
 
-  if (boardColumns[0]?.id !== demoColumns[0]?.id) {
+  if (boardColumns[0]?.title !== "New Column") {
     return false;
   }
 
-  if (boardColumns[0]?.title !== demoColumns[0]?.title) {
+  if ((boardCardsByColumn[boardColumns[0]?.id ?? ""] ?? []).length !== 0) {
     return false;
   }
 
   return Object.values(boardCardsByColumn).every((cards) => cards.length === 0);
+}
+
+function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> & { settings?: Partial<BoardSettings> })) {
+  return {
+    ...board,
+    settings: {
+      ...DEFAULT_BOARD_SETTINGS,
+      ...board.settings,
+    },
+  } satisfies SavedBoard;
+}
+
+function getBoardKind(boardTitle: string) {
+  const normalizedTitle = boardTitle.toLowerCase();
+
+  if (
+    normalizedTitle.includes("waifu") ||
+    normalizedTitle.includes("husbando") ||
+    normalizedTitle.includes("character")
+  ) {
+    return "character";
+  }
+
+  if (normalizedTitle.includes("movie") || normalizedTitle.includes("film")) {
+    return "movie";
+  }
+
+  if (normalizedTitle.includes("show") || normalizedTitle.includes("tv")) {
+    return "show";
+  }
+
+  if (normalizedTitle.includes("anime")) {
+    return "anime";
+  }
+
+  return "game";
+}
+
+function BoardKindIcon({
+  boardTitle,
+  className,
+}: {
+  boardTitle: string;
+  className?: string;
+}) {
+  switch (getBoardKind(boardTitle)) {
+    case "character":
+      return <Heart className={className} />;
+    case "movie":
+      return <Clapperboard className={className} />;
+    case "show":
+      return <Tv className={className} />;
+    case "anime":
+      return <Sparkles className={className} />;
+    default:
+      return <Gamepad2 className={className} />;
+  }
 }
 
 function normalizeTitleForComparison(title: string) {
@@ -508,6 +598,8 @@ export function RankboardApp() {
   const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
+  const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
+  const [boardTitleDraft, setBoardTitleDraft] = useState("");
   const [history, setHistory] = useState<BoardSnapshot[]>([]);
   const [draftDuplicateAction, setDraftDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
@@ -519,6 +611,8 @@ export function RankboardApp() {
   const skipNextHistoryRef = useRef(true);
   const latestColumnsRef = useRef(columns);
   const latestCardsByColumnRef = useRef(cardsByColumn);
+  const latestBoardsRef = useRef(boards);
+  const latestActiveBoardIdRef = useRef(activeBoardId);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
@@ -543,8 +637,11 @@ export function RankboardApp() {
         .filter(Boolean),
     ),
   ).sort((a, b) => a.localeCompare(b));
+  const activeBoard =
+    boards.find((board) => board.id === activeBoardId) ?? normalizeSavedBoard(defaultBoard);
   const activeBoardTitle =
-    boards.find((board) => board.id === activeBoardId)?.title ?? "Rankboard";
+    activeBoard.title ?? "Rankboard";
+  const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
 
   function findDuplicateCard(title: string, excludeItemId?: string) {
@@ -594,7 +691,7 @@ export function RankboardApp() {
           };
 
       if ("boards" in parsedState && Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
-        const nextBoards = parsedState.boards;
+        const nextBoards = parsedState.boards.map((board) => normalizeSavedBoard(board));
         const nextActiveBoardId =
           parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
             ? parsedState.activeBoardId
@@ -610,10 +707,11 @@ export function RankboardApp() {
       } else {
         const legacyColumns = "columns" in parsedState ? parsedState.columns : undefined;
         const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
+        const starterSnapshot = createStarterBoardSnapshot();
         const migratedBoard: SavedBoard = {
           ...createEmptyBoard("Rankboard"),
-          columns: legacyColumns ?? demoColumns,
-          cardsByColumn: legacyCards ?? demoCardsByColumn,
+          columns: legacyColumns ?? starterSnapshot.columns,
+          cardsByColumn: legacyCards ?? starterSnapshot.cardsByColumn,
         };
 
         skipNextHistoryRef.current = true;
@@ -710,6 +808,11 @@ export function RankboardApp() {
   }, [cardsByColumn, columns]);
 
   useEffect(() => {
+    latestBoardsRef.current = boards;
+    latestActiveBoardIdRef.current = activeBoardId;
+  }, [activeBoardId, boards]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
@@ -777,7 +880,8 @@ export function RankboardApp() {
 
       const localColumns = latestColumnsRef.current;
       const localCardsByColumn = latestCardsByColumnRef.current;
-      const localBoards = boards;
+      const localBoards = latestBoardsRef.current;
+      const localActiveBoardId = latestActiveBoardIdRef.current;
       const localBoardHasContent = !isStarterBoard(localColumns, localCardsByColumn);
       const columnsPayload =
         (data?.columns as
@@ -807,16 +911,17 @@ export function RankboardApp() {
           setHasLoadedRemoteState(true);
           return;
         }
+        const normalizedRemoteBoards = remoteBoards.map((board) => normalizeSavedBoard(board));
         const remoteActiveBoardId =
           remoteBoardsPayload.activeBoardId &&
-          remoteBoards.some((board) => board.id === remoteBoardsPayload.activeBoardId)
+          normalizedRemoteBoards.some((board) => board.id === remoteBoardsPayload.activeBoardId)
             ? remoteBoardsPayload.activeBoardId
-            : remoteBoards[0].id;
+            : normalizedRemoteBoards[0].id;
         const nextActiveBoard =
-          remoteBoards.find((board) => board.id === remoteActiveBoardId) ??
-          remoteBoards[0];
+          normalizedRemoteBoards.find((board) => board.id === remoteActiveBoardId) ??
+          normalizedRemoteBoards[0];
         skipNextHistoryRef.current = true;
-        setBoards(remoteBoards);
+        setBoards(normalizedRemoteBoards);
         setActiveBoardId(remoteActiveBoardId);
         setColumns(nextActiveBoard.columns);
         skipNextHistoryRef.current = true;
@@ -827,7 +932,7 @@ export function RankboardApp() {
             owner_id: user.id,
             columns: {
               version: 2,
-              activeBoardId,
+              activeBoardId: localActiveBoardId,
               boards: localBoards,
             },
             cards_by_column: localCardsByColumn,
@@ -851,7 +956,7 @@ export function RankboardApp() {
           owner_id: user.id,
           columns: {
             version: 2,
-            activeBoardId,
+            activeBoardId: localActiveBoardId,
             boards: localBoards,
           },
           cards_by_column: localCardsByColumn,
@@ -869,8 +974,6 @@ export function RankboardApp() {
     };
   }, [
     authEnabled,
-    activeBoardId,
-    boards,
     currentUser,
     hasLoadedPersistedState,
     supabase,
@@ -1159,7 +1262,7 @@ export function RankboardApp() {
       return;
     }
 
-    const title = draft.title.trim() || "Untitled Game";
+    const title = draft.title.trim() || `Untitled ${boardVocabulary.singular}`;
     const series = draft.series.trim();
     const imageUrl = draft.imageUrl.trim();
     const duplicate = findDuplicateCard(title);
@@ -1182,6 +1285,25 @@ export function RankboardApp() {
       return;
     }
 
+    let nextColumns = columns;
+    let destinationColumnId = draft.columnId || addCardTarget.columnId;
+    let destinationInsertIndex = addCardTarget.insertIndex;
+    let nextCardsByColumn = cardsByColumn;
+
+    if (draft.columnId === NEW_COLUMN_OPTION) {
+      const newColumn = createColumnDefinition(columns.length + 1, draft.newColumnTitle);
+      nextColumns = [...columns, newColumn];
+      destinationColumnId = newColumn.id;
+      destinationInsertIndex = 0;
+      nextCardsByColumn = {
+        ...cardsByColumn,
+        [newColumn.id]: [],
+      };
+      setColumns(nextColumns);
+    } else if (destinationColumnId !== addCardTarget.columnId) {
+      destinationInsertIndex = (nextCardsByColumn[destinationColumnId] ?? []).length;
+    }
+
     const itemId = slugify(title) || makeId("item");
     const newCard: CardEntry = {
       entryId: makeId("entry"),
@@ -1191,15 +1313,15 @@ export function RankboardApp() {
       series,
     };
 
-    const column = columns.find((item) => item.id === addCardTarget.columnId);
-    const destinationCards = cardsByColumn[addCardTarget.columnId] ?? [];
+    const column = nextColumns.find((item) => item.id === destinationColumnId);
+    const destinationCards = nextCardsByColumn[destinationColumnId] ?? [];
     const nextDestinationCards = [...destinationCards];
 
-    nextDestinationCards.splice(addCardTarget.insertIndex, 0, newCard);
+    nextDestinationCards.splice(destinationInsertIndex, 0, newCard);
 
     let nextState = {
-      ...cardsByColumn,
-      [addCardTarget.columnId]: nextDestinationCards,
+      ...nextCardsByColumn,
+      [destinationColumnId]: nextDestinationCards,
     };
 
     if (column?.autoMirrorToColumnId) {
@@ -1227,6 +1349,26 @@ export function RankboardApp() {
     setAddCardTarget(null);
     setDraft(initialDraft);
     setIsAutofillingDraftImage(false);
+    setDraftDuplicateAction(null);
+  }
+
+  function openQuickAddModal() {
+    const fallbackColumnId = columns[0]?.id ?? "";
+    const selectedColumnId = fallbackColumnId || NEW_COLUMN_OPTION;
+    const insertIndex = fallbackColumnId
+      ? (cardsByColumn[fallbackColumnId] ?? []).length
+      : 0;
+
+    setDraft({
+      ...initialDraft,
+      columnId: selectedColumnId,
+    });
+    setAddCardTarget({
+      columnId: fallbackColumnId,
+      insertIndex,
+    });
+    setIsMobileActionsOpen(false);
+    setIsActionsMenuOpen(false);
     setDraftDuplicateAction(null);
   }
 
@@ -1401,13 +1543,7 @@ export function RankboardApp() {
 
   function addColumn() {
     const nextIndex = columns.length + 1;
-    const newColumn: ColumnDefinition = {
-      id: makeId("column"),
-      title: `New Column ${nextIndex}`,
-      description: "",
-      type: "ranked",
-      accent: COLUMN_ACCENTS[columns.length % COLUMN_ACCENTS.length] ?? COLUMN_ACCENTS[0],
-    };
+    const newColumn = createColumnDefinition(nextIndex);
 
     setColumns((current) => [...current, newColumn]);
     setCardsByColumn((current) => ({
@@ -1586,6 +1722,54 @@ export function RankboardApp() {
     setIsMobileActionsOpen(false);
   }
 
+  function updateActiveBoardSettings(nextSettings: Partial<BoardSettings>) {
+    setBoards((current) =>
+      current.map((board) =>
+        board.id === activeBoardId
+          ? {
+              ...board,
+              settings: {
+                ...DEFAULT_BOARD_SETTINGS,
+                ...board.settings,
+                ...nextSettings,
+              },
+              updatedAt: new Date().toISOString(),
+            }
+          : board,
+      ),
+    );
+  }
+
+  function startEditingBoardTitle() {
+    setBoardTitleDraft(activeBoardTitle);
+    setIsEditingBoardTitle(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  function cancelEditingBoardTitle() {
+    setIsEditingBoardTitle(false);
+    setBoardTitleDraft("");
+  }
+
+  function saveBoardTitle() {
+    const nextTitle = boardTitleDraft.trim();
+
+    setBoards((current) =>
+      current.map((board) =>
+        board.id === activeBoardId
+          ? {
+              ...board,
+              title: nextTitle || board.title,
+              updatedAt: new Date().toISOString(),
+            }
+          : board,
+      ),
+    );
+
+    cancelEditingBoardTitle();
+  }
+
   function createBoardFromModal() {
     const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
     const nextBoard = createEmptyBoard(title);
@@ -1601,6 +1785,16 @@ export function RankboardApp() {
     setIsBoardsMenuOpen(false);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+  }
+
+  function createColumnDefinition(nextIndex: number, title?: string): ColumnDefinition {
+    return {
+      id: makeId("column"),
+      title: title?.trim() || `New Column ${nextIndex}`,
+      description: "",
+      type: "ranked",
+      accent: COLUMN_ACCENTS[(nextIndex - 1) % COLUMN_ACCENTS.length] ?? COLUMN_ACCENTS[0],
+    };
   }
 
   async function handleImportTrelloBoard(
@@ -1767,6 +1961,20 @@ export function RankboardApp() {
                         <Upload className="h-4 w-4" />
                         Import from Trello
                       </button>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
+                        onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })}
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          Show series on cards
+                        </span>
+                        <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
+                      </button>
                       <div className="rounded-2xl">
                         <button
                           className={clsx(
@@ -1776,7 +1984,10 @@ export function RankboardApp() {
                           onClick={() => setIsBoardsMenuOpen((current) => !current)}
                           type="button"
                         >
-                          <span>Boards</span>
+                          <span className="inline-flex items-center gap-2">
+                            <LayoutGrid className="h-4 w-4" />
+                            Boards
+                          </span>
                           <span className="text-xs opacity-70">{isBoardsMenuOpen ? "▾" : "▸"}</span>
                         </button>
                         {isBoardsMenuOpen ? (
@@ -1790,7 +2001,7 @@ export function RankboardApp() {
                               <button
                                 key={board.id}
                                 className={clsx(
-                                  "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                  "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
                                   isDarkMode
                                     ? "hover:bg-white/10"
                                     : "hover:bg-white",
@@ -1800,7 +2011,10 @@ export function RankboardApp() {
                                 onClick={() => switchBoard(board.id)}
                                 type="button"
                               >
-                                <span className="truncate">{board.title}</span>
+                                <span className="inline-flex min-w-0 items-center gap-2">
+                                  <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
+                                  <span className="truncate">{board.title}</span>
+                                </span>
                                 {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
                               </button>
                             ))}
@@ -1904,8 +2118,8 @@ export function RankboardApp() {
                     </button>
                   </div>
 
-                  <div className="grid gap-3">
-                    <input
+                    <div className="grid gap-3">
+                      <input
                       className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
@@ -1934,6 +2148,20 @@ export function RankboardApp() {
                         </option>
                       ))}
                     </select>
+
+                    <button
+                      className={clsx(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={openQuickAddModal}
+                      type="button"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {`Add ${boardVocabulary.singular}`}
+                    </button>
 
                     <div className="grid grid-cols-2 gap-3">
                       <button
@@ -2005,6 +2233,20 @@ export function RankboardApp() {
                               <Upload className="h-4 w-4" />
                               Import from Trello
                             </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                              )}
+                              onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })}
+                              type="button"
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <Sparkles className="h-4 w-4" />
+                                Show series on cards
+                              </span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
+                            </button>
                             <div className="rounded-2xl">
                               <button
                                 className={clsx(
@@ -2014,7 +2256,10 @@ export function RankboardApp() {
                                 onClick={() => setIsBoardsMenuOpen((current) => !current)}
                                 type="button"
                               >
-                                <span>Boards</span>
+                                <span className="inline-flex items-center gap-2">
+                                  <LayoutGrid className="h-4 w-4" />
+                                  Boards
+                                </span>
                                 <span className="text-xs opacity-70">{isBoardsMenuOpen ? "▾" : "▸"}</span>
                               </button>
                               {isBoardsMenuOpen ? (
@@ -2028,13 +2273,16 @@ export function RankboardApp() {
                                     <button
                                       key={board.id}
                                       className={clsx(
-                                        "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
                                         isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                                       )}
                                       onClick={() => switchBoard(board.id)}
                                       type="button"
                                     >
-                                      <span className="truncate">{board.title}</span>
+                                      <span className="inline-flex min-w-0 items-center gap-2">
+                                        <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
+                                        <span className="truncate">{board.title}</span>
+                                      </span>
                                       {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
                                     </button>
                                   ))}
@@ -2103,6 +2351,75 @@ export function RankboardApp() {
                 : "border-white/70 bg-white/60",
             )}
           >
+            <div className="mb-4">
+              {isEditingBoardTitle ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    className={clsx(
+                      "min-w-[260px] flex-1 rounded-2xl border px-4 py-3 text-2xl font-black outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950/70 text-white focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                    )}
+                    value={boardTitleDraft}
+                    onChange={(event) => setBoardTitleDraft(event.target.value)}
+                  />
+                  <button
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                      isDarkMode
+                        ? "bg-white text-slate-950 hover:bg-slate-200"
+                        : "bg-slate-950 text-white hover:bg-slate-800",
+                    )}
+                    onClick={saveBoardTitle}
+                    type="button"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save
+                  </button>
+                  <button
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    onClick={cancelEditingBoardTitle}
+                    type="button"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="group flex items-center gap-3">
+                  <span
+                    className={clsx(
+                      "inline-flex h-11 w-11 items-center justify-center rounded-2xl",
+                      isDarkMode ? "bg-white/10 text-white" : "bg-white text-slate-950",
+                    )}
+                  >
+                    <BoardKindIcon boardTitle={activeBoardTitle} className="h-5 w-5" />
+                  </span>
+                  <h1 className={clsx("text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
+                    {activeBoardTitle}
+                  </h1>
+                  <button
+                    className={clsx(
+                      "rounded-full p-2 transition opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
+                      isDarkMode
+                        ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                        : "bg-white text-slate-700 hover:bg-slate-100",
+                    )}
+                    onClick={startEditingBoardTitle}
+                    type="button"
+                    aria-label={`Rename ${activeBoardTitle}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCorners}
@@ -2121,6 +2438,7 @@ export function RankboardApp() {
                       key={column.id}
                       column={column}
                       addLabel={boardVocabulary.singular}
+                      showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
                       isDarkMode={isDarkMode}
                       cards={visibleCards}
                       filtering={filtering}
@@ -2394,8 +2712,7 @@ export function RankboardApp() {
                     {`Add ${boardVocabulary.singular}`}
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    This will be inserted into{" "}
-                    {columns.find((column) => column.id === addCardTarget.columnId)?.title}.
+                    Choose where this {boardVocabulary.singular.toLowerCase()} should go.
                   </p>
                 </div>
                 <button
@@ -2497,6 +2814,71 @@ export function RankboardApp() {
                     <WandSparkles className="h-4 w-4" />
                     {isAutofillingDraftImage ? "Finding..." : "Auto-Find"}
                   </button>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                      Column
+                    </span>
+                    <select
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                      )}
+                      value={draft.columnId || addCardTarget.columnId}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          columnId: event.target.value,
+                        }))
+                      }
+                    >
+                      {columns.map((column) => (
+                        <option key={column.id} value={column.id}>
+                          {column.title}
+                        </option>
+                      ))}
+                      <option value={NEW_COLUMN_OPTION}>Create new column</option>
+                    </select>
+                  </label>
+
+                  {draft.columnId === NEW_COLUMN_OPTION ? (
+                    <label className="grid gap-2">
+                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                        New column title
+                      </span>
+                      <input
+                        className={clsx(
+                          "rounded-2xl border px-4 py-3 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        )}
+                        placeholder="Favorites, 2026, Horror..."
+                        value={draft.newColumnTitle}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            newColumnTitle: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <div
+                      className={clsx(
+                        "flex items-end rounded-2xl border px-4 py-3 text-sm",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/50 text-slate-300"
+                          : "border-slate-200 bg-slate-50 text-slate-600",
+                      )}
+                    >
+                      {`This will be added to ${columns.find((column) => column.id === (draft.columnId || addCardTarget.columnId))?.title ?? "the selected column"}.`}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3">
@@ -2767,6 +3149,7 @@ function AddColumnButton({
 function BoardColumn({
   column,
   addLabel,
+  showSeriesOnCards,
   cards,
   filtering,
   isEditingColumn,
@@ -2791,6 +3174,7 @@ function BoardColumn({
 }: {
   column: ColumnDefinition;
   addLabel: string;
+  showSeriesOnCards: boolean;
   cards: CardEntry[];
   filtering: boolean;
   isEditingColumn: boolean;
@@ -3039,6 +3423,7 @@ function BoardColumn({
             <CardTile
               key={card.entryId}
               card={card}
+              showSeries={showSeriesOnCards}
               rank={isRankedColumn(column) ? index + 1 : null}
               onDelete={() => onDeleteCard(column.id, card.entryId)}
               onEdit={() => onEditCard(card)}
@@ -3061,6 +3446,7 @@ function BoardColumn({
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
                     card={card}
+                    showSeries={showSeriesOnCards}
                     rank={isRankedColumn(column) ? index + 1 : null}
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
@@ -3163,11 +3549,13 @@ function AddCardRow({
 
 function SortableCard({
   card,
+  showSeries,
   rank,
   onDelete,
   onEdit,
 }: {
   card: CardEntry;
+  showSeries: boolean;
   rank: number | null;
   onDelete: () => void;
   onEdit: () => void;
@@ -3187,6 +3575,7 @@ function SortableCard({
     >
       <CardTile
         card={card}
+        showSeries={showSeries}
         rank={rank}
         isDragging={isDragging}
         dragProps={{ ...attributes, ...listeners }}
@@ -3199,6 +3588,7 @@ function SortableCard({
 
 function CardTile({
   card,
+  showSeries,
   rank,
   dragProps,
   isDragging = false,
@@ -3206,6 +3596,7 @@ function CardTile({
   onEdit,
 }: {
   card: CardEntry;
+  showSeries: boolean;
   rank: number | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
   isDragging?: boolean;
@@ -3239,6 +3630,11 @@ function CardTile({
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4">
+          {showSeries && card.series ? (
+            <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+              {card.series}
+            </p>
+          ) : null}
           <h3 className="truncate text-xl font-bold text-white">{card.title}</h3>
           {card.notes ? (
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
