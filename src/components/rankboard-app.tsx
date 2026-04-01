@@ -150,6 +150,15 @@ type PairwiseQuizState = {
   high: number;
   compareIndex: number;
   comparisons: number;
+  history: Array<{
+    sortedCards: CardEntry[];
+    remainingCards: CardEntry[];
+    candidateCard: CardEntry | null;
+    low: number;
+    high: number;
+    compareIndex: number;
+    comparisons: number;
+  }>;
 };
 
 type PairwiseQuizReview = {
@@ -2837,6 +2846,7 @@ export function RankboardApp() {
       high: sortedCards.length,
       compareIndex: Math.floor(sortedCards.length / 2),
       comparisons,
+      history: [],
     } satisfies PairwiseQuizState;
   }
 
@@ -2881,6 +2891,18 @@ export function RankboardApp() {
       const nextLow = choice === "candidate" ? current.low : current.compareIndex + 1;
       const nextHigh = choice === "candidate" ? current.compareIndex : current.high;
       const nextComparisons = current.comparisons + 1;
+      const nextHistory = [
+        ...current.history,
+        {
+          sortedCards: [...current.sortedCards],
+          remainingCards: [...current.remainingCards],
+          candidateCard: current.candidateCard,
+          low: current.low,
+          high: current.high,
+          compareIndex: current.compareIndex,
+          comparisons: current.comparisons,
+        },
+      ];
 
       if (nextLow >= nextHigh) {
         const nextSortedCards = [...current.sortedCards];
@@ -2903,7 +2925,10 @@ export function RankboardApp() {
           return null;
         }
 
-        return nextQuizState;
+        return {
+          ...nextQuizState,
+          history: nextHistory,
+        };
       }
 
       return {
@@ -2912,6 +2937,27 @@ export function RankboardApp() {
         high: nextHigh,
         compareIndex: Math.floor((nextLow + nextHigh) / 2),
         comparisons: nextComparisons,
+        history: nextHistory,
+      };
+    });
+  }
+
+  function undoPairwiseChoice() {
+    setPairwiseQuizState((current) => {
+      if (!current || current.history.length === 0) {
+        return current;
+      }
+
+      const previousStep = current.history[current.history.length - 1];
+
+      if (!previousStep) {
+        return current;
+      }
+
+      return {
+        ...current,
+        ...previousStep,
+        history: current.history.slice(0, -1),
       };
     });
   }
@@ -2950,6 +2996,59 @@ export function RankboardApp() {
     }));
     setPairwiseQuizReview(null);
     setPairwiseQuizState(null);
+  }
+
+  function exportActiveBoardAsJson() {
+    const trelloLikeExport = {
+      name: activeBoardTitle,
+      lists: columns.map((column, index) => ({
+        id: column.id,
+        name: column.title,
+        pos: (index + 1) * 65536,
+        closed: false,
+      })),
+      cards: columns.flatMap((column, columnIndex) =>
+        (cardsByColumn[column.id] ?? []).map((card, cardIndex) => ({
+          id: card.entryId,
+          idList: column.id,
+          name: card.title,
+          desc: card.notes ?? "",
+          pos: (cardIndex + 1) * 65536,
+          closed: false,
+          attachments: card.imageUrl
+            ? [
+                {
+                  id: `${card.entryId}-image`,
+                  url: card.imageUrl,
+                  mimeType: "image/jpeg",
+                  previews: [{ url: card.imageUrl }],
+                },
+              ]
+            : [],
+          rankboardMeta: {
+            itemId: card.itemId,
+            series: card.series,
+            releaseYear: card.releaseYear ?? "",
+            mirroredFromEntryId: card.mirroredFromEntryId ?? "",
+            columnIndex,
+          },
+        })),
+      ),
+    };
+
+    const blob = new Blob([JSON.stringify(trelloLikeExport, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${slugify(activeBoardTitle) || "rankboard-board"}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
   }
 
   function handleUndo() {
@@ -3732,6 +3831,17 @@ export function RankboardApp() {
                           "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
                           isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
                         )}
+                        onClick={exportActiveBoardAsJson}
+                        type="button"
+                      >
+                        <Save className="h-4 w-4" />
+                        Export JSON
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
                         onClick={() => {
                           void toggleThemePreference();
                           setIsActionsMenuOpen(false);
@@ -4028,6 +4138,14 @@ export function RankboardApp() {
                             >
                               <Upload className="h-4 w-4" />
                               Import
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={exportActiveBoardAsJson}
+                              type="button"
+                            >
+                              <Save className="h-4 w-4" />
+                              Export JSON
                             </button>
                             <button
                               className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
@@ -4356,6 +4474,17 @@ export function RankboardApp() {
                           >
                             <Upload className="h-4 w-4" />
                             Import
+                          </button>
+                          <button
+                            className={clsx(
+                              "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                              isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                            )}
+                            onClick={exportActiveBoardAsJson}
+                            type="button"
+                          >
+                            <Save className="h-4 w-4" />
+                            Export JSON
                           </button>
                           <button
                             className={clsx(
@@ -5474,18 +5603,33 @@ export function RankboardApp() {
                 <span className={clsx(isDarkMode ? "text-slate-300" : "text-slate-600")}>
                   {`Compared ${pairwiseQuizState.comparisons} ${pairwiseQuizState.comparisons === 1 ? "time" : "times"}`}
                 </span>
-                <button
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() => setPairwiseQuizState(null)}
-                  type="button"
-                >
-                  Cancel
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
+                    )}
+                    disabled={pairwiseQuizState.history.length === 0}
+                    onClick={undoPairwiseChoice}
+                    type="button"
+                  >
+                    Back
+                  </button>
+                  <button
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    onClick={() => setPairwiseQuizState(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
