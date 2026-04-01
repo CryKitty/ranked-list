@@ -19,6 +19,7 @@ export type ColumnDefinition = {
   accent: string;
   autoMirrorToColumnId?: string;
   mirrorsEntireBoard?: boolean;
+  excludedMirrorItemIds?: string[];
 };
 
 export type BoardSnapshot = {

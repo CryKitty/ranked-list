@@ -703,6 +703,10 @@ function isStarterBoard(
 function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> & { settings?: Partial<BoardSettings> })) {
   return {
     ...board,
+    columns: board.columns.map((column) => ({
+      ...column,
+      excludedMirrorItemIds: column.excludedMirrorItemIds ?? [],
+    })),
     settings: {
       ...getDefaultBoardSettings(board.title),
       ...board.settings,
@@ -1946,6 +1950,7 @@ export function RankboardApp() {
       const sourceByNormalizedTitle = new Map(
         sourceCardsInOrder.map((card) => [normalizeTitleForComparison(card.title), card]),
       );
+      const excludedMirrorItemIds = new Set(mirrorColumn.excludedMirrorItemIds ?? []);
       const syncedCards: CardEntry[] = [];
 
       for (const existingMirror of existingMirrorCards) {
@@ -1956,6 +1961,12 @@ export function RankboardApp() {
           sourceByNormalizedTitle.get(normalizeTitleForComparison(existingMirror.title));
 
         if (matchedSource) {
+          if (excludedMirrorItemIds.has(matchedSource.itemId)) {
+            sourceById.delete(matchedSource.entryId);
+            sourceByNormalizedTitle.delete(normalizeTitleForComparison(matchedSource.title));
+            continue;
+          }
+
           syncedCards.push({
             ...matchedSource,
             entryId: existingMirror.entryId,
@@ -1975,6 +1986,7 @@ export function RankboardApp() {
         const normalizedTitle = normalizeTitleForComparison(sourceCard.title);
 
         if (
+          excludedMirrorItemIds.has(sourceCard.itemId) ||
           !sourceById.has(sourceCard.entryId) ||
           existingMirrorCards.some(
             (card) => normalizeTitleForComparison(card.title) === normalizedTitle,
@@ -2221,6 +2233,63 @@ export function RankboardApp() {
     const card = cardsByColumn[columnId]?.find((item) => item.entryId === entryId);
 
     if (!card) {
+      return;
+    }
+
+    if (column?.mirrorsEntireBoard && card.mirroredFromEntryId) {
+      const deleteEverywhere = window.confirm(
+        `Delete every linked copy of "${card.title}"?\n\nPress OK to delete it everywhere, or Cancel to choose whether to remove only this mirror copy.`,
+      );
+
+      if (!deleteEverywhere) {
+        const deleteMirrorOnly = window.confirm(
+          `Remove only this mirrored copy from "${column.title}"?\n\nOK removes just this clone. Cancel keeps both copies.`,
+        );
+
+        if (!deleteMirrorOnly) {
+          return;
+        }
+
+        setColumns((current) =>
+          current.map((item) =>
+            item.id === columnId
+              ? {
+                  ...item,
+                  excludedMirrorItemIds: Array.from(
+                    new Set([...(item.excludedMirrorItemIds ?? []), card.itemId]),
+                  ),
+                }
+              : item,
+          ),
+        );
+        setCardsByColumn((current) => ({
+          ...current,
+          [columnId]: (current[columnId] ?? []).filter((item) => item.entryId !== entryId),
+        }));
+        setEditingCardId((current) => (current === entryId ? null : current));
+        return;
+      }
+    }
+
+    if (card.mirroredFromEntryId || column?.mirrorsEntireBoard) {
+      setCardsByColumn((current) => {
+        const nextState: Record<string, CardEntry[]> = {};
+
+        for (const [currentColumnId, cards] of Object.entries(current)) {
+          nextState[currentColumnId] = cards.filter((item) => item.itemId !== card.itemId);
+        }
+
+        return nextState;
+      });
+      setColumns((current) =>
+        current.map((item) => ({
+          ...item,
+          excludedMirrorItemIds: (item.excludedMirrorItemIds ?? []).filter(
+            (excludedItemId) => excludedItemId !== card.itemId,
+          ),
+        })),
+      );
+      setEditingCardId((current) => (current === entryId ? null : current));
       return;
     }
 
