@@ -101,6 +101,15 @@ type TitleTidySuggestion = {
   proposedTitle: string;
 };
 
+type SeriesScrapeSuggestion = {
+  id: string;
+  columnId: string;
+  columnTitle: string;
+  entryId: string;
+  title: string;
+  proposedSeries: string;
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -112,6 +121,7 @@ const initialDraft: CardDraft = {
 const NEW_COLUMN_OPTION = "__new_column__";
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   showSeriesOnCards: false,
+  collapseCards: false,
 };
 
 function createStarterBoardSnapshot(): BoardSnapshot {
@@ -530,6 +540,37 @@ function BoardKindIcon({
   }
 }
 
+function MenuSectionButton({
+  icon,
+  label,
+  isOpen,
+  isDarkMode,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  isOpen: boolean;
+  isDarkMode: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={clsx(
+        "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="inline-flex items-center gap-2">
+        {icon}
+        {label}
+      </span>
+      <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
+    </button>
+  );
+}
+
 function normalizeTitleForComparison(title: string) {
   return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
 }
@@ -577,6 +618,31 @@ function getSuggestedTitleCleanup(title: string) {
   }
 
   return cleaned;
+}
+
+function getSuggestedSeriesFromTitle(title: string) {
+  const trimmed = title.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const beforeColon = trimmed.split(":")[0]?.trim();
+  if (beforeColon && beforeColon.length > 1 && beforeColon !== trimmed) {
+    return beforeColon;
+  }
+
+  const numberMatch = trimmed.match(/^(.*?)(?:\s+[ivx]+|\s+\d+)\b/i);
+  if (numberMatch?.[1]) {
+    return numberMatch[1].trim();
+  }
+
+  const subtitleBreak = trimmed.match(/^(.*?)\s+-\s+/);
+  if (subtitleBreak?.[1]) {
+    return subtitleBreak[1].trim();
+  }
+
+  return null;
 }
 
 function getBoardVocabulary(boardTitle: string) {
@@ -659,6 +725,8 @@ export function RankboardApp() {
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
+  const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
+  const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
@@ -672,8 +740,11 @@ export function RankboardApp() {
   const [isDuplicateCleanupModalOpen, setIsDuplicateCleanupModalOpen] = useState(false);
   const [titleTidySuggestions, setTitleTidySuggestions] = useState<TitleTidySuggestion[]>([]);
   const [isTitleTidyModalOpen, setIsTitleTidyModalOpen] = useState(false);
+  const [seriesScrapeSuggestions, setSeriesScrapeSuggestions] = useState<SeriesScrapeSuggestion[]>([]);
+  const [isSeriesScrapeModalOpen, setIsSeriesScrapeModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
   const latestColumnsRef = useRef(columns);
@@ -1107,6 +1178,19 @@ export function RankboardApp() {
 
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isActionsMenuOpen]);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!columnMenuBoundaryRef.current?.contains(event.target as Node)) {
+        setOpenColumnMenuId(null);
+        setOpenColumnSortMenuId(null);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   async function handleOAuthLogin(provider: "google" | "apple") {
     if (!supabase) {
@@ -2011,6 +2095,79 @@ export function RankboardApp() {
     setTitleTidySuggestions([]);
   }
 
+  function openSeriesScrapeModal() {
+    const suggestions: SeriesScrapeSuggestion[] = [];
+
+    for (const column of columns) {
+      for (const card of cardsByColumn[column.id] ?? []) {
+        if (card.series.trim()) {
+          continue;
+        }
+
+        const proposedSeries = getSuggestedSeriesFromTitle(card.title);
+
+        if (!proposedSeries) {
+          continue;
+        }
+
+        suggestions.push({
+          id: `${column.id}-${card.entryId}`,
+          columnId: column.id,
+          columnTitle: column.title,
+          entryId: card.entryId,
+          title: card.title,
+          proposedSeries,
+        });
+      }
+    }
+
+    setSeriesScrapeSuggestions(suggestions);
+    setIsSeriesScrapeModalOpen(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  function updateSeriesScrapeSuggestion(suggestionId: string, proposedSeries: string) {
+    setSeriesScrapeSuggestions((current) =>
+      current.map((suggestion) =>
+        suggestion.id === suggestionId
+          ? {
+              ...suggestion,
+              proposedSeries,
+            }
+          : suggestion,
+      ),
+    );
+  }
+
+  function removeSeriesScrapeSuggestion(suggestionId: string) {
+    setSeriesScrapeSuggestions((current) => current.filter((suggestion) => suggestion.id !== suggestionId));
+  }
+
+  function applySeriesScrapeSuggestions() {
+    const seriesUpdates = new Map(
+      seriesScrapeSuggestions
+        .map((suggestion) => [suggestion.entryId, suggestion.proposedSeries.trim()] as const)
+        .filter(([, series]) => series.length > 0),
+    );
+
+    setCardsByColumn((current) => {
+      const nextState: Record<string, CardEntry[]> = {};
+
+      for (const [columnId, cards] of Object.entries(current)) {
+        nextState[columnId] = cards.map((card) => {
+          const updatedSeries = seriesUpdates.get(card.entryId);
+          return updatedSeries ? { ...card, series: updatedSeries } : card;
+        });
+      }
+
+      return nextState;
+    });
+
+    setIsSeriesScrapeModalOpen(false);
+    setSeriesScrapeSuggestions([]);
+  }
+
   async function handleImportTrelloBoard(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
@@ -2143,89 +2300,18 @@ export function RankboardApp() {
                           : "border-slate-200 bg-white/95 text-slate-700",
                       )}
                     >
-                      <button
-                        className={clsx(
-                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode
-                            ? "hover:bg-white/10"
-                            : "hover:bg-slate-100",
-                        )}
-                        onClick={() => {
-                          void toggleThemePreference();
-                          setIsActionsMenuOpen(false);
-                        }}
-                        type="button"
-                      >
-                        {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                        {isDarkMode ? "Lumos" : "Nox"}
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode
-                            ? "hover:bg-white/10"
-                            : "hover:bg-slate-100",
-                        )}
-                        onClick={() => {
-                          setIsImportModalOpen(true);
-                          setIsActionsMenuOpen(false);
-                        }}
-                        type="button"
-                      >
-                        <Upload className="h-4 w-4" />
-                        Import from Trello
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                        )}
-                        onClick={openDuplicateCleanupModal}
-                        type="button"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Clean Up Duplicates
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                        )}
-                        onClick={openTitleTidyModal}
-                        type="button"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        Tidy Titles
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                        )}
-                        onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })}
-                        type="button"
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <Sparkles className="h-4 w-4" />
-                          Show series on cards
-                        </span>
-                        <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
-                      </button>
                       <div className="rounded-2xl">
-                        <button
-                          className={clsx(
-                            "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                            isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                          )}
-                          onClick={() => setIsBoardsMenuOpen((current) => !current)}
-                          type="button"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <LayoutGrid className="h-4 w-4" />
-                            Boards
-                          </span>
-                          <span className="text-xs opacity-70">{isBoardsMenuOpen ? "▾" : "▸"}</span>
-                        </button>
+                        <MenuSectionButton
+                          icon={<LayoutGrid className="h-4 w-4" />}
+                          label="Boards"
+                          isDarkMode={isDarkMode}
+                          isOpen={isBoardsMenuOpen}
+                          onClick={() => {
+                            setIsBoardsMenuOpen((current) => !current);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                          }}
+                        />
                         {isBoardsMenuOpen ? (
                           <div
                             className={clsx(
@@ -2238,11 +2324,8 @@ export function RankboardApp() {
                                 key={board.id}
                                 className={clsx(
                                   "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-                                  isDarkMode
-                                    ? "hover:bg-white/10"
-                                    : "hover:bg-white",
-                                  board.id === activeBoardId &&
-                                    (isDarkMode ? "text-white" : "text-slate-950"),
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  board.id === activeBoardId && (isDarkMode ? "text-white" : "text-slate-950"),
                                 )}
                                 onClick={() => switchBoard(board.id)}
                                 type="button"
@@ -2271,6 +2354,102 @@ export function RankboardApp() {
                           </div>
                         ) : null}
                       </div>
+                      <div className="rounded-2xl">
+                        <MenuSectionButton
+                          icon={<Sparkles className="h-4 w-4" />}
+                          label="Customization"
+                          isDarkMode={isDarkMode}
+                          isOpen={isCustomizationMenuOpen}
+                          onClick={() => {
+                            setIsCustomizationMenuOpen((current) => !current);
+                            setIsBoardsMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                          }}
+                        />
+                        {isCustomizationMenuOpen ? (
+                          <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
+                              onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })}
+                              type="button"
+                            >
+                              <span>Show Series</span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
+                              onClick={() => updateActiveBoardSettings({ collapseCards: !activeBoardSettings.collapseCards })}
+                              type="button"
+                            >
+                              <span>Collapse Cards</span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="rounded-2xl">
+                        <MenuSectionButton
+                          icon={<Trash2 className="h-4 w-4" />}
+                          label="Maintenance"
+                          isDarkMode={isDarkMode}
+                          isOpen={isMaintenanceMenuOpen}
+                          onClick={() => {
+                            setIsMaintenanceMenuOpen((current) => !current);
+                            setIsBoardsMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                          }}
+                        />
+                        {isMaintenanceMenuOpen ? (
+                          <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openDuplicateCleanupModal} type="button">
+                              <Trash2 className="h-4 w-4" />
+                              Delete Duplicates
+                            </button>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openTitleTidyModal} type="button">
+                              <Sparkles className="h-4 w-4" />
+                              Tidy Titles
+                            </button>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openSeriesScrapeModal} type="button">
+                              <WandSparkles className="h-4 w-4" />
+                              Scrape Series
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
+                        onClick={() => {
+                          setIsImportModalOpen(true);
+                          setIsActionsMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <Upload className="h-4 w-4" />
+                        Import from Trello
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
+                        onClick={() => {
+                          void toggleThemePreference();
+                          setIsActionsMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                        {isDarkMode ? "Lumos" : "Nox"}
+                      </button>
                       {currentUser ? (
                         <button
                           className={clsx(
@@ -2327,14 +2506,18 @@ export function RankboardApp() {
             </button>
 
             {isMobileActionsOpen ? (
-              <div className="fixed inset-0 z-[80] bg-slate-950/40 p-4 backdrop-blur-sm">
+              <div
+                className="fixed inset-0 z-[80] bg-slate-950/40 p-4 backdrop-blur-sm"
+                onClick={() => setIsMobileActionsOpen(false)}
+              >
                 <div
                   className={clsx(
-                    "mx-auto mt-16 max-w-md rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)]",
+                    "mx-auto mt-[28vh] max-w-md rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)]",
                     isDarkMode
                       ? "border-white/10 bg-slate-900 text-slate-100"
                       : "border-white/70 bg-white text-slate-950",
                   )}
+                  onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">
@@ -2439,101 +2622,24 @@ export function RankboardApp() {
                                 : "border-slate-200 bg-white/95 text-slate-700",
                             )}
                           >
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                              )}
-                              onClick={() => {
-                                void toggleThemePreference();
-                                setIsActionsMenuOpen(false);
-                                setIsMobileActionsOpen(false);
-                              }}
-                              type="button"
-                            >
-                              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                              {isDarkMode ? "Lumos" : "Nox"}
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                              )}
-                              onClick={() => {
-                                setIsImportModalOpen(true);
-                                setIsActionsMenuOpen(false);
-                                setIsMobileActionsOpen(false);
-                              }}
-                              type="button"
-                            >
-                              <Upload className="h-4 w-4" />
-                              Import from Trello
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                              )}
-                              onClick={openDuplicateCleanupModal}
-                              type="button"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Clean Up Duplicates
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                              )}
-                              onClick={openTitleTidyModal}
-                              type="button"
-                            >
-                              <Sparkles className="h-4 w-4" />
-                              Tidy Titles
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                              )}
-                              onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })}
-                              type="button"
-                            >
-                              <span className="inline-flex items-center gap-2">
-                                <Sparkles className="h-4 w-4" />
-                                Show series on cards
-                              </span>
-                              <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
-                            </button>
                             <div className="rounded-2xl">
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                                )}
-                                onClick={() => setIsBoardsMenuOpen((current) => !current)}
-                                type="button"
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <LayoutGrid className="h-4 w-4" />
-                                  Boards
-                                </span>
-                                <span className="text-xs opacity-70">{isBoardsMenuOpen ? "▾" : "▸"}</span>
-                              </button>
+                              <MenuSectionButton
+                                icon={<LayoutGrid className="h-4 w-4" />}
+                                label="Boards"
+                                isDarkMode={isDarkMode}
+                                isOpen={isBoardsMenuOpen}
+                                onClick={() => {
+                                  setIsBoardsMenuOpen((current) => !current);
+                                  setIsCustomizationMenuOpen(false);
+                                  setIsMaintenanceMenuOpen(false);
+                                }}
+                              />
                               {isBoardsMenuOpen ? (
-                                <div
-                                  className={clsx(
-                                    "mt-1 space-y-1 rounded-2xl px-2 pb-2",
-                                    isDarkMode ? "bg-white/5" : "bg-slate-50",
-                                  )}
-                                >
+                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
                                   {boards.map((board) => (
                                     <button
                                       key={board.id}
-                                      className={clsx(
-                                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-                                        isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                      )}
+                                      className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                       onClick={() => switchBoard(board.id)}
                                       type="button"
                                     >
@@ -2545,10 +2651,7 @@ export function RankboardApp() {
                                     </button>
                                   ))}
                                   <button
-                                    className={clsx(
-                                      "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                      isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                    )}
+                                    className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                     onClick={() => {
                                       setIsCreateBoardModalOpen(true);
                                       setIsActionsMenuOpen(false);
@@ -2561,6 +2664,84 @@ export function RankboardApp() {
                                 </div>
                               ) : null}
                             </div>
+                            <div className="rounded-2xl">
+                              <MenuSectionButton
+                                icon={<Sparkles className="h-4 w-4" />}
+                                label="Customization"
+                                isDarkMode={isDarkMode}
+                                isOpen={isCustomizationMenuOpen}
+                                onClick={() => {
+                                  setIsCustomizationMenuOpen((current) => !current);
+                                  setIsBoardsMenuOpen(false);
+                                  setIsMaintenanceMenuOpen(false);
+                                }}
+                              />
+                              {isCustomizationMenuOpen ? (
+                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })} type="button">
+                                    <span>Show Series</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
+                                  </button>
+                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ collapseCards: !activeBoardSettings.collapseCards })} type="button">
+                                    <span>Collapse Cards</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="rounded-2xl">
+                              <MenuSectionButton
+                                icon={<Trash2 className="h-4 w-4" />}
+                                label="Maintenance"
+                                isDarkMode={isDarkMode}
+                                isOpen={isMaintenanceMenuOpen}
+                                onClick={() => {
+                                  setIsMaintenanceMenuOpen((current) => !current);
+                                  setIsBoardsMenuOpen(false);
+                                  setIsCustomizationMenuOpen(false);
+                                }}
+                              />
+                              {isMaintenanceMenuOpen ? (
+                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openDuplicateCleanupModal} type="button">
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete Duplicates
+                                  </button>
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openTitleTidyModal} type="button">
+                                    <Sparkles className="h-4 w-4" />
+                                    Tidy Titles
+                                  </button>
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={openSeriesScrapeModal} type="button">
+                                    <WandSparkles className="h-4 w-4" />
+                                    Scrape Series
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
+                                setIsImportModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <Upload className="h-4 w-4" />
+                              Import from Trello
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
+                                void toggleThemePreference();
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                              {isDarkMode ? "Lumos" : "Nox"}
+                            </button>
                             {currentUser ? (
                               <button
                                 className={clsx(
@@ -2602,6 +2783,7 @@ export function RankboardApp() {
           </div>
 
           <section
+            ref={columnMenuBoundaryRef}
             className={clsx(
               "relative z-0 overflow-hidden rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
@@ -2708,6 +2890,7 @@ export function RankboardApp() {
                       key={column.id}
                       column={column}
                       addLabel={boardVocabulary.singular}
+                      collapseCards={activeBoardSettings.collapseCards}
                       showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
                       isDarkMode={isDarkMode}
                       cards={visibleCards}
@@ -2748,7 +2931,10 @@ export function RankboardApp() {
         </section>
 
         {editingCardId && editingCardDraft ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={cancelEditingCard}
+          >
             <div
               className={clsx(
                 "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
@@ -2756,6 +2942,7 @@ export function RankboardApp() {
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -2964,7 +3151,10 @@ export function RankboardApp() {
         ) : null}
 
         {addCardTarget ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={closeAddGameModal}
+          >
             <div
               className={clsx(
                 "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
@@ -2972,6 +3162,7 @@ export function RankboardApp() {
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -3218,7 +3409,10 @@ export function RankboardApp() {
         ) : null}
 
         {isImportModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setIsImportModalOpen(false)}
+          >
             <div
               className={clsx(
                 "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
@@ -3226,6 +3420,7 @@ export function RankboardApp() {
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -3295,7 +3490,13 @@ export function RankboardApp() {
         ) : null}
 
         {isCreateBoardModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => {
+              setIsCreateBoardModalOpen(false);
+              setNewBoardTitle("");
+            }}
+          >
             <div
               className={clsx(
                 "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
@@ -3303,6 +3504,7 @@ export function RankboardApp() {
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -3382,7 +3584,13 @@ export function RankboardApp() {
         ) : null}
 
         {isDuplicateCleanupModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => {
+              setIsDuplicateCleanupModalOpen(false);
+              setDuplicateCleanupSuggestions([]);
+            }}
+          >
             <div
               className={clsx(
                 "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
@@ -3390,6 +3598,7 @@ export function RankboardApp() {
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -3513,7 +3722,13 @@ export function RankboardApp() {
         ) : null}
 
         {isTitleTidyModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => {
+              setIsTitleTidyModalOpen(false);
+              setTitleTidySuggestions([]);
+            }}
+          >
             <div
               className={clsx(
                 "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
@@ -3521,6 +3736,7 @@ export function RankboardApp() {
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -3647,6 +3863,149 @@ export function RankboardApp() {
             </div>
           </div>
         ) : null}
+
+        {isSeriesScrapeModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => {
+              setIsSeriesScrapeModalOpen(false);
+              setSeriesScrapeSuggestions([]);
+            }}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Maintenance
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Scrape series
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Review proposed series values for cards that are currently missing one.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => {
+                    setIsSeriesScrapeModalOpen(false);
+                    setSeriesScrapeSuggestions([]);
+                  }}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                {seriesScrapeSuggestions.length === 0 ? (
+                  <div
+                    className={clsx(
+                      "rounded-3xl border px-4 py-6 text-sm",
+                      isDarkMode ? "border-white/10 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+                    )}
+                  >
+                    No series suggestions were found for the current board.
+                  </div>
+                ) : (
+                  seriesScrapeSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className={clsx(
+                        "rounded-3xl border p-4",
+                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
+                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                            {suggestion.title}
+                          </p>
+                        </div>
+                        <button
+                          className={clsx(
+                            "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                            isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
+                          type="button"
+                        >
+                          Skip
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                        <div
+                          className={clsx(
+                            "rounded-2xl border px-4 py-3 text-sm",
+                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
+                          )}
+                        >
+                          {suggestion.title}
+                        </div>
+                        <div className="text-center text-sm font-semibold opacity-60">series</div>
+                        <input
+                          className={clsx(
+                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                          )}
+                          value={suggestion.proposedSeries}
+                          onChange={(event) => updateSeriesScrapeSuggestion(suggestion.id, event.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={applySeriesScrapeSuggestions}
+                  type="button"
+                >
+                  <WandSparkles className="h-4 w-4" />
+                  Apply Changes
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => {
+                    setIsSeriesScrapeModalOpen(false);
+                    setSeriesScrapeSuggestions([]);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
@@ -3686,6 +4045,7 @@ function AddColumnButton({
 function BoardColumn({
   column,
   addLabel,
+  collapseCards,
   showSeriesOnCards,
   cards,
   filtering,
@@ -3711,6 +4071,7 @@ function BoardColumn({
 }: {
   column: ColumnDefinition;
   addLabel: string;
+  collapseCards: boolean;
   showSeriesOnCards: boolean;
   cards: CardEntry[];
   filtering: boolean;
@@ -3960,6 +4321,7 @@ function BoardColumn({
             <CardTile
               key={card.entryId}
               card={card}
+              collapseCards={collapseCards}
               showSeries={showSeriesOnCards}
               rank={isRankedColumn(column) ? index + 1 : null}
               onDelete={() => onDeleteCard(column.id, card.entryId)}
@@ -3983,6 +4345,7 @@ function BoardColumn({
                 <div key={card.entryId} className="flex flex-col gap-3">
                   <SortableCard
                     card={card}
+                    collapseCards={collapseCards}
                     showSeries={showSeriesOnCards}
                     rank={isRankedColumn(column) ? index + 1 : null}
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
@@ -4086,12 +4449,14 @@ function AddCardRow({
 
 function SortableCard({
   card,
+  collapseCards,
   showSeries,
   rank,
   onDelete,
   onEdit,
 }: {
   card: CardEntry;
+  collapseCards: boolean;
   showSeries: boolean;
   rank: number | null;
   onDelete: () => void;
@@ -4112,6 +4477,7 @@ function SortableCard({
     >
       <CardTile
         card={card}
+        collapseCards={collapseCards}
         showSeries={showSeries}
         rank={rank}
         isDragging={isDragging}
@@ -4125,6 +4491,7 @@ function SortableCard({
 
 function CardTile({
   card,
+  collapseCards,
   showSeries,
   rank,
   dragProps,
@@ -4133,6 +4500,7 @@ function CardTile({
   onEdit,
 }: {
   card: CardEntry;
+  collapseCards: boolean;
   showSeries: boolean;
   rank: number | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
@@ -4153,10 +4521,18 @@ function CardTile({
       }}
     >
       <div
-        className="relative min-h-[220px] bg-cover bg-center"
-        style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
+        className={clsx(
+          "relative bg-cover bg-center",
+          collapseCards ? "min-h-[82px]" : "min-h-[220px]",
+        )}
+        style={{
+          backgroundImage: collapseCards ? undefined : `url(${card.imageUrl || buildFallbackImage(card.title)})`,
+          backgroundColor: collapseCards ? "#0f172a" : undefined,
+        }}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+        {!collapseCards ? (
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+        ) : null}
 
         <div className="absolute left-3 top-3 flex items-center gap-2">
           {rank ? (
@@ -4166,14 +4542,14 @@ function CardTile({
           ) : null}
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          {showSeries && card.series ? (
+        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1" : "bottom-0")}>
+          {!collapseCards && showSeries && card.series ? (
             <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
               {card.series}
             </p>
           ) : null}
           <h3 className="truncate text-xl font-bold text-white">{card.title}</h3>
-          {card.notes ? (
+          {!collapseCards && card.notes ? (
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
           ) : null}
         </div>
