@@ -85,7 +85,7 @@ type PendingDuplicateAction = {
 };
 
 type RankBadge = {
-  label: string;
+  label?: string;
   value: number;
 };
 
@@ -2625,7 +2625,7 @@ export function RankboardApp() {
                         type="button"
                       >
                         <Upload className="h-4 w-4" />
-                        Import from Trello
+                        Import
                       </button>
                       <button
                         className={clsx(
@@ -2919,7 +2919,7 @@ export function RankboardApp() {
                               type="button"
                             >
                               <Upload className="h-4 w-4" />
-                              Import from Trello
+                              Import
                             </button>
                             <button
                               className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
@@ -3622,10 +3622,10 @@ export function RankboardApp() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Import Trello
+                    Import
                   </p>
                   <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Upload a Trello JSON file
+                    Upload a JSON file
                   </h2>
                 </div>
                 <button
@@ -3643,8 +3643,8 @@ export function RankboardApp() {
               </div>
 
               <p className={clsx("mt-4 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                Export your board from Trello as JSON, then upload it here to replace
-                the current board on this device.
+                Upload a JSON export from another list app to replace the current board
+                on this device. Trello JSON is supported right now.
               </p>
 
               <input
@@ -4332,7 +4332,7 @@ function BoardColumn({
       <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
         <div
           className={clsx(
-            "rounded-[21px] p-4",
+            "sticky top-0 z-10 rounded-[21px] p-4 backdrop-blur",
             isDarkMode ? "bg-slate-950/96" : "bg-white/95",
             !isEditingColumn && "cursor-grab active:cursor-grabbing",
           )}
@@ -4560,13 +4560,12 @@ function BoardColumn({
               card={card}
               collapseCards={collapseCards}
               showSeries={showSeriesOnCards}
-              rankBadge={
-                isRankedColumn(column)
-                  ? {
-                      label: "All",
-                      value:
-                        fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
-                    }
+                    rankBadge={
+                      isRankedColumn(column)
+                        ? {
+                            value:
+                              fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
+                          }
                   : null
               }
               secondaryRankBadge={
@@ -4605,7 +4604,6 @@ function BoardColumn({
                     rankBadge={
                       isRankedColumn(column)
                         ? {
-                            label: "All",
                             value: index + 1,
                           }
                         : null
@@ -4808,7 +4806,7 @@ function CardTile({
         <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
           {rankBadge ? (
             <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-950">
-              {`${rankBadge.label} #${rankBadge.value}`}
+              {rankBadge.label ? `${rankBadge.label} #${rankBadge.value}` : `#${rankBadge.value}`}
             </div>
           ) : null}
           {secondaryRankBadge ? (
