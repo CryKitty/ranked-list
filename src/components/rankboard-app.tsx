@@ -792,6 +792,7 @@ export function RankboardApp() {
   const latestCardsByColumnRef = useRef(cardsByColumn);
   const latestBoardsRef = useRef(boards);
   const latestActiveBoardIdRef = useRef(activeBoardId);
+  const isSigningOutRef = useRef(false);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
   const sensors = useSensors(
@@ -863,7 +864,7 @@ export function RankboardApp() {
     setEditingColumnDraft(null);
     setAddCardTarget(null);
     setDraft(initialDraft);
-    setHasLoadedRemoteState(true);
+    setHasLoadedRemoteState(false);
 
     try {
       window.localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -1116,13 +1117,16 @@ export function RankboardApp() {
       }
 
       setCurrentUser(data.user ?? null);
+      setHasLoadedRemoteState(data.user ? false : true);
       setIsAuthLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      isSigningOutRef.current = false;
       setCurrentUser(session?.user ?? null);
+      setHasLoadedRemoteState(session?.user ? false : true);
       setIsAuthLoading(false);
     });
 
@@ -1273,7 +1277,7 @@ export function RankboardApp() {
   ]);
 
   useEffect(() => {
-    if (!supabase || !currentUser || !hasLoadedRemoteState) {
+    if (!supabase || !currentUser || !hasLoadedRemoteState || isSigningOutRef.current) {
       return;
     }
 
@@ -1289,7 +1293,7 @@ export function RankboardApp() {
   }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
 
   useEffect(() => {
-    if (!supabase || !currentUser || !hasLoadedRemoteState) {
+    if (!supabase || !currentUser || !hasLoadedRemoteState || isSigningOutRef.current) {
       return;
     }
 
@@ -1356,7 +1360,7 @@ export function RankboardApp() {
     }
 
     if (data?.url) {
-      window.location.assign(data.url);
+      window.location.replace(data.url);
     }
   }
 
@@ -1375,6 +1379,7 @@ export function RankboardApp() {
   }
 
   async function handleSignOut() {
+    isSigningOutRef.current = true;
     await persistBoardState();
     await supabase?.auth.signOut();
     setCurrentUser(null);
