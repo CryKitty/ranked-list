@@ -2933,10 +2933,6 @@ export function RankboardApp() {
 
     const suggestions = await Promise.all(
       cardsToInspect.map(async ({ columnId, columnTitle, card }) => {
-        if (card.series.trim() && card.releaseYear?.trim()) {
-          return null;
-        }
-
         const wikipediaMetadata = await fetchBestWikipediaMetadata(card.title, existingSeries);
         const wikipediaExtractSeries = getSuggestedSeriesFromWikipediaExtract(
           wikipediaMetadata?.extract ?? "",
@@ -2945,17 +2941,23 @@ export function RankboardApp() {
         const wikipediaSeries = wikipediaMetadata?.title
           ? getSuggestedSeriesFromTitle(wikipediaMetadata.title, existingSeries)
           : null;
-        const proposedSeries =
-          card.series.trim() ||
+        const currentSeries = card.series.trim();
+        const currentReleaseYear = card.releaseYear?.trim() ?? "";
+        const suggestedSeries =
           wikipediaExtractSeries ||
           wikipediaSeries ||
-          getSuggestedSeriesFromTitle(card.title, existingSeries);
-        const proposedReleaseYear =
-          card.releaseYear?.trim() ||
+          getSuggestedSeriesFromTitle(card.title, existingSeries) ||
+          "";
+        const suggestedReleaseYear =
           getSuggestedReleaseYearFromWikipediaMetadata(wikipediaMetadata, card.title) ||
           getSuggestedReleaseYearFromTitle(card.title);
 
-        if (!proposedSeries && !proposedReleaseYear) {
+        const shouldSuggestSeries =
+          Boolean(suggestedSeries) && suggestedSeries.trim() !== currentSeries;
+        const shouldSuggestReleaseYear =
+          Boolean(suggestedReleaseYear) && suggestedReleaseYear.trim() !== currentReleaseYear;
+
+        if (!shouldSuggestSeries && !shouldSuggestReleaseYear) {
           return null;
         }
 
@@ -2966,8 +2968,8 @@ export function RankboardApp() {
           entryId: card.entryId,
           itemId: card.itemId,
           title: card.title,
-          proposedSeries: proposedSeries ?? "",
-          proposedReleaseYear,
+          proposedSeries: shouldSuggestSeries ? suggestedSeries : currentSeries,
+          proposedReleaseYear: shouldSuggestReleaseYear ? suggestedReleaseYear : currentReleaseYear,
         } satisfies SeriesScrapeSuggestion;
       }),
     );
@@ -3120,10 +3122,10 @@ export function RankboardApp() {
         <section className="grid gap-4">
           <div
             className={clsx(
-              "hidden",
+              "sticky top-4 z-[120] hidden rounded-[30px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur lg:block",
               isDarkMode
-                ? "border-white/10 bg-white/5"
-                : "border-white/70 bg-white/80",
+                ? "border-white/10 bg-slate-950/85"
+                : "border-white/70 bg-white/85",
             )}
           >
             <div className="flex flex-col items-center gap-4">
@@ -3399,7 +3401,7 @@ export function RankboardApp() {
             <button
               aria-label="Open actions"
               className={clsx(
-                "fixed bottom-5 right-5 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                "fixed bottom-5 right-5 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.24)] lg:hidden",
                 isDarkMode
                   ? "bg-slate-950 text-white"
                   : "bg-white text-slate-950",
@@ -3412,7 +3414,7 @@ export function RankboardApp() {
 
             {isMobileActionsOpen ? (
               <div
-                className="fixed inset-0 z-[80] bg-slate-950/40 p-4 backdrop-blur-sm"
+                className="fixed inset-0 z-[80] bg-slate-950/40 p-4 backdrop-blur-sm lg:hidden"
                 onClick={() => setIsMobileActionsOpen(false)}
               >
                 <div
@@ -5468,9 +5470,9 @@ function BoardColumn({
               !isEditingColumn && "cursor-grab active:cursor-grabbing",
             )}
           >
-            <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-start gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_40px] items-start gap-3">
             {isEditingColumn && editingColumnDraft ? (
-              <div className="col-span-3 w-full space-y-3">
+              <div className="col-span-2 w-full space-y-3">
                 <input
                   className={clsx(
                     "w-full rounded-2xl border px-3 py-2 text-sm outline-none transition",
@@ -5514,8 +5516,7 @@ function BoardColumn({
               </div>
             ) : (
               <>
-                <div />
-                <h2 className="w-full truncate whitespace-nowrap text-center text-lg font-bold">{column.title}</h2>
+                <h2 className="w-full truncate whitespace-nowrap pr-2 text-left text-lg font-bold">{column.title}</h2>
                 <div className="relative" data-column-menu-root="true">
                   <button
                     className={clsx(
