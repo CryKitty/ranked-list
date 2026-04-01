@@ -6,6 +6,7 @@ export type CardEntry = {
   title: string;
   imageUrl: string;
   series: string;
+  releaseYear?: string;
   notes?: string;
   mirroredFromEntryId?: string;
 };

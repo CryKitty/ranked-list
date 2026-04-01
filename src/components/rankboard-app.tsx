@@ -52,6 +52,7 @@ type CardDraft = {
   title: string;
   imageUrl: string;
   series: string;
+  releaseYear: string;
   notes: string;
   columnId: string;
   newColumnTitle: string;
@@ -66,6 +67,7 @@ type CardEditorDraft = {
   title: string;
   imageUrl: string;
   series: string;
+  releaseYear: string;
   notes: string;
 };
 
@@ -83,6 +85,7 @@ type PendingDuplicateAction = {
   title: string;
   imageUrl: string;
   series: string;
+  releaseYear?: string;
   notes?: string;
 };
 
@@ -118,6 +121,7 @@ type SeriesScrapeSuggestion = {
   entryId: string;
   title: string;
   proposedSeries: string;
+  proposedReleaseYear: string;
 };
 
 type ArtworkPickerState = {
@@ -129,6 +133,7 @@ const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
   series: "",
+  releaseYear: "",
   notes: "",
   columnId: "",
   newColumnTitle: "",
@@ -502,6 +507,7 @@ function createCardDraft(card: CardEntry): CardEditorDraft {
     title: card.title,
     imageUrl: card.imageUrl,
     series: card.series,
+    releaseYear: card.releaseYear ?? "",
     notes: card.notes ?? "",
   };
 }
@@ -684,29 +690,58 @@ function getSuggestedTitleCleanup(title: string) {
   return cleaned;
 }
 
-function getSuggestedSeriesFromTitle(title: string) {
+function stripSequelMarkers(title: string) {
+  return title
+    .replace(/\s+\((?:19|20)\d{2}\)\s*$/i, "")
+    .replace(/\s+(?:part|episode|season|vol(?:ume)?)\s+(?:\d+|[ivxlcdm]+)\b/gi, "")
+    .replace(/\s+(?:\d+|[ivxlcdm]+)\b\s*$/i, "")
+    .trim();
+}
+
+function getSuggestedReleaseYearFromTitle(title: string) {
+  const match = title.match(/\b(19|20)\d{2}\b/);
+  return match?.[0] ?? "";
+}
+
+function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = []) {
   const trimmed = title.trim();
 
   if (!trimmed) {
     return null;
   }
 
-  const beforeColon = trimmed.split(":")[0]?.trim();
-  if (beforeColon && beforeColon.length > 1 && beforeColon !== trimmed) {
-    return beforeColon;
+  const beforeColon = stripSequelMarkers(trimmed.split(":")[0]?.trim() ?? "");
+  const subtitleBreak = stripSequelMarkers(trimmed.match(/^(.*?)\s+-\s+/)?.[1] ?? "");
+  const strippedWhole = stripSequelMarkers(trimmed);
+  const candidates = [beforeColon, subtitleBreak, strippedWhole]
+    .map((value) => value.trim())
+    .filter((value, index, array) => value.length > 1 && array.indexOf(value) === index);
+
+  const normalizedExistingSeries = existingSeries
+    .map((series) => ({
+      original: series,
+      normalized: normalizeTitleForComparison(stripSequelMarkers(series)),
+    }))
+    .filter((series) => series.normalized.length > 0)
+    .sort((left, right) => right.normalized.length - left.normalized.length);
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeTitleForComparison(candidate);
+    const firstToken = normalizedCandidate.split(" ")[0] ?? "";
+    const matchingSeries = normalizedExistingSeries.find(
+      (series) =>
+        series.normalized === normalizedCandidate ||
+        normalizedCandidate.startsWith(series.normalized) ||
+        series.normalized.startsWith(normalizedCandidate) ||
+        (firstToken.length > 2 && series.normalized.startsWith(`${firstToken} `)),
+    );
+
+    if (matchingSeries) {
+      return matchingSeries.original;
+    }
   }
 
-  const numberMatch = trimmed.match(/^(.*?)(?:\s+[ivx]+|\s+\d+)\b/i);
-  if (numberMatch?.[1]) {
-    return numberMatch[1].trim();
-  }
-
-  const subtitleBreak = trimmed.match(/^(.*?)\s+-\s+/);
-  if (subtitleBreak?.[1]) {
-    return subtitleBreak[1].trim();
-  }
-
-  return null;
+  return candidates[0] ?? null;
 }
 
 function getBoardVocabulary(boardTitle: string) {
@@ -1432,6 +1467,9 @@ export function RankboardApp() {
 
   useEffect(() => {
     if (!isActionsMenuOpen) {
+      setIsBoardsMenuOpen(false);
+      setIsCustomizationMenuOpen(false);
+      setIsMaintenanceMenuOpen(false);
       return;
     }
 
@@ -1445,6 +1483,16 @@ export function RankboardApp() {
 
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isActionsMenuOpen]);
+
+  useEffect(() => {
+    if (openColumnMenuId) {
+      return;
+    }
+
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+  }, [openColumnMenuId]);
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -1849,6 +1897,7 @@ export function RankboardApp() {
     const series = draft.series.trim();
     const imageUrl = draft.imageUrl.trim();
     const notes = draft.notes.trim();
+    const releaseYear = draft.releaseYear.trim();
     const selectedColumnId =
       draft.columnId === NEW_COLUMN_OPTION ? "" : draft.columnId || addCardTarget.columnId;
     const duplicate = selectedColumnId
@@ -1866,10 +1915,10 @@ export function RankboardApp() {
       return;
     }
 
-    finalizeAddCard(title, series, imageUrl, notes);
+    finalizeAddCard(title, series, imageUrl, notes, releaseYear);
   }
 
-  function finalizeAddCard(title: string, series: string, imageUrl: string, notes: string) {
+  function finalizeAddCard(title: string, series: string, imageUrl: string, notes: string, releaseYear: string) {
     if (!addCardTarget) {
       return;
     }
@@ -1900,6 +1949,7 @@ export function RankboardApp() {
       title,
       imageUrl,
       series,
+      releaseYear: releaseYear || undefined,
       notes: notes || undefined,
     };
 
@@ -2038,6 +2088,7 @@ export function RankboardApp() {
     const title = editingCardDraft.title.trim() || "Untitled Game";
     const imageUrl = editingCardDraft.imageUrl.trim();
     const series = editingCardDraft.series.trim();
+    const releaseYear = editingCardDraft.releaseYear.trim();
     const notes = editingCardDraft.notes.trim();
     const editingColumnId = editingCardId ? findColumnIdForEntry(editingCardId) : null;
     const duplicate = editingColumnId
@@ -2050,6 +2101,7 @@ export function RankboardApp() {
         title,
         imageUrl,
         series,
+        releaseYear,
         notes,
       });
       return;
@@ -2060,6 +2112,7 @@ export function RankboardApp() {
       title,
       imageUrl,
       series,
+      releaseYear: releaseYear || undefined,
       notes: notes || undefined,
       itemId: slugify(title) || card.itemId,
     }));
@@ -2273,6 +2326,7 @@ export function RankboardApp() {
         title: draftDuplicateAction.title,
         imageUrl: draftDuplicateAction.imageUrl || card.imageUrl,
         series: draftDuplicateAction.series || card.series,
+        releaseYear: draft.releaseYear.trim() || card.releaseYear,
         notes: draftDuplicateAction.notes || card.notes,
       }));
       closeAddGameModal();
@@ -2284,6 +2338,7 @@ export function RankboardApp() {
       draftDuplicateAction.series,
       draftDuplicateAction.imageUrl,
       draft.notes.trim(),
+      draft.releaseYear.trim(),
     );
   }
 
@@ -2303,18 +2358,21 @@ export function RankboardApp() {
         title: editingDuplicateAction.title,
         imageUrl: editingDuplicateAction.imageUrl || card.imageUrl,
         series: editingDuplicateAction.series || card.series,
+        releaseYear: editingCardDraft.releaseYear.trim() || card.releaseYear,
         notes: editingDuplicateAction.notes || card.notes,
       }));
       cancelEditingCard();
       return;
     }
 
+    const releaseYear = editingCardDraft.releaseYear.trim();
     const notes = editingCardDraft.notes.trim();
     updateCardsForItem(editingCardItemId, (card) => ({
       ...card,
       title: editingDuplicateAction.title,
       imageUrl: editingDuplicateAction.imageUrl,
       series: editingDuplicateAction.series,
+      releaseYear: releaseYear || undefined,
       notes: notes || undefined,
       itemId: slugify(editingDuplicateAction.title) || card.itemId,
     }));
@@ -2639,16 +2697,25 @@ export function RankboardApp() {
 
   function openSeriesScrapeModal() {
     const suggestions: SeriesScrapeSuggestion[] = [];
+    const existingSeries = Array.from(
+      new Set(
+        Object.values(cardsByColumn)
+          .flat()
+          .map((card) => card.series.trim())
+          .filter(Boolean),
+      ),
+    );
 
     for (const column of columns) {
       for (const card of cardsByColumn[column.id] ?? []) {
-        if (card.series.trim()) {
+        if (card.series.trim() && card.releaseYear?.trim()) {
           continue;
         }
 
-        const proposedSeries = getSuggestedSeriesFromTitle(card.title);
+        const proposedSeries = card.series.trim() || getSuggestedSeriesFromTitle(card.title, existingSeries);
+        const proposedReleaseYear = card.releaseYear?.trim() || getSuggestedReleaseYearFromTitle(card.title);
 
-        if (!proposedSeries) {
+        if (!proposedSeries && !proposedReleaseYear) {
           continue;
         }
 
@@ -2658,7 +2725,8 @@ export function RankboardApp() {
           columnTitle: column.title,
           entryId: card.entryId,
           title: card.title,
-          proposedSeries,
+          proposedSeries: proposedSeries ?? "",
+          proposedReleaseYear,
         });
       }
     }
@@ -2682,15 +2750,32 @@ export function RankboardApp() {
     );
   }
 
+  function updateSeriesScrapeReleaseYear(suggestionId: string, proposedReleaseYear: string) {
+    setSeriesScrapeSuggestions((current) =>
+      current.map((suggestion) =>
+        suggestion.id === suggestionId
+          ? {
+              ...suggestion,
+              proposedReleaseYear,
+            }
+          : suggestion,
+      ),
+    );
+  }
+
   function removeSeriesScrapeSuggestion(suggestionId: string) {
     setSeriesScrapeSuggestions((current) => current.filter((suggestion) => suggestion.id !== suggestionId));
   }
 
   function applySeriesScrapeSuggestions() {
-    const seriesUpdates = new Map(
-      seriesScrapeSuggestions
-        .map((suggestion) => [suggestion.entryId, suggestion.proposedSeries.trim()] as const)
-        .filter(([, series]) => series.length > 0),
+    const suggestionUpdates = new Map(
+      seriesScrapeSuggestions.map((suggestion) => [
+        suggestion.entryId,
+        {
+          series: suggestion.proposedSeries.trim(),
+          releaseYear: suggestion.proposedReleaseYear.trim(),
+        },
+      ]),
     );
 
     setCardsByColumn((current) => {
@@ -2698,8 +2783,17 @@ export function RankboardApp() {
 
       for (const [columnId, cards] of Object.entries(current)) {
         nextState[columnId] = cards.map((card) => {
-          const updatedSeries = seriesUpdates.get(card.entryId);
-          return updatedSeries ? { ...card, series: updatedSeries } : card;
+          const updatedValues = suggestionUpdates.get(card.entryId);
+
+          if (!updatedValues) {
+            return card;
+          }
+
+          return {
+            ...card,
+            series: updatedValues.series || card.series,
+            releaseYear: updatedValues.releaseYear || card.releaseYear,
+          };
         });
       }
 
@@ -3638,6 +3732,31 @@ export function RankboardApp() {
                     />
                   </label>
                 ) : null}
+
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
+                  <input
+                    inputMode="numeric"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="2025"
+                    value={editingCardDraft.releaseYear}
+                    onChange={(event) =>
+                      setEditingCardDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
               </div>
 
               <label className="mt-4 grid gap-2">
@@ -3843,8 +3962,29 @@ export function RankboardApp() {
                           setDraft((current) => ({ ...current, series: event.target.value }));
                         }}
                       />
-                    </label>
-                  ) : null}
+                  </label>
+                ) : null}
+
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
+                  <input
+                    inputMode="numeric"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="2025"
+                    value={draft.releaseYear}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
+                      }))
+                    }
+                  />
+                </label>
                 </div>
 
                 {shouldShowImageField ? (
@@ -4666,7 +4806,7 @@ export function RankboardApp() {
                     Scrape series
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Review proposed series values for cards that are currently missing one.
+                    Review proposed series and release year values for cards that are currently missing them.
                   </p>
                 </div>
                 <button
@@ -4742,6 +4882,28 @@ export function RankboardApp() {
                           )}
                           value={suggestion.proposedSeries}
                           onChange={(event) => updateSeriesScrapeSuggestion(suggestion.id, event.target.value)}
+                        />
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_180px] sm:items-center">
+                        <div
+                          className={clsx(
+                            "rounded-2xl border px-4 py-3 text-sm",
+                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
+                          )}
+                        >
+                          {suggestion.title}
+                        </div>
+                        <div className="text-center text-sm font-semibold opacity-60">year</div>
+                        <input
+                          inputMode="numeric"
+                          className={clsx(
+                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                          )}
+                          value={suggestion.proposedReleaseYear}
+                          onChange={(event) => updateSeriesScrapeReleaseYear(suggestion.id, event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
                         />
                       </div>
                     </div>
