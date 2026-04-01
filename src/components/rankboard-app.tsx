@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
 import { User } from "@supabase/supabase-js";
 import {
+  ArrowLeftRight,
   ArrowUpDown,
   Clapperboard,
   Edit3,
@@ -137,6 +138,25 @@ type PendingMirrorDelete = {
   itemId: string;
   title: string;
   columnTitle: string;
+};
+
+type PairwiseQuizState = {
+  columnId: string;
+  columnTitle: string;
+  sortedCards: CardEntry[];
+  remainingCards: CardEntry[];
+  candidateCard: CardEntry | null;
+  low: number;
+  high: number;
+  compareIndex: number;
+  comparisons: number;
+};
+
+type PairwiseQuizReview = {
+  columnId: string;
+  columnTitle: string;
+  rankedCards: CardEntry[];
+  comparisons: number;
 };
 
 const initialDraft: CardDraft = {
@@ -1139,6 +1159,8 @@ export function RankboardApp() {
   const [seriesScrapeScopeColumnId, setSeriesScrapeScopeColumnId] = useState<string | undefined>(undefined);
   const [artworkPicker, setArtworkPicker] = useState<ArtworkPickerState | null>(null);
   const [pendingMirrorDelete, setPendingMirrorDelete] = useState<PendingMirrorDelete | null>(null);
+  const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
+  const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
@@ -2792,6 +2814,144 @@ export function RankboardApp() {
     setOpenColumnMirrorMenuId(null);
   }
 
+  function buildNextPairwiseQuizState(
+    columnId: string,
+    columnTitle: string,
+    sortedCards: CardEntry[],
+    remainingCards: CardEntry[],
+    comparisons: number,
+  ) {
+    if (remainingCards.length === 0) {
+      return null;
+    }
+
+    const [candidateCard, ...nextRemainingCards] = remainingCards;
+
+    return {
+      columnId,
+      columnTitle,
+      sortedCards,
+      remainingCards: nextRemainingCards,
+      candidateCard,
+      low: 0,
+      high: sortedCards.length,
+      compareIndex: Math.floor(sortedCards.length / 2),
+      comparisons,
+    } satisfies PairwiseQuizState;
+  }
+
+  function openPairwiseQuiz(columnId: string) {
+    const column = columns.find((item) => item.id === columnId);
+    const cards = cardsByColumn[columnId] ?? [];
+
+    if (!column || cards.length < 2) {
+      return;
+    }
+
+    const [firstCard, ...restCards] = cards;
+    const nextState = buildNextPairwiseQuizState(
+      column.id,
+      column.title,
+      [firstCard],
+      restCards,
+      0,
+    );
+
+    setPairwiseQuizReview(null);
+    setPairwiseQuizState(nextState);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
+  }
+
+  function resolvePairwiseChoice(choice: "candidate" | "comparison") {
+    setPairwiseQuizState((current) => {
+      if (!current || !current.candidateCard) {
+        return current;
+      }
+
+      const comparisonCard = current.sortedCards[current.compareIndex];
+
+      if (!comparisonCard) {
+        return current;
+      }
+
+      const nextLow = choice === "candidate" ? current.low : current.compareIndex + 1;
+      const nextHigh = choice === "candidate" ? current.compareIndex : current.high;
+      const nextComparisons = current.comparisons + 1;
+
+      if (nextLow >= nextHigh) {
+        const nextSortedCards = [...current.sortedCards];
+        nextSortedCards.splice(nextLow, 0, current.candidateCard);
+        const nextQuizState = buildNextPairwiseQuizState(
+          current.columnId,
+          current.columnTitle,
+          nextSortedCards,
+          current.remainingCards,
+          nextComparisons,
+        );
+
+        if (!nextQuizState) {
+          setPairwiseQuizReview({
+            columnId: current.columnId,
+            columnTitle: current.columnTitle,
+            rankedCards: nextSortedCards,
+            comparisons: nextComparisons,
+          });
+          return null;
+        }
+
+        return nextQuizState;
+      }
+
+      return {
+        ...current,
+        low: nextLow,
+        high: nextHigh,
+        compareIndex: Math.floor((nextLow + nextHigh) / 2),
+        comparisons: nextComparisons,
+      };
+    });
+  }
+
+  function movePairwiseReviewCard(index: number, direction: -1 | 1) {
+    setPairwiseQuizReview((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const targetIndex = index + direction;
+
+      if (targetIndex < 0 || targetIndex >= current.rankedCards.length) {
+        return current;
+      }
+
+      const nextRankedCards = [...current.rankedCards];
+      const [movedCard] = nextRankedCards.splice(index, 1);
+      nextRankedCards.splice(targetIndex, 0, movedCard);
+
+      return {
+        ...current,
+        rankedCards: nextRankedCards,
+      };
+    });
+  }
+
+  function savePairwiseQuizReview() {
+    if (!pairwiseQuizReview) {
+      return;
+    }
+
+    setCardsByColumn((current) => ({
+      ...current,
+      [pairwiseQuizReview.columnId]: pairwiseQuizReview.rankedCards,
+    }));
+    setPairwiseQuizReview(null);
+    setPairwiseQuizState(null);
+  }
+
   function handleUndo() {
     const previous = history[history.length - 1];
 
@@ -4298,6 +4458,7 @@ export function RankboardApp() {
                       onDeleteCard={handleDeleteCard}
                       onEditCard={startEditingCard}
                       onAddCard={openAddGameModal}
+                      onOpenPairwiseQuiz={() => openPairwiseQuiz(column.id)}
                       onSortCards={sortColumnCards}
                       isMenuOpen={openColumnMenuId === column.id}
                       isSortMenuOpen={openColumnSortMenuId === column.id}
@@ -5229,6 +5390,232 @@ export function RankboardApp() {
           </div>
         ) : null}
 
+        {pairwiseQuizState && pairwiseQuizState.candidateCard ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPairwiseQuizState(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-5xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Pairwise Quiz
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Which ranks higher?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Choose the stronger pick for <strong>{pairwiseQuizState.columnTitle}</strong>. The quiz is building a full ranking from simple head-to-head choices.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPairwiseQuizState(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
+                  card ? (
+                    <button
+                      key={`${card.entryId}-${index}`}
+                      className={clsx(
+                        "overflow-hidden rounded-[28px] border text-left shadow-[0_20px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/70"
+                          : "border-slate-200 bg-slate-50",
+                      )}
+                      onClick={() => resolvePairwiseChoice(index === 0 ? "candidate" : "comparison")}
+                      type="button"
+                    >
+                      <div
+                        className="aspect-video bg-cover bg-center"
+                        style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
+                      />
+                      <div className="p-5">
+                        <p className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                          {index === 0 ? "Option A" : "Option B"}
+                        </p>
+                        <h3 className={clsx("mt-2 text-2xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                          {card.title}
+                        </h3>
+                        {card.series ? (
+                          <p className={clsx("mt-2 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                            {card.series}
+                          </p>
+                        ) : null}
+                        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+                          <ArrowLeftRight className="h-4 w-4" />
+                          Choose this
+                        </div>
+                      </div>
+                    </button>
+                  ) : null,
+                )}
+              </div>
+
+              <div className="mt-6 flex items-center justify-between gap-3 text-sm">
+                <span className={clsx(isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                  {`Compared ${pairwiseQuizState.comparisons} ${pairwiseQuizState.comparisons === 1 ? "time" : "times"}`}
+                </span>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPairwiseQuizState(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pairwiseQuizReview ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPairwiseQuizReview(null)}
+          >
+            <div
+              className={clsx(
+                "flex max-h-[88vh] w-full max-w-4xl flex-col rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Pairwise Quiz
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Review results
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    The quiz finished in {pairwiseQuizReview.comparisons} comparisons. Tweak the order if you want, then save or cancel.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPairwiseQuizReview(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-1">
+                {pairwiseQuizReview.rankedCards.map((card, index) => (
+                  <div
+                    key={card.entryId}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-3xl border p-4",
+                      isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                    )}
+                  >
+                    <div className={clsx("w-10 text-center text-lg font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                      #{index + 1}
+                    </div>
+                    <div
+                      className="h-16 w-28 shrink-0 rounded-2xl bg-cover bg-center"
+                      style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className={clsx("truncate text-lg font-bold", isDarkMode ? "text-white" : "text-slate-950")}>
+                        {card.title}
+                      </h3>
+                      {card.series ? (
+                        <p className={clsx("truncate text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                          {card.series}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        className={clsx(
+                          "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                          isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                        )}
+                        disabled={index === 0}
+                        onClick={() => movePairwiseReviewCard(index, -1)}
+                        type="button"
+                      >
+                        Move Up
+                      </button>
+                      <button
+                        className={clsx(
+                          "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                          isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                        )}
+                        disabled={index === pairwiseQuizReview.rankedCards.length - 1}
+                        onClick={() => movePairwiseReviewCard(index, 1)}
+                        type="button"
+                      >
+                        Move Down
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={savePairwiseQuizReview}
+                  type="button"
+                >
+                  <Save className="h-4 w-4" />
+                  Save Ranking
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPairwiseQuizReview(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {isCreateBoardModalOpen ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -5924,6 +6311,7 @@ function BoardColumn({
   onDeleteCard,
   onEditCard,
   onAddCard,
+  onOpenPairwiseQuiz,
   onSortCards,
   isMenuOpen,
   isSortMenuOpen,
@@ -5969,6 +6357,7 @@ function BoardColumn({
   onDeleteCard: (columnId: string, entryId: string) => void;
   onEditCard: (card: CardEntry) => void;
   onAddCard: (columnId: string, insertIndex: number) => void;
+  onOpenPairwiseQuiz: () => void;
   onSortCards: (
     columnId: string,
     mode: "title-asc" | "title-desc",
@@ -6143,6 +6532,22 @@ function BoardColumn({
                         <Edit3 className="h-4 w-4" />
                         Rename
                       </button>
+                      {isRankedColumn(column) ? (
+                        <button
+                          className={clsx(
+                            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                            isDarkMode
+                              ? "text-white hover:bg-white/10"
+                              : "text-slate-700 hover:bg-slate-100",
+                          )}
+                          disabled={fullCards.length < 2}
+                          onClick={onOpenPairwiseQuiz}
+                          type="button"
+                        >
+                          <ArrowLeftRight className="h-4 w-4" />
+                          Rank by Quiz
+                        </button>
+                      ) : null}
                       <div className="relative">
                         <button
                           className={clsx(
