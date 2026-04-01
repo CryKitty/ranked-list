@@ -5533,10 +5533,7 @@ export function RankboardApp() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Pairwise Quiz
-                  </p>
-                  <h2 className={clsx("mt-2 text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
                     Which ranks higher?
                   </h2>
                 </div>
@@ -5569,14 +5566,11 @@ export function RankboardApp() {
                       type="button"
                     >
                       <div
-                        className="aspect-video max-h-[160px] bg-cover bg-center sm:max-h-[220px]"
+                        className="aspect-[16/8.5] w-full bg-cover bg-center sm:aspect-video"
                         style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
                       />
                       <div className="p-4 sm:p-5">
-                        <p className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                          {index === 0 ? "Option A" : "Option B"}
-                        </p>
-                        <h3 className={clsx("mt-2 text-xl font-black leading-tight sm:text-2xl", isDarkMode ? "text-white" : "text-slate-950")}>
+                        <h3 className={clsx("text-xl font-black leading-tight sm:text-2xl", isDarkMode ? "text-white" : "text-slate-950")}>
                           {card.title}
                         </h3>
                         {card.series ? (
