@@ -1346,6 +1346,7 @@ export function RankboardApp() {
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=/`,
+        skipBrowserRedirect: true,
       },
     });
 
