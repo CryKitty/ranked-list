@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
+  defaultAnimateLayoutChanges,
   rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -167,6 +168,12 @@ type PairwiseQuizReview = {
   comparisons: number;
 };
 
+type BoardBackupSnapshot = {
+  savedAt: string;
+  activeBoardId: string;
+  boards: SavedBoard[];
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -222,6 +229,7 @@ function createEmptyBoard(title = "New Board"): SavedBoard {
 }
 
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
+const LOCAL_BACKUP_STORAGE_KEY = "rankboard-backups-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
 const COLUMN_ACCENTS = [
   "from-amber-300 via-orange-400 to-rose-500",
@@ -335,6 +343,24 @@ function sanitizeSearchTitle(title: string) {
     .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function trimBackupSnapshots(snapshots: BoardBackupSnapshot[]) {
+  return snapshots
+    .sort((left, right) => right.savedAt.localeCompare(left.savedAt))
+    .slice(0, 10);
+}
+
+function buildBackupSnapshot(
+  boards: SavedBoard[],
+  activeBoardId: string,
+  savedAt = new Date().toISOString(),
+): BoardBackupSnapshot {
+  return {
+    savedAt,
+    activeBoardId,
+    boards: boards.map((board) => normalizeSavedBoard(board)),
+  };
 }
 
 async function fetchWikipediaArtworkByTitle(title: string) {
@@ -1181,6 +1207,7 @@ export function RankboardApp() {
   const latestCardsByColumnRef = useRef(cardsByColumn);
   const latestBoardsRef = useRef(boards);
   const latestActiveBoardIdRef = useRef(activeBoardId);
+  const recentBackupSnapshotsRef = useRef<BoardBackupSnapshot[]>([]);
   const isSigningOutRef = useRef(false);
   const hasAutoOpenedBoardSetupRef = useRef(false);
 
@@ -1267,6 +1294,61 @@ export function RankboardApp() {
     }
   }, []);
 
+  const writeLocalBackupSnapshot = useCallback((snapshot: BoardBackupSnapshot) => {
+    try {
+      const storedValue = window.localStorage.getItem(LOCAL_BACKUP_STORAGE_KEY);
+      const existingSnapshots = storedValue ? JSON.parse(storedValue) as BoardBackupSnapshot[] : [];
+      const serializedSnapshot = JSON.stringify({
+        activeBoardId: snapshot.activeBoardId,
+        boards: snapshot.boards,
+      });
+      const nextSnapshots = trimBackupSnapshots([
+        snapshot,
+        ...existingSnapshots.filter(
+          (existing) =>
+            JSON.stringify({
+              activeBoardId: existing.activeBoardId,
+              boards: existing.boards,
+            }) !== serializedSnapshot,
+        ),
+      ]);
+      window.localStorage.setItem(LOCAL_BACKUP_STORAGE_KEY, JSON.stringify(nextSnapshots));
+      recentBackupSnapshotsRef.current = nextSnapshots;
+    } catch {
+      // Ignore backup storage failures and keep the primary save path moving.
+    }
+  }, []);
+
+  const buildPersistedColumnsPayload = useCallback((nextBoards: SavedBoard[], nextActiveBoardId: string) => {
+    const snapshot = buildBackupSnapshot(nextBoards, nextActiveBoardId);
+    const serializedSnapshot = JSON.stringify({
+      activeBoardId: snapshot.activeBoardId,
+      boards: snapshot.boards,
+    });
+    const nextRecentSnapshots = trimBackupSnapshots([
+      snapshot,
+      ...recentBackupSnapshotsRef.current.filter(
+        (existing) =>
+          JSON.stringify({
+            activeBoardId: existing.activeBoardId,
+            boards: existing.boards,
+          }) !== serializedSnapshot,
+      ),
+    ]);
+
+    recentBackupSnapshotsRef.current = nextRecentSnapshots;
+
+    return {
+      payload: {
+        version: 3,
+        activeBoardId: nextActiveBoardId,
+        boards: nextBoards,
+        recentSnapshots: nextRecentSnapshots,
+      },
+      snapshot,
+    };
+  }, []);
+
   const persistBoardState = useCallback(async (options?: {
     boards?: SavedBoard[];
     activeBoardId?: string;
@@ -1279,17 +1361,14 @@ export function RankboardApp() {
     const nextBoards = options?.boards ?? latestBoardsRef.current;
     const nextActiveBoardId = options?.activeBoardId ?? latestActiveBoardIdRef.current;
     const nextCardsByColumn = options?.cardsByColumn ?? latestCardsByColumnRef.current;
+    const { payload, snapshot } = buildPersistedColumnsPayload(nextBoards, nextActiveBoardId);
 
     setIsPersisting(true);
 
     try {
       const { error } = await supabase.from("board_states").upsert({
         owner_id: currentUser.id,
-        columns: {
-          version: 2,
-          activeBoardId: nextActiveBoardId,
-          boards: nextBoards,
-        },
+        columns: payload,
         cards_by_column: nextCardsByColumn,
         updated_at: new Date().toISOString(),
       });
@@ -1300,10 +1379,11 @@ export function RankboardApp() {
       }
 
       setLastSavedAt(new Date().toISOString());
+      writeLocalBackupSnapshot(snapshot);
     } finally {
       setIsPersisting(false);
     }
-  }, [currentUser, supabase]);
+  }, [buildPersistedColumnsPayload, currentUser, supabase, writeLocalBackupSnapshot]);
 
   function findDuplicateCard(
     title: string,
@@ -1337,6 +1417,13 @@ export function RankboardApp() {
   }
 
   useEffect(() => {
+    try {
+      const storedBackups = window.localStorage.getItem(LOCAL_BACKUP_STORAGE_KEY);
+      recentBackupSnapshotsRef.current = storedBackups ? JSON.parse(storedBackups) as BoardBackupSnapshot[] : [];
+    } catch {
+      recentBackupSnapshotsRef.current = [];
+    }
+
     if (authEnabled) {
       try {
         const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -1454,10 +1541,11 @@ export function RankboardApp() {
         boards,
       }),
     );
+    writeLocalBackupSnapshot(buildBackupSnapshot(boards, activeBoardId));
     if (!authEnabled || !currentUser) {
       setLastSavedAt(new Date().toISOString());
     }
-  }, [activeBoardId, authEnabled, boards, currentUser, hasLoadedPersistedState, isAuthLoading]);
+  }, [activeBoardId, authEnabled, boards, currentUser, hasLoadedPersistedState, isAuthLoading, writeLocalBackupSnapshot]);
 
   useEffect(() => {
     if (!hasLoadedPersistedState) {
@@ -1637,12 +1725,12 @@ export function RankboardApp() {
       const columnsPayload =
         (data?.columns as
           | ColumnDefinition[]
-          | { version?: number; boards?: SavedBoard[]; activeBoardId?: string }
+          | { version?: number; boards?: SavedBoard[]; activeBoardId?: string; recentSnapshots?: BoardBackupSnapshot[] }
           | undefined) ?? null;
       const remoteBoardsPayload =
         columnsPayload &&
         !Array.isArray(columnsPayload) &&
-        columnsPayload.version === 2 &&
+        (columnsPayload.version === 2 || columnsPayload.version === 3) &&
         Array.isArray(columnsPayload.boards) &&
         columnsPayload.boards.length > 0
           ? columnsPayload
@@ -1657,6 +1745,9 @@ export function RankboardApp() {
           : false;
 
       if (remoteBoardsPayload) {
+        recentBackupSnapshotsRef.current = Array.isArray(remoteBoardsPayload.recentSnapshots)
+          ? trimBackupSnapshots(remoteBoardsPayload.recentSnapshots)
+          : recentBackupSnapshotsRef.current;
         const remoteBoards = remoteBoardsPayload.boards ?? [];
         if (remoteBoards.length === 0) {
           setHasLoadedRemoteState(true);
@@ -1682,16 +1773,14 @@ export function RankboardApp() {
         setCardsByColumn(nextActiveBoard.cardsByColumn);
       } else if (remoteBoardExists && remoteColumns && remoteCardsByColumn) {
         if (remoteBoardIsStarter && localBoardHasContent) {
+          const { payload, snapshot } = buildPersistedColumnsPayload(localBoards, localActiveBoardId);
           await client.from("board_states").upsert({
             owner_id: user.id,
-            columns: {
-              version: 2,
-              activeBoardId: localActiveBoardId,
-              boards: localBoards,
-            },
+            columns: payload,
             cards_by_column: localCardsByColumn,
             updated_at: new Date().toISOString(),
           });
+          writeLocalBackupSnapshot(snapshot);
         } else {
           const migratedBoard: SavedBoard = {
             ...createEmptyBoard("Rankboard"),
@@ -1706,16 +1795,14 @@ export function RankboardApp() {
           setCardsByColumn(migratedBoard.cardsByColumn);
         }
       } else {
+        const { payload, snapshot } = buildPersistedColumnsPayload(localBoards, localActiveBoardId);
         await client.from("board_states").upsert({
           owner_id: user.id,
-          columns: {
-            version: 2,
-            activeBoardId: localActiveBoardId,
-            boards: localBoards,
-          },
+          columns: payload,
           cards_by_column: localCardsByColumn,
           updated_at: new Date().toISOString(),
         });
+        writeLocalBackupSnapshot(snapshot);
       }
 
       setHasLoadedRemoteState(true);
@@ -1728,9 +1815,11 @@ export function RankboardApp() {
     };
   }, [
     authEnabled,
+    buildPersistedColumnsPayload,
     currentUser,
     hasLoadedPersistedState,
     supabase,
+    writeLocalBackupSnapshot,
   ]);
 
   useEffect(() => {
@@ -5585,9 +5674,37 @@ export function RankboardApp() {
               </div>
 
               <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm sm:mt-6 sm:pt-6">
-                <span className={clsx(isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                  {`Compared ${pairwiseQuizState.comparisons} ${pairwiseQuizState.comparisons === 1 ? "time" : "times"}`}
-                </span>
+                <div className="min-w-[180px] flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={clsx("text-xs font-semibold uppercase tracking-[0.16em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                      Progress
+                    </span>
+                    <span className={clsx("text-sm font-semibold", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                      {`${pairwiseQuizState.sortedCards.length} / ${
+                        pairwiseQuizState.sortedCards.length +
+                        pairwiseQuizState.remainingCards.length +
+                        (pairwiseQuizState.candidateCard ? 1 : 0)
+                      } placed`}
+                    </span>
+                  </div>
+                  <div className={clsx("mt-2 h-2 overflow-hidden rounded-full", isDarkMode ? "bg-white/10" : "bg-slate-200")}>
+                    <div
+                      className={clsx("h-full rounded-full transition-all", isDarkMode ? "bg-white" : "bg-slate-950")}
+                      style={{
+                        width: `${
+                          ((pairwiseQuizState.sortedCards.length /
+                            Math.max(
+                              pairwiseQuizState.sortedCards.length +
+                                pairwiseQuizState.remainingCards.length +
+                                (pairwiseQuizState.candidateCard ? 1 : 0),
+                              1,
+                            )) *
+                            100)
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-3">
                   <button
                     className={clsx(
@@ -7140,14 +7257,23 @@ function SortableCard({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
       id: card.entryId,
+      animateLayoutChanges: (args) => {
+        if (args.isDragging) {
+          return false;
+        }
+
+        return defaultAnimateLayoutChanges(args);
+      },
     });
 
   return (
     <div
       ref={setNodeRef}
+      className={clsx("relative", isDragging && "z-20")}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: isDragging ? undefined : (transition ?? "transform 180ms ease"),
+        willChange: "transform",
       }}
     >
       <CardTile
@@ -7224,7 +7350,7 @@ function CardTile({
       className={clsx(
         "group relative shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
         tierBorderClass,
-        isDragging && "rotate-1 scale-[1.01]",
+        isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
       )}
       onClick={() => {
         if (collapseCards) {
@@ -7234,6 +7360,7 @@ function CardTile({
       style={{
         contentVisibility: "auto",
         containIntrinsicSize: collapseCards ? "82px" : "180px",
+        touchAction: "pan-y",
       }}
     >
       <div
