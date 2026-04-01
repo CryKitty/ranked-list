@@ -168,6 +168,8 @@ type PairwiseQuizReview = {
   comparisons: number;
 };
 
+type ArtworkSearchMode = "image" | "gif";
+
 type BoardBackupSnapshot = {
   savedAt: string;
   activeBoardId: string;
@@ -712,6 +714,52 @@ async function findArtworkOptions(title: string, series = "") {
   return candidates.slice(0, 4);
 }
 
+async function findGifOptions(title: string) {
+  const query = title.trim();
+  const tenorKey = process.env.NEXT_PUBLIC_TENOR_API_KEY;
+
+  if (!query || !tenorKey) {
+    return [];
+  }
+
+  try {
+    const tenorUrl = new URL("https://tenor.googleapis.com/v2/search");
+    tenorUrl.searchParams.set("q", query);
+    tenorUrl.searchParams.set("key", tenorKey);
+    tenorUrl.searchParams.set("client_key", process.env.NEXT_PUBLIC_TENOR_CLIENT_KEY || "rankboard");
+    tenorUrl.searchParams.set("limit", "4");
+    tenorUrl.searchParams.set("media_filter", "gif");
+
+    const response = await fetch(tenorUrl.toString());
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = (await response.json()) as {
+      results?: Array<{
+        media_formats?: {
+          gif?: { url?: string };
+          mediumgif?: { url?: string };
+          tinygif?: { url?: string };
+        };
+      }>;
+    };
+
+    return (data.results ?? [])
+      .map((result) =>
+        result.media_formats?.gif?.url ||
+        result.media_formats?.mediumgif?.url ||
+        result.media_formats?.tinygif?.url ||
+        null,
+      )
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 4);
+  } catch {
+    return [];
+  }
+}
+
 function createCardDraft(card: CardEntry): CardEditorDraft {
   return {
     title: card.title,
@@ -853,6 +901,63 @@ function MenuSectionButton({
       </span>
       <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
     </button>
+  );
+}
+
+function FieldSettingsPanel({
+  isDarkMode,
+  settings,
+  onToggleSeriesField,
+  onToggleImageField,
+  onToggleNotesField,
+}: {
+  isDarkMode: boolean;
+  settings: BoardSettings;
+  onToggleSeriesField: () => void;
+  onToggleImageField: () => void;
+  onToggleNotesField: () => void;
+}) {
+  return (
+    <div
+      className={clsx(
+        "min-w-[220px] rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+        isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
+      )}
+    >
+      <button
+        className={clsx(
+          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+        )}
+        onClick={onToggleSeriesField}
+        type="button"
+      >
+        <span>Series field</span>
+        <span className="text-xs opacity-70">{settings.includeSeriesField ? "On" : "Off"}</span>
+      </button>
+      <button
+        className={clsx(
+          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+        )}
+        onClick={onToggleImageField}
+        type="button"
+      >
+        <span>Artwork field</span>
+        <span className="text-xs opacity-70">{settings.includeImageField ? "On" : "Off"}</span>
+      </button>
+      <button
+        className={clsx(
+          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+        )}
+        onClick={onToggleNotesField}
+        type="button"
+      >
+        <span>Notes field</span>
+        <span className="text-xs opacity-70">{settings.includeNotesField ? "On" : "Off"}</span>
+      </button>
+    </div>
   );
 }
 
@@ -1199,6 +1304,10 @@ export function RankboardApp() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
+  const [isEditFieldSettingsOpen, setIsEditFieldSettingsOpen] = useState(false);
+  const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
+  const [draftArtworkSearchMode, setDraftArtworkSearchMode] = useState<ArtworkSearchMode | null>(null);
+  const [editingArtworkSearchMode, setEditingArtworkSearchMode] = useState<ArtworkSearchMode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
@@ -1239,6 +1348,7 @@ export function RankboardApp() {
   const activeBoardTitle =
     activeBoard.title ?? "Rankboard";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
+  const canSearchGifs = Boolean(process.env.NEXT_PUBLIC_TENOR_API_KEY);
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const shouldShowSeriesField =
@@ -2411,6 +2521,7 @@ export function RankboardApp() {
     setAddCardTarget(null);
     setDraft(initialDraft);
     setIsAutofillingDraftImage(false);
+    setDraftArtworkSearchMode(null);
     setDraftDuplicateAction(null);
     setArtworkPicker(null);
     setIsAddFieldSettingsOpen(false);
@@ -2535,7 +2646,7 @@ export function RankboardApp() {
     setPendingMirrorDelete(null);
   }
 
-  async function handleAutofillDraftImage() {
+  async function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
     const title = draft.title.trim();
     const series = draft.series.trim();
 
@@ -2544,9 +2655,13 @@ export function RankboardApp() {
     }
 
     setIsAutofillingDraftImage(true);
+    setDraftArtworkSearchMode(mode);
 
     try {
-      const foundImages = await findArtworkOptions(title, series);
+      const foundImages =
+        mode === "gif"
+          ? await findGifOptions(title)
+          : await findArtworkOptions(title, series);
       if (foundImages.length === 1) {
         setDraft((current) => ({
           ...current,
@@ -2560,6 +2675,7 @@ export function RankboardApp() {
       }
     } finally {
       setIsAutofillingDraftImage(false);
+      setDraftArtworkSearchMode(null);
     }
   }
 
@@ -2575,6 +2691,7 @@ export function RankboardApp() {
     setEditingCardItemId(null);
     setEditingCardDraft(null);
     setEditingDuplicateAction(null);
+    setIsEditFieldSettingsOpen(false);
   }
 
   function saveEditingCard() {
@@ -2617,7 +2734,7 @@ export function RankboardApp() {
     cancelEditingCard();
   }
 
-  async function autofillEditingCardImage() {
+  async function autofillEditingCardImage(mode: ArtworkSearchMode = "image") {
     if (!editingCardDraft || !editingCardItemId) {
       return;
     }
@@ -2625,9 +2742,13 @@ export function RankboardApp() {
     const title = editingCardDraft.title.trim() || "Untitled Game";
     const series = editingCardDraft.series.trim();
     setAutofillingCardId(editingCardItemId);
+    setEditingArtworkSearchMode(mode);
 
     try {
-      const foundImages = await findArtworkOptions(title, series);
+      const foundImages =
+        mode === "gif"
+          ? await findGifOptions(title)
+          : await findArtworkOptions(title, series);
       if (foundImages.length === 1) {
         setEditingCardDraft((current) =>
           current
@@ -2645,6 +2766,7 @@ export function RankboardApp() {
       }
     } finally {
       setAutofillingCardId(null);
+      setEditingArtworkSearchMode(null);
     }
   }
 
@@ -3837,6 +3959,21 @@ export function RankboardApp() {
                               <span>Tier Highlights</span>
                               <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
                             </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
+                              onClick={() => {
+                                setIsBoardFieldSettingsModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <span>Fields</span>
+                              <Settings2 className="h-4 w-4 opacity-70" />
+                            </button>
                           </div>
                         ) : null}
                       </div>
@@ -4129,6 +4266,18 @@ export function RankboardApp() {
                                   <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })} type="button">
                                     <span>Tier Highlights</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
+                                  </button>
+                                  <button
+                                    className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={() => {
+                                      setIsBoardFieldSettingsModalOpen(true);
+                                      setIsActionsMenuOpen(false);
+                                      setIsMobileActionsOpen(false);
+                                    }}
+                                    type="button"
+                                  >
+                                    <span>Fields</span>
+                                    <Settings2 className="h-4 w-4 opacity-70" />
                                   </button>
                                 </div>
                               ) : null}
@@ -4493,6 +4642,18 @@ export function RankboardApp() {
                                 <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })} type="button">
                                   <span>Tier Highlights</span>
                                   <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
+                                </button>
+                                <button
+                                  className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                  onClick={() => {
+                                    setIsBoardFieldSettingsModalOpen(true);
+                                    setIsActionsMenuOpen(false);
+                                    setIsMobileActionsOpen(false);
+                                  }}
+                                  type="button"
+                                >
+                                  <span>Fields</span>
+                                  <Settings2 className="h-4 w-4 opacity-70" />
                                 </button>
                               </div>
                             ) : null}
@@ -4877,62 +5038,81 @@ export function RankboardApp() {
                 </label>
               </div>
 
-              <label className="mt-4 grid gap-2">
-                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                  Background image or GIF URL
-                </span>
-                <input
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                  )}
-                  value={editingCardDraft.imageUrl}
-                  onChange={(event) =>
-                    {
-                      setEditingDuplicateAction(null);
+              {shouldShowImageField ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                      Background image or GIF URL
+                    </span>
+                    <input
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      value={editingCardDraft.imageUrl}
+                      onChange={(event) =>
+                        {
+                          setEditingDuplicateAction(null);
+                          setEditingCardDraft((current) =>
+                            current ? { ...current, imageUrl: event.target.value } : current,
+                          );
+                        }
+                      }
+                    />
+                  </label>
+
+                  <button
+                    className={clsx(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
+                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
+                    )}
+                    onClick={() => void autofillEditingCardImage("image")}
+                    type="button"
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    {autofillingCardId === editingCardItemId && editingArtworkSearchMode === "image" ? "Finding..." : "Image"}
+                  </button>
+                  <button
+                    className={clsx(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:border-white/10 disabled:text-slate-500"
+                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:border-slate-200 disabled:text-slate-400",
+                    )}
+                    disabled={!canSearchGifs}
+                    onClick={() => void autofillEditingCardImage("gif")}
+                    type="button"
+                    title={canSearchGifs ? "Find a GIF with Tenor" : "Configure NEXT_PUBLIC_TENOR_API_KEY to enable GIF search"}
+                  >
+                    <Clapperboard className="h-4 w-4" />
+                    {autofillingCardId === editingCardItemId && editingArtworkSearchMode === "gif" ? "Finding..." : "GIF"}
+                  </button>
+                </div>
+              ) : null}
+
+              {shouldShowNotesField ? (
+                <label className="mt-4 grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
+                  <textarea
+                    className={clsx(
+                      "min-h-32 rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    value={editingCardDraft.notes}
+                    onChange={(event) =>
                       setEditingCardDraft((current) =>
-                        current ? { ...current, imageUrl: event.target.value } : current,
-                      );
+                        current ? { ...current, notes: event.target.value } : current,
+                      )
                     }
-                  }
-                />
-              </label>
-
-              <button
-                className={clsx(
-                  "mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                )}
-                onClick={autofillEditingCardImage}
-                type="button"
-              >
-                <WandSparkles className="h-4 w-4" />
-                {autofillingCardId === editingCardItemId
-                  ? "Finding artwork..."
-                  : "Auto-Find Artwork"}
-              </button>
-
-              <label className="mt-4 grid gap-2">
-                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
-                <textarea
-                  className={clsx(
-                    "min-h-32 rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                  )}
-                  value={editingCardDraft.notes}
-                  onChange={(event) =>
-                    setEditingCardDraft((current) =>
-                      current ? { ...current, notes: event.target.value } : current,
-                    )
-                  }
-                />
-              </label>
+                  />
+                </label>
+              ) : null}
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
@@ -4997,6 +5177,32 @@ export function RankboardApp() {
                   <X className="h-4 w-4" />
                   Cancel
                 </button>
+                <div className="relative">
+                  <button
+                    className={clsx(
+                      "inline-flex h-[50px] w-[50px] items-center justify-center rounded-full border transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    onClick={() => setIsEditFieldSettingsOpen((current) => !current)}
+                    type="button"
+                    aria-label="Customize card fields"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                  {isEditFieldSettingsOpen ? (
+                    <div className="absolute bottom-14 right-0 z-10">
+                      <FieldSettingsPanel
+                        isDarkMode={isDarkMode}
+                        settings={activeBoardSettings}
+                        onToggleSeriesField={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
+                        onToggleImageField={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
+                        onToggleNotesField={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -5106,7 +5312,7 @@ export function RankboardApp() {
                 </div>
 
                 {shouldShowImageField ? (
-                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                     <label className="grid gap-2">
                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                         Background image or GIF URL
@@ -5145,11 +5351,26 @@ export function RankboardApp() {
                           ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
                           : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
                       )}
-                      onClick={handleAutofillDraftImage}
+                      onClick={() => void handleAutofillDraftImage("image")}
                       type="button"
                     >
-                      <WandSparkles className="h-4 w-4" />
-                      {isAutofillingDraftImage ? "Finding..." : "Find Art"}
+                      <ImagePlus className="h-4 w-4" />
+                      {isAutofillingDraftImage && draftArtworkSearchMode === "image" ? "Finding..." : "Image"}
+                    </button>
+                    <button
+                      className={clsx(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:border-white/10 disabled:text-slate-500"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:border-slate-200 disabled:text-slate-400",
+                      )}
+                      disabled={!canSearchGifs}
+                      onClick={() => void handleAutofillDraftImage("gif")}
+                      type="button"
+                      title={canSearchGifs ? "Find a GIF with Tenor" : "Configure NEXT_PUBLIC_TENOR_API_KEY to enable GIF search"}
+                    >
+                      <Clapperboard className="h-4 w-4" />
+                      {isAutofillingDraftImage && draftArtworkSearchMode === "gif" ? "Finding..." : "GIF"}
                     </button>
                   </div>
                 ) : null}
@@ -5300,68 +5521,34 @@ export function RankboardApp() {
                   >
                     Cancel
                   </button>
+                  <div className="relative">
+                    <button
+                      className={clsx(
+                        "inline-flex h-[50px] w-[50px] items-center justify-center rounded-full border transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={() => setIsAddFieldSettingsOpen((current) => !current)}
+                      type="button"
+                      aria-label="Customize card fields"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                    {isAddFieldSettingsOpen ? (
+                      <div className="absolute bottom-14 right-0 z-10">
+                        <FieldSettingsPanel
+                          isDarkMode={isDarkMode}
+                          settings={activeBoardSettings}
+                          onToggleSeriesField={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
+                          onToggleImageField={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
+                          onToggleNotesField={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </form>
-
-              <div className="absolute bottom-5 right-5">
-                <button
-                  className={clsx(
-                    "inline-flex h-11 w-11 items-center justify-center rounded-full border transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() => setIsAddFieldSettingsOpen((current) => !current)}
-                  type="button"
-                  aria-label="Customize add fields"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-                {isAddFieldSettingsOpen ? (
-                  <div
-                    className={clsx(
-                      "absolute bottom-14 right-0 z-10 min-w-[220px] rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-900"
-                        : "border-slate-200 bg-white",
-                    )}
-                  >
-                    <button
-                      className={clsx(
-                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                      )}
-                      onClick={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
-                      type="button"
-                    >
-                      <span>Series field</span>
-                      <span className="text-xs opacity-70">{activeBoardSettings.includeSeriesField ? "On" : "Off"}</span>
-                    </button>
-                    <button
-                      className={clsx(
-                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                      )}
-                      onClick={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
-                      type="button"
-                    >
-                      <span>Artwork field</span>
-                      <span className="text-xs opacity-70">{activeBoardSettings.includeImageField ? "On" : "Off"}</span>
-                    </button>
-                    <button
-                      className={clsx(
-                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                      )}
-                      onClick={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
-                      type="button"
-                    >
-                      <span>Notes field</span>
-                      <span className="text-xs opacity-70">{activeBoardSettings.includeNotesField ? "On" : "Off"}</span>
-                    </button>
-                  </div>
-                ) : null}
-              </div>
             </div>
           </div>
         ) : null}
@@ -5426,6 +5613,58 @@ export function RankboardApp() {
                     </div>
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isBoardFieldSettingsModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setIsBoardFieldSettingsModalOpen(false)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-sm rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Customization
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Fields
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Choose which optional fields appear when adding or editing cards on this board.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setIsBoardFieldSettingsModalOpen(false)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="mt-6">
+                <FieldSettingsPanel
+                  isDarkMode={isDarkMode}
+                  settings={activeBoardSettings}
+                  onToggleSeriesField={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
+                  onToggleImageField={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
+                  onToggleNotesField={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                />
               </div>
             </div>
           </div>
