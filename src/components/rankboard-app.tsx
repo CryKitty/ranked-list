@@ -83,6 +83,24 @@ type PendingDuplicateAction = {
   series: string;
 };
 
+type DuplicateCleanupSuggestion = {
+  id: string;
+  columnId: string;
+  columnTitle: string;
+  normalizedTitle: string;
+  keepCard: CardEntry;
+  removeCard: CardEntry;
+};
+
+type TitleTidySuggestion = {
+  id: string;
+  columnId: string;
+  columnTitle: string;
+  entryId: string;
+  originalTitle: string;
+  proposedTitle: string;
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -516,6 +534,51 @@ function normalizeTitleForComparison(title: string) {
   return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
 }
 
+function getCardContentScore(card: CardEntry) {
+  let score = 0;
+
+  if (card.imageUrl.trim()) {
+    score += 3;
+  }
+
+  if (card.series.trim()) {
+    score += 2;
+  }
+
+  if ((card.notes ?? "").trim()) {
+    score += 2;
+  }
+
+  if (card.mirroredFromEntryId) {
+    score -= 2;
+  }
+
+  score += Math.min(card.title.trim().length / 50, 1);
+
+  return score;
+}
+
+function getSuggestedTitleCleanup(title: string) {
+  const trimmed = title.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const cleaned = trimmed
+    .replace(/^\s*\d+\s*[\.\)\-:]\s*/, "")
+    .replace(/\s+([:!?,])/g, "$1")
+    .replace(/\s*:\s*/g, ": ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!cleaned || cleaned === trimmed) {
+    return null;
+  }
+
+  return cleaned;
+}
+
 function getBoardVocabulary(boardTitle: string) {
   const normalizedTitle = boardTitle.toLowerCase();
 
@@ -605,6 +668,10 @@ export function RankboardApp() {
     useState<PendingDuplicateAction | null>(null);
   const [editingDuplicateAction, setEditingDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
+  const [duplicateCleanupSuggestions, setDuplicateCleanupSuggestions] = useState<DuplicateCleanupSuggestion[]>([]);
+  const [isDuplicateCleanupModalOpen, setIsDuplicateCleanupModalOpen] = useState(false);
+  const [titleTidySuggestions, setTitleTidySuggestions] = useState<TitleTidySuggestion[]>([]);
+  const [isTitleTidyModalOpen, setIsTitleTidyModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
@@ -1755,8 +1822,8 @@ export function RankboardApp() {
   function saveBoardTitle() {
     const nextTitle = boardTitleDraft.trim();
 
-    setBoards((current) =>
-      current.map((board) =>
+    setBoards((current) => {
+      const nextBoards = current.map((board) =>
         board.id === activeBoardId
           ? {
               ...board,
@@ -1764,8 +1831,11 @@ export function RankboardApp() {
               updatedAt: new Date().toISOString(),
             }
           : board,
-      ),
-    );
+      );
+
+      latestBoardsRef.current = nextBoards;
+      return nextBoards;
+    });
 
     cancelEditingBoardTitle();
   }
@@ -1795,6 +1865,150 @@ export function RankboardApp() {
       type: "ranked",
       accent: COLUMN_ACCENTS[(nextIndex - 1) % COLUMN_ACCENTS.length] ?? COLUMN_ACCENTS[0],
     };
+  }
+
+  function openDuplicateCleanupModal() {
+    const suggestions: DuplicateCleanupSuggestion[] = [];
+
+    for (const column of columns) {
+      const grouped = new Map<string, CardEntry[]>();
+
+      for (const card of cardsByColumn[column.id] ?? []) {
+        const normalizedTitle = normalizeTitleForComparison(card.title);
+
+        if (!normalizedTitle) {
+          continue;
+        }
+
+        const current = grouped.get(normalizedTitle) ?? [];
+        current.push(card);
+        grouped.set(normalizedTitle, current);
+      }
+
+      for (const [normalizedTitle, matchingCards] of grouped.entries()) {
+        if (matchingCards.length < 2) {
+          continue;
+        }
+
+        const sorted = [...matchingCards].sort((left, right) => getCardContentScore(right) - getCardContentScore(left));
+        const keepCard = sorted[0];
+
+        for (const removeCard of sorted.slice(1)) {
+          suggestions.push({
+            id: `${column.id}-${removeCard.entryId}`,
+            columnId: column.id,
+            columnTitle: column.title,
+            normalizedTitle,
+            keepCard,
+            removeCard,
+          });
+        }
+      }
+    }
+
+    setDuplicateCleanupSuggestions(suggestions);
+    setIsDuplicateCleanupModalOpen(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  function removeDuplicateCleanupSuggestion(suggestionId: string) {
+    setDuplicateCleanupSuggestions((current) => current.filter((suggestion) => suggestion.id !== suggestionId));
+  }
+
+  function applyDuplicateCleanupSuggestions() {
+    const removalsByColumn = new Map<string, Set<string>>();
+
+    for (const suggestion of duplicateCleanupSuggestions) {
+      const current = removalsByColumn.get(suggestion.columnId) ?? new Set<string>();
+      current.add(suggestion.removeCard.entryId);
+      removalsByColumn.set(suggestion.columnId, current);
+    }
+
+    setCardsByColumn((current) => {
+      const nextState: Record<string, CardEntry[]> = {};
+
+      for (const [columnId, cards] of Object.entries(current)) {
+        const removals = removalsByColumn.get(columnId);
+        nextState[columnId] = removals
+          ? cards.filter((card) => !removals.has(card.entryId))
+          : cards;
+      }
+
+      return nextState;
+    });
+
+    setIsDuplicateCleanupModalOpen(false);
+    setDuplicateCleanupSuggestions([]);
+  }
+
+  function openTitleTidyModal() {
+    const suggestions: TitleTidySuggestion[] = [];
+
+    for (const column of columns) {
+      for (const card of cardsByColumn[column.id] ?? []) {
+        const proposedTitle = getSuggestedTitleCleanup(card.title);
+
+        if (!proposedTitle) {
+          continue;
+        }
+
+        suggestions.push({
+          id: `${column.id}-${card.entryId}`,
+          columnId: column.id,
+          columnTitle: column.title,
+          entryId: card.entryId,
+          originalTitle: card.title,
+          proposedTitle,
+        });
+      }
+    }
+
+    setTitleTidySuggestions(suggestions);
+    setIsTitleTidyModalOpen(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  function updateTitleTidySuggestion(suggestionId: string, proposedTitle: string) {
+    setTitleTidySuggestions((current) =>
+      current.map((suggestion) =>
+        suggestion.id === suggestionId
+          ? {
+              ...suggestion,
+              proposedTitle,
+            }
+          : suggestion,
+      ),
+    );
+  }
+
+  function removeTitleTidySuggestion(suggestionId: string) {
+    setTitleTidySuggestions((current) => current.filter((suggestion) => suggestion.id !== suggestionId));
+  }
+
+  function applyTitleTidySuggestions() {
+    const titleUpdates = new Map(
+      titleTidySuggestions
+        .map((suggestion) => [suggestion.entryId, suggestion.proposedTitle.trim()] as const)
+        .filter(([, title]) => title.length > 0),
+    );
+
+    setCardsByColumn((current) => {
+      const nextState: Record<string, CardEntry[]> = {};
+
+      for (const [columnId, cards] of Object.entries(current)) {
+        nextState[columnId] = cards.map((card) => {
+          const updatedTitle = titleUpdates.get(card.entryId);
+          return updatedTitle ? { ...card, title: updatedTitle } : card;
+        });
+      }
+
+      return nextState;
+    });
+
+    setIsTitleTidyModalOpen(false);
+    setTitleTidySuggestions([]);
   }
 
   async function handleImportTrelloBoard(
@@ -1960,6 +2174,28 @@ export function RankboardApp() {
                       >
                         <Upload className="h-4 w-4" />
                         Import from Trello
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
+                        onClick={openDuplicateCleanupModal}
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Clean Up Duplicates
+                      </button>
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
+                        onClick={openTitleTidyModal}
+                        type="button"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Tidy Titles
                       </button>
                       <button
                         className={clsx(
@@ -2235,6 +2471,28 @@ export function RankboardApp() {
                             </button>
                             <button
                               className={clsx(
+                                "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                              )}
+                              onClick={openDuplicateCleanupModal}
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Clean Up Duplicates
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                              )}
+                              onClick={openTitleTidyModal}
+                              type="button"
+                            >
+                              <Sparkles className="h-4 w-4" />
+                              Tidy Titles
+                            </button>
+                            <button
+                              className={clsx(
                                 "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
                               )}
@@ -2355,6 +2613,7 @@ export function RankboardApp() {
               {isEditingBoardTitle ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <input
+                    autoFocus
                     className={clsx(
                       "min-w-[260px] flex-1 rounded-2xl border px-4 py-3 text-2xl font-black outline-none transition",
                       isDarkMode
@@ -2363,6 +2622,17 @@ export function RankboardApp() {
                     )}
                     value={boardTitleDraft}
                     onChange={(event) => setBoardTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveBoardTitle();
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelEditingBoardTitle();
+                      }
+                    }}
                   />
                   <button
                     className={clsx(
@@ -3101,6 +3371,273 @@ export function RankboardApp() {
                   onClick={() => {
                     setIsCreateBoardModalOpen(false);
                     setNewBoardTitle("");
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isDuplicateCleanupModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+            <div
+              className={clsx(
+                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Cleanup
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Clean up duplicates
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    These are duplicate titles found within the same column. The suggested removal is the entry with less content.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => {
+                    setIsDuplicateCleanupModalOpen(false);
+                    setDuplicateCleanupSuggestions([]);
+                  }}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 max-h-[50vh] space-y-3 overflow-y-auto pr-1">
+                {duplicateCleanupSuggestions.length === 0 ? (
+                  <div
+                    className={clsx(
+                      "rounded-3xl border px-4 py-6 text-sm",
+                      isDarkMode ? "border-white/10 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+                    )}
+                  >
+                    No duplicate titles were found within the current board.
+                  </div>
+                ) : (
+                  duplicateCleanupSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className={clsx(
+                        "rounded-3xl border p-4",
+                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
+                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                            Keep <strong>{suggestion.keepCard.title}</strong>, remove <strong>{suggestion.removeCard.title}</strong>.
+                          </p>
+                        </div>
+                        <button
+                          className={clsx(
+                            "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                            isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={() => removeDuplicateCleanupSuggestion(suggestion.id)}
+                          type="button"
+                        >
+                          Keep both
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-emerald-400/20 bg-emerald-400/10" : "border-emerald-200 bg-emerald-50")}>
+                          <p className="font-semibold">Keep</p>
+                          <p className="mt-2">{suggestion.keepCard.title}</p>
+                          <p className="mt-2 opacity-70">{`Series: ${suggestion.keepCard.series || "None"}`}</p>
+                          <p className="opacity-70">{`Image: ${suggestion.keepCard.imageUrl ? "Yes" : "No"}`}</p>
+                          <p className="opacity-70">{`Notes: ${suggestion.keepCard.notes ? "Yes" : "No"}`}</p>
+                        </div>
+                        <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-rose-400/20 bg-rose-400/10" : "border-rose-200 bg-rose-50")}>
+                          <p className="font-semibold">Remove</p>
+                          <p className="mt-2">{suggestion.removeCard.title}</p>
+                          <p className="mt-2 opacity-70">{`Series: ${suggestion.removeCard.series || "None"}`}</p>
+                          <p className="opacity-70">{`Image: ${suggestion.removeCard.imageUrl ? "Yes" : "No"}`}</p>
+                          <p className="opacity-70">{`Notes: ${suggestion.removeCard.notes ? "Yes" : "No"}`}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={applyDuplicateCleanupSuggestions}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Apply Cleanup
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => {
+                    setIsDuplicateCleanupModalOpen(false);
+                    setDuplicateCleanupSuggestions([]);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isTitleTidyModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+            <div
+              className={clsx(
+                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Cleanup
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Tidy titles
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Review the proposed title cleanup list, edit anything you want, and then apply the approved changes.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => {
+                    setIsTitleTidyModalOpen(false);
+                    setTitleTidySuggestions([]);
+                  }}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                {titleTidySuggestions.length === 0 ? (
+                  <div
+                    className={clsx(
+                      "rounded-3xl border px-4 py-6 text-sm",
+                      isDarkMode ? "border-white/10 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+                    )}
+                  >
+                    No title cleanup suggestions were found for the current board.
+                  </div>
+                ) : (
+                  titleTidySuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className={clsx(
+                        "rounded-3xl border p-4",
+                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
+                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                            {suggestion.originalTitle}
+                          </p>
+                        </div>
+                        <button
+                          className={clsx(
+                            "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                            isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={() => removeTitleTidySuggestion(suggestion.id)}
+                          type="button"
+                        >
+                          Skip
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                        <div
+                          className={clsx(
+                            "rounded-2xl border px-4 py-3 text-sm",
+                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
+                          )}
+                        >
+                          {suggestion.originalTitle}
+                        </div>
+                        <div className="text-center text-sm font-semibold opacity-60">to</div>
+                        <input
+                          className={clsx(
+                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                          )}
+                          value={suggestion.proposedTitle}
+                          onChange={(event) => updateTitleTidySuggestion(suggestion.id, event.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={applyTitleTidySuggestions}
+                  type="button"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Apply Changes
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => {
+                    setIsTitleTidyModalOpen(false);
+                    setTitleTidySuggestions([]);
                   }}
                   type="button"
                 >
