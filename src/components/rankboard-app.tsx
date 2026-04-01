@@ -789,6 +789,28 @@ function getSuggestedReleaseYearFromWikipediaExtract(extract: string) {
   return match?.[0] ?? "";
 }
 
+function getSuggestedSeriesFromWikipediaExtract(
+  extract: string,
+  existingSeries: string[] = [],
+) {
+  const normalizedExtract = normalizeTitleForComparison(extract);
+
+  if (!normalizedExtract) {
+    return null;
+  }
+
+  const matchingSeries = existingSeries
+    .map((series) => ({
+      original: series,
+      normalized: normalizeTitleForComparison(series),
+    }))
+    .filter((series) => series.normalized.length > 0)
+    .sort((left, right) => right.normalized.length - left.normalized.length)
+    .find((series) => normalizedExtract.includes(series.normalized));
+
+  return matchingSeries?.original ?? null;
+}
+
 function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = []) {
   const trimmed = title.trim();
 
@@ -2833,11 +2855,16 @@ export function RankboardApp() {
         }
 
         const wikipediaMetadata = await fetchBestWikipediaMetadata(card.title, existingSeries);
+        const wikipediaExtractSeries = getSuggestedSeriesFromWikipediaExtract(
+          wikipediaMetadata?.extract ?? "",
+          existingSeries,
+        );
         const wikipediaSeries = wikipediaMetadata?.title
           ? getSuggestedSeriesFromTitle(wikipediaMetadata.title, existingSeries)
           : null;
         const proposedSeries =
           card.series.trim() ||
+          wikipediaExtractSeries ||
           wikipediaSeries ||
           getSuggestedSeriesFromTitle(card.title, existingSeries);
         const proposedReleaseYear =
@@ -5323,7 +5350,7 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
+        "relative z-10 flex h-[min(78vh,920px)] min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
@@ -5336,7 +5363,7 @@ function BoardColumn({
       )}
     >
       <div
-        className="sticky top-4 z-30 w-full"
+        className="sticky top-0 z-30 w-full"
         draggable={!isEditingColumn}
         onDragStart={() => onColumnDragStart(column.id)}
         onDragOver={(event) => {
@@ -5405,7 +5432,7 @@ function BoardColumn({
             ) : (
               <>
                 <div />
-                <h2 className="w-full text-center text-lg font-bold">{column.title}</h2>
+                <h2 className="w-full truncate whitespace-nowrap text-center text-lg font-bold">{column.title}</h2>
                 <div className="relative" data-column-menu-root="true">
                   <button
                     className={clsx(
@@ -5698,7 +5725,7 @@ function BoardColumn({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-1 flex-col gap-3">
+      <div className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1">
         {filtering || isTierFiltering ? (
           tierFilteredCards.map((card, index) => (
             <CardTile
