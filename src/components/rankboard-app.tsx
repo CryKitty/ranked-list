@@ -2472,7 +2472,7 @@ export function RankboardApp() {
         <section className="grid gap-4">
           <div
             className={clsx(
-              "relative z-50 hidden rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:block",
+              "relative z-[220] hidden rounded-[32px] border p-5 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:block",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/80",
@@ -2541,7 +2541,7 @@ export function RankboardApp() {
                   {isActionsMenuOpen ? (
                     <div
                       className={clsx(
-                        "absolute right-0 z-[120] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                        "absolute right-0 z-[260] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/95 text-slate-100"
                           : "border-slate-200 bg-white/95 text-slate-700",
@@ -3047,7 +3047,7 @@ export function RankboardApp() {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 overflow-x-hidden overflow-y-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -4572,7 +4572,7 @@ function BoardColumn({
                         {isSortMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-full top-0 z-[130] mr-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "absolute right-full top-0 z-[270] mr-2 flex min-w-[120px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
@@ -4628,7 +4628,7 @@ function BoardColumn({
                           {isFilterMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute right-full top-0 z-[130] mr-2 flex min-w-[140px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                "absolute right-full top-0 z-[270] mr-2 flex min-w-[140px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900"
                                   : "border-slate-200 bg-white",
@@ -4673,7 +4673,7 @@ function BoardColumn({
                         {isMirrorMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute right-full top-0 z-[130] mr-2 flex min-w-[160px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              "absolute right-full top-0 z-[270] mr-2 flex min-w-[160px] flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900"
                                 : "border-slate-200 bg-white",
