@@ -84,6 +84,11 @@ type PendingDuplicateAction = {
   series: string;
 };
 
+type RankBadge = {
+  label: string;
+  value: number;
+};
+
 type DuplicateCleanupSuggestion = {
   id: string;
   columnId: string;
@@ -1343,6 +1348,63 @@ export function RankboardApp() {
     });
   }
 
+  function linkMatchingMirrorCards(columnId: string) {
+    const mirrorColumn = columns.find((column) => column.id === columnId);
+
+    if (!mirrorColumn?.mirrorsEntireBoard) {
+      return;
+    }
+
+    setCardsByColumn((current) => {
+      const mirrorCards = current[columnId] ?? [];
+      const normalizedSources = new Map<string, CardEntry>();
+
+      for (const column of columns) {
+        if (column.id === columnId || column.mirrorsEntireBoard) {
+          continue;
+        }
+
+        for (const card of current[column.id] ?? []) {
+          if (card.mirroredFromEntryId) {
+            continue;
+          }
+
+          const normalizedTitle = normalizeTitleForComparison(card.title);
+
+          if (normalizedTitle && !normalizedSources.has(normalizedTitle)) {
+            normalizedSources.set(normalizedTitle, card);
+          }
+        }
+      }
+
+      const nextMirrorCards = mirrorCards.map((card) => {
+        if (card.mirroredFromEntryId) {
+          return card;
+        }
+
+        const sourceCard = normalizedSources.get(normalizeTitleForComparison(card.title));
+
+        if (!sourceCard) {
+          return card;
+        }
+
+        return {
+          ...sourceCard,
+          entryId: card.entryId,
+          mirroredFromEntryId: sourceCard.entryId,
+        };
+      });
+
+      return {
+        ...current,
+        [columnId]: nextMirrorCards,
+      };
+    });
+
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+  }
+
   function syncBoardMirrorColumns(
     currentColumns: ColumnDefinition[],
     currentCardsByColumn: Record<string, CardEntry[]>,
@@ -1370,31 +1432,43 @@ export function RankboardApp() {
       }
 
       const sourceById = new Map(sourceCardsInOrder.map((card) => [card.entryId, card]));
+      const sourceByNormalizedTitle = new Map(
+        sourceCardsInOrder.map((card) => [normalizeTitleForComparison(card.title), card]),
+      );
       const syncedCards: CardEntry[] = [];
 
       for (const existingMirror of existingMirrorCards) {
         const sourceId = existingMirror.mirroredFromEntryId;
+        const linkedSource = sourceId ? sourceById.get(sourceId) : null;
+        const matchedSource =
+          linkedSource ??
+          sourceByNormalizedTitle.get(normalizeTitleForComparison(existingMirror.title));
+
+        if (matchedSource) {
+          syncedCards.push({
+            ...matchedSource,
+            entryId: existingMirror.entryId,
+            mirroredFromEntryId: matchedSource.entryId,
+          });
+          sourceById.delete(matchedSource.entryId);
+          sourceByNormalizedTitle.delete(normalizeTitleForComparison(matchedSource.title));
+          continue;
+        }
 
         if (!sourceId) {
-          continue;
+          syncedCards.push(existingMirror);
         }
-
-        const sourceCard = sourceById.get(sourceId);
-
-        if (!sourceCard) {
-          continue;
-        }
-
-        syncedCards.push({
-          ...sourceCard,
-          entryId: existingMirror.entryId,
-          mirroredFromEntryId: sourceId,
-        });
-        sourceById.delete(sourceId);
       }
 
       for (const sourceCard of sourceCardsInOrder) {
-        if (!sourceById.has(sourceCard.entryId)) {
+        const normalizedTitle = normalizeTitleForComparison(sourceCard.title);
+
+        if (
+          !sourceById.has(sourceCard.entryId) ||
+          existingMirrorCards.some(
+            (card) => normalizeTitleForComparison(card.title) === normalizedTitle,
+          )
+        ) {
           continue;
         }
 
@@ -3008,6 +3082,7 @@ export function RankboardApp() {
                     <BoardColumn
                       key={column.id}
                       column={column}
+                      fullCards={cardsByColumn[column.id] ?? []}
                       addLabel={boardVocabulary.singular}
                       collapseCards={activeBoardSettings.collapseCards}
                       showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
@@ -3039,6 +3114,7 @@ export function RankboardApp() {
                       }
                       onDeleteColumn={deleteColumn}
                       onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
+                      onLinkMirrorMatches={linkMatchingMirrorCards}
                       onColumnDragStart={setDraggingColumnId}
                       onColumnDrop={moveColumnToTarget}
                       draggingColumnId={draggingColumnId}
@@ -4165,6 +4241,7 @@ function AddColumnButton({
 
 function BoardColumn({
   column,
+  fullCards,
   addLabel,
   collapseCards,
   showSeriesOnCards,
@@ -4187,12 +4264,14 @@ function BoardColumn({
   onToggleSortMenu,
   onDeleteColumn,
   onToggleBoardMirrorColumn,
+  onLinkMirrorMatches,
   onColumnDragStart,
   onColumnDrop,
   draggingColumnId,
   isDarkMode,
 }: {
   column: ColumnDefinition;
+  fullCards: CardEntry[];
   addLabel: string;
   collapseCards: boolean;
   showSeriesOnCards: boolean;
@@ -4220,6 +4299,7 @@ function BoardColumn({
   onToggleSortMenu: () => void;
   onDeleteColumn: (columnId: string) => void;
   onToggleBoardMirrorColumn: (columnId: string) => void;
+  onLinkMirrorMatches: (columnId: string) => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   draggingColumnId: string | null;
@@ -4435,6 +4515,21 @@ function BoardColumn({
                         </span>
                         <span className="text-xs opacity-70">{column.mirrorsEntireBoard ? "On" : "Off"}</span>
                       </button>
+                      {column.mirrorsEntireBoard ? (
+                        <button
+                          className={clsx(
+                            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                            isDarkMode
+                              ? "text-white hover:bg-white/10"
+                              : "text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={() => onLinkMirrorMatches(column.id)}
+                          type="button"
+                        >
+                          <Link2 className="h-4 w-4" />
+                          Link matching cards
+                        </button>
+                      ) : null}
                       <button
                         className={clsx(
                           "mt-1 flex items-center gap-2 rounded-xl border-t px-3 py-2 pt-3 text-sm transition hover:bg-rose-400/10",
@@ -4465,7 +4560,23 @@ function BoardColumn({
               card={card}
               collapseCards={collapseCards}
               showSeries={showSeriesOnCards}
-              rank={isRankedColumn(column) ? index + 1 : null}
+              rankBadge={
+                isRankedColumn(column)
+                  ? {
+                      label: "All",
+                      value:
+                        fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
+                    }
+                  : null
+              }
+              secondaryRankBadge={
+                filtering && isRankedColumn(column)
+                  ? {
+                      label: "Filter",
+                      value: index + 1,
+                    }
+                  : null
+              }
               onDelete={() => onDeleteCard(column.id, card.entryId)}
               onEdit={() => onEditCard(card)}
             />
@@ -4491,7 +4602,14 @@ function BoardColumn({
                     card={card}
                     collapseCards={collapseCards}
                     showSeries={showSeriesOnCards}
-                    rank={isRankedColumn(column) ? index + 1 : null}
+                    rankBadge={
+                      isRankedColumn(column)
+                        ? {
+                            label: "All",
+                            value: index + 1,
+                          }
+                        : null
+                    }
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
                   />
@@ -4599,14 +4717,16 @@ function SortableCard({
   card,
   collapseCards,
   showSeries,
-  rank,
+  rankBadge,
+  secondaryRankBadge,
   onDelete,
   onEdit,
 }: {
   card: CardEntry;
   collapseCards: boolean;
   showSeries: boolean;
-  rank: number | null;
+  rankBadge: RankBadge | null;
+  secondaryRankBadge?: RankBadge | null;
   onDelete: () => void;
   onEdit: () => void;
 }) {
@@ -4627,7 +4747,8 @@ function SortableCard({
         card={card}
         collapseCards={collapseCards}
         showSeries={showSeries}
-        rank={rank}
+        rankBadge={rankBadge}
+        secondaryRankBadge={secondaryRankBadge}
         isDragging={isDragging}
         dragProps={{ ...attributes, ...listeners }}
         onDelete={onDelete}
@@ -4641,7 +4762,8 @@ function CardTile({
   card,
   collapseCards,
   showSeries,
-  rank,
+  rankBadge,
+  secondaryRankBadge,
   dragProps,
   isDragging = false,
   onDelete,
@@ -4650,7 +4772,8 @@ function CardTile({
   card: CardEntry;
   collapseCards: boolean;
   showSeries: boolean;
-  rank: number | null;
+  rankBadge: RankBadge | null;
+  secondaryRankBadge?: RankBadge | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
   isDragging?: boolean;
   onDelete?: () => void;
@@ -4682,10 +4805,15 @@ function CardTile({
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
         ) : null}
 
-        <div className="absolute left-3 top-3 flex items-center gap-2">
-          {rank ? (
+        <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
+          {rankBadge ? (
             <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-950">
-              #{rank}
+              {`${rankBadge.label} #${rankBadge.value}`}
+            </div>
+          ) : null}
+          {secondaryRankBadge ? (
+            <div className="rounded-full bg-slate-950/75 px-3 py-1 text-xs font-black text-white backdrop-blur">
+              {`${secondaryRankBadge.label} #${secondaryRankBadge.value}`}
             </div>
           ) : null}
         </div>
