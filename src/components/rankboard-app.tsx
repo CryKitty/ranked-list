@@ -1025,9 +1025,11 @@ function FieldDefinitionManager({
                     )}
                     onClick={() => {
                       if (window.confirm(`Delete the field "${field.label}"? This will remove its saved values from cards.`)) {
+                        setOpenFieldSettingsId((current) => (current === field.id ? null : current));
                         onRemoveField(field.id);
                       }
                     }}
+                    onPointerDown={(event) => event.stopPropagation()}
                     type="button"
                     aria-label={`Remove ${field.label}`}
                     title={`Remove ${field.label}`}
@@ -4501,7 +4503,7 @@ export function RankboardApp() {
             <button
               aria-label="Open actions"
               className={clsx(
-                "fixed bottom-5 right-5 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.24)] lg:hidden",
+                "fixed bottom-7 right-4 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.24)] lg:hidden",
                 isDarkMode
                   ? "bg-slate-950 text-white"
                   : "bg-white text-slate-950",
@@ -8157,12 +8159,12 @@ function CardTile({
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
     tierKey === "top10"
-      ? "border-amber-300/80 shadow-[0_20px_40px_rgba(251,191,36,0.22)]"
+      ? "border-amber-300/80"
       : tierKey === "top15"
-        ? "border-cyan-300/80 shadow-[0_20px_40px_rgba(34,211,238,0.2)]"
+        ? "border-cyan-300/80"
         : tierKey === "top20"
-          ? "border-fuchsia-300/80 shadow-[0_20px_40px_rgba(232,121,249,0.18)]"
-          : "border-white/10 shadow-[0_20px_40px_rgba(15,23,42,0.25)]";
+          ? "border-fuchsia-300/80"
+          : "border-white/10";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -8278,10 +8280,10 @@ function CardTile({
       <div className={clsx(
         collapseCards
           ? "absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
-          : "absolute right-3 z-10 flex items-center gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+          : "absolute right-3 z-10 flex flex-col items-end gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
         collapseCards
           ? showCollapsedActions && "opacity-100"
-          : card.mirroredFromEntryId
+          : frontChips.length > 0 || card.mirroredFromEntryId
             ? "top-14"
             : "top-3",
       )}>
