@@ -246,6 +246,10 @@ function makeId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function getUserBoardCacheKey(userId: string) {
+  return `rankboard-user-${userId}-v1`;
+}
+
 function isRankedColumn(column: ColumnDefinition) {
   return column.type === "ranked";
 }
@@ -1069,6 +1073,7 @@ export function RankboardApp() {
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
+  const [persistRequestId, setPersistRequestId] = useState(0);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
   const [isEditFieldSettingsOpen, setIsEditFieldSettingsOpen] = useState(false);
   const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
@@ -1220,6 +1225,10 @@ export function RankboardApp() {
       },
       snapshot,
     };
+  }, []);
+
+  const queuePersistBoardState = useCallback(() => {
+    setPersistRequestId((current) => current + 1);
   }, []);
 
   const persistBoardState = useCallback(async (options?: {
@@ -1406,14 +1415,22 @@ export function RankboardApp() {
       return;
     }
 
-    window.localStorage.setItem(
-      LOCAL_STORAGE_KEY,
-      JSON.stringify({
-        version: 2,
-        activeBoardId,
-        boards,
-      }),
-    );
+    const serializedState = JSON.stringify({
+      version: 2,
+      activeBoardId,
+      boards,
+    });
+
+    window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
+
+    if (currentUser) {
+      try {
+        window.localStorage.setItem(getUserBoardCacheKey(currentUser.id), serializedState);
+      } catch {
+        // Ignore user-scoped cache failures.
+      }
+    }
+
     writeLocalBackupSnapshot(buildBackupSnapshot(boards, activeBoardId));
     if (!authEnabled || !currentUser) {
       setLastSavedAt(new Date().toISOString());
@@ -1505,10 +1522,12 @@ export function RankboardApp() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       isSigningOutRef.current = false;
       setCurrentUser(session?.user ?? null);
-      setHasLoadedRemoteState(session?.user ? false : true);
+      if (event !== "TOKEN_REFRESHED") {
+        setHasLoadedRemoteState(session?.user ? false : true);
+      }
       setIsAuthLoading(false);
     });
 
@@ -1568,6 +1587,37 @@ export function RankboardApp() {
     const client = supabase;
     const user = currentUser;
     let cancelled = false;
+
+    try {
+      const cachedValue = window.localStorage.getItem(getUserBoardCacheKey(user.id));
+
+      if (cachedValue) {
+        const parsedState = JSON.parse(cachedValue) as {
+          activeBoardId?: string;
+          boards?: SavedBoard[];
+        };
+
+        if (Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
+          const nextBoards = parsedState.boards.map((board) => normalizeSavedBoard(board));
+          const nextActiveBoardId =
+            parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
+              ? parsedState.activeBoardId
+              : nextBoards[0]?.id;
+          const nextActiveBoard =
+            nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
+
+          if (nextActiveBoard) {
+            skipNextHistoryRef.current = true;
+            setBoards(nextBoards);
+            setActiveBoardId(nextActiveBoard.id);
+            setColumns(nextActiveBoard.columns);
+            setCardsByColumn(nextActiveBoard.cardsByColumn);
+          }
+        }
+      }
+    } catch {
+      // Ignore user-scoped cache failures and continue to remote load.
+    }
 
     async function loadBoardState() {
       const { data, error } = await client
@@ -1696,36 +1746,16 @@ export function RankboardApp() {
   ]);
 
   useEffect(() => {
-    if (!supabase || !currentUser || !hasLoadedRemoteState || isSigningOutRef.current) {
+    if (!persistRequestId || !supabase || !currentUser || !hasLoadedRemoteState || isSigningOutRef.current) {
       return;
     }
 
     const timeout = window.setTimeout(() => {
-      void persistBoardState({
-        boards,
-        activeBoardId,
-        cardsByColumn,
-      });
-    }, 1000);
+      void persistBoardState();
+    }, 120);
 
     return () => window.clearTimeout(timeout);
-  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
-
-  useEffect(() => {
-    if (!supabase || !currentUser || !hasLoadedRemoteState || isSigningOutRef.current) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      void persistBoardState({
-        boards,
-        activeBoardId,
-        cardsByColumn,
-      });
-    }, 60_000);
-
-    return () => window.clearInterval(interval);
-  }, [activeBoardId, boards, cardsByColumn, currentUser, hasLoadedRemoteState, persistBoardState, supabase]);
+  }, [currentUser, hasLoadedRemoteState, persistBoardState, persistRequestId, supabase]);
 
   useEffect(() => {
     if (!isActionsMenuOpen) {
@@ -1941,6 +1971,7 @@ export function RankboardApp() {
 
       return nextState;
     });
+    queuePersistBoardState();
   }
 
   function linkMatchingMirrorCards(columnId: string) {
@@ -2155,6 +2186,7 @@ export function RankboardApp() {
         ...current,
         [sourceColumnId]: reorderedCards,
       }));
+      queuePersistBoardState();
 
       return;
     }
@@ -2176,6 +2208,7 @@ export function RankboardApp() {
     );
 
     setCardsByColumn(nextState);
+    queuePersistBoardState();
   }
 
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -2278,6 +2311,7 @@ export function RankboardApp() {
     setDraft(initialDraft);
     setAddCardTarget(null);
     setDraftDuplicateAction(null);
+    queuePersistBoardState();
   }
 
   function openAddGameModal(columnId: string, insertIndex: number) {
@@ -2359,6 +2393,7 @@ export function RankboardApp() {
         })),
       );
       setEditingCardId((current) => (current === entryId ? null : current));
+      queuePersistBoardState();
       return;
     }
 
@@ -2375,6 +2410,7 @@ export function RankboardApp() {
 
     setCardsByColumn(nextState);
     setEditingCardId((current) => (current === entryId ? null : current));
+    queuePersistBoardState();
   }
 
   function deleteAllLinkedCopies(itemId: string, entryId: string) {
@@ -2397,6 +2433,7 @@ export function RankboardApp() {
     );
     setEditingCardId((current) => (current === entryId ? null : current));
     setPendingMirrorDelete(null);
+    queuePersistBoardState();
   }
 
   function deleteOnlyMirrorCopy(columnId: string, entryId: string, itemId: string) {
@@ -2418,6 +2455,7 @@ export function RankboardApp() {
     }));
     setEditingCardId((current) => (current === entryId ? null : current));
     setPendingMirrorDelete(null);
+    queuePersistBoardState();
   }
 
   function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
@@ -2544,6 +2582,7 @@ export function RankboardApp() {
     );
 
     cancelEditingColumn();
+    queuePersistBoardState();
   }
 
   function toggleBoardMirrorColumn(columnId: string) {
@@ -2562,6 +2601,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    queuePersistBoardState();
   }
 
   function toggleExcludeColumnFromBoardMirrors(columnId: string) {
@@ -2580,6 +2620,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    queuePersistBoardState();
   }
 
   function moveColumnToTarget(sourceColumnId: string, targetColumnId: string) {
@@ -2600,6 +2641,7 @@ export function RankboardApp() {
       nextColumns.splice(targetIndex, 0, movedColumn);
       return nextColumns;
     });
+    queuePersistBoardState();
   }
 
   function addColumn() {
@@ -2615,6 +2657,7 @@ export function RankboardApp() {
     setEditingColumnDraft({
       title: newColumn.title,
     });
+    queuePersistBoardState();
   }
 
   function deleteColumn(columnId: string) {
@@ -2665,6 +2708,7 @@ export function RankboardApp() {
     }
 
     setOpenColumnMenuId(null);
+    queuePersistBoardState();
   }
 
   function resolveDraftDuplicate(choice: "discard" | "update" | "duplicate") {
@@ -2758,6 +2802,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    queuePersistBoardState();
   }
 
   function setColumnTierFilter(columnId: string, tierFilter: TierFilter) {
@@ -2943,6 +2988,7 @@ export function RankboardApp() {
     }));
     setPairwiseQuizReview(null);
     setPairwiseQuizState(null);
+    queuePersistBoardState();
   }
 
   function exportActiveBoardAsJson() {
@@ -3010,6 +3056,7 @@ export function RankboardApp() {
     skipNextHistoryRef.current = true;
     setCardsByColumn(previous.cardsByColumn);
     setHistory((current) => current.slice(0, -1));
+    queuePersistBoardState();
   }
 
   function switchBoard(boardId: string) {
@@ -3027,6 +3074,7 @@ export function RankboardApp() {
     setIsBoardsMenuOpen(false);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+    queuePersistBoardState();
   }
 
   function updateActiveBoardSettings(nextSettings: Partial<BoardSettings>) {
@@ -3045,6 +3093,7 @@ export function RankboardApp() {
           : board,
       ),
     );
+    queuePersistBoardState();
   }
 
   function toggleCollapseCardsSetting() {
@@ -3139,6 +3188,7 @@ export function RankboardApp() {
     setIsBoardsMenuOpen(false);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+    queuePersistBoardState();
   }
 
   function createColumnDefinition(nextIndex: number, title?: string): ColumnDefinition {
@@ -3232,6 +3282,7 @@ export function RankboardApp() {
 
     setIsDuplicateCleanupModalOpen(false);
     setDuplicateCleanupSuggestions([]);
+    queuePersistBoardState();
   }
 
   function openTitleTidyModal(scopeColumnId?: string) {
@@ -3310,6 +3361,7 @@ export function RankboardApp() {
 
     setIsTitleTidyModalOpen(false);
     setTitleTidySuggestions([]);
+    queuePersistBoardState();
   }
 
   async function buildSeriesScrapeSuggestions(scopeColumnId?: string) {
@@ -3500,6 +3552,7 @@ export function RankboardApp() {
     setIsSeriesScrapeModalOpen(false);
     setSeriesScrapeSuggestions([]);
     setSeriesScrapeScopeColumnId(undefined);
+    queuePersistBoardState();
   }
 
   async function handleImportTrelloBoard(
@@ -3531,6 +3584,7 @@ export function RankboardApp() {
       cancelEditingCard();
       cancelEditingColumn();
       setIsImportModalOpen(false);
+      queuePersistBoardState();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "The Trello export could not be imported.";
