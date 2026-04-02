@@ -917,8 +917,8 @@ function FieldDefinitionManager({
               className={clsx(
                 "grid gap-2 sm:items-center",
                 field.builtInKey === "series" || field.builtInKey === "imageUrl"
-                  ? "sm:grid-cols-[minmax(220px,1fr)_auto_auto]"
-                  : "sm:grid-cols-[220px_136px_auto_auto_auto_auto]",
+                  ? "sm:grid-cols-[220px_minmax(0,1fr)]"
+                  : "sm:grid-cols-[220px_136px_minmax(0,1fr)]",
               )}
             >
               <input
@@ -949,91 +949,91 @@ function FieldDefinitionManager({
                   <option value="select">Dropdown</option>
                 </select>
               )}
-              {field.type === "date" ? (
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center self-stretch rounded-xl border px-3 py-2 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() =>
-                    setOpenFieldSettingsId((current) => (current === field.id ? null : field.id))
-                  }
-                  type="button"
-                  aria-label={`Open settings for ${field.label}`}
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-              ) : null}
-              <button
-                className={clsx(
-                  "ml-auto inline-flex items-center gap-2 justify-self-end whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
-                )}
-                onClick={() => onToggleVisibility(field.id)}
-                type="button"
-              >
-                <span>{field.visible ? "Enabled" : "Disabled"}</span>
-                <span
-                  className={clsx(
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                    field.visible ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
-                  )}
-                >
-                  <span
+              <div className="flex min-w-0 items-center justify-end gap-3 justify-self-end">
+                {field.type === "date" ? (
+                  <button
                     className={clsx(
-                      "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                      field.visible ? "translate-x-5" : "translate-x-0.5",
+                      "inline-flex items-center justify-center self-stretch rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
-                  />
-                </span>
-              </button>
-              {field.visible ? (
+                    onClick={() =>
+                      setOpenFieldSettingsId((current) => (current === field.id ? null : field.id))
+                    }
+                    type="button"
+                    aria-label={`Open settings for ${field.label}`}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                ) : null}
                 <button
                   className={clsx(
-                    "inline-flex items-center gap-2 justify-self-end whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
+                    "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
                   )}
-                  onClick={() => onToggleFrontVisibility(field.id)}
+                  onClick={() => onToggleVisibility(field.id)}
                   type="button"
                 >
-                  <span>Front</span>
+                  <span>{field.visible ? "Enabled" : "Disabled"}</span>
                   <span
                     className={clsx(
                       "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                      field.showOnCardFront ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
+                      field.visible ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
                     )}
                   >
                     <span
                       className={clsx(
                         "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                        field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
+                        field.visible ? "translate-x-5" : "translate-x-0.5",
                       )}
                     />
                   </span>
                 </button>
-              ) : (
-                <div className="hidden sm:block" />
-              )}
-              {mandatoryFieldIds.has(field.id) ? null : (
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center justify-self-end rounded-xl border p-2 transition",
-                    isDarkMode
-                      ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
-                      : "border-rose-200 text-rose-700 hover:border-rose-500",
-                  )}
-                  onClick={() => {
-                    if (window.confirm(`Delete the field "${field.label}"? This will remove its saved values from cards.`)) {
-                      onRemoveField(field.id);
-                    }
-                  }}
-                  type="button"
-                  aria-label={`Remove ${field.label}`}
-                  title={`Remove ${field.label}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
+                {field.visible ? (
+                  <button
+                    className={clsx(
+                      "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
+                    )}
+                    onClick={() => onToggleFrontVisibility(field.id)}
+                    type="button"
+                  >
+                    <span>Front</span>
+                    <span
+                      className={clsx(
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                        field.showOnCardFront ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          "inline-block h-5 w-5 transform rounded-full bg-white transition",
+                          field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
+                        )}
+                      />
+                    </span>
+                  </button>
+                ) : null}
+                {mandatoryFieldIds.has(field.id) ? null : (
+                  <button
+                    className={clsx(
+                      "inline-flex items-center justify-center rounded-xl border p-2 transition",
+                      isDarkMode
+                        ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
+                        : "border-rose-200 text-rose-700 hover:border-rose-500",
+                    )}
+                    onClick={() => {
+                      if (window.confirm(`Delete the field "${field.label}"? This will remove its saved values from cards.`)) {
+                        onRemoveField(field.id);
+                      }
+                    }}
+                    type="button"
+                    aria-label={`Remove ${field.label}`}
+                    title={`Remove ${field.label}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             {field.type === "date" && openFieldSettingsId === field.id ? (
               <div
@@ -8240,7 +8240,7 @@ function CardTile({
         </div>
 
         {!collapseCards && (frontChips.length > 0 || card.mirroredFromEntryId) ? (
-          <div className="absolute right-3 top-3 z-10 flex max-w-[46%] flex-col items-end gap-2">
+          <div className="absolute right-3 top-3 z-10 flex max-w-[52%] items-start justify-end gap-2">
             {card.mirroredFromEntryId ? (
               <div
                 className="rounded-full bg-slate-950/75 p-2 text-white backdrop-blur"
@@ -8250,15 +8250,17 @@ function CardTile({
                 <Link2 className="h-4 w-4" />
               </div>
             ) : null}
-            {frontChips.map((field) => (
-              <span
-                key={field.id}
-                className="max-w-full truncate rounded-full bg-slate-950/78 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur"
-                title={field.showLabel ? `${field.label}: ${field.value}` : field.value}
-              >
-                {field.showLabel ? `${field.label}: ${field.value}` : field.value}
-              </span>
-            ))}
+            <div className="flex min-w-0 flex-wrap justify-end gap-2">
+              {frontChips.map((field) => (
+                <span
+                  key={field.id}
+                  className="max-w-full truncate rounded-full bg-slate-950/78 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur"
+                  title={field.showLabel ? `${field.label}: ${field.value}` : field.value}
+                >
+                  {field.showLabel ? `${field.label}: ${field.value}` : field.value}
+                </span>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>
