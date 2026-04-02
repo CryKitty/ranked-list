@@ -8057,7 +8057,7 @@ function CardTile({
           ) : null}
         </div>
 
-        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-11" : "bottom-0")}>
+        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-11" : "bottom-0 pr-28")}>
           {!collapseCards && displaySeries ? (
             <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
               {displaySeries}
@@ -8066,22 +8066,24 @@ function CardTile({
           <h3 className={clsx("truncate font-bold text-white", collapseCards ? "text-center text-lg" : "text-xl")}>
             {displayTitle}
           </h3>
-          {!collapseCards && frontChips.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {frontChips.map((field) => (
-                <span
-                  key={field.id}
-                  className="rounded-full bg-slate-950/70 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur"
-                >
-                  {`${field.label}: ${field.value}`}
-                </span>
-              ))}
-            </div>
-          ) : null}
           {!collapseCards && card.notes ? (
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
           ) : null}
         </div>
+
+        {!collapseCards && frontChips.length > 0 ? (
+          <div className="absolute bottom-3 right-3 z-10 flex max-w-[46%] flex-col items-end gap-2">
+            {frontChips.map((field) => (
+              <span
+                key={field.id}
+                className="max-w-full truncate rounded-full bg-slate-950/78 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur"
+                title={`${field.label}: ${field.value}`}
+              >
+                {`${field.label}: ${field.value}`}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {card.mirroredFromEntryId ? (
