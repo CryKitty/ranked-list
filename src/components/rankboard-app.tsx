@@ -896,6 +896,7 @@ function FieldDefinitionManager({
 }) {
   const mandatoryFieldIds = new Set(["series", "artwork"]);
   const [openFieldSettingsId, setOpenFieldSettingsId] = useState<string | null>(null);
+  const [pendingFieldRemoval, setPendingFieldRemoval] = useState<BoardFieldDefinition | null>(null);
 
   return (
     <div className="grid gap-4">
@@ -1023,13 +1024,7 @@ function FieldDefinitionManager({
                         ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
                         : "border-rose-200 text-rose-700 hover:border-rose-500",
                     )}
-                    onClick={() => {
-                      if (window.confirm(`Delete the field "${field.label}"? This will remove its saved values from cards.`)) {
-                        setOpenFieldSettingsId((current) => (current === field.id ? null : current));
-                        onRemoveField(field.id);
-                      }
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setPendingFieldRemoval(field)}
                     type="button"
                     aria-label={`Remove ${field.label}`}
                     title={`Remove ${field.label}`}
@@ -1169,6 +1164,64 @@ function FieldDefinitionManager({
           Add Dropdown
         </button>
       </div>
+      {pendingFieldRemoval ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onClick={() => setPendingFieldRemoval(null)}
+        >
+          <div
+            className={clsx(
+              "w-full max-w-md rounded-[28px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+              isDarkMode
+                ? "border-white/10 bg-slate-900 text-slate-100"
+                : "border-white/70 bg-white text-slate-950",
+            )}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className={clsx("text-sm font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+              Delete Field
+            </p>
+            <h3 className={clsx("mt-3 text-2xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              Remove {pendingFieldRemoval.label}?
+            </h3>
+            <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+              This will also delete the saved values from every card that uses this field.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className={clsx(
+                  "rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                  isDarkMode
+                    ? "bg-white/10 text-white hover:bg-white/15"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                )}
+                onClick={() => setPendingFieldRemoval(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className={clsx(
+                  "rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                  isDarkMode
+                    ? "bg-rose-500 text-white hover:bg-rose-400"
+                    : "bg-rose-600 text-white hover:bg-rose-500",
+                )}
+                onClick={() => {
+                  setOpenFieldSettingsId((current) =>
+                    current === pendingFieldRemoval.id ? null : current,
+                  );
+                  onRemoveField(pendingFieldRemoval.id);
+                  setPendingFieldRemoval(null);
+                }}
+                type="button"
+              >
+                Delete Field
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
