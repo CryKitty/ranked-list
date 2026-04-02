@@ -846,7 +846,10 @@ function FieldDefinitionManager({
   return (
     <div className="grid gap-4">
       <div className="grid gap-3">
-        {fieldDefinitions.map((field) => (
+        {[
+          ...fieldDefinitions.filter((field) => field.builtInKey === "series" || field.builtInKey === "imageUrl"),
+          ...fieldDefinitions.filter((field) => field.builtInKey !== "series" && field.builtInKey !== "imageUrl"),
+        ].map((field) => (
           <div
             key={field.id}
             className={clsx(
@@ -854,7 +857,14 @@ function FieldDefinitionManager({
               isDarkMode ? "border-white/10 bg-slate-950/60" : "border-slate-200 bg-slate-50",
             )}
           >
-            <div className="grid gap-3 sm:grid-cols-[1.25fr_0.8fr_auto_auto_auto] sm:items-center">
+            <div
+              className={clsx(
+                "grid gap-3 sm:items-center",
+                field.builtInKey === "series" || field.builtInKey === "imageUrl"
+                  ? "sm:grid-cols-[1fr_auto_auto]"
+                  : "sm:grid-cols-[1.25fr_0.8fr_auto_auto_auto]",
+              )}
+            >
               <input
                 className={clsx(
                   "rounded-xl border px-3 py-2 text-sm outline-none transition",
@@ -866,22 +876,23 @@ function FieldDefinitionManager({
                 onChange={(event) => onUpdateField(field.id, { label: event.target.value })}
                 placeholder="Field label"
               />
-              <select
-                className={clsx(
-                  "rounded-xl border px-3 py-2 text-sm outline-none transition",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-900 text-white focus:border-white/40"
-                    : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                )}
-                disabled={Boolean(field.builtInKey)}
-                value={field.type}
-                onChange={(event) => onUpdateField(field.id, { type: event.target.value as CardFieldType })}
-              >
-                <option value="short_text">Short Text</option>
-                <option value="long_text">Long Text</option>
-                <option value="date">Date</option>
-                <option value="select">Dropdown</option>
-              </select>
+              {field.builtInKey === "series" || field.builtInKey === "imageUrl" ? null : (
+                <select
+                  className={clsx(
+                    "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-900 text-white focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                  )}
+                  value={field.type}
+                  onChange={(event) => onUpdateField(field.id, { type: event.target.value as CardFieldType })}
+                >
+                  <option value="short_text">Short Text</option>
+                  <option value="long_text">Long Text</option>
+                  <option value="date">Date</option>
+                  <option value="select">Dropdown</option>
+                </select>
+              )}
               <button
                 className={clsx(
                   "rounded-xl border px-3 py-2 text-sm font-semibold transition",
@@ -902,23 +913,20 @@ function FieldDefinitionManager({
               >
                 {field.showOnCardFront ? "Front On" : "Front Off"}
               </button>
-              <button
-                className={clsx(
-                  "rounded-xl border px-3 py-2 text-sm font-semibold transition",
-                  field.builtInKey === "series" || field.builtInKey === "imageUrl"
-                    ? isDarkMode
-                      ? "cursor-not-allowed border-white/10 text-slate-500"
-                      : "cursor-not-allowed border-slate-200 text-slate-400"
-                    : isDarkMode
+              {field.builtInKey === "series" || field.builtInKey === "imageUrl" ? null : (
+                <button
+                  className={clsx(
+                    "rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                    isDarkMode
                       ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
                       : "border-rose-200 text-rose-700 hover:border-rose-500",
-                )}
-                disabled={field.builtInKey === "series" || field.builtInKey === "imageUrl"}
-                onClick={() => onRemoveField(field.id)}
-                type="button"
-              >
-                Remove
-              </button>
+                  )}
+                  onClick={() => onRemoveField(field.id)}
+                  type="button"
+                >
+                  Remove
+                </button>
+              )}
             </div>
             {field.type === "select" ? (
               <input
@@ -2247,6 +2255,7 @@ export function RankboardApp() {
     });
 
     if (nextStateSnapshot) {
+      void persistBoardState({ cardsByColumn: nextStateSnapshot });
       queuePersistBoardState({ cardsByColumn: nextStateSnapshot });
     } else {
       queuePersistBoardState();
@@ -2615,6 +2624,10 @@ export function RankboardApp() {
     setDraft(initialDraft);
     setAddCardTarget(null);
     setDraftDuplicateAction(null);
+    void persistBoardState({
+      columns: nextColumns,
+      cardsByColumn: nextState,
+    });
     queuePersistBoardState({
       columns: nextColumns,
       cardsByColumn: nextState,
