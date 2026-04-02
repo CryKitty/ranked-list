@@ -883,7 +883,6 @@ function FieldDefinitionManager({
   isDarkMode,
   fieldDefinitions,
   onToggleVisibility,
-  onToggleFrontVisibility,
   onUpdateField,
   onRemoveField,
   onAddField,
@@ -891,7 +890,6 @@ function FieldDefinitionManager({
   isDarkMode: boolean;
   fieldDefinitions: BoardFieldDefinition[];
   onToggleVisibility: (fieldId: string) => void;
-  onToggleFrontVisibility: (fieldId: string) => void;
   onUpdateField: (fieldId: string, patch: Partial<BoardFieldDefinition>) => void;
   onRemoveField: (fieldId: string) => void;
   onAddField: (type: CardFieldType) => void;
@@ -950,7 +948,7 @@ function FieldDefinitionManager({
                 </select>
               )}
               <div className="flex min-w-0 items-center justify-end gap-3 justify-self-end">
-                {field.type === "date" ? (
+                {!mandatoryFieldIds.has(field.id) ? (
                   <button
                     className={clsx(
                       "inline-flex items-center justify-center self-stretch rounded-xl border px-3 py-2 text-sm font-semibold transition",
@@ -989,12 +987,16 @@ function FieldDefinitionManager({
                     />
                   </span>
                 </button>
-                {field.visible ? (
+                {field.visible && mandatoryFieldIds.has(field.id) ? (
                   <button
                     className={clsx(
                       "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
                     )}
-                    onClick={() => onToggleFrontVisibility(field.id)}
+                    onClick={() =>
+                      onUpdateField(field.id, {
+                        showOnCardFront: !field.showOnCardFront,
+                      })
+                    }
                     type="button"
                   >
                     <span>Front</span>
@@ -1035,34 +1037,43 @@ function FieldDefinitionManager({
                 )}
               </div>
             </div>
-            {field.type === "date" && openFieldSettingsId === field.id ? (
+            {!mandatoryFieldIds.has(field.id) && openFieldSettingsId === field.id ? (
               <div
                 className={clsx(
-                  "mt-3 grid gap-3 rounded-2xl border p-3 sm:grid-cols-[200px_auto]",
+                  "mt-3 grid gap-3 rounded-2xl border p-3 sm:grid-cols-[200px_auto_auto]",
                   isDarkMode ? "border-white/10 bg-slate-900/80" : "border-slate-200 bg-white",
                 )}
               >
-                <label className="grid gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">
-                    Date format
-                  </span>
-                  <select
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-self-start gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
+                  )}
+                  onClick={() =>
+                    onUpdateField(field.id, {
+                      showOnCardFront: !field.showOnCardFront,
+                    })
+                  }
+                  type="button"
+                >
+                  <span>Front</span>
+                  <span
                     className={clsx(
-                      "w-[180px] rounded-xl border px-3 py-2 text-sm outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                      field.showOnCardFront
+                        ? "bg-emerald-500"
+                        : isDarkMode
+                          ? "bg-white/15"
+                          : "bg-slate-300",
                     )}
-                    value={field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT}
-                    onChange={(event) =>
-                      onUpdateField(field.id, { dateFormat: event.target.value as DateFieldFormat })
-                    }
                   >
-                    <option value="mm/dd/yyyy">mm/dd/yyyy</option>
-                    <option value="dd/mm/yyyy">dd/mm/yyyy</option>
-                    <option value="yyyy">yyyy</option>
-                  </select>
-                </label>
+                    <span
+                      className={clsx(
+                        "inline-block h-5 w-5 transform rounded-full bg-white transition",
+                        field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
+                      )}
+                    />
+                  </span>
+                </button>
                 <button
                   className={clsx(
                     "inline-flex items-center justify-self-start gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
@@ -1093,6 +1104,29 @@ function FieldDefinitionManager({
                     />
                   </span>
                 </button>
+                {field.type === "date" ? (
+                  <label className="grid gap-2 sm:col-span-3">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">
+                      Date format
+                    </span>
+                    <select
+                      className={clsx(
+                        "w-[180px] rounded-xl border px-3 py-2 text-sm outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                      )}
+                      value={field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT}
+                      onChange={(event) =>
+                        onUpdateField(field.id, { dateFormat: event.target.value as DateFieldFormat })
+                      }
+                    >
+                      <option value="mm/dd/yyyy">mm/dd/yyyy</option>
+                      <option value="dd/mm/yyyy">dd/mm/yyyy</option>
+                      <option value="yyyy">yyyy</option>
+                    </select>
+                  </label>
+                ) : null}
               </div>
             ) : null}
             {field.type === "select" ? (
@@ -3649,19 +3683,6 @@ export function RankboardApp() {
     );
   }
 
-  function toggleActiveBoardFieldFrontVisibility(fieldId: string) {
-    updateActiveBoardFieldDefinitions((current) =>
-      current.map((field) =>
-        field.id === fieldId
-          ? {
-              ...field,
-              showOnCardFront: !field.showOnCardFront,
-            }
-          : field,
-      ),
-    );
-  }
-
   function updateActiveBoardField(fieldId: string, patch: Partial<BoardFieldDefinition>) {
     updateActiveBoardFieldDefinitions((current) =>
       current.map((field) =>
@@ -6202,7 +6223,6 @@ export function RankboardApp() {
                   isDarkMode={isDarkMode}
                   fieldDefinitions={activeBoardFieldDefinitions}
                   onToggleVisibility={toggleActiveBoardFieldVisibility}
-                  onToggleFrontVisibility={toggleActiveBoardFieldFrontVisibility}
                   onUpdateField={updateActiveBoardField}
                   onRemoveField={removeActiveBoardField}
                   onAddField={addActiveBoardField}
@@ -6738,14 +6758,6 @@ export function RankboardApp() {
                       ...current,
                       fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
                         field.id === fieldId ? { ...field, visible: !field.visible } : field,
-                      ),
-                    }))
-                  }
-                  onToggleFrontVisibility={(fieldId) =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
-                        field.id === fieldId ? { ...field, showOnCardFront: !field.showOnCardFront } : field,
                       ),
                     }))
                   }
