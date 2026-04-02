@@ -4949,15 +4949,9 @@ export function RankboardApp() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    {`Add ${boardVocabulary.singular}`}
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     {`Add ${boardVocabulary.singular}`}
                   </h2>
-                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Choose where this {boardVocabulary.singular.toLowerCase()} should go.
-                  </p>
                 </div>
                 <button
                   className={clsx(
@@ -5039,7 +5033,7 @@ export function RankboardApp() {
                 </div>
 
                 {shouldShowImageField ? (
-                  <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-end">
                     <label className="grid gap-2">
                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                         Background image or GIF URL
@@ -5178,18 +5172,7 @@ export function RankboardApp() {
                         }
                       />
                     </label>
-                  ) : (
-                    <div
-                      className={clsx(
-                        "flex items-end rounded-2xl border px-4 py-3 text-sm",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/50 text-slate-300"
-                          : "border-slate-200 bg-slate-50 text-slate-600",
-                      )}
-                    >
-                      {`This will be added to ${columns.find((column) => column.id === (draft.columnId || addCardTarget.columnId))?.title ?? "the selected column"}.`}
-                    </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap gap-3">
