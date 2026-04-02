@@ -1,6 +1,7 @@
 export type ColumnType = "ranked" | "wishlist";
 
 export type CardFieldType = "short_text" | "long_text" | "date" | "select";
+export type DateFieldFormat = "mm/dd/yyyy" | "dd/mm/yyyy" | "yyyy";
 
 export type BuiltInFieldKey = "series" | "releaseYear" | "imageUrl" | "notes";
 
@@ -10,8 +11,10 @@ export type BoardFieldDefinition = {
   type: CardFieldType;
   visible: boolean;
   showOnCardFront?: boolean;
+  showLabelOnCardFront?: boolean;
   builtInKey?: BuiltInFieldKey;
   options?: string[];
+  dateFormat?: DateFieldFormat;
 };
 
 export type CardEntry = {

@@ -54,6 +54,7 @@ import {
   CardEntry,
   CardFieldType,
   ColumnDefinition,
+  DateFieldFormat,
   SavedBoard,
 } from "@/lib/types";
 
@@ -199,6 +200,7 @@ const initialDraft: CardDraft = {
 };
 
 const NEW_COLUMN_OPTION = "__new_column__";
+const DEFAULT_DATE_FIELD_FORMAT: DateFieldFormat = "mm/dd/yyyy";
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   showSeriesOnCards: false,
   collapseCards: false,
@@ -278,6 +280,8 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       type: "date",
       visible: true,
       showOnCardFront: false,
+      showLabelOnCardFront: true,
+      dateFormat: "yyyy",
       builtInKey: "releaseYear",
     },
     {
@@ -325,8 +329,39 @@ function normalizeFieldDefinitions(
   return fieldDefinitions.map((field) => ({
     ...field,
     showOnCardFront: field.showOnCardFront ?? false,
+    showLabelOnCardFront: field.showLabelOnCardFront ?? true,
     options: field.type === "select" ? field.options ?? [] : undefined,
+    dateFormat:
+      field.type === "date"
+        ? field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT
+        : undefined,
   }));
+}
+
+function formatDateFieldValue(value: string, format: DateFieldFormat) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  const isoDateMatch = trimmedValue.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+
+  if (!isoDateMatch) {
+    return trimmedValue;
+  }
+
+  const [, year, month, day] = isoDateMatch;
+
+  if (format === "yyyy" || !month || !day) {
+    return year;
+  }
+
+  if (format === "dd/mm/yyyy") {
+    return `${day}/${month}/${year}`;
+  }
+
+  return `${month}/${day}/${year}`;
 }
 
 function makeId(prefix: string) {
@@ -844,6 +879,7 @@ function FieldDefinitionManager({
   onAddField: (type: CardFieldType) => void;
 }) {
   const mandatoryFieldIds = new Set(["series", "artwork"]);
+  const [openFieldSettingsId, setOpenFieldSettingsId] = useState<string | null>(null);
 
   return (
     <div className="grid gap-4">
@@ -872,7 +908,7 @@ function FieldDefinitionManager({
                   "rounded-xl border px-3 py-2 text-sm outline-none transition",
                   isDarkMode
                     ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
-                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                 )}
                 value={field.label}
                 onChange={(event) => onUpdateField(field.id, { label: event.target.value })}
@@ -895,6 +931,23 @@ function FieldDefinitionManager({
                   <option value="select">Dropdown</option>
                 </select>
               )}
+              {field.type === "date" ? (
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() =>
+                    setOpenFieldSettingsId((current) => (current === field.id ? null : field.id))
+                  }
+                  type="button"
+                  aria-label={`Open settings for ${field.label}`}
+                >
+                  <Settings2 className="h-4 w-4" />
+                </button>
+              ) : null}
               <button
                 className={clsx(
                   "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
@@ -954,6 +1007,66 @@ function FieldDefinitionManager({
                 </button>
               )}
             </div>
+            {field.type === "date" && openFieldSettingsId === field.id ? (
+              <div
+                className={clsx(
+                  "mt-3 grid gap-3 rounded-2xl border p-3 sm:grid-cols-2",
+                  isDarkMode ? "border-white/10 bg-slate-900/80" : "border-slate-200 bg-white",
+                )}
+              >
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">
+                    Date format
+                  </span>
+                  <select
+                    className={clsx(
+                      "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                    )}
+                    value={field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT}
+                    onChange={(event) =>
+                      onUpdateField(field.id, { dateFormat: event.target.value as DateFieldFormat })
+                    }
+                  >
+                    <option value="mm/dd/yyyy">mm/dd/yyyy</option>
+                    <option value="dd/mm/yyyy">dd/mm/yyyy</option>
+                    <option value="yyyy">yyyy</option>
+                  </select>
+                </label>
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-between gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
+                  )}
+                  onClick={() =>
+                    onUpdateField(field.id, {
+                      showLabelOnCardFront: !(field.showLabelOnCardFront ?? true),
+                    })
+                  }
+                  type="button"
+                >
+                  <span>Show label on chip</span>
+                  <span
+                    className={clsx(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                      field.showLabelOnCardFront ?? true
+                        ? "bg-emerald-500"
+                        : isDarkMode
+                          ? "bg-white/15"
+                          : "bg-slate-300",
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        "inline-block h-5 w-5 transform rounded-full bg-white transition",
+                        field.showLabelOnCardFront ?? true ? "translate-x-5" : "translate-x-0.5",
+                      )}
+                    />
+                  </span>
+                </button>
+              </div>
+            ) : null}
             {field.type === "select" ? (
               <input
                 className={clsx(
@@ -3553,7 +3666,9 @@ export function RankboardApp() {
                 : "New Dropdown",
         type,
         visible: true,
+        showLabelOnCardFront: true,
         options: type === "select" ? ["Option 1", "Option 2"] : undefined,
+        dateFormat: type === "date" ? DEFAULT_DATE_FIELD_FORMAT : undefined,
       },
     ]);
   }
@@ -6623,7 +6738,9 @@ export function RankboardApp() {
                                   : "New Dropdown",
                           type,
                           visible: true,
+                          showLabelOnCardFront: true,
                           options: type === "select" ? ["Option 1", "Option 2"] : undefined,
+                          dateFormat: type === "date" ? DEFAULT_DATE_FIELD_FORMAT : undefined,
                         },
                       ],
                     }))
@@ -7970,7 +8087,14 @@ function CardTile({
     .map((field) => ({
       id: field.id,
       label: field.label,
-      value: card.customFieldValues?.[field.id]?.trim() ?? "",
+      showLabel: field.showLabelOnCardFront ?? true,
+      value:
+        field.type === "date"
+          ? formatDateFieldValue(
+              card.customFieldValues?.[field.id] ?? "",
+              field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT,
+            )
+          : card.customFieldValues?.[field.id]?.trim() ?? "",
     }))
     .filter((field) => field.value.length > 0);
   const [showCollapsedActions, setShowCollapsedActions] = useState(false);
@@ -8077,9 +8201,9 @@ function CardTile({
               <span
                 key={field.id}
                 className="max-w-full truncate rounded-full bg-slate-950/78 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur"
-                title={`${field.label}: ${field.value}`}
+                title={field.showLabel ? `${field.label}: ${field.value}` : field.value}
               >
-                {`${field.label}: ${field.value}`}
+                {field.showLabel ? `${field.label}: ${field.value}` : field.value}
               </span>
             ))}
           </div>
