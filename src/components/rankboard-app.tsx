@@ -192,6 +192,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   collapseCards: false,
   showTierHighlights: true,
   includeSeriesField: true,
+  includeReleaseYearField: true,
   includeImageField: true,
   includeNotesField: true,
   restoreShowSeriesOnExpand: false,
@@ -367,6 +368,24 @@ function buildBackupSnapshot(
     activeBoardId,
     boards: boards.map((board) => normalizeSavedBoard(board)),
   };
+}
+
+function mergeBoardsWithActiveSnapshot(
+  boards: SavedBoard[],
+  activeBoardId: string,
+  columns: ColumnDefinition[],
+  cardsByColumn: Record<string, CardEntry[]>,
+) {
+  return boards.map((board) =>
+    board.id === activeBoardId
+      ? {
+          ...board,
+          columns,
+          cardsByColumn,
+          updatedAt: new Date().toISOString(),
+        }
+      : board,
+  );
 }
 
 async function fetchWikipediaMetadataBySearch(query: string) {
@@ -679,15 +698,13 @@ function MenuSectionButton({
 function FieldSettingsPanel({
   isDarkMode,
   settings,
-  onToggleSeriesField,
-  onToggleImageField,
-  onToggleNotesField,
+  boardKind,
+  onToggleField,
 }: {
   isDarkMode: boolean;
   settings: BoardSettings;
-  onToggleSeriesField: () => void;
-  onToggleImageField: () => void;
-  onToggleNotesField: () => void;
+  boardKind: ReturnType<typeof getBoardKind>;
+  onToggleField: (key: BoardFieldOption["key"]) => void;
 }) {
   return (
     <div
@@ -696,39 +713,20 @@ function FieldSettingsPanel({
         isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
       )}
     >
-      <button
-        className={clsx(
-          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-        )}
-        onClick={onToggleSeriesField}
-        type="button"
-      >
-        <span>Series field</span>
-        <span className="text-xs opacity-70">{settings.includeSeriesField ? "On" : "Off"}</span>
-      </button>
-      <button
-        className={clsx(
-          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-        )}
-        onClick={onToggleImageField}
-        type="button"
-      >
-        <span>Artwork field</span>
-        <span className="text-xs opacity-70">{settings.includeImageField ? "On" : "Off"}</span>
-      </button>
-      <button
-        className={clsx(
-          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-        )}
-        onClick={onToggleNotesField}
-        type="button"
-      >
-        <span>Notes field</span>
-        <span className="text-xs opacity-70">{settings.includeNotesField ? "On" : "Off"}</span>
-      </button>
+      {BOARD_FIELD_OPTIONS.filter((option) => option.isAvailable?.(boardKind) ?? true).map((option) => (
+        <button
+          key={option.key}
+          className={clsx(
+            "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+            isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+          )}
+          onClick={() => onToggleField(option.key)}
+          type="button"
+        >
+          <span>{option.label}</span>
+          <span className="text-xs opacity-70">{settings[option.key] ? "On" : "Off"}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -973,6 +971,7 @@ function getDefaultBoardSettings(boardTitle: string): BoardSettings {
   return {
     ...DEFAULT_BOARD_SETTINGS,
     includeSeriesField: boardKind !== "show",
+    includeReleaseYearField: true,
     includeImageField: true,
     includeNotesField: true,
   };
@@ -993,6 +992,42 @@ function getUserDisplayName(user: User | null) {
     "Account"
   );
 }
+
+type BoardFieldOption = {
+  key: keyof Pick<
+    BoardSettings,
+    "includeSeriesField" | "includeReleaseYearField" | "includeImageField" | "includeNotesField"
+  >;
+  label: string;
+  isAvailable?: (boardKind: ReturnType<typeof getBoardKind>) => boolean;
+};
+
+const BOARD_FIELD_OPTIONS: BoardFieldOption[] = [
+  {
+    key: "includeSeriesField",
+    label: "Series field",
+    isAvailable: (boardKind) => boardKind !== "show",
+  },
+  {
+    key: "includeReleaseYearField",
+    label: "Release Year field",
+  },
+  {
+    key: "includeImageField",
+    label: "Artwork field",
+  },
+  {
+    key: "includeNotesField",
+    label: "Notes field",
+  },
+];
+
+type PersistBoardStateOptions = {
+  boards?: SavedBoard[];
+  activeBoardId?: string;
+  columns?: ColumnDefinition[];
+  cardsByColumn?: Record<string, CardEntry[]>;
+};
 
 function formatLastSavedAt(savedAt: string | null) {
   if (!savedAt) {
@@ -1085,6 +1120,7 @@ export function RankboardApp() {
   const latestCardsByColumnRef = useRef(cardsByColumn);
   const latestBoardsRef = useRef(boards);
   const latestActiveBoardIdRef = useRef(activeBoardId);
+  const pendingPersistOptionsRef = useRef<PersistBoardStateOptions | null>(null);
   const recentBackupSnapshotsRef = useRef<BoardBackupSnapshot[]>([]);
   const isSigningOutRef = useRef(false);
   const hasAutoOpenedBoardSetupRef = useRef(false);
@@ -1121,6 +1157,7 @@ export function RankboardApp() {
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const shouldShowSeriesField =
     activeBoardSettings.includeSeriesField && activeBoardKind !== "show";
+  const shouldShowReleaseYearField = activeBoardSettings.includeReleaseYearField;
   const shouldShowImageField = activeBoardSettings.includeImageField;
   const shouldShowNotesField = activeBoardSettings.includeNotesField;
 
@@ -1227,20 +1264,26 @@ export function RankboardApp() {
     };
   }, []);
 
-  const queuePersistBoardState = useCallback(() => {
+  const buildEffectiveBoardsSnapshot = useCallback((options?: PersistBoardStateOptions) => {
+    return mergeBoardsWithActiveSnapshot(
+      options?.boards ?? latestBoardsRef.current,
+      options?.activeBoardId ?? latestActiveBoardIdRef.current,
+      options?.columns ?? latestColumnsRef.current,
+      options?.cardsByColumn ?? latestCardsByColumnRef.current,
+    );
+  }, []);
+
+  const queuePersistBoardState = useCallback((options?: PersistBoardStateOptions) => {
+    pendingPersistOptionsRef.current = options ?? null;
     setPersistRequestId((current) => current + 1);
   }, []);
 
-  const persistBoardState = useCallback(async (options?: {
-    boards?: SavedBoard[];
-    activeBoardId?: string;
-    cardsByColumn?: Record<string, CardEntry[]>;
-  }) => {
+  const persistBoardState = useCallback(async (options?: PersistBoardStateOptions) => {
     if (!supabase || !currentUser) {
       return;
     }
 
-    const nextBoards = options?.boards ?? latestBoardsRef.current;
+    const nextBoards = buildEffectiveBoardsSnapshot(options);
     const nextActiveBoardId = options?.activeBoardId ?? latestActiveBoardIdRef.current;
     const nextCardsByColumn = options?.cardsByColumn ?? latestCardsByColumnRef.current;
     const { payload, snapshot } = buildPersistedColumnsPayload(nextBoards, nextActiveBoardId);
@@ -1265,7 +1308,7 @@ export function RankboardApp() {
     } finally {
       setIsPersisting(false);
     }
-  }, [buildPersistedColumnsPayload, currentUser, supabase, writeLocalBackupSnapshot]);
+  }, [buildEffectiveBoardsSnapshot, buildPersistedColumnsPayload, currentUser, supabase, writeLocalBackupSnapshot]);
 
   function findDuplicateCard(
     title: string,
@@ -1415,10 +1458,17 @@ export function RankboardApp() {
       return;
     }
 
+    const effectiveBoards = mergeBoardsWithActiveSnapshot(
+      boards,
+      activeBoardId,
+      columns,
+      cardsByColumn,
+    );
+
     const serializedState = JSON.stringify({
       version: 2,
       activeBoardId,
-      boards,
+      boards: effectiveBoards,
     });
 
     window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
@@ -1431,11 +1481,11 @@ export function RankboardApp() {
       }
     }
 
-    writeLocalBackupSnapshot(buildBackupSnapshot(boards, activeBoardId));
+    writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
     if (!authEnabled || !currentUser) {
       setLastSavedAt(new Date().toISOString());
     }
-  }, [activeBoardId, authEnabled, boards, currentUser, hasLoadedPersistedState, isAuthLoading, writeLocalBackupSnapshot]);
+  }, [activeBoardId, authEnabled, boards, cardsByColumn, columns, currentUser, hasLoadedPersistedState, isAuthLoading, writeLocalBackupSnapshot]);
 
   useEffect(() => {
     if (!hasLoadedPersistedState) {
@@ -1751,7 +1801,9 @@ export function RankboardApp() {
     }
 
     const timeout = window.setTimeout(() => {
-      void persistBoardState();
+      const nextPersistOptions = pendingPersistOptionsRef.current;
+      pendingPersistOptionsRef.current = null;
+      void persistBoardState(nextPersistOptions ?? undefined);
     }, 120);
 
     return () => window.clearTimeout(timeout);
@@ -1960,6 +2012,8 @@ export function RankboardApp() {
   }
 
   function updateCardsForItem(itemId: string, updater: (card: CardEntry) => CardEntry) {
+    let nextStateSnapshot: Record<string, CardEntry[]> | null = null;
+
     setCardsByColumn((current) => {
       const nextState: Record<string, CardEntry[]> = {};
 
@@ -1969,9 +2023,16 @@ export function RankboardApp() {
         );
       }
 
+      latestCardsByColumnRef.current = nextState;
+      nextStateSnapshot = nextState;
       return nextState;
     });
-    queuePersistBoardState();
+
+    if (nextStateSnapshot) {
+      queuePersistBoardState({ cardsByColumn: nextStateSnapshot });
+    } else {
+      queuePersistBoardState();
+    }
   }
 
   function linkMatchingMirrorCards(columnId: string) {
@@ -2186,7 +2247,16 @@ export function RankboardApp() {
         ...current,
         [sourceColumnId]: reorderedCards,
       }));
-      queuePersistBoardState();
+      latestCardsByColumnRef.current = {
+        ...latestCardsByColumnRef.current,
+        [sourceColumnId]: reorderedCards,
+      };
+      queuePersistBoardState({
+        cardsByColumn: {
+          ...latestCardsByColumnRef.current,
+          [sourceColumnId]: reorderedCards,
+        },
+      });
 
       return;
     }
@@ -2207,8 +2277,9 @@ export function RankboardApp() {
       overColumnId,
     );
 
+    latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
-    queuePersistBoardState();
+    queuePersistBoardState({ cardsByColumn: nextState });
   }
 
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -2276,6 +2347,7 @@ export function RankboardApp() {
         ...cardsByColumn,
         [newColumn.id]: [],
       };
+      latestColumnsRef.current = nextColumns;
       setColumns(nextColumns);
     } else if (destinationColumnId !== addCardTarget.columnId) {
       destinationInsertIndex = (nextCardsByColumn[destinationColumnId] ?? []).length;
@@ -2307,11 +2379,15 @@ export function RankboardApp() {
       nextState = addMirroredCard(nextState, newCard, column.autoMirrorToColumnId);
     }
 
+    latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     setDraft(initialDraft);
     setAddCardTarget(null);
     setDraftDuplicateAction(null);
-    queuePersistBoardState();
+    queuePersistBoardState({
+      columns: nextColumns,
+      cardsByColumn: nextState,
+    });
   }
 
   function openAddGameModal(columnId: string, insertIndex: number) {
@@ -2375,6 +2451,8 @@ export function RankboardApp() {
     }
 
     if (card.mirroredFromEntryId || column?.mirrorsEntireBoard) {
+      let nextStateSnapshot: Record<string, CardEntry[]> | null = null;
+
       setCardsByColumn((current) => {
         const nextState: Record<string, CardEntry[]> = {};
 
@@ -2382,6 +2460,8 @@ export function RankboardApp() {
           nextState[currentColumnId] = cards.filter((item) => item.itemId !== card.itemId);
         }
 
+        latestCardsByColumnRef.current = nextState;
+        nextStateSnapshot = nextState;
         return nextState;
       });
       setColumns((current) =>
@@ -2393,7 +2473,7 @@ export function RankboardApp() {
         })),
       );
       setEditingCardId((current) => (current === entryId ? null : current));
-      queuePersistBoardState();
+      queuePersistBoardState(nextStateSnapshot ? { cardsByColumn: nextStateSnapshot } : undefined);
       return;
     }
 
@@ -2408,12 +2488,15 @@ export function RankboardApp() {
       nextState = removeMirroredCard(nextState, entryId, column.autoMirrorToColumnId);
     }
 
+    latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     setEditingCardId((current) => (current === entryId ? null : current));
-    queuePersistBoardState();
+    queuePersistBoardState({ cardsByColumn: nextState });
   }
 
   function deleteAllLinkedCopies(itemId: string, entryId: string) {
+    let nextStateSnapshot: Record<string, CardEntry[]> | null = null;
+
     setCardsByColumn((current) => {
       const nextState: Record<string, CardEntry[]> = {};
 
@@ -2421,6 +2504,8 @@ export function RankboardApp() {
         nextState[currentColumnId] = cards.filter((item) => item.itemId !== itemId);
       }
 
+      latestCardsByColumnRef.current = nextState;
+      nextStateSnapshot = nextState;
       return nextState;
     });
     setColumns((current) =>
@@ -2433,7 +2518,7 @@ export function RankboardApp() {
     );
     setEditingCardId((current) => (current === entryId ? null : current));
     setPendingMirrorDelete(null);
-    queuePersistBoardState();
+    queuePersistBoardState(nextStateSnapshot ? { cardsByColumn: nextStateSnapshot } : undefined);
   }
 
   function deleteOnlyMirrorCopy(columnId: string, entryId: string, itemId: string) {
@@ -2449,13 +2534,15 @@ export function RankboardApp() {
           : item,
       ),
     );
-    setCardsByColumn((current) => ({
-      ...current,
-      [columnId]: (current[columnId] ?? []).filter((item) => item.entryId !== entryId),
-    }));
+    const nextState = {
+      ...latestCardsByColumnRef.current,
+      [columnId]: (latestCardsByColumnRef.current[columnId] ?? []).filter((item) => item.entryId !== entryId),
+    };
+    latestCardsByColumnRef.current = nextState;
+    setCardsByColumn(nextState);
     setEditingCardId((current) => (current === entryId ? null : current));
     setPendingMirrorDelete(null);
-    queuePersistBoardState();
+    queuePersistBoardState({ cardsByColumn: nextState });
   }
 
   function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
@@ -4788,31 +4875,33 @@ export function RankboardApp() {
                   </label>
                 ) : null}
 
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
-                  <input
-                    name="releaseYear"
-                    inputMode="numeric"
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="2025"
-                    value={editingCardDraft.releaseYear}
-                    onChange={(event) =>
-                      setEditingCardDraft((current) =>
-                        current
-                          ? {
-                              ...current,
-                              releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
-                            }
-                          : current,
-                      )
-                    }
-                  />
-                </label>
+                {shouldShowReleaseYearField ? (
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
+                    <input
+                      name="releaseYear"
+                      inputMode="numeric"
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      placeholder="2025"
+                      value={editingCardDraft.releaseYear}
+                      onChange={(event) =>
+                        setEditingCardDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  </label>
+                ) : null}
               </div>
 
               {shouldShowImageField ? (
@@ -4974,9 +5063,10 @@ export function RankboardApp() {
                       <FieldSettingsPanel
                         isDarkMode={isDarkMode}
                         settings={activeBoardSettings}
-                        onToggleSeriesField={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
-                        onToggleImageField={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
-                        onToggleNotesField={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                        boardKind={activeBoardKind}
+                        onToggleField={(key) =>
+                          updateActiveBoardSettings({ [key]: !activeBoardSettings[key] } as Partial<BoardSettings>)
+                        }
                       />
                     </div>
                   ) : null}
@@ -5026,6 +5116,7 @@ export function RankboardApp() {
                   <label className="grid gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                     <input
+                      name="title"
                       className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
@@ -5063,27 +5154,29 @@ export function RankboardApp() {
                   </label>
                 ) : null}
 
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
-                  <input
-                    name="releaseYear"
-                    inputMode="numeric"
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="2025"
-                    value={draft.releaseYear}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
-                      }))
-                    }
-                  />
-                </label>
+                {shouldShowReleaseYearField ? (
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
+                    <input
+                      name="releaseYear"
+                      inputMode="numeric"
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      placeholder="2025"
+                      value={draft.releaseYear}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
+                        }))
+                      }
+                    />
+                  </label>
+                ) : null}
                 </div>
 
                 {shouldShowImageField ? (
@@ -5308,9 +5401,10 @@ export function RankboardApp() {
                         <FieldSettingsPanel
                           isDarkMode={isDarkMode}
                           settings={activeBoardSettings}
-                          onToggleSeriesField={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
-                          onToggleImageField={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
-                          onToggleNotesField={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                          boardKind={activeBoardKind}
+                          onToggleField={(key) =>
+                            updateActiveBoardSettings({ [key]: !activeBoardSettings[key] } as Partial<BoardSettings>)
+                          }
                         />
                       </div>
                     ) : null}
@@ -5429,9 +5523,10 @@ export function RankboardApp() {
                 <FieldSettingsPanel
                   isDarkMode={isDarkMode}
                   settings={activeBoardSettings}
-                  onToggleSeriesField={() => updateActiveBoardSettings({ includeSeriesField: !activeBoardSettings.includeSeriesField })}
-                  onToggleImageField={() => updateActiveBoardSettings({ includeImageField: !activeBoardSettings.includeImageField })}
-                  onToggleNotesField={() => updateActiveBoardSettings({ includeNotesField: !activeBoardSettings.includeNotesField })}
+                  boardKind={activeBoardKind}
+                  onToggleField={(key) =>
+                    updateActiveBoardSettings({ [key]: !activeBoardSettings[key] } as Partial<BoardSettings>)
+                  }
                 />
               </div>
             </div>
@@ -5936,67 +6031,38 @@ export function RankboardApp() {
                     setNewBoardTitle(nextTitle);
                     setNewBoardSettings((current) => ({
                       ...current,
-                      includeSeriesField: nextDefaults.includeSeriesField,
+                      ...Object.fromEntries(
+                        BOARD_FIELD_OPTIONS
+                          .filter((option) => option.isAvailable?.(getBoardKind(nextTitle || "New Board")) ?? true)
+                          .map((option) => [option.key, nextDefaults[option.key]]),
+                      ),
                     }));
                   }}
                 />
               </label>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <button
-                  className={clsx(
-                    "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
-                  )}
-                  onClick={() =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      includeSeriesField: !current.includeSeriesField,
-                    }))
-                  }
-                  type="button"
-                >
-                  <span>Series field</span>
-                  <span className="text-xs opacity-70">{newBoardSettings.includeSeriesField ? "On" : "Off"}</span>
-                </button>
-                <button
-                  className={clsx(
-                    "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
-                  )}
-                  onClick={() =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      includeImageField: !current.includeImageField,
-                    }))
-                  }
-                  type="button"
-                >
-                  <span>Artwork field</span>
-                  <span className="text-xs opacity-70">{newBoardSettings.includeImageField ? "On" : "Off"}</span>
-                </button>
-                <button
-                  className={clsx(
-                    "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
-                  )}
-                  onClick={() =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      includeNotesField: !current.includeNotesField,
-                    }))
-                  }
-                  type="button"
-                >
-                  <span>Notes field</span>
-                  <span className="text-xs opacity-70">{newBoardSettings.includeNotesField ? "On" : "Off"}</span>
-                </button>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {BOARD_FIELD_OPTIONS.filter((option) => option.isAvailable?.(getBoardKind(newBoardTitle || "New Board")) ?? true).map((option) => (
+                  <button
+                    key={option.key}
+                    className={clsx(
+                      "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
+                    )}
+                    onClick={() =>
+                      setNewBoardSettings((current) => ({
+                        ...current,
+                        [option.key]: !current[option.key],
+                      }))
+                    }
+                    type="button"
+                  >
+                    <span>{option.label}</span>
+                    <span className="text-xs opacity-70">{newBoardSettings[option.key] ? "On" : "Off"}</span>
+                  </button>
+                ))}
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">

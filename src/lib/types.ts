@@ -33,6 +33,7 @@ export type BoardSettings = {
   collapseCards: boolean;
   showTierHighlights: boolean;
   includeSeriesField: boolean;
+  includeReleaseYearField: boolean;
   includeImageField: boolean;
   includeNotesField: boolean;
   restoreShowSeriesOnExpand?: boolean;
