@@ -47,7 +47,15 @@ import {
 } from "lucide-react";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { BoardSettings, BoardSnapshot, CardEntry, ColumnDefinition, SavedBoard } from "@/lib/types";
+import {
+  BoardFieldDefinition,
+  BoardSettings,
+  BoardSnapshot,
+  CardEntry,
+  CardFieldType,
+  ColumnDefinition,
+  SavedBoard,
+} from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -55,6 +63,7 @@ type CardDraft = {
   series: string;
   releaseYear: string;
   notes: string;
+  customFields: Record<string, string>;
   columnId: string;
   newColumnTitle: string;
 };
@@ -70,6 +79,7 @@ type CardEditorDraft = {
   series: string;
   releaseYear: string;
   notes: string;
+  customFields: Record<string, string>;
 };
 
 type ColumnEditorDraft = {
@@ -88,6 +98,7 @@ type PendingDuplicateAction = {
   series: string;
   releaseYear?: string;
   notes?: string;
+  customFields?: Record<string, string>;
 };
 
 type RankBadge = {
@@ -182,6 +193,7 @@ const initialDraft: CardDraft = {
   series: "",
   releaseYear: "",
   notes: "",
+  customFields: {},
   columnId: "",
   newColumnTitle: "",
 };
@@ -195,6 +207,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   includeReleaseYearField: true,
   includeImageField: true,
   includeNotesField: true,
+  fieldDefinitions: [],
   restoreShowSeriesOnExpand: false,
 };
 
@@ -242,6 +255,74 @@ const COLUMN_ACCENTS = [
   "from-lime-300 via-emerald-400 to-teal-500",
   "from-red-300 via-orange-400 to-amber-500",
 ];
+
+function makeFieldId(prefix = "field") {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] {
+  const boardKind = getBoardKind(boardTitle);
+
+  return [
+    {
+      id: "series",
+      label: boardKind === "show" ? "Franchise" : "Series",
+      type: "short_text",
+      visible: boardKind !== "show",
+      builtInKey: "series",
+    },
+    {
+      id: "release-year",
+      label: "Release Year",
+      type: "date",
+      visible: true,
+      builtInKey: "releaseYear",
+    },
+    {
+      id: "artwork",
+      label: "Artwork URL",
+      type: "short_text",
+      visible: true,
+      builtInKey: "imageUrl",
+    },
+    {
+      id: "notes",
+      label: "Notes",
+      type: "long_text",
+      visible: true,
+      builtInKey: "notes",
+    },
+  ];
+}
+
+function normalizeFieldDefinitions(
+  fieldDefinitions: BoardFieldDefinition[] | undefined,
+  boardTitle: string,
+  legacySettings?: Partial<BoardSettings>,
+) {
+  const defaults = getDefaultFieldDefinitions(boardTitle);
+
+  if (!fieldDefinitions || fieldDefinitions.length === 0) {
+    return defaults.map((field) => ({
+      ...field,
+      visible:
+        field.builtInKey === "series"
+          ? legacySettings?.includeSeriesField ?? field.visible
+          : field.builtInKey === "releaseYear"
+            ? legacySettings?.includeReleaseYearField ?? field.visible
+            : field.builtInKey === "imageUrl"
+              ? legacySettings?.includeImageField ?? field.visible
+              : field.builtInKey === "notes"
+                ? legacySettings?.includeNotesField ?? field.visible
+                : field.visible,
+    }));
+  }
+
+  return fieldDefinitions.map((field) => ({
+    ...field,
+    options: field.type === "select" ? field.options ?? [] : undefined,
+  }));
+}
 
 function makeId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -558,6 +639,7 @@ function createCardDraft(card: CardEntry): CardEditorDraft {
     series: card.series,
     releaseYear: card.releaseYear ?? "",
     notes: card.notes ?? "",
+    customFields: { ...(card.customFieldValues ?? {}) },
   };
 }
 
@@ -613,7 +695,17 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
     settings: {
       ...getDefaultBoardSettings(board.title),
       ...board.settings,
+      fieldDefinitions: normalizeFieldDefinitions(board.settings?.fieldDefinitions, board.title, board.settings),
     },
+    cardsByColumn: Object.fromEntries(
+      Object.entries(board.cardsByColumn).map(([columnId, cards]) => [
+        columnId,
+        cards.map((card) => ({
+          ...card,
+          customFieldValues: card.customFieldValues ?? {},
+        })),
+      ]),
+    ),
   } satisfies SavedBoard;
 }
 
@@ -697,14 +789,12 @@ function MenuSectionButton({
 
 function FieldSettingsPanel({
   isDarkMode,
-  settings,
-  boardKind,
+  fieldDefinitions,
   onToggleField,
 }: {
   isDarkMode: boolean;
-  settings: BoardSettings;
-  boardKind: ReturnType<typeof getBoardKind>;
-  onToggleField: (key: BoardFieldOption["key"]) => void;
+  fieldDefinitions: BoardFieldDefinition[];
+  onToggleField: (fieldId: string) => void;
 }) {
   return (
     <div
@@ -713,20 +803,139 @@ function FieldSettingsPanel({
         isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
       )}
     >
-      {BOARD_FIELD_OPTIONS.filter((option) => option.isAvailable?.(boardKind) ?? true).map((option) => (
+      {fieldDefinitions.map((field) => (
         <button
-          key={option.key}
+          key={field.id}
           className={clsx(
             "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
             isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
           )}
-          onClick={() => onToggleField(option.key)}
+          onClick={() => onToggleField(field.id)}
           type="button"
         >
-          <span>{option.label}</span>
-          <span className="text-xs opacity-70">{settings[option.key] ? "On" : "Off"}</span>
+          <span>{field.label}</span>
+          <span className="text-xs opacity-70">{field.visible ? "On" : "Off"}</span>
         </button>
       ))}
+    </div>
+  );
+}
+
+function FieldDefinitionManager({
+  isDarkMode,
+  fieldDefinitions,
+  onToggleVisibility,
+  onUpdateField,
+  onRemoveField,
+  onAddField,
+}: {
+  isDarkMode: boolean;
+  fieldDefinitions: BoardFieldDefinition[];
+  onToggleVisibility: (fieldId: string) => void;
+  onUpdateField: (fieldId: string, patch: Partial<BoardFieldDefinition>) => void;
+  onRemoveField: (fieldId: string) => void;
+  onAddField: (type: CardFieldType) => void;
+}) {
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3">
+        {fieldDefinitions.map((field) => (
+          <div
+            key={field.id}
+            className={clsx(
+              "rounded-2xl border p-4",
+              isDarkMode ? "border-white/10 bg-slate-950/60" : "border-slate-200 bg-slate-50",
+            )}
+          >
+            <div className="grid gap-3 sm:grid-cols-[1.4fr_0.9fr_auto_auto] sm:items-center">
+              <input
+                className={clsx(
+                  "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                  isDarkMode
+                    ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
+                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                )}
+                value={field.label}
+                onChange={(event) => onUpdateField(field.id, { label: event.target.value })}
+                placeholder="Field label"
+              />
+              <select
+                className={clsx(
+                  "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                  isDarkMode
+                    ? "border-white/10 bg-slate-900 text-white focus:border-white/40"
+                    : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                )}
+                disabled={Boolean(field.builtInKey)}
+                value={field.type}
+                onChange={(event) => onUpdateField(field.id, { type: event.target.value as CardFieldType })}
+              >
+                <option value="short_text">Short Text</option>
+                <option value="long_text">Long Text</option>
+                <option value="date">Date</option>
+                <option value="select">Dropdown</option>
+              </select>
+              <button
+                className={clsx(
+                  "rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                  isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950",
+                )}
+                onClick={() => onToggleVisibility(field.id)}
+                type="button"
+              >
+                {field.visible ? "Hide" : "Show"}
+              </button>
+              <button
+                className={clsx(
+                  "rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                  isDarkMode
+                    ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
+                    : "border-rose-200 text-rose-700 hover:border-rose-500",
+                )}
+                onClick={() => onRemoveField(field.id)}
+                type="button"
+              >
+                Remove
+              </button>
+            </div>
+            {field.type === "select" ? (
+              <input
+                className={clsx(
+                  "mt-3 w-full rounded-xl border px-3 py-2 text-sm outline-none transition",
+                  isDarkMode
+                    ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
+                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                )}
+                value={(field.options ?? []).join(", ")}
+                onChange={(event) =>
+                  onUpdateField(field.id, {
+                    options: event.target.value
+                      .split(",")
+                      .map((option) => option.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="Dropdown options, comma separated"
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("short_text")} type="button">
+          Add Short Text
+        </button>
+        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("long_text")} type="button">
+          Add Long Text
+        </button>
+        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("date")} type="button">
+          Add Date
+        </button>
+        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("select")} type="button">
+          Add Dropdown
+        </button>
+      </div>
     </div>
   );
 }
@@ -974,6 +1183,7 @@ function getDefaultBoardSettings(boardTitle: string): BoardSettings {
     includeReleaseYearField: true,
     includeImageField: true,
     includeNotesField: true,
+    fieldDefinitions: getDefaultFieldDefinitions(boardTitle),
   };
 }
 
@@ -992,35 +1202,6 @@ function getUserDisplayName(user: User | null) {
     "Account"
   );
 }
-
-type BoardFieldOption = {
-  key: keyof Pick<
-    BoardSettings,
-    "includeSeriesField" | "includeReleaseYearField" | "includeImageField" | "includeNotesField"
-  >;
-  label: string;
-  isAvailable?: (boardKind: ReturnType<typeof getBoardKind>) => boolean;
-};
-
-const BOARD_FIELD_OPTIONS: BoardFieldOption[] = [
-  {
-    key: "includeSeriesField",
-    label: "Series field",
-    isAvailable: (boardKind) => boardKind !== "show",
-  },
-  {
-    key: "includeReleaseYearField",
-    label: "Release Year field",
-  },
-  {
-    key: "includeImageField",
-    label: "Artwork field",
-  },
-  {
-    key: "includeNotesField",
-    label: "Notes field",
-  },
-];
 
 type PersistBoardStateOptions = {
   boards?: SavedBoard[];
@@ -1155,11 +1336,26 @@ export function RankboardApp() {
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardVocabulary = getBoardVocabulary(activeBoardTitle);
   const activeBoardKind = getBoardKind(activeBoardTitle);
-  const shouldShowSeriesField =
-    activeBoardSettings.includeSeriesField && activeBoardKind !== "show";
-  const shouldShowReleaseYearField = activeBoardSettings.includeReleaseYearField;
-  const shouldShowImageField = activeBoardSettings.includeImageField;
-  const shouldShowNotesField = activeBoardSettings.includeNotesField;
+  const activeBoardFieldDefinitions = normalizeFieldDefinitions(
+    activeBoardSettings.fieldDefinitions,
+    activeBoardTitle,
+    activeBoardSettings,
+  );
+  const seriesFieldDefinition = activeBoardFieldDefinitions.find((field) => field.builtInKey === "series");
+  const releaseYearFieldDefinition = activeBoardFieldDefinitions.find((field) => field.builtInKey === "releaseYear");
+  const imageFieldDefinition = activeBoardFieldDefinitions.find((field) => field.builtInKey === "imageUrl");
+  const notesFieldDefinition = activeBoardFieldDefinitions.find((field) => field.builtInKey === "notes");
+  const shouldShowSeriesField = Boolean(seriesFieldDefinition?.visible) && activeBoardKind !== "show";
+  const shouldShowReleaseYearField = Boolean(releaseYearFieldDefinition?.visible);
+  const shouldShowImageField = Boolean(imageFieldDefinition?.visible);
+  const shouldShowNotesField = Boolean(notesFieldDefinition?.visible);
+  const visibleCustomFieldDefinitions = activeBoardFieldDefinitions.filter(
+    (field) => field.visible && !field.builtInKey,
+  );
+  const seriesFieldLabel = seriesFieldDefinition?.label ?? "Series";
+  const releaseYearFieldLabel = releaseYearFieldDefinition?.label ?? "Release Year";
+  const imageFieldLabel = imageFieldDefinition?.label ?? "Artwork URL";
+  const notesFieldLabel = notesFieldDefinition?.label ?? "Notes";
 
   const resetToSignedOutBoard = useCallback(() => {
     const signedOutBoard = createEmptyBoard("Rankr");
@@ -2289,14 +2485,13 @@ export function RankboardApp() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
-    const title = String(formData.get("title") ?? "").trim() || `Untitled ${boardVocabulary.singular}`;
-    const series = String(formData.get("series") ?? "").trim();
-    const imageUrl = String(formData.get("imageUrl") ?? "").trim();
-    const notes = String(formData.get("notes") ?? "").trim();
-    const releaseYear = String(formData.get("releaseYear") ?? "").trim();
-    const columnId = String(formData.get("columnId") ?? "").trim();
-    const newColumnTitle = String(formData.get("newColumnTitle") ?? "").trim();
+    const title = draft.title.trim() || `Untitled ${boardVocabulary.singular}`;
+    const series = draft.series.trim();
+    const imageUrl = draft.imageUrl.trim();
+    const notes = draft.notes.trim();
+    const releaseYear = draft.releaseYear.trim();
+    const columnId = draft.columnId.trim();
+    const newColumnTitle = draft.newColumnTitle.trim();
     const selectedColumnId =
       columnId === NEW_COLUMN_OPTION ? "" : columnId || addCardTarget.columnId;
     const duplicate = selectedColumnId
@@ -2311,11 +2506,21 @@ export function RankboardApp() {
         series,
         releaseYear,
         notes,
+        customFields: { ...draft.customFields },
       });
       return;
     }
 
-    finalizeAddCard(title, series, imageUrl, notes, releaseYear, columnId, newColumnTitle);
+    finalizeAddCard(
+      title,
+      series,
+      imageUrl,
+      notes,
+      releaseYear,
+      { ...draft.customFields },
+      columnId,
+      newColumnTitle,
+    );
   }
 
   function finalizeAddCard(
@@ -2324,6 +2529,7 @@ export function RankboardApp() {
     imageUrl: string,
     notes: string,
     releaseYear: string,
+    customFieldValues: Record<string, string>,
     selectedColumnIdOverride?: string,
     newColumnTitleOverride?: string,
   ) {
@@ -2362,6 +2568,9 @@ export function RankboardApp() {
       series,
       releaseYear: releaseYear || undefined,
       notes: notes || undefined,
+      customFieldValues: Object.fromEntries(
+        Object.entries(customFieldValues).filter(([, value]) => value.trim().length > 0),
+      ),
     };
 
     const column = nextColumns.find((item) => item.id === destinationColumnId);
@@ -2571,12 +2780,11 @@ export function RankboardApp() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
-    const title = String(formData.get("title") ?? "").trim() || "Untitled Game";
-    const imageUrl = String(formData.get("imageUrl") ?? "").trim();
-    const series = String(formData.get("series") ?? "").trim();
-    const releaseYear = String(formData.get("releaseYear") ?? "").trim();
-    const notes = String(formData.get("notes") ?? "").trim();
+    const title = editingCardDraft.title.trim() || `Untitled ${boardVocabulary.singular}`;
+    const imageUrl = editingCardDraft.imageUrl.trim();
+    const series = editingCardDraft.series.trim();
+    const releaseYear = editingCardDraft.releaseYear.trim();
+    const notes = editingCardDraft.notes.trim();
     const editingColumnId = editingCardId ? findColumnIdForEntry(editingCardId) : null;
     const duplicate = editingColumnId
       ? findDuplicateCard(title, editingColumnId, editingCardItemId)
@@ -2590,6 +2798,7 @@ export function RankboardApp() {
         series,
         releaseYear,
         notes,
+        customFields: { ...editingCardDraft.customFields },
       });
       return;
     }
@@ -2601,6 +2810,9 @@ export function RankboardApp() {
       series,
       releaseYear: releaseYear || undefined,
       notes: notes || undefined,
+      customFieldValues: Object.fromEntries(
+        Object.entries(editingCardDraft.customFields).filter(([, value]) => value.trim().length > 0),
+      ),
       itemId: slugify(title) || card.itemId,
     }));
 
@@ -2816,6 +3028,10 @@ export function RankboardApp() {
         series: draftDuplicateAction.series || card.series,
         releaseYear: draft.releaseYear.trim() || card.releaseYear,
         notes: draftDuplicateAction.notes || card.notes,
+        customFieldValues: {
+          ...(card.customFieldValues ?? {}),
+          ...(draftDuplicateAction.customFields ?? {}),
+        },
       }));
       closeAddGameModal();
       return;
@@ -2827,6 +3043,7 @@ export function RankboardApp() {
       draftDuplicateAction.imageUrl,
       draftDuplicateAction.notes ?? "",
       draftDuplicateAction.releaseYear ?? "",
+      draftDuplicateAction.customFields ?? {},
     );
   }
 
@@ -2848,6 +3065,10 @@ export function RankboardApp() {
         series: editingDuplicateAction.series || card.series,
         releaseYear: editingDuplicateAction.releaseYear || card.releaseYear,
         notes: editingDuplicateAction.notes || card.notes,
+        customFieldValues: {
+          ...(card.customFieldValues ?? {}),
+          ...(editingDuplicateAction.customFields ?? {}),
+        },
       }));
       cancelEditingCard();
       return;
@@ -2860,6 +3081,9 @@ export function RankboardApp() {
       series: editingDuplicateAction.series,
       releaseYear: editingDuplicateAction.releaseYear || undefined,
       notes: editingDuplicateAction.notes || undefined,
+      customFieldValues: Object.fromEntries(
+        Object.entries(editingDuplicateAction.customFields ?? {}).filter(([, value]) => value.trim().length > 0),
+      ),
       itemId: slugify(editingDuplicateAction.title) || card.itemId,
     }));
     cancelEditingCard();
@@ -3109,11 +3333,15 @@ export function RankboardApp() {
             itemId: card.itemId,
             series: card.series,
             releaseYear: card.releaseYear ?? "",
+            customFieldValues: card.customFieldValues ?? {},
             mirroredFromEntryId: card.mirroredFromEntryId ?? "",
             columnIndex,
           },
         })),
       ),
+      rankboardBoardMeta: {
+        fieldDefinitions: activeBoardFieldDefinitions,
+      },
     };
 
     const blob = new Blob([JSON.stringify(trelloLikeExport, null, 2)], {
@@ -3183,6 +3411,79 @@ export function RankboardApp() {
     queuePersistBoardState();
   }
 
+  function updateActiveBoardFieldDefinitions(
+    updater: (current: BoardFieldDefinition[]) => BoardFieldDefinition[],
+  ) {
+    setBoards((current) =>
+      current.map((board) =>
+        board.id === activeBoardId
+          ? {
+              ...board,
+              settings: {
+                ...DEFAULT_BOARD_SETTINGS,
+                ...board.settings,
+                fieldDefinitions: updater(
+                  normalizeFieldDefinitions(board.settings?.fieldDefinitions, board.title, board.settings),
+                ),
+              },
+              updatedAt: new Date().toISOString(),
+            }
+          : board,
+      ),
+    );
+    queuePersistBoardState();
+  }
+
+  function toggleActiveBoardFieldVisibility(fieldId: string) {
+    updateActiveBoardFieldDefinitions((current) =>
+      current.map((field) =>
+        field.id === fieldId
+          ? {
+              ...field,
+              visible: !field.visible,
+            }
+          : field,
+      ),
+    );
+  }
+
+  function updateActiveBoardField(fieldId: string, patch: Partial<BoardFieldDefinition>) {
+    updateActiveBoardFieldDefinitions((current) =>
+      current.map((field) =>
+        field.id === fieldId
+          ? {
+              ...field,
+              ...patch,
+            }
+          : field,
+      ),
+    );
+  }
+
+  function removeActiveBoardField(fieldId: string) {
+    updateActiveBoardFieldDefinitions((current) => current.filter((field) => field.id !== fieldId));
+  }
+
+  function addActiveBoardField(type: CardFieldType) {
+    updateActiveBoardFieldDefinitions((current) => [
+      ...current,
+      {
+        id: makeFieldId(),
+        label:
+          type === "short_text"
+            ? "New Field"
+            : type === "long_text"
+              ? "New Notes"
+              : type === "date"
+                ? "New Date"
+                : "New Dropdown",
+        type,
+        visible: true,
+        options: type === "select" ? ["Option 1", "Option 2"] : undefined,
+      },
+    ]);
+  }
+
   function toggleCollapseCardsSetting() {
     if (activeBoardSettings.collapseCards) {
       updateActiveBoardSettings({
@@ -3225,6 +3526,21 @@ export function RankboardApp() {
               settings: {
                 ...board.settings,
                 includeSeriesField: getDefaultBoardSettings(nextTitle || board.title).includeSeriesField,
+                fieldDefinitions: normalizeFieldDefinitions(
+                  board.settings.fieldDefinitions,
+                  nextTitle || board.title,
+                  board.settings,
+                ).map((field) =>
+                  field.builtInKey === "series"
+                    ? {
+                        ...field,
+                        label:
+                          getDefaultFieldDefinitions(nextTitle || board.title).find(
+                            (defaultField) => defaultField.builtInKey === "series",
+                          )?.label ?? field.label,
+                      }
+                    : field,
+                ),
               },
               updatedAt: new Date().toISOString(),
             }
@@ -3260,6 +3576,7 @@ export function RankboardApp() {
       settings: {
         ...getDefaultBoardSettings(title),
         ...newBoardSettings,
+        fieldDefinitions: normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, title, newBoardSettings),
       },
     };
 
@@ -4852,7 +5169,7 @@ export function RankboardApp() {
 
                 {shouldShowSeriesField ? (
                   <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{seriesFieldLabel}</span>
                     <input
                       name="series"
                       list="series-suggestions"
@@ -4877,7 +5194,7 @@ export function RankboardApp() {
 
                 {shouldShowReleaseYearField ? (
                   <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{releaseYearFieldLabel}</span>
                     <input
                       name="releaseYear"
                       inputMode="numeric"
@@ -4908,7 +5225,7 @@ export function RankboardApp() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                   <label className="grid gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      Background image or GIF URL
+                      {imageFieldLabel}
                     </span>
                     <input
                       name="imageUrl"
@@ -4963,7 +5280,7 @@ export function RankboardApp() {
 
               {shouldShowNotesField ? (
                 <label className="mt-4 grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{notesFieldLabel}</span>
                   <textarea
                     name="notes"
                     className={clsx(
@@ -4981,6 +5298,90 @@ export function RankboardApp() {
                   />
                 </label>
               ) : null}
+
+              {visibleCustomFieldDefinitions.map((field) => (
+                <label key={field.id} className="mt-4 grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{field.label}</span>
+                  {field.type === "long_text" ? (
+                    <textarea
+                      className={clsx(
+                        "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      value={editingCardDraft.customFields[field.id] ?? ""}
+                      onChange={(event) =>
+                        setEditingCardDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                customFields: {
+                                  ...current.customFields,
+                                  [field.id]: event.target.value,
+                                },
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  ) : field.type === "select" ? (
+                    <select
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                      )}
+                      value={editingCardDraft.customFields[field.id] ?? ""}
+                      onChange={(event) =>
+                        setEditingCardDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                customFields: {
+                                  ...current.customFields,
+                                  [field.id]: event.target.value,
+                                },
+                              }
+                            : current,
+                        )
+                      }
+                    >
+                      <option value="">Select one</option>
+                      {(field.options ?? []).map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      type={field.type === "date" ? "date" : "text"}
+                      value={editingCardDraft.customFields[field.id] ?? ""}
+                      onChange={(event) =>
+                        setEditingCardDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                customFields: {
+                                  ...current.customFields,
+                                  [field.id]: event.target.value,
+                                },
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  )}
+                </label>
+              ))}
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
@@ -5062,11 +5463,8 @@ export function RankboardApp() {
                     <div className="absolute bottom-14 right-0 z-10">
                       <FieldSettingsPanel
                         isDarkMode={isDarkMode}
-                        settings={activeBoardSettings}
-                        boardKind={activeBoardKind}
-                        onToggleField={(key) =>
-                          updateActiveBoardSettings({ [key]: !activeBoardSettings[key] } as Partial<BoardSettings>)
-                        }
+                        fieldDefinitions={activeBoardFieldDefinitions}
+                        onToggleField={toggleActiveBoardFieldVisibility}
                       />
                     </div>
                   ) : null}
@@ -5134,7 +5532,7 @@ export function RankboardApp() {
 
                   {shouldShowSeriesField ? (
                     <label className="grid gap-2">
-                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{seriesFieldLabel}</span>
                       <input
                         name="series"
                         list="series-suggestions"
@@ -5156,7 +5554,7 @@ export function RankboardApp() {
 
                 {shouldShowReleaseYearField ? (
                   <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Release Year</span>
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{releaseYearFieldLabel}</span>
                     <input
                       name="releaseYear"
                       inputMode="numeric"
@@ -5183,7 +5581,7 @@ export function RankboardApp() {
                   <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-end">
                     <label className="grid gap-2">
                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                        Background image or GIF URL
+                        {imageFieldLabel}
                       </span>
                       <div className="relative">
                         <ImagePlus
@@ -5246,7 +5644,7 @@ export function RankboardApp() {
 
                 {shouldShowNotesField ? (
                   <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Notes</span>
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{notesFieldLabel}</span>
                     <textarea
                       name="notes"
                       className={clsx(
@@ -5265,6 +5663,78 @@ export function RankboardApp() {
                     />
                   </label>
                 ) : null}
+
+                {visibleCustomFieldDefinitions.map((field) => (
+                  <label key={field.id} className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{field.label}</span>
+                    {field.type === "long_text" ? (
+                      <textarea
+                        className={clsx(
+                          "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        )}
+                        value={draft.customFields[field.id] ?? ""}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            customFields: {
+                              ...current.customFields,
+                              [field.id]: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    ) : field.type === "select" ? (
+                      <select
+                        className={clsx(
+                          "rounded-2xl border px-4 py-3 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                        )}
+                        value={draft.customFields[field.id] ?? ""}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            customFields: {
+                              ...current.customFields,
+                              [field.id]: event.target.value,
+                            },
+                          }))
+                        }
+                      >
+                        <option value="">Select one</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        className={clsx(
+                          "rounded-2xl border px-4 py-3 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        )}
+                        type={field.type === "date" ? "date" : "text"}
+                        value={draft.customFields[field.id] ?? ""}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            customFields: {
+                              ...current.customFields,
+                              [field.id]: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    )}
+                  </label>
+                ))}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2">
@@ -5400,11 +5870,8 @@ export function RankboardApp() {
                       <div className="absolute bottom-14 right-0 z-10">
                         <FieldSettingsPanel
                           isDarkMode={isDarkMode}
-                          settings={activeBoardSettings}
-                          boardKind={activeBoardKind}
-                          onToggleField={(key) =>
-                            updateActiveBoardSettings({ [key]: !activeBoardSettings[key] } as Partial<BoardSettings>)
-                          }
+                          fieldDefinitions={activeBoardFieldDefinitions}
+                          onToggleField={toggleActiveBoardFieldVisibility}
                         />
                       </div>
                     ) : null}
@@ -5487,7 +5954,7 @@ export function RankboardApp() {
           >
             <div
               className={clsx(
-                "w-full max-w-sm rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -5503,7 +5970,7 @@ export function RankboardApp() {
                     Fields
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Choose which optional fields appear when adding or editing cards on this board.
+                    Add, rename, hide, or remove the fields this board uses.
                   </p>
                 </div>
                 <button
@@ -5520,13 +5987,13 @@ export function RankboardApp() {
                 </button>
               </div>
               <div className="mt-6">
-                <FieldSettingsPanel
+                <FieldDefinitionManager
                   isDarkMode={isDarkMode}
-                  settings={activeBoardSettings}
-                  boardKind={activeBoardKind}
-                  onToggleField={(key) =>
-                    updateActiveBoardSettings({ [key]: !activeBoardSettings[key] } as Partial<BoardSettings>)
-                  }
+                  fieldDefinitions={activeBoardFieldDefinitions}
+                  onToggleVisibility={toggleActiveBoardFieldVisibility}
+                  onUpdateField={updateActiveBoardField}
+                  onRemoveField={removeActiveBoardField}
+                  onAddField={addActiveBoardField}
                 />
               </div>
             </div>
@@ -6031,38 +6498,76 @@ export function RankboardApp() {
                     setNewBoardTitle(nextTitle);
                     setNewBoardSettings((current) => ({
                       ...current,
-                      ...Object.fromEntries(
-                        BOARD_FIELD_OPTIONS
-                          .filter((option) => option.isAvailable?.(getBoardKind(nextTitle || "New Board")) ?? true)
-                          .map((option) => [option.key, nextDefaults[option.key]]),
+                      fieldDefinitions: normalizeFieldDefinitions(
+                        current.fieldDefinitions,
+                        nextTitle || "New Board",
+                        nextDefaults,
+                      ).map((field) =>
+                        field.builtInKey === "series"
+                          ? {
+                              ...field,
+                              label: getDefaultFieldDefinitions(nextTitle || "New Board").find(
+                                (defaultField) => defaultField.builtInKey === "series",
+                              )?.label ?? field.label,
+                            }
+                          : field,
                       ),
                     }));
                   }}
                 />
               </label>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {BOARD_FIELD_OPTIONS.filter((option) => option.isAvailable?.(getBoardKind(newBoardTitle || "New Board")) ?? true).map((option) => (
-                  <button
-                    key={option.key}
-                    className={clsx(
-                      "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
-                        : "border-slate-200 bg-white text-slate-800 hover:border-slate-950",
-                    )}
-                    onClick={() =>
-                      setNewBoardSettings((current) => ({
-                        ...current,
-                        [option.key]: !current[option.key],
-                      }))
-                    }
-                    type="button"
-                  >
-                    <span>{option.label}</span>
-                    <span className="text-xs opacity-70">{newBoardSettings[option.key] ? "On" : "Off"}</span>
-                  </button>
-                ))}
+              <div className="mt-6">
+                <FieldDefinitionManager
+                  isDarkMode={isDarkMode}
+                  fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
+                  onToggleVisibility={(fieldId) =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
+                        field.id === fieldId ? { ...field, visible: !field.visible } : field,
+                      ),
+                    }))
+                  }
+                  onUpdateField={(fieldId, patch) =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
+                        field.id === fieldId ? { ...field, ...patch } : field,
+                      ),
+                    }))
+                  }
+                  onRemoveField={(fieldId) =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).filter(
+                        (field) => field.id !== fieldId,
+                      ),
+                    }))
+                  }
+                  onAddField={(type) =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      fieldDefinitions: [
+                        ...normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current),
+                        {
+                          id: makeFieldId(),
+                          label:
+                            type === "short_text"
+                              ? "New Field"
+                              : type === "long_text"
+                                ? "New Notes"
+                                : type === "date"
+                                  ? "New Date"
+                                  : "New Dropdown",
+                          type,
+                          visible: true,
+                          options: type === "select" ? ["Option 1", "Option 2"] : undefined,
+                        },
+                      ],
+                    }))
+                  }
+                />
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">

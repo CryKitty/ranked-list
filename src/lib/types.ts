@@ -1,5 +1,18 @@
 export type ColumnType = "ranked" | "wishlist";
 
+export type CardFieldType = "short_text" | "long_text" | "date" | "select";
+
+export type BuiltInFieldKey = "series" | "releaseYear" | "imageUrl" | "notes";
+
+export type BoardFieldDefinition = {
+  id: string;
+  label: string;
+  type: CardFieldType;
+  visible: boolean;
+  builtInKey?: BuiltInFieldKey;
+  options?: string[];
+};
+
 export type CardEntry = {
   entryId: string;
   itemId: string;
@@ -8,6 +21,7 @@ export type CardEntry = {
   series: string;
   releaseYear?: string;
   notes?: string;
+  customFieldValues?: Record<string, string>;
   mirroredFromEntryId?: string;
 };
 
@@ -36,6 +50,7 @@ export type BoardSettings = {
   includeReleaseYearField: boolean;
   includeImageField: boolean;
   includeNotesField: boolean;
+  fieldDefinitions: BoardFieldDefinition[];
   restoreShowSeriesOnExpand?: boolean;
 };
 
