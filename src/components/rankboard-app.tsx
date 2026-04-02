@@ -364,6 +364,24 @@ function formatDateFieldValue(value: string, format: DateFieldFormat) {
   return `${month}/${day}/${year}`;
 }
 
+function normalizeDateFieldInput(value: string, format: DateFieldFormat) {
+  if (format === "yyyy") {
+    return value.replace(/[^\d]/g, "").slice(0, 4);
+  }
+
+  const digits = value.replace(/[^\d]/g, "").slice(0, 8);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 function makeId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -897,15 +915,15 @@ function FieldDefinitionManager({
           >
             <div
               className={clsx(
-                "grid gap-3 sm:items-center",
+                "grid gap-2 sm:items-center",
                 field.builtInKey === "series" || field.builtInKey === "imageUrl"
-                  ? "sm:grid-cols-[1fr_auto_auto]"
-                  : "sm:grid-cols-[1.25fr_0.8fr_auto_auto_auto]",
+                  ? "sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                  : "sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto_auto_auto_auto]",
               )}
             >
               <input
                 className={clsx(
-                  "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                  "min-w-0 rounded-xl border px-3 py-2 text-sm outline-none transition",
                   isDarkMode
                     ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
                       : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
@@ -955,7 +973,7 @@ function FieldDefinitionManager({
                 onClick={() => onToggleVisibility(field.id)}
                 type="button"
               >
-                <span>{field.visible ? "Shown" : "Hidden"}</span>
+                <span>{field.visible ? "Enabled" : "Disabled"}</span>
                 <span
                   className={clsx(
                     "relative inline-flex h-6 w-11 items-center rounded-full transition",
@@ -970,40 +988,46 @@ function FieldDefinitionManager({
                   />
                 </span>
               </button>
-              <button
-                className={clsx(
-                  "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
-                )}
-                onClick={() => onToggleFrontVisibility(field.id)}
-                type="button"
-              >
-                <span>Front</span>
-                <span
+              {field.visible ? (
+                <button
                   className={clsx(
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                    field.showOnCardFront ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
+                    "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
                   )}
+                  onClick={() => onToggleFrontVisibility(field.id)}
+                  type="button"
                 >
+                  <span>Front</span>
                   <span
                     className={clsx(
-                      "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                      field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                      field.showOnCardFront ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
                     )}
-                  />
-                </span>
-              </button>
+                  >
+                    <span
+                      className={clsx(
+                        "inline-block h-5 w-5 transform rounded-full bg-white transition",
+                        field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
+                      )}
+                    />
+                  </span>
+                </button>
+              ) : (
+                <div className="hidden sm:block" />
+              )}
               {mandatoryFieldIds.has(field.id) ? null : (
                 <button
                   className={clsx(
-                    "rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                    "inline-flex items-center justify-center rounded-xl border p-2 transition",
                     isDarkMode
                       ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
                       : "border-rose-200 text-rose-700 hover:border-rose-500",
                   )}
                   onClick={() => onRemoveField(field.id)}
                   type="button"
+                  aria-label={`Remove ${field.label}`}
+                  title={`Remove ${field.label}`}
                 >
-                  Remove
+                  <Trash2 className="h-4 w-4" />
                 </button>
               )}
             </div>
@@ -5530,7 +5554,9 @@ export function RankboardApp() {
                           ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
                           : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                       )}
-                      type={field.type === "date" ? "date" : "text"}
+                      inputMode={field.type === "date" ? "numeric" : undefined}
+                      placeholder={field.type === "date" ? (field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT) : undefined}
+                      type="text"
                       value={editingCardDraft.customFields[field.id] ?? ""}
                       onChange={(event) =>
                         setEditingCardDraft((current) =>
@@ -5539,7 +5565,13 @@ export function RankboardApp() {
                                 ...current,
                                 customFields: {
                                   ...current.customFields,
-                                  [field.id]: event.target.value,
+                                  [field.id]:
+                                    field.type === "date"
+                                      ? normalizeDateFieldInput(
+                                          event.target.value,
+                                          field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT,
+                                        )
+                                      : event.target.value,
                                 },
                               }
                             : current,
@@ -5887,14 +5919,22 @@ export function RankboardApp() {
                             ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
                             : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                         )}
-                        type={field.type === "date" ? "date" : "text"}
+                        inputMode={field.type === "date" ? "numeric" : undefined}
+                        placeholder={field.type === "date" ? (field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT) : undefined}
+                        type="text"
                         value={draft.customFields[field.id] ?? ""}
                         onChange={(event) =>
                           setDraft((current) => ({
                             ...current,
                             customFields: {
                               ...current.customFields,
-                              [field.id]: event.target.value,
+                              [field.id]:
+                                field.type === "date"
+                                  ? normalizeDateFieldInput(
+                                      event.target.value,
+                                      field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT,
+                                    )
+                                  : event.target.value,
                             },
                           }))
                         }
