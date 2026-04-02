@@ -843,6 +843,8 @@ function FieldDefinitionManager({
   onRemoveField: (fieldId: string) => void;
   onAddField: (type: CardFieldType) => void;
 }) {
+  const mandatoryFieldIds = new Set(["series", "artwork"]);
+
   return (
     <div className="grid gap-4">
       <div className="grid gap-3">
@@ -895,25 +897,49 @@ function FieldDefinitionManager({
               )}
               <button
                 className={clsx(
-                  "rounded-xl border px-3 py-2 text-sm font-semibold transition",
-                  isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950",
+                  "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
                 )}
                 onClick={() => onToggleVisibility(field.id)}
                 type="button"
               >
-                {field.visible ? "Hide" : "Show"}
+                <span>{field.visible ? "Shown" : "Hidden"}</span>
+                <span
+                  className={clsx(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                    field.visible ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      "inline-block h-5 w-5 transform rounded-full bg-white transition",
+                      field.visible ? "translate-x-5" : "translate-x-0.5",
+                    )}
+                  />
+                </span>
               </button>
               <button
                 className={clsx(
-                  "rounded-xl border px-3 py-2 text-sm font-semibold transition",
-                  isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950",
+                  "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
                 )}
                 onClick={() => onToggleFrontVisibility(field.id)}
                 type="button"
               >
-                {field.showOnCardFront ? "Front On" : "Front Off"}
+                <span>Front</span>
+                <span
+                  className={clsx(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                    field.showOnCardFront ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      "inline-block h-5 w-5 transform rounded-full bg-white transition",
+                      field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
+                    )}
+                  />
+                </span>
               </button>
-              {field.builtInKey === "series" || field.builtInKey === "imageUrl" ? null : (
+              {mandatoryFieldIds.has(field.id) ? null : (
                 <button
                   className={clsx(
                     "rounded-xl border px-3 py-2 text-sm font-semibold transition",
@@ -3536,16 +3562,12 @@ export function RankboardApp() {
     if (activeBoardSettings.collapseCards) {
       updateActiveBoardSettings({
         collapseCards: false,
-        showSeriesOnCards: activeBoardSettings.restoreShowSeriesOnExpand ?? false,
-        restoreShowSeriesOnExpand: false,
       });
       return;
     }
 
     updateActiveBoardSettings({
       collapseCards: true,
-      showSeriesOnCards: false,
-      restoreShowSeriesOnExpand: activeBoardSettings.showSeriesOnCards,
     });
   }
 
@@ -4155,17 +4177,6 @@ export function RankboardApp() {
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                               )}
-                              onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })}
-                              type="button"
-                            >
-                              <span>Show Series</span>
-                              <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                              )}
                               onClick={toggleCollapseCardsSetting}
                               type="button"
                             >
@@ -4479,10 +4490,6 @@ export function RankboardApp() {
                               />
                               {isCustomizationMenuOpen ? (
                                 <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })} type="button">
-                                    <span>Show Series</span>
-                                    <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
-                                  </button>
                                   <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
                                     <span>Collapse Cards</span>
                                     <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
@@ -4856,10 +4863,6 @@ export function RankboardApp() {
                             />
                             {isCustomizationMenuOpen ? (
                               <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showSeriesOnCards: !activeBoardSettings.showSeriesOnCards })} type="button">
-                                  <span>Show Series</span>
-                                  <span className="text-xs opacity-70">{activeBoardSettings.showSeriesOnCards ? "On" : "Off"}</span>
-                                </button>
                                 <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
                                   <span>Collapse Cards</span>
                                   <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
@@ -5044,7 +5047,7 @@ export function RankboardApp() {
                       fullCards={cardsByColumn[column.id] ?? []}
                       addLabel={boardVocabulary.singular}
                       collapseCards={activeBoardSettings.collapseCards}
-                      showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
+                      showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
                       showTierHighlights={activeBoardSettings.showTierHighlights}
                       frontFieldDefinitions={activeBoardFieldDefinitions}
                       disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
