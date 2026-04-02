@@ -917,13 +917,13 @@ function FieldDefinitionManager({
               className={clsx(
                 "grid gap-2 sm:items-center",
                 field.builtInKey === "series" || field.builtInKey === "imageUrl"
-                  ? "sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-                  : "sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto_auto_auto_auto]",
+                  ? "sm:grid-cols-[minmax(220px,1fr)_auto_auto]"
+                  : "sm:grid-cols-[220px_136px_auto_auto_auto_auto]",
               )}
             >
               <input
                 className={clsx(
-                  "min-w-0 rounded-xl border px-3 py-2 text-sm outline-none transition",
+                  "min-w-0 whitespace-nowrap rounded-xl border px-3 py-2 text-sm outline-none transition",
                   isDarkMode
                     ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
                       : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
@@ -935,7 +935,7 @@ function FieldDefinitionManager({
               {field.builtInKey === "series" || field.builtInKey === "imageUrl" ? null : (
                 <select
                   className={clsx(
-                    "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                    "w-[136px] rounded-xl border px-3 py-2 text-sm outline-none transition",
                     isDarkMode
                       ? "border-white/10 bg-slate-900 text-white focus:border-white/40"
                       : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
@@ -952,7 +952,7 @@ function FieldDefinitionManager({
               {field.type === "date" ? (
                 <button
                   className={clsx(
-                    "inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                    "inline-flex items-center justify-center self-stretch rounded-xl border px-3 py-2 text-sm font-semibold transition",
                     isDarkMode
                       ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/40"
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -968,7 +968,7 @@ function FieldDefinitionManager({
               ) : null}
               <button
                 className={clsx(
-                  "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
+                  "ml-auto inline-flex items-center gap-2 justify-self-end whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
                 )}
                 onClick={() => onToggleVisibility(field.id)}
                 type="button"
@@ -991,7 +991,7 @@ function FieldDefinitionManager({
               {field.visible ? (
                 <button
                   className={clsx(
-                    "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
+                    "inline-flex items-center gap-2 justify-self-end whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
                   )}
                   onClick={() => onToggleFrontVisibility(field.id)}
                   type="button"
@@ -1017,12 +1017,16 @@ function FieldDefinitionManager({
               {mandatoryFieldIds.has(field.id) ? null : (
                 <button
                   className={clsx(
-                    "inline-flex items-center justify-center rounded-xl border p-2 transition",
+                    "inline-flex items-center justify-center justify-self-end rounded-xl border p-2 transition",
                     isDarkMode
                       ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
                       : "border-rose-200 text-rose-700 hover:border-rose-500",
                   )}
-                  onClick={() => onRemoveField(field.id)}
+                  onClick={() => {
+                    if (window.confirm(`Delete the field "${field.label}"? This will remove its saved values from cards.`)) {
+                      onRemoveField(field.id);
+                    }
+                  }}
                   type="button"
                   aria-label={`Remove ${field.label}`}
                   title={`Remove ${field.label}`}
@@ -1034,7 +1038,7 @@ function FieldDefinitionManager({
             {field.type === "date" && openFieldSettingsId === field.id ? (
               <div
                 className={clsx(
-                  "mt-3 grid gap-3 rounded-2xl border p-3 sm:grid-cols-2",
+                  "mt-3 grid gap-3 rounded-2xl border p-3 sm:grid-cols-[200px_auto]",
                   isDarkMode ? "border-white/10 bg-slate-900/80" : "border-slate-200 bg-white",
                 )}
               >
@@ -1044,7 +1048,7 @@ function FieldDefinitionManager({
                   </span>
                   <select
                     className={clsx(
-                      "rounded-xl border px-3 py-2 text-sm outline-none transition",
+                      "w-[180px] rounded-xl border px-3 py-2 text-sm outline-none transition",
                       isDarkMode
                         ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
                         : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
@@ -1061,7 +1065,7 @@ function FieldDefinitionManager({
                 </label>
                 <button
                   className={clsx(
-                    "inline-flex items-center justify-between gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
+                    "inline-flex items-center justify-self-start gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
                   )}
                   onClick={() =>
                     onUpdateField(field.id, {
@@ -1070,7 +1074,7 @@ function FieldDefinitionManager({
                   }
                   type="button"
                 >
-                  <span>Show label on chip</span>
+                  <span>Label</span>
                   <span
                     className={clsx(
                       "relative inline-flex h-6 w-11 items-center rounded-full transition",
@@ -8221,7 +8225,7 @@ function CardTile({
           ) : null}
         </div>
 
-        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-11" : "bottom-0 pr-28")}>
+        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-11" : "bottom-0")}>
           {!collapseCards && displaySeries ? (
             <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
               {displaySeries}
@@ -8235,8 +8239,17 @@ function CardTile({
           ) : null}
         </div>
 
-        {!collapseCards && frontChips.length > 0 ? (
-          <div className="absolute bottom-3 right-3 z-10 flex max-w-[46%] flex-col items-end gap-2">
+        {!collapseCards && (frontChips.length > 0 || card.mirroredFromEntryId) ? (
+          <div className="absolute right-3 top-3 z-10 flex max-w-[46%] flex-col items-end gap-2">
+            {card.mirroredFromEntryId ? (
+              <div
+                className="rounded-full bg-slate-950/75 p-2 text-white backdrop-blur"
+                aria-label="Mirrored card"
+                title="Mirrored card"
+              >
+                <Link2 className="h-4 w-4" />
+              </div>
+            ) : null}
             {frontChips.map((field) => (
               <span
                 key={field.id}
@@ -8249,16 +8262,6 @@ function CardTile({
           </div>
         ) : null}
       </div>
-
-      {card.mirroredFromEntryId ? (
-        <div
-          className="absolute right-3 top-3 z-10 rounded-full bg-slate-950/75 p-2 text-white backdrop-blur"
-          aria-label="Mirrored card"
-          title="Mirrored card"
-        >
-          <Link2 className="h-4 w-4" />
-        </div>
-      ) : null}
 
       <div className={clsx(
         collapseCards
