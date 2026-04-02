@@ -9,6 +9,7 @@ export type BoardFieldDefinition = {
   label: string;
   type: CardFieldType;
   visible: boolean;
+  showOnCardFront?: boolean;
   builtInKey?: BuiltInFieldKey;
   options?: string[];
 };

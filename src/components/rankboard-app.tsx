@@ -269,6 +269,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: boardKind === "show" ? "Franchise" : "Series",
       type: "short_text",
       visible: boardKind !== "show",
+      showOnCardFront: false,
       builtInKey: "series",
     },
     {
@@ -276,6 +277,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: "Release Year",
       type: "date",
       visible: true,
+      showOnCardFront: false,
       builtInKey: "releaseYear",
     },
     {
@@ -283,6 +285,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: "Artwork URL",
       type: "short_text",
       visible: true,
+      showOnCardFront: false,
       builtInKey: "imageUrl",
     },
     {
@@ -290,6 +293,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: "Notes",
       type: "long_text",
       visible: true,
+      showOnCardFront: false,
       builtInKey: "notes",
     },
   ];
@@ -320,6 +324,7 @@ function normalizeFieldDefinitions(
 
   return fieldDefinitions.map((field) => ({
     ...field,
+    showOnCardFront: field.showOnCardFront ?? false,
     options: field.type === "select" ? field.options ?? [] : undefined,
   }));
 }
@@ -825,6 +830,7 @@ function FieldDefinitionManager({
   isDarkMode,
   fieldDefinitions,
   onToggleVisibility,
+  onToggleFrontVisibility,
   onUpdateField,
   onRemoveField,
   onAddField,
@@ -832,6 +838,7 @@ function FieldDefinitionManager({
   isDarkMode: boolean;
   fieldDefinitions: BoardFieldDefinition[];
   onToggleVisibility: (fieldId: string) => void;
+  onToggleFrontVisibility: (fieldId: string) => void;
   onUpdateField: (fieldId: string, patch: Partial<BoardFieldDefinition>) => void;
   onRemoveField: (fieldId: string) => void;
   onAddField: (type: CardFieldType) => void;
@@ -847,7 +854,7 @@ function FieldDefinitionManager({
               isDarkMode ? "border-white/10 bg-slate-950/60" : "border-slate-200 bg-slate-50",
             )}
           >
-            <div className="grid gap-3 sm:grid-cols-[1.4fr_0.9fr_auto_auto] sm:items-center">
+            <div className="grid gap-3 sm:grid-cols-[1.25fr_0.8fr_auto_auto_auto] sm:items-center">
               <input
                 className={clsx(
                   "rounded-xl border px-3 py-2 text-sm outline-none transition",
@@ -888,10 +895,25 @@ function FieldDefinitionManager({
               <button
                 className={clsx(
                   "rounded-xl border px-3 py-2 text-sm font-semibold transition",
-                  isDarkMode
-                    ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
-                    : "border-rose-200 text-rose-700 hover:border-rose-500",
+                  isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950",
                 )}
+                onClick={() => onToggleFrontVisibility(field.id)}
+                type="button"
+              >
+                {field.showOnCardFront ? "Front On" : "Front Off"}
+              </button>
+              <button
+                className={clsx(
+                  "rounded-xl border px-3 py-2 text-sm font-semibold transition",
+                  field.builtInKey === "series" || field.builtInKey === "imageUrl"
+                    ? isDarkMode
+                      ? "cursor-not-allowed border-white/10 text-slate-500"
+                      : "cursor-not-allowed border-slate-200 text-slate-400"
+                    : isDarkMode
+                      ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
+                      : "border-rose-200 text-rose-700 hover:border-rose-500",
+                )}
+                disabled={field.builtInKey === "series" || field.builtInKey === "imageUrl"}
                 onClick={() => onRemoveField(field.id)}
                 type="button"
               >
@@ -3447,6 +3469,19 @@ export function RankboardApp() {
     );
   }
 
+  function toggleActiveBoardFieldFrontVisibility(fieldId: string) {
+    updateActiveBoardFieldDefinitions((current) =>
+      current.map((field) =>
+        field.id === fieldId
+          ? {
+              ...field,
+              showOnCardFront: !field.showOnCardFront,
+            }
+          : field,
+      ),
+    );
+  }
+
   function updateActiveBoardField(fieldId: string, patch: Partial<BoardFieldDefinition>) {
     updateActiveBoardFieldDefinitions((current) =>
       current.map((field) =>
@@ -4998,6 +5033,7 @@ export function RankboardApp() {
                       collapseCards={activeBoardSettings.collapseCards}
                       showSeriesOnCards={activeBoardSettings.showSeriesOnCards}
                       showTierHighlights={activeBoardSettings.showTierHighlights}
+                      frontFieldDefinitions={activeBoardFieldDefinitions}
                       disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                       isDarkMode={isDarkMode}
                       cards={visibleCards}
@@ -5991,6 +6027,7 @@ export function RankboardApp() {
                   isDarkMode={isDarkMode}
                   fieldDefinitions={activeBoardFieldDefinitions}
                   onToggleVisibility={toggleActiveBoardFieldVisibility}
+                  onToggleFrontVisibility={toggleActiveBoardFieldFrontVisibility}
                   onUpdateField={updateActiveBoardField}
                   onRemoveField={removeActiveBoardField}
                   onAddField={addActiveBoardField}
@@ -6526,6 +6563,14 @@ export function RankboardApp() {
                       ...current,
                       fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
                         field.id === fieldId ? { ...field, visible: !field.visible } : field,
+                      ),
+                    }))
+                  }
+                  onToggleFrontVisibility={(fieldId) =>
+                    setNewBoardSettings((current) => ({
+                      ...current,
+                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
+                        field.id === fieldId ? { ...field, showOnCardFront: !field.showOnCardFront } : field,
                       ),
                     }))
                   }
@@ -7122,6 +7167,7 @@ function BoardColumn({
   collapseCards,
   showSeriesOnCards,
   showTierHighlights,
+  frontFieldDefinitions,
   disableAddAffordances,
   cards,
   activeTierFilter,
@@ -7166,6 +7212,7 @@ function BoardColumn({
   collapseCards: boolean;
   showSeriesOnCards: boolean;
   showTierHighlights: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
@@ -7637,6 +7684,7 @@ function BoardColumn({
               collapseCards={collapseCards}
               showSeries={showSeriesOnCards}
               showTierHighlights={showTierHighlights}
+              frontFieldDefinitions={frontFieldDefinitions}
               rankBadge={
                       isRankedColumn(column)
                         ? {
@@ -7678,6 +7726,7 @@ function BoardColumn({
                     collapseCards={collapseCards}
                     showSeries={showSeriesOnCards}
                     showTierHighlights={showTierHighlights}
+                    frontFieldDefinitions={frontFieldDefinitions}
                     rankBadge={
                       isRankedColumn(column)
                         ? {
@@ -7818,6 +7867,7 @@ function SortableCard({
   collapseCards,
   showSeries,
   showTierHighlights,
+  frontFieldDefinitions,
   rankBadge,
   secondaryRankBadge,
   onDelete,
@@ -7827,6 +7877,7 @@ function SortableCard({
   collapseCards: boolean;
   showSeries: boolean;
   showTierHighlights: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   onDelete: () => void;
@@ -7859,6 +7910,7 @@ function SortableCard({
         collapseCards={collapseCards}
         showSeries={showSeries}
         showTierHighlights={showTierHighlights}
+        frontFieldDefinitions={frontFieldDefinitions}
         rankBadge={rankBadge}
         secondaryRankBadge={secondaryRankBadge}
         isDragging={isDragging}
@@ -7875,6 +7927,7 @@ function CardTile({
   collapseCards,
   showSeries,
   showTierHighlights,
+  frontFieldDefinitions,
   rankBadge,
   secondaryRankBadge,
   dragProps,
@@ -7886,6 +7939,7 @@ function CardTile({
   collapseCards: boolean;
   showSeries: boolean;
   showTierHighlights: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   dragProps?: React.HTMLAttributes<HTMLElement>;
@@ -7895,6 +7949,14 @@ function CardTile({
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
+  const frontChips = frontFieldDefinitions
+    .filter((field) => field.showOnCardFront && field.visible && !field.builtInKey)
+    .map((field) => ({
+      id: field.id,
+      label: field.label,
+      value: card.customFieldValues?.[field.id]?.trim() ?? "",
+    }))
+    .filter((field) => field.value.length > 0);
   const [showCollapsedActions, setShowCollapsedActions] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
@@ -7988,6 +8050,18 @@ function CardTile({
           <h3 className={clsx("truncate font-bold text-white", collapseCards ? "text-center text-lg" : "text-xl")}>
             {displayTitle}
           </h3>
+          {!collapseCards && frontChips.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {frontChips.map((field) => (
+                <span
+                  key={field.id}
+                  className="rounded-full bg-slate-950/70 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur"
+                >
+                  {`${field.label}: ${field.value}`}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {!collapseCards && card.notes ? (
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
           ) : null}
