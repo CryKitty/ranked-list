@@ -42,6 +42,16 @@
 - Uploads are optimized client-side where possible, then sent to the `board-artwork` Supabase Storage bucket.
 - Card media uses blurred loading transitions to reduce harsh pop-in.
 
+## Key UI Conventions
+
+- Desktop board header contains:
+  - board switcher icon
+  - board title + rename control
+  - desktop save-status indicator
+  - search / filter / undo / settings controls
+- Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
+- Mobile keeps more explicit inline affordances where hover is unavailable.
+
 ## Important Notes
 
 - The app still has a large main UI component, so persistence and media helpers live in lib files to keep the core logic from getting even more tangled.

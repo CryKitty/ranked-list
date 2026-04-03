@@ -10,3 +10,8 @@
 - Added artwork upload support with client-side image optimization and Supabase Storage upload.
 - Added blurred image loading transitions on cards.
 - Tightened drag sorting toward a vertical list model and immediate post-drop persistence.
+- Reduced the between-column add affordance to a slimmer hover-style divider with a smaller `+` button.
+- Renamed the mirror exclusion action to `Don't Clone`.
+- Widened the new-board setup modal so field controls fit more naturally.
+- Improved board icon assignment so broad board types like `Media` avoid reusing icons already taken by other boards when possible.
+- Added a desktop save-status indicator in the board title row.

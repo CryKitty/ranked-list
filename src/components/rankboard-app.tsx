@@ -21,16 +21,22 @@ import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
 import { User } from "@supabase/supabase-js";
 import {
+  AlertCircle,
   ArrowLeftRight,
   ArrowUpDown,
+  BookOpen,
+  Check,
+  CircleDashed,
   Clapperboard,
   Edit3,
   Gamepad2,
   Heart,
   ImagePlus,
+  LoaderCircle,
   LogOut,
   MoreHorizontal,
   Moon,
+  Music4,
   Pencil,
   Plus,
   RotateCcw,
@@ -868,14 +874,47 @@ function getBoardKind(boardTitle: string) {
   return "game";
 }
 
-function BoardKindIcon({
-  boardTitle,
-  className,
-}: {
-  boardTitle: string;
-  className?: string;
-}) {
+type BoardIconKey = "character" | "movie" | "show" | "anime" | "game" | "music" | "book";
+
+function getBoardIconCandidates(boardTitle: string): BoardIconKey[] {
+  const normalizedTitle = boardTitle.toLowerCase();
+
+  if (normalizedTitle.includes("music") || normalizedTitle.includes("album") || normalizedTitle.includes("song")) {
+    return ["music", "movie", "show", "anime", "book", "character", "game"];
+  }
+
+  if (normalizedTitle.includes("manga") || normalizedTitle.includes("book") || normalizedTitle.includes("novel")) {
+    return ["book", "anime", "movie", "show", "music", "character", "game"];
+  }
+
+  if (normalizedTitle.includes("media")) {
+    return ["movie", "show", "anime", "music", "book", "character", "game"];
+  }
+
   switch (getBoardKind(boardTitle)) {
+    case "character":
+      return ["character", "movie", "show", "anime", "music", "book", "game"];
+    case "movie":
+      return ["movie", "show", "anime", "music", "book", "character", "game"];
+    case "show":
+      return ["show", "movie", "anime", "music", "book", "character", "game"];
+    case "anime":
+      return ["anime", "show", "movie", "book", "music", "character", "game"];
+    default:
+      return ["game", "movie", "show", "anime", "music", "book", "character"];
+  }
+}
+
+function resolveBoardIconKey(boardTitle: string, usedIcons?: Set<BoardIconKey>) {
+  const candidates = getBoardIconCandidates(boardTitle);
+  if (!usedIcons || usedIcons.size === 0) {
+    return candidates[0] ?? "game";
+  }
+  return candidates.find((icon) => !usedIcons.has(icon)) ?? candidates[0] ?? "game";
+}
+
+function renderBoardKindIcon(iconKey: BoardIconKey, className?: string) {
+  switch (iconKey) {
     case "character":
       return <Heart className={className} />;
     case "movie":
@@ -884,6 +923,10 @@ function BoardKindIcon({
       return <Tv className={className} />;
     case "anime":
       return <Sparkles className={className} />;
+    case "music":
+      return <Music4 className={className} />;
+    case "book":
+      return <BookOpen className={className} />;
     default:
       return <Gamepad2 className={className} />;
   }
@@ -1584,6 +1627,28 @@ function formatLastSavedAt(savedAt: string | null) {
   }).format(new Date(savedAt));
 }
 
+function SaveStatusIcon({
+  saveState,
+  isPersisting,
+}: {
+  saveState: SaveState;
+  isPersisting: boolean;
+}) {
+  if (isPersisting || saveState === "saving") {
+    return <LoaderCircle className="h-4 w-4 animate-spin" />;
+  }
+
+  if (saveState === "saved") {
+    return <Check className="h-4 w-4" />;
+  }
+
+  if (saveState === "error" || saveState === "offline") {
+    return <AlertCircle className="h-4 w-4" />;
+  }
+
+  return <CircleDashed className="h-4 w-4" />;
+}
+
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
@@ -1722,6 +1787,14 @@ export function RankboardApp() {
   const releaseYearFieldLabel = releaseYearFieldDefinition?.label ?? "Release Year";
   const imageFieldLabel = imageFieldDefinition?.label ?? "Artwork URL";
   const notesFieldLabel = notesFieldDefinition?.label ?? "Notes";
+  const boardIconKeysById = new Map<string, BoardIconKey>();
+  const usedBoardIcons = new Set<BoardIconKey>();
+
+  for (const board of boards) {
+    const iconKey = resolveBoardIconKey(board.title, usedBoardIcons);
+    boardIconKeysById.set(board.id, iconKey);
+    usedBoardIcons.add(iconKey);
+  }
 
   const resetToSignedOutBoard = useCallback(() => {
     const signedOutBoard = createEmptyBoard("Rankr");
@@ -1840,6 +1913,7 @@ export function RankboardApp() {
 
   const queuePersistBoardState = useCallback((options?: PersistBoardStateOptions) => {
     pendingPersistOptionsRef.current = options ?? null;
+    setSaveState("idle");
     setPersistRequestId((current) => current + 1);
   }, []);
 
@@ -5095,7 +5169,7 @@ export function RankboardApp() {
                         }}
                         type="button"
                       >
-                        <BoardKindIcon boardTitle={activeBoardTitle} className="h-5 w-5" />
+                        {renderBoardKindIcon(boardIconKeysById.get(activeBoardId) ?? "game", "h-5 w-5")}
                       </button>
                       {isBoardsMenuOpen ? (
                         <div
@@ -5119,7 +5193,7 @@ export function RankboardApp() {
                                 type="button"
                               >
                                 <span className="inline-flex min-w-0 items-center gap-2">
-                                  <BoardKindIcon boardTitle={board.title} className="h-4 w-4 shrink-0" />
+                                  {renderBoardKindIcon(boardIconKeysById.get(board.id) ?? "game", "h-4 w-4 shrink-0")}
                                   <span className="truncate">{board.title}</span>
                                 </span>
                                 {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
@@ -5146,6 +5220,28 @@ export function RankboardApp() {
                     <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
                       {activeBoardTitle}
                     </h1>
+                    <div
+                      className={clsx(
+                        "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold",
+                        isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
+                      )}
+                      title={
+                        saveState === "error" || saveState === "offline"
+                          ? saveErrorMessage ?? "Changes could not be saved."
+                          : `Last saved ${formatLastSavedAt(lastSavedAt)}`
+                      }
+                    >
+                      <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
+                      <span className="hidden min-[1100px]:inline">
+                        {saveState === "error" || saveState === "offline"
+                          ? "Needs attention"
+                          : saveState === "saved"
+                            ? "Saved"
+                            : saveState === "saving"
+                              ? "Saving"
+                              : "Pending"}
+                      </span>
+                    </div>
                     <button
                       className={clsx(
                         "shrink-0 rounded-full p-2 transition opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
@@ -6511,7 +6607,7 @@ export function RankboardApp() {
           >
             <div
               className={clsx(
-                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -7603,26 +7699,53 @@ function AddColumnButton({
     <button
       className={clsx(
         inline
-          ? "flex min-h-[720px] w-12 shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none"
+          ? "group flex min-h-[720px] w-6 shrink-0 snap-start items-center justify-center transition sm:snap-align-none"
           : "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
-          ? "border-white/15 bg-white/5 text-white hover:border-white/35 hover:bg-white/10"
-          : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
+          ? inline
+            ? "text-white"
+            : "border-white/15 bg-white/5 text-white hover:border-white/35 hover:bg-white/10"
+          : inline
+            ? "text-slate-700"
+            : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
       )}
       onClick={onClick}
       type="button"
       aria-label="Add column"
     >
-      <span
-        className={clsx(
-          inline
-            ? "flex h-10 w-10 items-center justify-center rounded-full shadow-lg"
-            : "flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
-          isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
-        )}
-      >
-        <Plus className={inline ? "h-5 w-5" : "h-6 w-6"} />
-      </span>
+      {inline ? (
+        <span className="flex h-full items-center gap-1.5 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
+          <span
+            className={clsx(
+              "h-full w-px",
+              isDarkMode ? "bg-white/15 group-hover:bg-white/30" : "bg-slate-300/70 group-hover:bg-slate-500/70",
+            )}
+          />
+          <span
+            className={clsx(
+              "flex h-8 w-8 items-center justify-center rounded-full shadow-lg",
+              isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
+            )}
+          >
+            <Plus className="h-4 w-4" />
+          </span>
+          <span
+            className={clsx(
+              "h-full w-px",
+              isDarkMode ? "bg-white/15 group-hover:bg-white/30" : "bg-slate-300/70 group-hover:bg-slate-500/70",
+            )}
+          />
+        </span>
+      ) : (
+        <span
+          className={clsx(
+            "flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
+            isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
+          )}
+        >
+          <Plus className="h-6 w-6" />
+        </span>
+      )}
     </button>
   );
 }
@@ -8033,10 +8156,10 @@ function BoardColumn({
                                     ? "text-white hover:bg-white/10"
                                     : "text-slate-700 hover:bg-slate-100",
                                 )}
-                                onClick={() => onToggleExcludeFromBoardMirrors(column.id)}
-                                type="button"
-                              >
-                                {column.excludeFromBoardMirrors ? "Include Source Cards" : "Exclude Source Cards"}
+                              onClick={() => onToggleExcludeFromBoardMirrors(column.id)}
+                              type="button"
+                            >
+                                {column.excludeFromBoardMirrors ? "Clone Normally" : "Don't Clone"}
                               </button>
                             ) : null}
                             <button
