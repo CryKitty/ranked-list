@@ -9,40 +9,58 @@ create table if not exists public.profiles (
 create table if not exists public.boards (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles (id) on delete cascade,
+  client_id text not null unique,
   slug text not null unique,
   title text not null,
   description text,
+  position integer not null default 0,
+  settings jsonb not null default '{}'::jsonb,
+  field_definitions jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.columns (
   id uuid primary key default gen_random_uuid(),
   board_id uuid not null references public.boards (id) on delete cascade,
+  client_id text not null,
   slug text not null,
   title text not null,
+  description text,
   column_type text not null default 'ranked',
   position integer not null default 0,
+  accent text,
+  metadata jsonb not null default '{}'::jsonb,
   auto_mirror_to_column_id uuid references public.columns (id) on delete set null,
   created_at timestamptz not null default now(),
-  unique (board_id, slug)
+  unique (board_id, slug),
+  unique (board_id, client_id)
 );
 
 create table if not exists public.items (
   id uuid primary key default gen_random_uuid(),
   board_id uuid not null references public.boards (id) on delete cascade,
+  client_id text not null,
   title text not null,
   series text,
   image_url text,
+  image_storage_path text,
+  release_year text,
   notes text,
+  custom_field_values jsonb not null default '{}'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+create unique index if not exists items_board_client_id_key on public.items (board_id, client_id);
 
 create table if not exists public.column_entries (
   id uuid primary key default gen_random_uuid(),
   column_id uuid not null references public.columns (id) on delete cascade,
   item_id uuid not null references public.items (id) on delete cascade,
+  client_id text not null unique,
   position integer not null default 0,
   mirrored_from_entry_id uuid references public.column_entries (id) on delete set null,
+  mirrored_from_client_id text,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   unique (column_id, item_id)
 );
@@ -129,3 +147,40 @@ create policy "owners manage column entries" on public.column_entries
 
 create policy "owners manage board states" on public.board_states
   for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+insert into storage.buckets (id, name, public)
+values ('board-artwork', 'board-artwork', true)
+on conflict (id) do nothing;
+
+create policy "owners upload artwork" on storage.objects
+  for insert
+  to authenticated
+  with check (
+    bucket_id = 'board-artwork'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "owners update artwork" on storage.objects
+  for update
+  to authenticated
+  using (
+    bucket_id = 'board-artwork'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  )
+  with check (
+    bucket_id = 'board-artwork'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "owners delete artwork" on storage.objects
+  for delete
+  to authenticated
+  using (
+    bucket_id = 'board-artwork'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "public read artwork" on storage.objects
+  for select
+  to public
+  using (bucket_id = 'board-artwork');

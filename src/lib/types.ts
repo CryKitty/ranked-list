@@ -22,6 +22,7 @@ export type CardEntry = {
   itemId: string;
   title: string;
   imageUrl: string;
+  imageStoragePath?: string;
   series: string;
   releaseYear?: string;
   notes?: string;
@@ -64,4 +65,58 @@ export type SavedBoard = BoardSnapshot & {
   settings: BoardSettings;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SaveState = "idle" | "saving" | "saved" | "error" | "offline";
+
+export type NormalizedBoardRow = {
+  id: string;
+  client_id: string;
+  owner_id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  settings: BoardSettings | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NormalizedColumnRow = {
+  id: string;
+  board_id: string;
+  client_id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  column_type: ColumnType;
+  position: number;
+  accent: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type NormalizedItemRow = {
+  id: string;
+  board_id: string;
+  client_id: string;
+  title: string;
+  series: string | null;
+  image_url: string | null;
+  image_storage_path: string | null;
+  release_year: string | null;
+  notes: string | null;
+  custom_field_values: Record<string, string> | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type NormalizedEntryRow = {
+  id: string;
+  column_id: string;
+  item_id: string;
+  client_id: string;
+  position: number;
+  mirrored_from_client_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 };

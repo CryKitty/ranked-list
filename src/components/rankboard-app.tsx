@@ -14,7 +14,7 @@ import {
 import {
   SortableContext,
   defaultAnimateLayoutChanges,
-  rectSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -47,6 +47,13 @@ import {
 } from "lucide-react";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { optimizeImageFile } from "@/lib/image-processing";
+import {
+  ensureNormalizedProfile,
+  loadNormalizedBoards,
+  syncNormalizedBoards,
+  uploadArtworkToStorage,
+} from "@/lib/normalized-board-store";
 import {
   BoardFieldDefinition,
   BoardSettings,
@@ -55,12 +62,14 @@ import {
   CardFieldType,
   ColumnDefinition,
   DateFieldFormat,
+  SaveState,
   SavedBoard,
 } from "@/lib/types";
 
 type CardDraft = {
   title: string;
   imageUrl: string;
+  imageStoragePath?: string;
   series: string;
   releaseYear: string;
   notes: string;
@@ -77,6 +86,7 @@ type AddCardTarget = {
 type CardEditorDraft = {
   title: string;
   imageUrl: string;
+  imageStoragePath?: string;
   series: string;
   releaseYear: string;
   notes: string;
@@ -191,6 +201,7 @@ type BoardBackupSnapshot = {
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
+  imageStoragePath: undefined,
   series: "",
   releaseYear: "",
   notes: "",
@@ -527,6 +538,58 @@ function mergeBoardsWithActiveSnapshot(
   );
 }
 
+function readBoardsFromBackupRow(data: {
+  columns?: unknown;
+  cards_by_column?: unknown;
+  updated_at?: string | null;
+}) {
+  const columnsPayload = data.columns as
+    | ColumnDefinition[]
+    | { version?: number; boards?: SavedBoard[]; activeBoardId?: string; recentSnapshots?: BoardBackupSnapshot[] }
+    | undefined;
+  const remoteBoardsPayload =
+    columnsPayload &&
+    !Array.isArray(columnsPayload) &&
+    (columnsPayload.version === 2 || columnsPayload.version === 3) &&
+    Array.isArray(columnsPayload.boards) &&
+    columnsPayload.boards.length > 0
+      ? columnsPayload
+      : null;
+
+  if (remoteBoardsPayload) {
+    const boards = remoteBoardsPayload.boards ?? [];
+    return {
+      boards: boards.map((board) => normalizeSavedBoard(board)),
+      activeBoardId: remoteBoardsPayload.activeBoardId ?? boards[0]?.id ?? null,
+      recentSnapshots: Array.isArray(remoteBoardsPayload.recentSnapshots)
+        ? trimBackupSnapshots(remoteBoardsPayload.recentSnapshots)
+        : [],
+      updatedAt: typeof data.updated_at === "string" ? data.updated_at : null,
+    };
+  }
+
+  const legacyColumns = Array.isArray(columnsPayload) ? columnsPayload : null;
+  const legacyCards = (data.cards_by_column as Record<string, CardEntry[]> | undefined) ?? null;
+
+  if (legacyColumns && legacyCards) {
+    const migratedBoard: SavedBoard = {
+      ...createEmptyBoard("Rankr"),
+      columns: legacyColumns,
+      cardsByColumn: legacyCards,
+      updatedAt: typeof data.updated_at === "string" ? data.updated_at : new Date().toISOString(),
+    };
+
+    return {
+      boards: [migratedBoard],
+      activeBoardId: migratedBoard.id,
+      recentSnapshots: [],
+      updatedAt: typeof data.updated_at === "string" ? data.updated_at : null,
+    };
+  }
+
+  return null;
+}
+
 async function fetchWikipediaMetadataBySearch(query: string) {
   const trimmedQuery = query.trim();
 
@@ -679,13 +742,15 @@ function openGoogleImageSearch(title: string, mode: ArtworkSearchMode = "image")
     return;
   }
 
-  const url = new URL("https://www.google.com/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("tbm", "isch");
-
   if (mode === "gif") {
-    url.searchParams.set("tbs", "itp:animated");
+    const url = new URL(`https://tenor.com/search/${encodeURIComponent(query)}-gifs`);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+    return;
   }
+
+  const url = new URL("https://www.google.com/search");
+  url.searchParams.set("q", `${query} -site:fandom.com`);
+  url.searchParams.set("tbm", "isch");
 
   window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
@@ -694,6 +759,7 @@ function createCardDraft(card: CardEntry): CardEditorDraft {
   return {
     title: card.title,
     imageUrl: card.imageUrl,
+    imageStoragePath: card.imageStoragePath,
     series: card.series,
     releaseYear: card.releaseYear ?? "",
     notes: card.notes ?? "",
@@ -703,6 +769,15 @@ function createCardDraft(card: CardEntry): CardEditorDraft {
 
 function makeInsertDropId(columnId: string, insertIndex: number) {
   return `insert::${columnId}::${insertIndex}`;
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Image could not be read."));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function parseDropTargetId(overId: string) {
@@ -1575,11 +1650,16 @@ export function RankboardApp() {
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+  const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
   const [persistRequestId, setPersistRequestId] = useState(0);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
   const [isEditFieldSettingsOpen, setIsEditFieldSettingsOpen] = useState(false);
   const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
+  const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -1683,6 +1763,9 @@ export function RankboardApp() {
     setAddCardTarget(null);
     setDraft(initialDraft);
     setHasLoadedRemoteState(false);
+    setLastSavedAt(null);
+    setSaveState("idle");
+    setSaveErrorMessage(null);
 
     try {
       window.localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -1771,8 +1854,13 @@ export function RankboardApp() {
     const { payload, snapshot } = buildPersistedColumnsPayload(nextBoards, nextActiveBoardId);
 
     setIsPersisting(true);
+    setSaveState("saving");
+    setSaveErrorMessage(null);
 
     try {
+      await ensureNormalizedProfile(supabase, currentUser);
+      await syncNormalizedBoards(supabase, currentUser, nextBoards);
+
       const { error } = await supabase.from("board_states").upsert({
         owner_id: currentUser.id,
         columns: payload,
@@ -1781,12 +1869,16 @@ export function RankboardApp() {
       });
 
       if (error) {
-        console.error(error);
-        return;
+        throw error;
       }
 
       setLastSavedAt(new Date().toISOString());
+      setSaveState("saved");
       writeLocalBackupSnapshot(snapshot);
+    } catch (error) {
+      console.error(error);
+      setSaveState(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
+      setSaveErrorMessage(error instanceof Error ? error.message : "Changes could not be saved.");
     } finally {
       setIsPersisting(false);
     }
@@ -1966,6 +2058,7 @@ export function RankboardApp() {
     writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
     if (!authEnabled || !currentUser) {
       setLastSavedAt(new Date().toISOString());
+      setSaveState("saved");
     }
   }, [activeBoardId, authEnabled, boards, cardsByColumn, columns, currentUser, hasLoadedPersistedState, isAuthLoading, writeLocalBackupSnapshot]);
 
@@ -2013,16 +2106,18 @@ export function RankboardApp() {
   useEffect(() => {
     latestColumnsRef.current = columns;
     latestCardsByColumnRef.current = cardsByColumn;
-  }, [cardsByColumn, columns]);
+  }, [cardsByColumn, columns, queuePersistBoardState]);
 
   useEffect(() => {
     const syncedState = syncBoardMirrorColumns(columns, cardsByColumn);
 
     if (syncedState !== cardsByColumn) {
       skipNextHistoryRef.current = true;
+      latestCardsByColumnRef.current = syncedState;
       setCardsByColumn(syncedState);
+      queuePersistBoardState({ cardsByColumn: syncedState });
     }
-  }, [cardsByColumn, columns]);
+  }, [cardsByColumn, columns, queuePersistBoardState]);
 
   useEffect(() => {
     latestBoardsRef.current = boards;
@@ -2152,115 +2247,96 @@ export function RankboardApp() {
     }
 
     async function loadBoardState() {
-      const { data, error } = await client
-        .from("board_states")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      try {
+        await ensureNormalizedProfile(client, user);
+        const normalizedBoards = await loadNormalizedBoards(client, user.id);
 
-      if (cancelled) {
-        return;
-      }
+        if (cancelled) {
+          return;
+        }
 
-      if (error) {
-        console.error(error);
-        setHasLoadedRemoteState(true);
-        return;
-      }
+        if (normalizedBoards.length > 0) {
+          const localActiveBoardId = latestActiveBoardIdRef.current;
+          const remoteActiveBoardId =
+            localActiveBoardId && normalizedBoards.some((board) => board.id === localActiveBoardId)
+              ? localActiveBoardId
+              : normalizedBoards[0].id;
+          const nextActiveBoard =
+            normalizedBoards.find((board) => board.id === remoteActiveBoardId) ??
+            normalizedBoards[0];
 
-      if (typeof data?.updated_at === "string") {
-        setLastSavedAt(data.updated_at);
-      }
-
-      const localColumns = latestColumnsRef.current;
-      const localCardsByColumn = latestCardsByColumnRef.current;
-      const localBoards = latestBoardsRef.current;
-      const localActiveBoardId = latestActiveBoardIdRef.current;
-      const localBoardHasContent = !isStarterBoard(localColumns, localCardsByColumn);
-      const columnsPayload =
-        (data?.columns as
-          | ColumnDefinition[]
-          | { version?: number; boards?: SavedBoard[]; activeBoardId?: string; recentSnapshots?: BoardBackupSnapshot[] }
-          | undefined) ?? null;
-      const remoteBoardsPayload =
-        columnsPayload &&
-        !Array.isArray(columnsPayload) &&
-        (columnsPayload.version === 2 || columnsPayload.version === 3) &&
-        Array.isArray(columnsPayload.boards) &&
-        columnsPayload.boards.length > 0
-          ? columnsPayload
-          : null;
-      const remoteColumns = Array.isArray(columnsPayload) ? columnsPayload : null;
-      const remoteCardsByColumn =
-        (data?.cards_by_column as Record<string, CardEntry[]> | undefined) ?? null;
-      const remoteBoardExists = Boolean(remoteColumns && remoteCardsByColumn);
-      const remoteBoardIsStarter =
-        remoteColumns && remoteCardsByColumn
-          ? isStarterBoard(remoteColumns, remoteCardsByColumn)
-          : false;
-
-      if (remoteBoardsPayload) {
-        recentBackupSnapshotsRef.current = Array.isArray(remoteBoardsPayload.recentSnapshots)
-          ? trimBackupSnapshots(remoteBoardsPayload.recentSnapshots)
-          : recentBackupSnapshotsRef.current;
-        const remoteBoards = remoteBoardsPayload.boards ?? [];
-        if (remoteBoards.length === 0) {
+          skipNextHistoryRef.current = true;
+          setBoards(normalizedBoards);
+          setActiveBoardId(remoteActiveBoardId);
+          setColumns(nextActiveBoard.columns);
+          skipNextHistoryRef.current = true;
+          setCardsByColumn(nextActiveBoard.cardsByColumn);
+          setSaveState("saved");
           setHasLoadedRemoteState(true);
           return;
         }
-        const normalizedRemoteBoards = remoteBoards.map((board) => normalizeSavedBoard(board));
-        const remoteActiveBoardId =
-          localActiveBoardId &&
-          normalizedRemoteBoards.some((board) => board.id === localActiveBoardId)
-            ? localActiveBoardId
-            : remoteBoardsPayload.activeBoardId &&
-                normalizedRemoteBoards.some((board) => board.id === remoteBoardsPayload.activeBoardId)
-              ? remoteBoardsPayload.activeBoardId
-              : normalizedRemoteBoards[0].id;
-        const nextActiveBoard =
-          normalizedRemoteBoards.find((board) => board.id === remoteActiveBoardId) ??
-          normalizedRemoteBoards[0];
-        skipNextHistoryRef.current = true;
-        setBoards(normalizedRemoteBoards);
-        setActiveBoardId(remoteActiveBoardId);
-        setColumns(nextActiveBoard.columns);
-        skipNextHistoryRef.current = true;
-        setCardsByColumn(nextActiveBoard.cardsByColumn);
-      } else if (remoteBoardExists && remoteColumns && remoteCardsByColumn) {
-        if (remoteBoardIsStarter && localBoardHasContent) {
+
+        const { data, error } = await client
+          .from("board_states")
+          .select("*")
+          .eq("owner_id", user.id)
+          .maybeSingle();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (error) {
+          throw error;
+        }
+
+        const backupState = data ? readBoardsFromBackupRow(data) : null;
+        const localBoards = latestBoardsRef.current;
+        const localActiveBoardId = latestActiveBoardIdRef.current;
+
+        if (backupState?.boards.length) {
+          recentBackupSnapshotsRef.current = backupState.recentSnapshots;
+          if (backupState.updatedAt) {
+            setLastSavedAt(backupState.updatedAt);
+          }
+
+          await syncNormalizedBoards(client, user, backupState.boards);
+
+          const migratedActiveBoardId =
+            backupState.activeBoardId &&
+            backupState.boards.some((board) => board.id === backupState.activeBoardId)
+              ? backupState.activeBoardId
+              : backupState.boards[0].id;
+          const nextActiveBoard =
+            backupState.boards.find((board) => board.id === migratedActiveBoardId) ??
+            backupState.boards[0];
+
+          skipNextHistoryRef.current = true;
+          setBoards(backupState.boards);
+          setActiveBoardId(migratedActiveBoardId);
+          setColumns(nextActiveBoard.columns);
+          skipNextHistoryRef.current = true;
+          setCardsByColumn(nextActiveBoard.cardsByColumn);
+          setSaveState("saved");
+        } else {
+          await syncNormalizedBoards(client, user, localBoards);
           const { payload, snapshot } = buildPersistedColumnsPayload(localBoards, localActiveBoardId);
           await client.from("board_states").upsert({
             owner_id: user.id,
             columns: payload,
-            cards_by_column: localCardsByColumn,
+            cards_by_column: latestCardsByColumnRef.current,
             updated_at: new Date().toISOString(),
           });
           writeLocalBackupSnapshot(snapshot);
-        } else {
-          const migratedBoard: SavedBoard = {
-            ...createEmptyBoard("Rankr"),
-            columns: remoteColumns,
-            cardsByColumn: remoteCardsByColumn,
-          };
-          skipNextHistoryRef.current = true;
-          setBoards([migratedBoard]);
-          setActiveBoardId(migratedBoard.id);
-          setColumns(migratedBoard.columns);
-          skipNextHistoryRef.current = true;
-          setCardsByColumn(migratedBoard.cardsByColumn);
         }
-      } else {
-        const { payload, snapshot } = buildPersistedColumnsPayload(localBoards, localActiveBoardId);
-        await client.from("board_states").upsert({
-          owner_id: user.id,
-          columns: payload,
-          cards_by_column: localCardsByColumn,
-          updated_at: new Date().toISOString(),
-        });
-        writeLocalBackupSnapshot(snapshot);
-      }
 
-      setHasLoadedRemoteState(true);
+        setHasLoadedRemoteState(true);
+      } catch (error) {
+        console.error(error);
+        setSaveState(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
+        setSaveErrorMessage(error instanceof Error ? error.message : "Boards could not be loaded.");
+        setHasLoadedRemoteState(true);
+      }
     }
 
     loadBoardState();
@@ -2734,6 +2810,12 @@ export function RankboardApp() {
         ...latestCardsByColumnRef.current,
         [sourceColumnId]: reorderedCards,
       };
+      void persistBoardState({
+        cardsByColumn: {
+          ...latestCardsByColumnRef.current,
+          [sourceColumnId]: reorderedCards,
+        },
+      });
       queuePersistBoardState({
         cardsByColumn: {
           ...latestCardsByColumnRef.current,
@@ -2762,6 +2844,7 @@ export function RankboardApp() {
 
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
+    void persistBoardState({ cardsByColumn: nextState });
     queuePersistBoardState({ cardsByColumn: nextState });
   }
 
@@ -2852,6 +2935,7 @@ export function RankboardApp() {
       itemId,
       title,
       imageUrl,
+      imageStoragePath: draft.imageStoragePath,
       series,
       releaseYear: releaseYear || undefined,
       notes: notes || undefined,
@@ -3049,6 +3133,73 @@ export function RankboardApp() {
     openGoogleImageSearch(draft.title, mode);
   }
 
+  function openArtworkUploadPicker(target: "draft" | "edit") {
+    if (target === "draft") {
+      addArtworkInputRef.current?.click();
+      return;
+    }
+
+    editArtworkInputRef.current?.click();
+  }
+
+  async function handleArtworkFileSelection(
+    target: "draft" | "edit",
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingArtwork(true);
+    setSaveErrorMessage(null);
+
+    try {
+      const optimized = await optimizeImageFile(file);
+      let nextImageUrl = "";
+      let nextStoragePath: string | undefined;
+
+      if (supabase && currentUser) {
+        const uploaded = await uploadArtworkToStorage(
+          supabase,
+          currentUser.id,
+          optimized.file,
+          optimized.filename,
+        );
+        nextImageUrl = uploaded.publicUrl;
+        nextStoragePath = uploaded.path;
+      } else {
+        nextImageUrl = await blobToDataUrl(optimized.file);
+      }
+
+      if (target === "draft") {
+        setDraft((current) => ({
+          ...current,
+          imageUrl: nextImageUrl,
+          imageStoragePath: nextStoragePath,
+        }));
+      } else {
+        setEditingCardDraft((current) =>
+          current
+            ? {
+                ...current,
+                imageUrl: nextImageUrl,
+                imageStoragePath: nextStoragePath,
+              }
+            : current,
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      setSaveState("error");
+      setSaveErrorMessage(error instanceof Error ? error.message : "Artwork could not be uploaded.");
+    } finally {
+      setIsUploadingArtwork(false);
+    }
+  }
+
   function startEditingCard(card: CardEntry) {
     setEditingCardId(card.entryId);
     setEditingCardItemId(card.itemId);
@@ -3073,6 +3224,7 @@ export function RankboardApp() {
 
     const title = editingCardDraft.title.trim() || `Untitled ${boardVocabulary.singular}`;
     const imageUrl = editingCardDraft.imageUrl.trim();
+    const imageStoragePath = editingCardDraft.imageStoragePath;
     const series = editingCardDraft.series.trim();
     const releaseYear = editingCardDraft.releaseYear.trim();
     const notes = editingCardDraft.notes.trim();
@@ -3098,6 +3250,7 @@ export function RankboardApp() {
       ...card,
       title,
       imageUrl,
+      imageStoragePath,
       series,
       releaseYear: releaseYear || undefined,
       notes: notes || undefined,
@@ -3234,11 +3387,15 @@ export function RankboardApp() {
     queuePersistBoardState();
   }
 
-  function addColumn() {
+  function addColumnAt(insertIndex: number) {
     const nextIndex = columns.length + 1;
     const newColumn = createColumnDefinition(nextIndex);
 
-    setColumns((current) => [...current, newColumn]);
+    setColumns((current) => {
+      const nextColumns = [...current];
+      nextColumns.splice(Math.max(0, Math.min(insertIndex, nextColumns.length)), 0, newColumn);
+      return nextColumns;
+    });
     setCardsByColumn((current) => ({
       ...current,
       [newColumn.id]: [],
@@ -4590,7 +4747,13 @@ export function RankboardApp() {
                         Actions
                       </h2>
                       <p className={clsx("mt-1 text-xs", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                        {isPersisting ? "Saving..." : `Last saved ${formatLastSavedAt(lastSavedAt)}`}
+                        {isUploadingArtwork
+                          ? "Uploading artwork..."
+                          : saveState === "error" || saveState === "offline"
+                            ? saveErrorMessage ?? "Changes could not be saved."
+                            : isPersisting
+                              ? "Saving..."
+                              : `Last saved ${formatLastSavedAt(lastSavedAt)}`}
                       </p>
                     </div>
                     <button
@@ -5252,7 +5415,7 @@ export function RankboardApp() {
               onDragEnd={handleDragEnd}
             >
               <div className="relative z-10 flex items-start snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
-                {columns.map((column) => {
+                {columns.map((column, columnIndex) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
                     searchTerm,
@@ -5260,106 +5423,111 @@ export function RankboardApp() {
                   );
 
                   return (
-                    <BoardColumn
-                      key={column.id}
-                      column={column}
-                      fullCards={cardsByColumn[column.id] ?? []}
-                      addLabel={boardVocabulary.singular}
-                      collapseCards={activeBoardSettings.collapseCards}
-                      showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
-                      showTierHighlights={activeBoardSettings.showTierHighlights}
-                      frontFieldDefinitions={activeBoardFieldDefinitions}
-                      disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
-                      isDarkMode={isDarkMode}
-                      cards={visibleCards}
-                      activeTierFilter={columnTierFilters[column.id] ?? "all"}
-                      filtering={filtering}
-                      isEditingColumn={editingColumnId === column.id}
-                      editingColumnDraft={editingColumnDraft}
-                      onColumnDraftChange={setEditingColumnDraft}
-                      onEditColumn={() => startEditingColumn(column)}
-                      onCancelColumnEdit={cancelEditingColumn}
-                      onSaveColumnEdit={() => saveEditingColumn(column.id)}
-                      onDeleteCard={handleDeleteCard}
-                      onEditCard={startEditingCard}
-                      onAddCard={openAddGameModal}
-                      onOpenPairwiseQuiz={() => openPairwiseQuiz(column.id)}
-                      onSortCards={sortColumnCards}
-                      isMenuOpen={openColumnMenuId === column.id}
-                      isSortMenuOpen={openColumnSortMenuId === column.id}
-                      isFilterMenuOpen={openColumnFilterMenuId === column.id}
-                      isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
-                      isMaintenanceMenuOpen={openColumnMaintenanceMenuId === column.id}
-                      onToggleMenu={() =>
-                        setOpenColumnMenuId((current) => {
-                          const nextId = current === column.id ? null : column.id;
-                          if (nextId !== column.id) {
-                            setOpenColumnSortMenuId(null);
-                            setOpenColumnFilterMenuId(null);
-                            setOpenColumnMirrorMenuId(null);
-                          }
-                          return nextId;
-                        })
-                      }
-                      onToggleSortMenu={() =>
-                        setOpenColumnSortMenuId((current) => {
-                          const nextId = current === column.id ? null : column.id;
-                          if (nextId === column.id) {
-                            setOpenColumnFilterMenuId(null);
-                            setOpenColumnMirrorMenuId(null);
-                          }
-                          return nextId;
-                        })
-                      }
-                      onToggleFilterMenu={() =>
-                        setOpenColumnFilterMenuId((current) => {
-                          const nextId = current === column.id ? null : column.id;
-                          if (nextId === column.id) {
-                            setOpenColumnSortMenuId(null);
-                            setOpenColumnMirrorMenuId(null);
-                          }
-                          return nextId;
-                        })
-                      }
-                      onToggleMirrorMenu={() =>
-                        setOpenColumnMirrorMenuId((current) => {
-                          const nextId = current === column.id ? null : column.id;
-                          if (nextId === column.id) {
-                            setOpenColumnSortMenuId(null);
-                            setOpenColumnFilterMenuId(null);
-                            setOpenColumnMaintenanceMenuId(null);
-                          }
-                          return nextId;
-                        })
-                      }
-                      onToggleMaintenanceMenu={() =>
-                        setOpenColumnMaintenanceMenuId((current) => {
-                          const nextId = current === column.id ? null : column.id;
-                          if (nextId === column.id) {
-                            setOpenColumnSortMenuId(null);
-                            setOpenColumnFilterMenuId(null);
-                            setOpenColumnMirrorMenuId(null);
-                          }
-                          return nextId;
-                        })
-                      }
-                      onOpenDuplicateCleanup={() => openDuplicateCleanupModal(column.id)}
-                      onOpenTitleTidy={() => openTitleTidyModal(column.id)}
-                      onOpenSeriesScrape={() => {
-                        void openSeriesScrapeModal(column.id);
-                      }}
-                      onDeleteColumn={deleteColumn}
-                      onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
-                      onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
-                      onLinkMirrorMatches={linkMatchingMirrorCards}
-                      onSetTierFilter={setColumnTierFilter}
-                      onColumnDragStart={setDraggingColumnId}
-                      onColumnDrop={moveColumnToTarget}
-                      draggingColumnId={draggingColumnId}
-                    />
+                    <div key={column.id} className="contents">
+                      <BoardColumn
+                        column={column}
+                        fullCards={cardsByColumn[column.id] ?? []}
+                        addLabel={boardVocabulary.singular}
+                        collapseCards={activeBoardSettings.collapseCards}
+                        showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
+                        showTierHighlights={activeBoardSettings.showTierHighlights}
+                        frontFieldDefinitions={activeBoardFieldDefinitions}
+                        disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
+                        isDarkMode={isDarkMode}
+                        cards={visibleCards}
+                        activeTierFilter={columnTierFilters[column.id] ?? "all"}
+                        filtering={filtering}
+                        isEditingColumn={editingColumnId === column.id}
+                        editingColumnDraft={editingColumnDraft}
+                        onColumnDraftChange={setEditingColumnDraft}
+                        onEditColumn={() => startEditingColumn(column)}
+                        onCancelColumnEdit={cancelEditingColumn}
+                        onSaveColumnEdit={() => saveEditingColumn(column.id)}
+                        onDeleteCard={handleDeleteCard}
+                        onEditCard={startEditingCard}
+                        onAddCard={openAddGameModal}
+                        onOpenPairwiseQuiz={() => openPairwiseQuiz(column.id)}
+                        onSortCards={sortColumnCards}
+                        isMenuOpen={openColumnMenuId === column.id}
+                        isSortMenuOpen={openColumnSortMenuId === column.id}
+                        isFilterMenuOpen={openColumnFilterMenuId === column.id}
+                        isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
+                        isMaintenanceMenuOpen={openColumnMaintenanceMenuId === column.id}
+                        onToggleMenu={() =>
+                          setOpenColumnMenuId((current) => {
+                            const nextId = current === column.id ? null : column.id;
+                            if (nextId !== column.id) {
+                              setOpenColumnSortMenuId(null);
+                              setOpenColumnFilterMenuId(null);
+                              setOpenColumnMirrorMenuId(null);
+                            }
+                            return nextId;
+                          })
+                        }
+                        onToggleSortMenu={() =>
+                          setOpenColumnSortMenuId((current) => {
+                            const nextId = current === column.id ? null : column.id;
+                            if (nextId === column.id) {
+                              setOpenColumnFilterMenuId(null);
+                              setOpenColumnMirrorMenuId(null);
+                            }
+                            return nextId;
+                          })
+                        }
+                        onToggleFilterMenu={() =>
+                          setOpenColumnFilterMenuId((current) => {
+                            const nextId = current === column.id ? null : column.id;
+                            if (nextId === column.id) {
+                              setOpenColumnSortMenuId(null);
+                              setOpenColumnMirrorMenuId(null);
+                            }
+                            return nextId;
+                          })
+                        }
+                        onToggleMirrorMenu={() =>
+                          setOpenColumnMirrorMenuId((current) => {
+                            const nextId = current === column.id ? null : column.id;
+                            if (nextId === column.id) {
+                              setOpenColumnSortMenuId(null);
+                              setOpenColumnFilterMenuId(null);
+                              setOpenColumnMaintenanceMenuId(null);
+                            }
+                            return nextId;
+                          })
+                        }
+                        onToggleMaintenanceMenu={() =>
+                          setOpenColumnMaintenanceMenuId((current) => {
+                            const nextId = current === column.id ? null : column.id;
+                            if (nextId === column.id) {
+                              setOpenColumnSortMenuId(null);
+                              setOpenColumnFilterMenuId(null);
+                              setOpenColumnMirrorMenuId(null);
+                            }
+                            return nextId;
+                          })
+                        }
+                        onOpenDuplicateCleanup={() => openDuplicateCleanupModal(column.id)}
+                        onOpenTitleTidy={() => openTitleTidyModal(column.id)}
+                        onOpenSeriesScrape={() => {
+                          void openSeriesScrapeModal(column.id);
+                        }}
+                        onDeleteColumn={deleteColumn}
+                        onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
+                        onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
+                        onLinkMirrorMatches={linkMatchingMirrorCards}
+                        onSetTierFilter={setColumnTierFilter}
+                        onColumnDragStart={setDraggingColumnId}
+                        onColumnDrop={moveColumnToTarget}
+                        draggingColumnId={draggingColumnId}
+                      />
+                      <AddColumnButton
+                        isDarkMode={isDarkMode}
+                        inline
+                        onClick={() => addColumnAt(columnIndex + 1)}
+                      />
+                    </div>
                   );
                 })}
-                <AddColumnButton isDarkMode={isDarkMode} onClick={addColumn} />
               </div>
             </DndContext>
           </section>
@@ -5493,7 +5661,7 @@ export function RankboardApp() {
               </div>
 
               {shouldShowImageField ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
                   <label className="grid gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                       {imageFieldLabel}
@@ -5511,12 +5679,21 @@ export function RankboardApp() {
                         {
                           setEditingDuplicateAction(null);
                           setEditingCardDraft((current) =>
-                            current ? { ...current, imageUrl: event.target.value } : current,
+                            current ? { ...current, imageUrl: event.target.value, imageStoragePath: undefined } : current,
                           );
                         }
                       }
                     />
                   </label>
+                  <input
+                    ref={editArtworkInputRef}
+                    accept="image/*,.gif"
+                    className="hidden"
+                    onChange={(event) => {
+                      void handleArtworkFileSelection("edit", event);
+                    }}
+                    type="file"
+                  />
 
                   <button
                     className={clsx(
@@ -5541,10 +5718,25 @@ export function RankboardApp() {
                     )}
                     onClick={() => autofillEditingCardImage("gif")}
                     type="button"
-                    title="Search Google Images for animated GIFs in a new tab"
+                    title="Search Tenor in a new tab"
                   >
                     <Clapperboard className="h-4 w-4" />
                     GIF
+                  </button>
+                  <button
+                    className={clsx(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:opacity-60"
+                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:opacity-60",
+                    )}
+                    disabled={isUploadingArtwork}
+                    onClick={() => openArtworkUploadPicker("edit")}
+                    type="button"
+                    title="Upload artwork from your device"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Upload
                   </button>
                 </div>
               ) : null}
@@ -5857,7 +6049,7 @@ export function RankboardApp() {
                 </div>
 
                 {shouldShowImageField ? (
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-end">
+                  <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
                     <label className="grid gap-2">
                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                         {imageFieldLabel}
@@ -5884,11 +6076,21 @@ export function RankboardApp() {
                             setDraft((current) => ({
                               ...current,
                               imageUrl: event.target.value,
+                              imageStoragePath: undefined,
                             }));
                           }}
                         />
                       </div>
                     </label>
+                    <input
+                      ref={addArtworkInputRef}
+                      accept="image/*,.gif"
+                      className="hidden"
+                      onChange={(event) => {
+                        void handleArtworkFileSelection("draft", event);
+                      }}
+                      type="file"
+                    />
 
                     <button
                       className={clsx(
@@ -5913,10 +6115,25 @@ export function RankboardApp() {
                       )}
                       onClick={() => handleAutofillDraftImage("gif")}
                       type="button"
-                      title="Search Google Images for animated GIFs in a new tab"
+                      title="Search Tenor in a new tab"
                     >
                       <Clapperboard className="h-4 w-4" />
                       GIF
+                    </button>
+                    <button
+                      className={clsx(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:opacity-60"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:opacity-60",
+                      )}
+                      disabled={isUploadingArtwork}
+                      onClick={() => openArtworkUploadPicker("draft")}
+                      type="button"
+                      title="Upload artwork from your device"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload
                     </button>
                   </div>
                 ) : null}
@@ -7375,15 +7592,19 @@ export function RankboardApp() {
 
 function AddColumnButton({
   isDarkMode,
+  inline = false,
   onClick,
 }: {
   isDarkMode: boolean;
+  inline?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       className={clsx(
-        "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
+        inline
+          ? "flex min-h-[720px] w-12 shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none"
+          : "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? "border-white/15 bg-white/5 text-white hover:border-white/35 hover:bg-white/10"
           : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
@@ -7394,11 +7615,13 @@ function AddColumnButton({
     >
       <span
         className={clsx(
-          "flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
+          inline
+            ? "flex h-10 w-10 items-center justify-center rounded-full shadow-lg"
+            : "flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
           isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
         )}
       >
-        <Plus className="h-6 w-6" />
+        <Plus className={inline ? "h-5 w-5" : "h-6 w-6"} />
       </span>
     </button>
   );
@@ -7952,7 +8175,7 @@ function BoardColumn({
         ) : (
           <SortableContext
             items={tierFilteredCards.map((card) => card.entryId)}
-            strategy={rectSortingStrategy}
+            strategy={verticalListSortingStrategy}
           >
             <>
               <AddCardRow
@@ -8003,11 +8226,7 @@ function BoardColumn({
                 ? "border-white/15 bg-white/[0.03] text-slate-400"
                 : "border-slate-200 bg-slate-50 text-slate-500",
             )}
-          >
-            {column.mirrorsEntireBoard
-              ? "This column mirrors cards from the rest of the board."
-              : "Drop a card here or use the column menu to add one."}
-          </div>
+          />
         ) : null}
       </div>
     </div>
@@ -8193,6 +8412,7 @@ function CardTile({
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
+  const imageSource = card.imageUrl || buildFallbackImage(card.title);
   const frontChips = frontFieldDefinitions
     .filter((field) => field.showOnCardFront && field.visible && !field.builtInKey)
     .map((field) => ({
@@ -8209,6 +8429,7 @@ function CardTile({
     }))
     .filter((field) => field.value.length > 0);
   const [showCollapsedActions, setShowCollapsedActions] = useState(false);
+  const [loadedImageSource, setLoadedImageSource] = useState("");
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
     tierKey === "top10"
@@ -8256,14 +8477,31 @@ function CardTile({
     >
       <div
         className={clsx(
-          "relative bg-cover bg-center",
+          "relative overflow-hidden bg-slate-900 bg-center",
           collapseCards ? "min-h-[82px]" : "aspect-video",
         )}
-        style={{
-          backgroundImage: collapseCards ? undefined : `url(${card.imageUrl || buildFallbackImage(card.title)})`,
-          backgroundColor: collapseCards ? "#0f172a" : undefined,
-        }}
+        style={{ backgroundColor: "#0f172a" }}
       >
+        {!collapseCards ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt=""
+              className={clsx(
+                "absolute inset-0 h-full w-full object-cover transition duration-300",
+                loadedImageSource === imageSource ? "scale-100 blur-0 opacity-100" : "scale-105 blur-md opacity-60",
+              )}
+              onLoad={() => setLoadedImageSource(imageSource)}
+              src={imageSource}
+            />
+            <div
+              className={clsx(
+                "absolute inset-0 bg-slate-900/40 transition duration-300",
+                loadedImageSource === imageSource ? "opacity-0" : "opacity-100",
+              )}
+            />
+          </>
+        ) : null}
         {!collapseCards ? (
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
         ) : null}
