@@ -848,6 +848,32 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
   } satisfies SavedBoard;
 }
 
+function countCardsInBoards(boards: SavedBoard[]) {
+  return boards.reduce(
+    (boardTotal, board) =>
+      boardTotal +
+      Object.values(board.cardsByColumn).reduce(
+        (columnTotal, cards) => columnTotal + cards.length,
+        0,
+      ),
+    0,
+  );
+}
+
+function getLatestBoardTimestamp(boards: SavedBoard[]) {
+  return boards.reduce<string | null>((latest, board) => {
+    if (!board.updatedAt) {
+      return latest;
+    }
+
+    if (!latest || board.updatedAt > latest) {
+      return board.updatedAt;
+    }
+
+    return latest;
+  }, null);
+}
+
 function getBoardKind(boardTitle: string) {
   const normalizedTitle = boardTitle.toLowerCase();
 
@@ -1932,20 +1958,6 @@ export function RankboardApp() {
     setSaveErrorMessage(null);
 
     try {
-      let normalizedError: unknown = null;
-      let backupError: unknown = null;
-      let normalizedSaved = false;
-      let backupSaved = false;
-
-      try {
-        await ensureNormalizedProfile(supabase, currentUser);
-        await syncNormalizedBoards(supabase, currentUser, nextBoards);
-        normalizedSaved = true;
-      } catch (error) {
-        normalizedError = error;
-        console.error("Normalized board sync failed.", error);
-      }
-
       const { error } = await supabase.from("board_states").upsert({
         owner_id: currentUser.id,
         columns: payload,
@@ -1953,10 +1965,23 @@ export function RankboardApp() {
         updated_at: new Date().toISOString(),
       });
 
+      let normalizedError: unknown = null;
+      let backupError: unknown = null;
+      const backupSaved = !error;
+
       if (error) {
         backupError = error;
-      } else {
-        backupSaved = true;
+      }
+
+      let normalizedSaved = false;
+
+      try {
+        await ensureNormalizedProfile(supabase, currentUser);
+        await syncNormalizedBoards(supabase, currentUser, nextBoards);
+        normalizedSaved = true;
+      } catch (persistError) {
+        normalizedError = persistError;
+        console.error("Normalized board sync failed.", persistError);
       }
 
       if (!normalizedSaved && !backupSaved) {
@@ -2355,27 +2380,6 @@ export function RankboardApp() {
           return;
         }
 
-        if (normalizedBoards.length > 0) {
-          const localActiveBoardId = latestActiveBoardIdRef.current;
-          const remoteActiveBoardId =
-            localActiveBoardId && normalizedBoards.some((board) => board.id === localActiveBoardId)
-              ? localActiveBoardId
-              : normalizedBoards[0].id;
-          const nextActiveBoard =
-            normalizedBoards.find((board) => board.id === remoteActiveBoardId) ??
-            normalizedBoards[0];
-
-          skipNextHistoryRef.current = true;
-          setBoards(normalizedBoards);
-          setActiveBoardId(remoteActiveBoardId);
-          setColumns(nextActiveBoard.columns);
-          skipNextHistoryRef.current = true;
-          setCardsByColumn(nextActiveBoard.cardsByColumn);
-          setSaveState("saved");
-          setHasLoadedRemoteState(true);
-          return;
-        }
-
         const { data, error } = await client
           .from("board_states")
           .select("*")
@@ -2393,6 +2397,39 @@ export function RankboardApp() {
         const backupState = data ? readBoardsFromBackupRow(data) : null;
         const localBoards = latestBoardsRef.current;
         const localActiveBoardId = latestActiveBoardIdRef.current;
+        const normalizedCardCount = countCardsInBoards(normalizedBoards);
+        const backupCardCount = backupState ? countCardsInBoards(backupState.boards) : 0;
+        const normalizedLatestTimestamp = getLatestBoardTimestamp(normalizedBoards);
+        const backupLatestTimestamp = backupState?.updatedAt ?? null;
+        const shouldPreferBackup =
+          Boolean(backupState?.boards.length) &&
+          (normalizedBoards.length === 0 ||
+            backupCardCount > normalizedCardCount ||
+            (backupCardCount === normalizedCardCount &&
+              backupLatestTimestamp &&
+              (!normalizedLatestTimestamp || backupLatestTimestamp > normalizedLatestTimestamp)));
+
+        if (normalizedBoards.length > 0 && !shouldPreferBackup) {
+          const localActiveBoardId = latestActiveBoardIdRef.current;
+          const remoteActiveBoardId =
+            localActiveBoardId && normalizedBoards.some((board) => board.id === localActiveBoardId)
+              ? localActiveBoardId
+              : normalizedBoards[0].id;
+          const nextActiveBoard =
+            normalizedBoards.find((board) => board.id === remoteActiveBoardId) ??
+            normalizedBoards[0];
+
+          skipNextHistoryRef.current = true;
+          setBoards(normalizedBoards);
+          setActiveBoardId(remoteActiveBoardId);
+          setColumns(nextActiveBoard.columns);
+          skipNextHistoryRef.current = true;
+          setCardsByColumn(nextActiveBoard.cardsByColumn);
+          setLastSavedAt(normalizedLatestTimestamp);
+          setSaveState("saved");
+          setHasLoadedRemoteState(true);
+          return;
+        }
 
         if (backupState?.boards.length) {
           recentBackupSnapshotsRef.current = backupState.recentSnapshots;
@@ -4498,6 +4535,8 @@ export function RankboardApp() {
       ]),
     );
 
+    let nextStateSnapshot: Record<string, CardEntry[]> | null = null;
+
     setCardsByColumn((current) => {
       const nextState: Record<string, CardEntry[]> = {};
 
@@ -4517,13 +4556,21 @@ export function RankboardApp() {
         });
       }
 
+      latestCardsByColumnRef.current = nextState;
+      nextStateSnapshot = nextState;
       return nextState;
     });
 
     setIsSeriesScrapeModalOpen(false);
     setSeriesScrapeSuggestions([]);
     setSeriesScrapeScopeColumnId(undefined);
-    queuePersistBoardState();
+
+    if (nextStateSnapshot) {
+      void persistBoardState({ cardsByColumn: nextStateSnapshot });
+      queuePersistBoardState({ cardsByColumn: nextStateSnapshot });
+    } else {
+      queuePersistBoardState();
+    }
   }
 
   async function handleImportTrelloBoard(

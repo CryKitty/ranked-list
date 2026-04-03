@@ -33,9 +33,15 @@
 ## Save Flow
 
 - Saves are intended to happen from committed mutations rather than broad rerender loops.
-- The app tries normalized board writes first, then updates `board_states` with a backup snapshot.
-- If normalized writes fail, the app still persists `board_states` so refreshes and recovery remain safe.
+- During an active session, the in-browser board state is treated as authoritative.
+- The app writes `board_states` backup snapshots first, then tries to repair/update normalized rows.
+- If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
 - Local storage keeps a fast cache plus recent backup snapshots.
+
+## Recovery Preference
+
+- When both normalized rows and `board_states` exist, the app prefers the richer/newer source.
+- If normalized rows are suspiciously incomplete, the app hydrates from `board_states` and then attempts to repair normalized rows from that backup.
 
 ## Media
 

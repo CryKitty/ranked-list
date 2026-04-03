@@ -18,3 +18,5 @@
 - Fixed persistence fallback so boards still save through `board_states` if normalized table writes fail.
 - Added a migration-safe `boards.updated_at` schema column to match normalized save payloads.
 - Reduced the between-column gap and slimmed the inline `+` affordance further.
+- Changed remote hydration to prefer the richer/newer backup snapshot when normalized rows look incomplete.
+- Hardened series-scrape apply so it persists the exact updated card snapshot immediately.
