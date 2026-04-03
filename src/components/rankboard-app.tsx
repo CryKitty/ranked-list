@@ -1932,8 +1932,19 @@ export function RankboardApp() {
     setSaveErrorMessage(null);
 
     try {
-      await ensureNormalizedProfile(supabase, currentUser);
-      await syncNormalizedBoards(supabase, currentUser, nextBoards);
+      let normalizedError: unknown = null;
+      let backupError: unknown = null;
+      let normalizedSaved = false;
+      let backupSaved = false;
+
+      try {
+        await ensureNormalizedProfile(supabase, currentUser);
+        await syncNormalizedBoards(supabase, currentUser, nextBoards);
+        normalizedSaved = true;
+      } catch (error) {
+        normalizedError = error;
+        console.error("Normalized board sync failed.", error);
+      }
 
       const { error } = await supabase.from("board_states").upsert({
         owner_id: currentUser.id,
@@ -1943,11 +1954,18 @@ export function RankboardApp() {
       });
 
       if (error) {
-        throw error;
+        backupError = error;
+      } else {
+        backupSaved = true;
+      }
+
+      if (!normalizedSaved && !backupSaved) {
+        throw backupError ?? normalizedError ?? new Error("Changes could not be saved.");
       }
 
       setLastSavedAt(new Date().toISOString());
       setSaveState("saved");
+      setSaveErrorMessage(null);
       writeLocalBackupSnapshot(snapshot);
     } catch (error) {
       console.error(error);
@@ -2322,8 +2340,16 @@ export function RankboardApp() {
 
     async function loadBoardState() {
       try {
-        await ensureNormalizedProfile(client, user);
-        const normalizedBoards = await loadNormalizedBoards(client, user.id);
+        let normalizedBoards: SavedBoard[] = [];
+        let normalizedLoadError: unknown = null;
+
+        try {
+          await ensureNormalizedProfile(client, user);
+          normalizedBoards = await loadNormalizedBoards(client, user.id);
+        } catch (error) {
+          normalizedLoadError = error;
+          console.error("Normalized board load failed; falling back to board_states backup.", error);
+        }
 
         if (cancelled) {
           return;
@@ -2374,7 +2400,13 @@ export function RankboardApp() {
             setLastSavedAt(backupState.updatedAt);
           }
 
-          await syncNormalizedBoards(client, user, backupState.boards);
+          if (normalizedLoadError) {
+            try {
+              await syncNormalizedBoards(client, user, backupState.boards);
+            } catch (error) {
+              console.error("Backup state loaded, but normalized migration retry failed.", error);
+            }
+          }
 
           const migratedActiveBoardId =
             backupState.activeBoardId &&
@@ -2393,15 +2425,30 @@ export function RankboardApp() {
           setCardsByColumn(nextActiveBoard.cardsByColumn);
           setSaveState("saved");
         } else {
-          await syncNormalizedBoards(client, user, localBoards);
           const { payload, snapshot } = buildPersistedColumnsPayload(localBoards, localActiveBoardId);
-          await client.from("board_states").upsert({
+          let normalizedSaved = false;
+
+          try {
+            await syncNormalizedBoards(client, user, localBoards);
+            normalizedSaved = true;
+          } catch (error) {
+            console.error("Normalized board bootstrap failed; saving backup snapshot only.", error);
+          }
+
+          const { error: backupUpsertError } = await client.from("board_states").upsert({
             owner_id: user.id,
             columns: payload,
             cards_by_column: latestCardsByColumnRef.current,
             updated_at: new Date().toISOString(),
           });
+
+          if (!normalizedSaved && backupUpsertError) {
+            throw backupUpsertError;
+          }
+
           writeLocalBackupSnapshot(snapshot);
+          setLastSavedAt(new Date().toISOString());
+          setSaveState("saved");
         }
 
         setHasLoadedRemoteState(true);
@@ -5510,7 +5557,7 @@ export function RankboardApp() {
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
-              <div className="relative z-10 flex items-start snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
+              <div className="relative z-10 flex items-start snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
                 {columns.map((column, columnIndex) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
@@ -5616,11 +5663,7 @@ export function RankboardApp() {
                         onColumnDrop={moveColumnToTarget}
                         draggingColumnId={draggingColumnId}
                       />
-                      <AddColumnButton
-                        isDarkMode={isDarkMode}
-                        inline
-                        onClick={() => addColumnAt(columnIndex + 1)}
-                      />
+                      <AddColumnButton isDarkMode={isDarkMode} inline onClick={() => addColumnAt(columnIndex + 1)} />
                     </div>
                   );
                 })}
@@ -7699,7 +7742,7 @@ function AddColumnButton({
     <button
       className={clsx(
         inline
-          ? "group flex min-h-[720px] w-6 shrink-0 snap-start items-center justify-center transition sm:snap-align-none"
+          ? "group flex min-h-[720px] w-4 shrink-0 snap-start items-center justify-center transition sm:snap-align-none"
           : "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? inline
@@ -7714,7 +7757,7 @@ function AddColumnButton({
       aria-label="Add column"
     >
       {inline ? (
-        <span className="flex h-full items-center gap-1.5 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
+        <span className="flex h-full items-center gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
           <span
             className={clsx(
               "h-full w-px",
@@ -7723,11 +7766,11 @@ function AddColumnButton({
           />
           <span
             className={clsx(
-              "flex h-8 w-8 items-center justify-center rounded-full shadow-lg",
+              "flex h-6 w-6 items-center justify-center rounded-full shadow-lg",
               isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
             )}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
           </span>
           <span
             className={clsx(

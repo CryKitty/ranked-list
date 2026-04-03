@@ -33,7 +33,8 @@
 ## Save Flow
 
 - Saves are intended to happen from committed mutations rather than broad rerender loops.
-- The app persists normalized board rows, then updates `board_states` with a backup snapshot.
+- The app tries normalized board writes first, then updates `board_states` with a backup snapshot.
+- If normalized writes fail, the app still persists `board_states` so refreshes and recovery remain safe.
 - Local storage keeps a fast cache plus recent backup snapshots.
 
 ## Media

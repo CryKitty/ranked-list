@@ -15,3 +15,6 @@
 - Widened the new-board setup modal so field controls fit more naturally.
 - Improved board icon assignment so broad board types like `Media` avoid reusing icons already taken by other boards when possible.
 - Added a desktop save-status indicator in the board title row.
+- Fixed persistence fallback so boards still save through `board_states` if normalized table writes fail.
+- Added a migration-safe `boards.updated_at` schema column to match normalized save payloads.
+- Reduced the between-column gap and slimmed the inline `+` affordance further.

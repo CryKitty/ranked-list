@@ -19,6 +19,9 @@ create table if not exists public.boards (
   created_at timestamptz not null default now()
 );
 
+alter table public.boards
+  add column if not exists updated_at timestamptz not null default now();
+
 create table if not exists public.columns (
   id uuid primary key default gen_random_uuid(),
   board_id uuid not null references public.boards (id) on delete cascade,
