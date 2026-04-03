@@ -24,3 +24,5 @@
 - Fixed empty boards so they still show an add-column entry point.
 - Let the main board shell overflow visibly again so the settings dropdown doesn’t get clipped.
 - Added board deletion under Maintenance with an in-app confirmation modal.
+- Disabled Wikipedia-backed series scraping so the tool falls back to local heuristics and stops generating `429` errors.
+- Constrained the board shell/header so the desktop action bar stays anchored instead of drifting with the horizontal board lane.

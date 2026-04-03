@@ -61,6 +61,16 @@
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 
+## Series Scraping
+
+- Series scraping currently uses local heuristics only.
+- External Wikipedia lookup is disabled to avoid rate limits, console noise, and UI stalls.
+
+## Layout Guardrails
+
+- The board shell and title row are width-constrained with `min-w-0` / `max-w-full`.
+- Only the column lane should grow horizontally and scroll; header controls should stay anchored to the board shell.
+
 ## Important Notes
 
 - The app still has a large main UI component, so persistence and media helpers live in lib files to keep the core logic from getting even more tangled.

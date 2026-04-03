@@ -500,14 +500,6 @@ function buildFallbackImage(title: string) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function sanitizeSearchTitle(title: string) {
-  return title
-    .normalize("NFKD")
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function trimBackupSnapshots(snapshots: BoardBackupSnapshot[]) {
   return snapshots
     .sort((left, right) => right.savedAt.localeCompare(left.savedAt))
@@ -594,151 +586,6 @@ function readBoardsFromBackupRow(data: {
   }
 
   return null;
-}
-
-async function fetchWikipediaMetadataBySearch(query: string) {
-  const trimmedQuery = query.trim();
-
-  if (!trimmedQuery) {
-    return null;
-  }
-
-  const url = new URL("https://en.wikipedia.org/w/api.php");
-  url.searchParams.set("action", "query");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("origin", "*");
-  url.searchParams.set("generator", "search");
-  url.searchParams.set("gsrsearch", trimmedQuery);
-  url.searchParams.set("gsrlimit", "5");
-  url.searchParams.set("prop", "extracts");
-  url.searchParams.set("exintro", "1");
-  url.searchParams.set("explaintext", "1");
-
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = (await response.json()) as {
-    query?: {
-      pages?: Record<
-        string,
-        {
-          title?: string;
-          extract?: string;
-        }
-      >;
-    };
-  };
-
-  return Object.values(data.query?.pages ?? {})
-    .map((page) => ({
-      title: page.title ?? "",
-      extract: page.extract ?? "",
-    }))
-    .filter((page) => page.title || page.extract);
-}
-
-function stripWikipediaQualifier(title: string) {
-  return title.replace(/\s+\([^)]*\)\s*$/g, "").trim();
-}
-
-function getMeaningfulTitleTokens(title: string) {
-  return normalizeTitleForComparison(stripWikipediaQualifier(title))
-    .split(" ")
-    .filter(
-      (token) =>
-        token.length > 1 &&
-        !new Set([
-          "the",
-          "a",
-          "an",
-          "of",
-          "and",
-          "for",
-          "to",
-          "in",
-          "on",
-          "at",
-          "video",
-          "game",
-        ]).has(token),
-    );
-}
-
-function scoreWikipediaMetadata(metadata: { title: string; extract: string }, searchTitle: string) {
-  const normalizedSearch = sanitizeSearchTitle(searchTitle);
-  const normalizedPageTitle = sanitizeSearchTitle(stripWikipediaQualifier(metadata.title));
-  const searchTokens = getMeaningfulTitleTokens(searchTitle);
-  const pageTitleTokens = new Set(getMeaningfulTitleTokens(metadata.title));
-  const normalizedExtract = normalizeTitleForComparison(metadata.extract);
-  const fullTokenMatches = searchTokens.filter(
-    (token) =>
-      pageTitleTokens.has(token) ||
-      normalizedExtract.includes(token),
-  ).length;
-
-  let score = 0;
-
-  if (normalizedPageTitle === normalizedSearch) {
-    score += 120;
-  } else if (normalizedPageTitle.includes(normalizedSearch)) {
-    score += 90;
-  } else if (normalizedSearch.includes(normalizedPageTitle)) {
-    score += 50;
-  }
-
-  score += fullTokenMatches * 18;
-
-  if (searchTokens.length > 0 && fullTokenMatches === searchTokens.length) {
-    score += 45;
-  } else if (searchTokens.length > 0 && fullTokenMatches <= Math.floor(searchTokens.length / 2)) {
-    score -= 30;
-  }
-
-  const suspiciousPattern =
-    /\b(award|awards|character|franchise|series|novel|manga|comic|disambiguation)\b/i;
-  if (suspiciousPattern.test(metadata.title) || suspiciousPattern.test(metadata.extract)) {
-    score -= 35;
-  }
-
-  if (/\(video game\)/i.test(metadata.title) && searchTokens.length > 1 && !normalizedPageTitle.includes(normalizedSearch)) {
-    score -= 15;
-  }
-
-  return score;
-}
-
-async function fetchBestWikipediaMetadata(
-  title: string,
-  existingSeries: string[] = [],
-) {
-  const queries = Array.from(
-    new Set([
-      `${title} video game`,
-      title,
-      `${title} game`,
-      ...existingSeries.slice(0, 8).map((series) => `${series} ${title} video game`),
-    ]),
-  );
-
-  let bestMatch: { title: string; extract: string } | null = null;
-  let bestScore = Number.NEGATIVE_INFINITY;
-
-  for (const query of queries) {
-    const candidates = await fetchWikipediaMetadataBySearch(query);
-
-    for (const candidate of candidates ?? []) {
-      const score = scoreWikipediaMetadata(candidate, title);
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = candidate;
-      }
-    }
-  }
-
-  return bestScore >= 45 ? bestMatch : null;
 }
 
 function openGoogleImageSearch(title: string, mode: ArtworkSearchMode = "image") {
@@ -1485,50 +1332,6 @@ function stripSequelMarkers(title: string) {
 function getSuggestedReleaseYearFromTitle(title: string) {
   const match = title.match(/\b(19|20)\d{2}\b/);
   return match?.[0] ?? "";
-}
-
-function getSuggestedReleaseYearFromWikipediaExtract(extract: string) {
-  const match = extract.match(/\b(19|20)\d{2}\b/);
-  return match?.[0] ?? "";
-}
-
-function getSuggestedReleaseYearFromWikipediaMetadata(
-  metadata: { title: string; extract: string } | null,
-  searchTitle: string,
-) {
-  if (!metadata) {
-    return "";
-  }
-
-  const score = scoreWikipediaMetadata(metadata, searchTitle);
-
-  if (score < 70) {
-    return "";
-  }
-
-  return getSuggestedReleaseYearFromWikipediaExtract(metadata.extract);
-}
-
-function getSuggestedSeriesFromWikipediaExtract(
-  extract: string,
-  existingSeries: string[] = [],
-) {
-  const normalizedExtract = normalizeTitleForComparison(extract);
-
-  if (!normalizedExtract) {
-    return null;
-  }
-
-  const matchingSeries = existingSeries
-    .map((series) => ({
-      original: series,
-      normalized: normalizeTitleForComparison(series),
-    }))
-    .filter((series) => series.normalized.length > 0)
-    .sort((left, right) => right.normalized.length - left.normalized.length)
-    .find((series) => normalizedExtract.includes(series.normalized));
-
-  return matchingSeries?.original ?? null;
 }
 
 function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = []) {
@@ -4495,23 +4298,12 @@ export function RankboardApp() {
 
     const suggestions = await Promise.all(
       cardsToInspect.map(async ({ columnId, columnTitle, card }) => {
-        const wikipediaMetadata = await fetchBestWikipediaMetadata(card.title, existingSeries);
-        const wikipediaExtractSeries = getSuggestedSeriesFromWikipediaExtract(
-          wikipediaMetadata?.extract ?? "",
-          existingSeries,
-        );
-        const wikipediaSeries = wikipediaMetadata?.title
-          ? getSuggestedSeriesFromTitle(wikipediaMetadata.title, existingSeries)
-          : null;
         const currentSeries = card.series.trim();
         const currentReleaseYear = card.releaseYear?.trim() ?? "";
         const suggestedSeries =
-          wikipediaExtractSeries ||
-          wikipediaSeries ||
           getSuggestedSeriesFromTitle(card.title, existingSeries) ||
           "";
         const suggestedReleaseYear =
-          getSuggestedReleaseYearFromWikipediaMetadata(wikipediaMetadata, card.title) ||
           getSuggestedReleaseYearFromTitle(card.title);
 
         const shouldSuggestSeries =
@@ -4729,7 +4521,7 @@ export function RankboardApp() {
           ))}
         </datalist>
 
-        <section className="grid gap-4">
+        <section className="grid w-full min-w-0 gap-4">
           <div className="hidden">
             <div className="flex flex-col items-center gap-4">
               <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-[1fr_260px_auto_auto] sm:gap-4">
@@ -5313,13 +5105,13 @@ export function RankboardApp() {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 w-full min-w-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
             )}
           >
-            <div className="mb-4">
+            <div className="mb-4 min-w-0">
               {isEditingBoardTitle ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <input
@@ -5372,7 +5164,7 @@ export function RankboardApp() {
                   </button>
                 </div>
               ) : (
-                <div className="group flex items-center justify-between gap-4">
+                <div className="group flex min-w-0 items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="relative shrink-0" data-board-switcher-root="true">
                       <button
@@ -5477,7 +5269,7 @@ export function RankboardApp() {
                       <Pencil className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="hidden items-center gap-2 xl:flex">
+                  <div className="hidden shrink-0 items-center gap-2 xl:flex">
                     <input
                       name="title"
                       className={clsx(
@@ -5731,7 +5523,7 @@ export function RankboardApp() {
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
-              <div className="relative z-10 flex items-start snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
+              <div className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
                 {columns.map((column, columnIndex) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
