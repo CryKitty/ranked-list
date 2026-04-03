@@ -848,14 +848,9 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
   } satisfies SavedBoard;
 }
 
-function countCardsInBoards(boards: SavedBoard[]) {
-  return boards.reduce(
-    (boardTotal, board) =>
-      boardTotal +
-      Object.values(board.cardsByColumn).reduce(
-        (columnTotal, cards) => columnTotal + cards.length,
-        0,
-      ),
+function countCardsInBoard(board: SavedBoard) {
+  return Object.values(board.cardsByColumn).reduce(
+    (columnTotal, cards) => columnTotal + cards.length,
     0,
   );
 }
@@ -872,6 +867,66 @@ function getLatestBoardTimestamp(boards: SavedBoard[]) {
 
     return latest;
   }, null);
+}
+
+function choosePreferredBoards(
+  normalizedBoards: SavedBoard[],
+  backupBoards: SavedBoard[],
+) {
+  if (normalizedBoards.length === 0) {
+    return backupBoards;
+  }
+
+  if (backupBoards.length === 0) {
+    return normalizedBoards;
+  }
+
+  const normalizedById = new Map(normalizedBoards.map((board) => [board.id, board]));
+  const backupById = new Map(backupBoards.map((board) => [board.id, board]));
+  const orderedIds = [
+    ...backupBoards.map((board) => board.id),
+    ...normalizedBoards.map((board) => board.id).filter((id) => !backupById.has(id)),
+  ];
+
+  return orderedIds.map((boardId) => {
+    const normalizedBoard = normalizedById.get(boardId);
+    const backupBoard = backupById.get(boardId);
+
+    if (!normalizedBoard) {
+      return backupBoard!;
+    }
+
+    if (!backupBoard) {
+      return normalizedBoard;
+    }
+
+    const normalizedCardCount = countCardsInBoard(normalizedBoard);
+    const backupCardCount = countCardsInBoard(backupBoard);
+    const normalizedColumnCount = normalizedBoard.columns.length;
+    const backupColumnCount = backupBoard.columns.length;
+
+    if (backupCardCount > normalizedCardCount) {
+      return backupBoard;
+    }
+
+    if (backupCardCount < normalizedCardCount) {
+      return normalizedBoard;
+    }
+
+    if (backupColumnCount > normalizedColumnCount) {
+      return backupBoard;
+    }
+
+    if (backupColumnCount < normalizedColumnCount) {
+      return normalizedBoard;
+    }
+
+    if (backupBoard.updatedAt && (!normalizedBoard.updatedAt || backupBoard.updatedAt > normalizedBoard.updatedAt)) {
+      return backupBoard;
+    }
+
+    return normalizedBoard;
+  });
 }
 
 function getBoardKind(boardTitle: string) {
@@ -2397,35 +2452,31 @@ export function RankboardApp() {
         const backupState = data ? readBoardsFromBackupRow(data) : null;
         const localBoards = latestBoardsRef.current;
         const localActiveBoardId = latestActiveBoardIdRef.current;
-        const normalizedCardCount = countCardsInBoards(normalizedBoards);
-        const backupCardCount = backupState ? countCardsInBoards(backupState.boards) : 0;
-        const normalizedLatestTimestamp = getLatestBoardTimestamp(normalizedBoards);
-        const backupLatestTimestamp = backupState?.updatedAt ?? null;
-        const shouldPreferBackup =
-          Boolean(backupState?.boards.length) &&
-          (normalizedBoards.length === 0 ||
-            backupCardCount > normalizedCardCount ||
-            (backupCardCount === normalizedCardCount &&
-              backupLatestTimestamp &&
-              (!normalizedLatestTimestamp || backupLatestTimestamp > normalizedLatestTimestamp)));
+        const preferredBoards = backupState?.boards.length
+          ? choosePreferredBoards(normalizedBoards, backupState.boards)
+          : normalizedBoards;
+        const preferredLatestTimestamp =
+          backupState?.boards.length && preferredBoards.some((board) => backupState.boards.some((backupBoard) => backupBoard.id === board.id))
+            ? getLatestBoardTimestamp(preferredBoards) ?? backupState?.updatedAt ?? null
+            : getLatestBoardTimestamp(preferredBoards);
 
-        if (normalizedBoards.length > 0 && !shouldPreferBackup) {
+        if (preferredBoards.length > 0) {
           const localActiveBoardId = latestActiveBoardIdRef.current;
           const remoteActiveBoardId =
-            localActiveBoardId && normalizedBoards.some((board) => board.id === localActiveBoardId)
+            localActiveBoardId && preferredBoards.some((board) => board.id === localActiveBoardId)
               ? localActiveBoardId
-              : normalizedBoards[0].id;
+              : preferredBoards[0].id;
           const nextActiveBoard =
-            normalizedBoards.find((board) => board.id === remoteActiveBoardId) ??
-            normalizedBoards[0];
+            preferredBoards.find((board) => board.id === remoteActiveBoardId) ??
+            preferredBoards[0];
 
           skipNextHistoryRef.current = true;
-          setBoards(normalizedBoards);
+          setBoards(preferredBoards);
           setActiveBoardId(remoteActiveBoardId);
           setColumns(nextActiveBoard.columns);
           skipNextHistoryRef.current = true;
           setCardsByColumn(nextActiveBoard.cardsByColumn);
-          setLastSavedAt(normalizedLatestTimestamp);
+          setLastSavedAt(preferredLatestTimestamp);
           setSaveState("saved");
           setHasLoadedRemoteState(true);
           return;
@@ -5186,7 +5237,7 @@ export function RankboardApp() {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 overflow-x-hidden overflow-y-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -5714,6 +5765,11 @@ export function RankboardApp() {
                     </div>
                   );
                 })}
+                {columns.length === 0 ? (
+                  <div className="flex min-h-[220px] w-full items-center justify-center">
+                    <AddColumnButton isDarkMode={isDarkMode} onClick={() => addColumnAt(0)} />
+                  </div>
+                ) : null}
               </div>
             </DndContext>
           </section>

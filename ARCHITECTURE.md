@@ -42,6 +42,7 @@
 
 - When both normalized rows and `board_states` exist, the app prefers the richer/newer source.
 - If normalized rows are suspiciously incomplete, the app hydrates from `board_states` and then attempts to repair normalized rows from that backup.
+- Recovery is evaluated per board, not just per account-wide snapshot, so one empty or partially saved board is less likely to override the rest.
 
 ## Media
 
