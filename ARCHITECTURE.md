@@ -60,6 +60,7 @@
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
+- The board switcher also exposes create/delete affordances for board-level management.
 
 ## Series Scraping
 

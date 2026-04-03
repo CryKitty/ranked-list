@@ -26,3 +26,5 @@
 - Added board deletion under Maintenance with an in-app confirmation modal.
 - Disabled Wikipedia-backed series scraping so the tool falls back to local heuristics and stops generating `429` errors.
 - Constrained the board shell/header so the desktop action bar stays anchored instead of drifting with the horizontal board lane.
+- Fixed import so it updates the active board snapshot itself, not just the currently visible columns/cards.
+- Added a clearer board deletion entry to the board switcher in addition to Maintenance.

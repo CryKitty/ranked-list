@@ -4475,27 +4475,44 @@ export function RankboardApp() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Importing a Trello board will replace the current board in this browser. Continue?",
-    );
-
-    if (!confirmed) {
-      event.target.value = "";
-      return;
-    }
-
     try {
       const fileText = await file.text();
       const importedBoard = parseTrelloBoardExport(fileText);
+      const nextBoards = latestBoardsRef.current.map((board) =>
+        board.id === activeBoardId
+          ? {
+              ...board,
+              columns: importedBoard.columns,
+              cardsByColumn: importedBoard.cardsByColumn,
+              updatedAt: new Date().toISOString(),
+            }
+          : board,
+      );
+      const nextActiveBoard =
+        nextBoards.find((board) => board.id === activeBoardId) ?? nextBoards[0];
+
+      latestBoardsRef.current = nextBoards;
+      latestColumnsRef.current = importedBoard.columns;
+      latestCardsByColumnRef.current = importedBoard.cardsByColumn;
       setColumns(importedBoard.columns);
       setCardsByColumn(importedBoard.cardsByColumn);
+      setBoards(nextBoards);
+      if (nextActiveBoard) {
+        latestActiveBoardIdRef.current = nextActiveBoard.id;
+        setActiveBoardId(nextActiveBoard.id);
+      }
       setSearchTerm("");
       setSeriesFilter("");
       setOpenColumnMenuId(null);
       cancelEditingCard();
       cancelEditingColumn();
       setIsImportModalOpen(false);
-      queuePersistBoardState();
+      void persistBoardState({
+        boards: nextBoards,
+        activeBoardId: nextActiveBoard?.id ?? activeBoardId,
+        columns: importedBoard.columns,
+        cardsByColumn: importedBoard.cardsByColumn,
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "The Trello export could not be imported.";
@@ -5226,6 +5243,19 @@ export function RankboardApp() {
                               <Plus className="h-4 w-4" />
                               New Board
                             </button>
+                            {boards.length > 1 ? (
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "text-rose-200 hover:bg-white/10" : "text-rose-700 hover:bg-slate-50",
+                                )}
+                                onClick={() => requestDeleteBoard()}
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete Board
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}
