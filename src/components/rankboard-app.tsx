@@ -1794,6 +1794,7 @@ export function RankboardApp() {
   const [pendingMirrorDelete, setPendingMirrorDelete] = useState<PendingMirrorDelete | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
+  const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -4250,6 +4251,55 @@ export function RankboardApp() {
     queuePersistBoardState();
   }
 
+  function requestDeleteBoard(boardId = activeBoardId) {
+    const board = boards.find((item) => item.id === boardId);
+
+    if (!board || boards.length <= 1) {
+      return;
+    }
+
+    setPendingBoardDelete(board);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    setIsMaintenanceMenuOpen(false);
+    setIsBoardsMenuOpen(false);
+  }
+
+  function confirmDeleteBoard() {
+    if (!pendingBoardDelete) {
+      return;
+    }
+
+    const remainingBoards = boards.filter((board) => board.id !== pendingBoardDelete.id);
+    const nextActiveBoard =
+      remainingBoards.find((board) => board.id === activeBoardId) ??
+      remainingBoards[0] ??
+      null;
+
+    if (!nextActiveBoard) {
+      setPendingBoardDelete(null);
+      return;
+    }
+
+    skipNextHistoryRef.current = true;
+    latestBoardsRef.current = remainingBoards;
+    latestActiveBoardIdRef.current = nextActiveBoard.id;
+    latestColumnsRef.current = nextActiveBoard.columns;
+    latestCardsByColumnRef.current = nextActiveBoard.cardsByColumn;
+    setBoards(remainingBoards);
+    setActiveBoardId(nextActiveBoard.id);
+    setColumns(nextActiveBoard.columns);
+    setCardsByColumn(nextActiveBoard.cardsByColumn);
+    setHistory([]);
+    setPendingBoardDelete(null);
+    void persistBoardState({
+      boards: remainingBoards,
+      activeBoardId: nextActiveBoard.id,
+      columns: nextActiveBoard.columns,
+      cardsByColumn: nextActiveBoard.cardsByColumn,
+    });
+  }
+
   function createColumnDefinition(nextIndex: number, title?: string): ColumnDefinition {
     return {
       id: makeId("column"),
@@ -4834,6 +4884,19 @@ export function RankboardApp() {
                               <WandSparkles className="h-4 w-4" />
                               Scrape Series
                             </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                boards.length <= 1 && "cursor-not-allowed opacity-50",
+                              )}
+                              disabled={boards.length <= 1}
+                              onClick={() => requestDeleteBoard()}
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete Board
+                            </button>
                           </div>
                         ) : null}
                       </div>
@@ -5140,6 +5203,19 @@ export function RankboardApp() {
                                   <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                                     <WandSparkles className="h-4 w-4" />
                                     Scrape Series
+                                  </button>
+                                  <button
+                                    className={clsx(
+                                      "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                      isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                      boards.length <= 1 && "cursor-not-allowed opacity-50",
+                                    )}
+                                    disabled={boards.length <= 1}
+                                    onClick={() => requestDeleteBoard()}
+                                    type="button"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete Board
                                   </button>
                                 </div>
                               ) : null}
@@ -7819,6 +7895,78 @@ export function RankboardApp() {
                     setIsSeriesScrapeLoading(false);
                     setSeriesScrapeScopeColumnId(undefined);
                   }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingBoardDelete ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingBoardDelete(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Maintenance
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Delete board?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    <strong>{pendingBoardDelete.title}</strong> and all of its columns, cards, and field values will be removed.
+                    This won&apos;t affect your other boards.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingBoardDelete(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-rose-500 text-white hover:bg-rose-400"
+                      : "bg-rose-600 text-white hover:bg-rose-500",
+                  )}
+                  onClick={confirmDeleteBoard}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Board
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingBoardDelete(null)}
                   type="button"
                 >
                   Cancel

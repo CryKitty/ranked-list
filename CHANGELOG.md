@@ -23,3 +23,4 @@
 - Made remote hydration compare boards individually so one incomplete board can’t wipe another healthy one.
 - Fixed empty boards so they still show an add-column entry point.
 - Let the main board shell overflow visibly again so the settings dropdown doesn’t get clipped.
+- Added board deletion under Maintenance with an in-app confirmation modal.

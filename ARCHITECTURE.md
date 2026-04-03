@@ -59,6 +59,7 @@
   - search / filter / undo / settings controls
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
+- Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 
 ## Important Notes
 
