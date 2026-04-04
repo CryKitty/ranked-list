@@ -34,6 +34,7 @@ import {
   Gamepad2,
   Heart,
   ImagePlus,
+  ListOrdered,
   LoaderCircle,
   MoveVertical,
   LogOut,
@@ -52,6 +53,7 @@ import {
   Tv,
   Upload,
   WandSparkles,
+  Wrench,
   X,
   Link2,
 } from "lucide-react";
@@ -974,6 +976,37 @@ function MenuSectionButton({
         {label}
       </span>
       <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
+    </button>
+  );
+}
+
+function ToggleSwitch({
+  enabled,
+  isDarkMode,
+  onClick,
+  ariaLabel,
+}: {
+  enabled: boolean;
+  isDarkMode: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      aria-label={ariaLabel}
+      className={clsx(
+        "relative inline-flex h-6 w-11 items-center rounded-full transition",
+        enabled ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      <span
+        className={clsx(
+          "inline-block h-5 w-5 transform rounded-full bg-white transition",
+          enabled ? "translate-x-5" : "translate-x-0.5",
+        )}
+      />
     </button>
   );
 }
@@ -4984,7 +5017,7 @@ export function RankboardApp() {
                       </div>
                       <div className="rounded-2xl">
                         <MenuSectionButton
-                          icon={<Trash2 className="h-4 w-4" />}
+                          icon={<Wrench className="h-4 w-4" />}
                           label="Maintenance"
                           isDarkMode={isDarkMode}
                           isOpen={isMaintenanceMenuOpen}
@@ -5287,14 +5320,24 @@ export function RankboardApp() {
                               />
                               {isCustomizationMenuOpen ? (
                                 <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
+                                  <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                     <span>Collapse Cards</span>
-                                    <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
-                                  </button>
-                                  <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })} type="button">
+                                    <ToggleSwitch
+                                      ariaLabel="Toggle Collapse Cards"
+                                      enabled={activeBoardSettings.collapseCards}
+                                      isDarkMode={isDarkMode}
+                                      onClick={toggleCollapseCardsSetting}
+                                    />
+                                  </div>
+                                  <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                     <span>Tier Highlights</span>
-                                    <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
-                                  </button>
+                                    <ToggleSwitch
+                                      ariaLabel="Toggle Tier Highlights"
+                                      enabled={activeBoardSettings.showTierHighlights}
+                                      isDarkMode={isDarkMode}
+                                      onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                                    />
+                                  </div>
                                   <button
                                     className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                     onClick={() => {
@@ -5312,7 +5355,7 @@ export function RankboardApp() {
                             </div>
                             <div className="rounded-2xl">
                               <MenuSectionButton
-                                icon={<Trash2 className="h-4 w-4" />}
+                                icon={<Wrench className="h-4 w-4" />}
                                 label="Maintenance"
                                 isDarkMode={isDarkMode}
                                 isOpen={isMaintenanceMenuOpen}
@@ -5654,6 +5697,35 @@ export function RankboardApp() {
                       ))}
                     </select>
                     <button
+                      aria-label="Share board"
+                      className={clsx(
+                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl border transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={shareActiveBoard}
+                      type="button"
+                      title="Share board"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      aria-label="Share board"
+                      className={clsx(
+                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl border transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={shareActiveBoard}
+                      type="button"
+                      title="Share board"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </button>
+                    <button
                       className={clsx(
                         "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
                         isDarkMode
@@ -5708,14 +5780,24 @@ export function RankboardApp() {
                             />
                             {isCustomizationMenuOpen ? (
                               <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={toggleCollapseCardsSetting} type="button">
+                                <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                   <span>Collapse Cards</span>
-                                  <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
-                                </button>
-                                <button className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })} type="button">
+                                  <ToggleSwitch
+                                    ariaLabel="Toggle Collapse Cards"
+                                    enabled={activeBoardSettings.collapseCards}
+                                    isDarkMode={isDarkMode}
+                                    onClick={toggleCollapseCardsSetting}
+                                  />
+                                </div>
+                                <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                   <span>Tier Highlights</span>
-                                  <span className="text-xs opacity-70">{activeBoardSettings.showTierHighlights ? "On" : "Off"}</span>
-                                </button>
+                                  <ToggleSwitch
+                                    ariaLabel="Toggle Tier Highlights"
+                                    enabled={activeBoardSettings.showTierHighlights}
+                                    isDarkMode={isDarkMode}
+                                    onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                                  />
+                                </div>
                                 <button
                                   className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                   onClick={() => {
@@ -5733,7 +5815,7 @@ export function RankboardApp() {
                           </div>
                           <div className="rounded-2xl">
                             <MenuSectionButton
-                              icon={<Trash2 className="h-4 w-4" />}
+                              icon={<Wrench className="h-4 w-4" />}
                               label="Maintenance"
                               isDarkMode={isDarkMode}
                               isOpen={isMaintenanceMenuOpen}
@@ -8627,8 +8709,16 @@ function BoardColumn({
                         onClick={() => onToggleDontRank(column.id)}
                         type="button"
                       >
-                        <span>{column.dontRank ? "Ranked View Off" : "Ranked View On"}</span>
-                        <span className="text-xs opacity-70">{column.dontRank ? "Don't Rank" : "Ranked"}</span>
+                        <span className="inline-flex items-center gap-2">
+                          <ListOrdered className="h-4 w-4" />
+                          Ranked
+                        </span>
+                        <ToggleSwitch
+                          ariaLabel={`Toggle ranked view for ${column.title}`}
+                          enabled={!column.dontRank}
+                          isDarkMode={isDarkMode}
+                          onClick={() => onToggleDontRank(column.id)}
+                        />
                       </button>
                       <div className="relative">
                         <button
@@ -8656,32 +8746,38 @@ function BoardColumn({
                                 : "border-slate-200 bg-white",
                             )}
                           >
-                            <button
+                            <div
                               className={clsx(
                                 "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
                               )}
-                              onClick={() => onSortCards(column.id, "title-asc")}
-                              type="button"
                             >
                               <span>A-Z</span>
-                              {getColumnSortMode(column) === "title-asc" ? <Check className="h-4 w-4" /> : null}
-                            </button>
-                            <button
+                              <ToggleSwitch
+                                ariaLabel={`Toggle A-Z sort for ${column.title}`}
+                                enabled={getColumnSortMode(column) === "title-asc"}
+                                isDarkMode={isDarkMode}
+                                onClick={() => onSortCards(column.id, "title-asc")}
+                              />
+                            </div>
+                            <div
                               className={clsx(
                                 "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
                               )}
-                              onClick={() => onSortCards(column.id, "title-desc")}
-                              type="button"
                             >
                               <span>Z-A</span>
-                              {getColumnSortMode(column) === "title-desc" ? <Check className="h-4 w-4" /> : null}
-                            </button>
+                              <ToggleSwitch
+                                ariaLabel={`Toggle Z-A sort for ${column.title}`}
+                                enabled={getColumnSortMode(column) === "title-desc"}
+                                isDarkMode={isDarkMode}
+                                onClick={() => onSortCards(column.id, "title-desc")}
+                              />
+                            </div>
                           </div>
                         ) : null}
                       </div>
@@ -9357,34 +9453,6 @@ function CardTile({
 
         {onDelete ? (
           <>
-            {onMove ? (
-              <button
-                className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onMove();
-                }}
-                onPointerDown={(event) => event.stopPropagation()}
-                type="button"
-                aria-label={`Move ${card.title}`}
-              >
-                <MoveVertical className="h-4 w-4" />
-              </button>
-            ) : null}
-            {onCopy ? (
-              <button
-                className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onCopy();
-                }}
-                onPointerDown={(event) => event.stopPropagation()}
-                type="button"
-                aria-label={`Copy ${card.title}`}
-              >
-                <Copy className="h-4 w-4" />
-              </button>
-            ) : null}
             <div className="relative">
               <button
                 className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
@@ -9400,8 +9468,36 @@ function CardTile({
               </button>
               {showCardActionsMenu ? (
                 <div className="absolute right-0 top-11 z-20 flex min-w-[120px] flex-col rounded-2xl bg-slate-950/95 p-2 text-sm text-white shadow-[0_18px_40px_rgba(15,23,42,0.24)] backdrop-blur">
+                  {onMove ? (
+                    <button
+                      className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowCardActionsMenu(false);
+                        onMove();
+                      }}
+                      type="button"
+                    >
+                      <MoveVertical className="h-4 w-4" />
+                      Move
+                    </button>
+                  ) : null}
+                  {onCopy ? (
+                    <button
+                      className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowCardActionsMenu(false);
+                        onCopy();
+                      }}
+                      type="button"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </button>
+                  ) : null}
                   <button
-                    className="rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
                     onClick={(event) => {
                       event.stopPropagation();
                       setShowCardActionsMenu(false);
@@ -9409,6 +9505,7 @@ function CardTile({
                     }}
                     type="button"
                   >
+                    <Trash2 className="h-4 w-4" />
                     Delete
                   </button>
                 </div>

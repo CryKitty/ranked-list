@@ -13,6 +13,11 @@
 - Widened the board-creation modal and improved safe-area theming for iOS Safari.
 - Added v1 public sharing with read-only `/share/[slug]` board links.
 - Added share metadata to normalized boards and schema updates for public board reads.
+- Replaced several text-based on/off states with consistent switch-style toggles in board and column settings.
+- Changed the column ranked-state control to a `Ranked` row with icon + toggle.
+- Changed persistent A-Z / Z-A sort indicators from checkmarks to switch-style toggles.
+- Added a visible icon-only share button in the board header.
+- Simplified on-card hover actions to `Edit` plus a `Settings` menu that nests move, copy, and delete.
 - Moved live persistence toward normalized Supabase tables and kept `board_states` as backup/migration compatibility storage.
 - Added automatic migration support from snapshot backups into normalized board rows.
 - Added inline `+` affordances between columns for easier column insertion.

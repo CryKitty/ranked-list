@@ -70,12 +70,18 @@
   - board switcher icon
   - board title + rename control
   - desktop save-status indicator
-  - search / filter / undo / settings controls
+  - search / filter / share / undo / settings controls
 - Cards expose action affordances for edit, move, copy, and settings-driven delete.
+- Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
+
+## Toggle Language
+
+- Switch-style toggles are the preferred design language for binary settings.
+- Column-level ranking and persistent sort modes now use the same visual toggle model as field/front-display controls.
 
 ## Public Sharing v1
 
