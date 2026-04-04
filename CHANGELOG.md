@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-04
+
+- Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
+- Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
+- Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.
+- Widened the board-creation modal so field controls no longer overlap in normal desktop sizing.
+- Simplified card hover actions so cards now show only `Edit` on hover.
+- Kept `Move`, `Copy`, `Delete`, and `Fields` inside the card edit modal, where they are easier to understand and less fragile than the old card settings flyout.
+- Made card copy-from-edit close the edit modal and open the add-card draft flow immediately.
+
 ## 2026-04-03
 
 - Hardened active-board restoration so refresh and remote hydration prefer the last board the user was actually on.

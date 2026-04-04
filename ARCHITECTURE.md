@@ -2,7 +2,9 @@
 
 ## App Shape
 
-- Main UI: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx)
+- Main UI entrypoint: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx)
+- Main UI implementation: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx)
+- Safety backup from before the split: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx)
 - Types: [`/Users/avarycooney/Documents/Playground/src/lib/types.ts`](/Users/avarycooney/Documents/Playground/src/lib/types.ts)
 - Trello import: [`/Users/avarycooney/Documents/Playground/src/lib/trello-import.ts`](/Users/avarycooney/Documents/Playground/src/lib/trello-import.ts)
 - Supabase browser/server clients:
@@ -101,5 +103,11 @@
 
 ## Important Notes
 
-- The app still has a large main UI component, so persistence and media helpers live in lib files to keep the core logic from getting even more tangled.
-- Future work should continue moving mutation-specific persistence out of the component and into smaller repository-style helpers.
+- The public board component entrypoint is intentionally tiny now; the large implementation lives in `rankboard-app-impl.tsx`.
+- This is a first-stage reorganization, not a full decomposition. The big implementation file still contains too much UI and state logic, but the split makes future refactors safer because imports and app routes now point at a stable wrapper.
+- The next cleanups should target extracting:
+  - card/editor modal sections
+  - column lane / column menu sections
+  - maintenance/import/export modals
+  - board settings / creation flows
+- Persistence and media helpers should continue living in lib files instead of expanding the implementation file further.
