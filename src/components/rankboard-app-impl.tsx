@@ -29,11 +29,9 @@ import {
   CheckCheck,
   CircleDashed,
   Clapperboard,
-  Copy,
   Edit3,
   Gamepad2,
   Heart,
-  ImagePlus,
   ListOrdered,
   LoaderCircle,
   MoveVertical,
@@ -57,6 +55,12 @@ import {
   X,
   Link2,
 } from "lucide-react";
+import {
+  FieldDefinitionManager,
+  MenuSectionButton,
+  ToggleSwitch,
+} from "@/components/rankboard-fields";
+import { AddCardDialog, BoardSetupDialog, EditCardDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
@@ -66,18 +70,7 @@ import {
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import {
-  BoardFieldDefinition,
-  BoardSettings,
-  BoardSnapshot,
-  CardEntry,
-  CardFieldType,
-  ColumnSortMode,
-  ColumnDefinition,
-  DateFieldFormat,
-  SaveState,
-  SavedBoard,
-} from "@/lib/types";
+import { BoardFieldDefinition, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, SaveState, SavedBoard } from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -949,483 +942,6 @@ function renderBoardKindIcon(iconKey: BoardIconKey, className?: string) {
   }
 }
 
-function MenuSectionButton({
-  icon,
-  label,
-  isOpen,
-  isDarkMode,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  isOpen: boolean;
-  isDarkMode: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={clsx(
-        "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-        isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-      )}
-      onClick={onClick}
-      type="button"
-    >
-      <span className="inline-flex items-center gap-2">
-        {icon}
-        {label}
-      </span>
-      <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
-    </button>
-  );
-}
-
-function ToggleSwitch({
-  enabled,
-  isDarkMode,
-  onClick,
-  ariaLabel,
-}: {
-  enabled: boolean;
-  isDarkMode: boolean;
-  onClick: () => void;
-  ariaLabel: string;
-}) {
-  return (
-    <button
-      aria-label={ariaLabel}
-      className={clsx(
-        "relative inline-flex h-6 w-11 items-center rounded-full transition",
-        enabled ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
-      )}
-      onClick={onClick}
-      type="button"
-    >
-      <span
-        className={clsx(
-          "inline-block h-5 w-5 transform rounded-full bg-white transition",
-          enabled ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
-
-function HoverLabelIconButton({
-  icon,
-  label,
-  isDarkMode,
-  onClick,
-  type = "button",
-  disabled = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  isDarkMode: boolean;
-  onClick: () => void;
-  type?: "button" | "submit";
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      className={clsx(
-        "group inline-flex h-[50px] items-center gap-2 overflow-hidden rounded-full border px-3 transition",
-        isDarkMode
-          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 disabled:opacity-60"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:opacity-60",
-      )}
-      disabled={disabled}
-      onClick={onClick}
-      type={type}
-    >
-      <span className="shrink-0">{icon}</span>
-      <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-150 group-hover:max-w-[120px] group-hover:opacity-100 group-focus-visible:max-w-[120px] group-focus-visible:opacity-100">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function FieldSettingsPanel({
-  isDarkMode,
-  fieldDefinitions,
-  onToggleField,
-}: {
-  isDarkMode: boolean;
-  fieldDefinitions: BoardFieldDefinition[];
-  onToggleField: (fieldId: string) => void;
-}) {
-  return (
-    <div
-      className={clsx(
-        "min-w-[220px] rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
-        isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
-      )}
-    >
-      {fieldDefinitions.map((field) => (
-        <button
-          key={field.id}
-          className={clsx(
-            "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-            isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-          )}
-          onClick={() => onToggleField(field.id)}
-          type="button"
-        >
-          <span>{field.label}</span>
-          <span className="text-xs opacity-70">{field.visible ? "On" : "Off"}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function FieldDefinitionManager({
-  isDarkMode,
-  fieldDefinitions,
-  onToggleVisibility,
-  onUpdateField,
-  onRemoveField,
-  onAddField,
-}: {
-  isDarkMode: boolean;
-  fieldDefinitions: BoardFieldDefinition[];
-  onToggleVisibility: (fieldId: string) => void;
-  onUpdateField: (fieldId: string, patch: Partial<BoardFieldDefinition>) => void;
-  onRemoveField: (fieldId: string) => void;
-  onAddField: (type: CardFieldType) => void;
-}) {
-  const mandatoryFieldIds = new Set(["series", "artwork"]);
-  const [openFieldSettingsId, setOpenFieldSettingsId] = useState<string | null>(null);
-  const [pendingFieldRemoval, setPendingFieldRemoval] = useState<BoardFieldDefinition | null>(null);
-
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-3">
-        {[
-          ...fieldDefinitions.filter((field) => field.builtInKey === "series" || field.builtInKey === "imageUrl"),
-          ...fieldDefinitions.filter((field) => field.builtInKey !== "series" && field.builtInKey !== "imageUrl"),
-        ].map((field) => (
-          <div
-            key={field.id}
-            className={clsx(
-              "rounded-2xl border p-4",
-              isDarkMode ? "border-white/10 bg-slate-950/60" : "border-slate-200 bg-slate-50",
-            )}
-          >
-            <div
-              className={clsx(
-                "grid gap-2 sm:items-center",
-                field.builtInKey === "series" || field.builtInKey === "imageUrl"
-                  ? "sm:grid-cols-[220px_minmax(0,1fr)]"
-                  : "sm:grid-cols-[220px_136px_minmax(0,1fr)]",
-              )}
-            >
-              <input
-                className={clsx(
-                  "min-w-0 whitespace-nowrap rounded-xl border px-3 py-2 text-sm outline-none transition",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                )}
-                value={field.label}
-                onChange={(event) => onUpdateField(field.id, { label: event.target.value })}
-                placeholder="Field label"
-              />
-              {field.builtInKey === "series" || field.builtInKey === "imageUrl" ? null : (
-                <select
-                  className={clsx(
-                    "w-[136px] rounded-xl border px-3 py-2 text-sm outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-900 text-white focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                  )}
-                  value={field.type}
-                  onChange={(event) => onUpdateField(field.id, { type: event.target.value as CardFieldType })}
-                >
-                  <option value="short_text">Short Text</option>
-                  <option value="long_text">Long Text</option>
-                  <option value="date">Date</option>
-                  <option value="select">Dropdown</option>
-                </select>
-              )}
-              <div className="flex min-w-0 items-center justify-end gap-3 justify-self-end">
-                {!mandatoryFieldIds.has(field.id) ? (
-                  <button
-                    className={clsx(
-                      "inline-flex items-center justify-center self-stretch rounded-xl border px-3 py-2 text-sm font-semibold transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/40"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                    )}
-                    onClick={() =>
-                      setOpenFieldSettingsId((current) => (current === field.id ? null : field.id))
-                    }
-                    type="button"
-                    aria-label={`Open settings for ${field.label}`}
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </button>
-                ) : null}
-                <button
-                  className={clsx(
-                    "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
-                  )}
-                  onClick={() => onToggleVisibility(field.id)}
-                  type="button"
-                >
-                  <span>{field.visible ? "Enabled" : "Disabled"}</span>
-                  <span
-                    className={clsx(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                      field.visible ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
-                    )}
-                  >
-                    <span
-                      className={clsx(
-                        "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                        field.visible ? "translate-x-5" : "translate-x-0.5",
-                      )}
-                    />
-                  </span>
-                </button>
-                {field.visible && mandatoryFieldIds.has(field.id) ? (
-                  <button
-                    className={clsx(
-                      "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-1 py-2 text-sm font-semibold transition",
-                    )}
-                    onClick={() =>
-                      onUpdateField(field.id, {
-                        showOnCardFront: !field.showOnCardFront,
-                      })
-                    }
-                    type="button"
-                  >
-                    <span>Front</span>
-                    <span
-                      className={clsx(
-                        "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                        field.showOnCardFront ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
-                      )}
-                    >
-                      <span
-                        className={clsx(
-                          "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                          field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
-                        )}
-                      />
-                    </span>
-                  </button>
-                ) : null}
-                {mandatoryFieldIds.has(field.id) ? null : (
-                  <button
-                    className={clsx(
-                      "inline-flex items-center justify-center rounded-xl border p-2 transition",
-                      isDarkMode
-                        ? "border-rose-400/30 text-rose-200 hover:border-rose-300"
-                        : "border-rose-200 text-rose-700 hover:border-rose-500",
-                    )}
-                    onClick={() => setPendingFieldRemoval(field)}
-                    type="button"
-                    aria-label={`Remove ${field.label}`}
-                    title={`Remove ${field.label}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            {!mandatoryFieldIds.has(field.id) && openFieldSettingsId === field.id ? (
-              <div
-                className={clsx(
-                  "mt-3 grid gap-3 rounded-2xl border p-3 sm:grid-cols-[200px_auto_auto]",
-                  isDarkMode ? "border-white/10 bg-slate-900/80" : "border-slate-200 bg-white",
-                )}
-              >
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-self-start gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
-                  )}
-                  onClick={() =>
-                    onUpdateField(field.id, {
-                      showOnCardFront: !field.showOnCardFront,
-                    })
-                  }
-                  type="button"
-                >
-                  <span>Front</span>
-                  <span
-                    className={clsx(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                      field.showOnCardFront
-                        ? "bg-emerald-500"
-                        : isDarkMode
-                          ? "bg-white/15"
-                          : "bg-slate-300",
-                    )}
-                  >
-                    <span
-                      className={clsx(
-                        "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                        field.showOnCardFront ? "translate-x-5" : "translate-x-0.5",
-                      )}
-                    />
-                  </span>
-                </button>
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-self-start gap-3 rounded-xl px-1 py-2 text-sm font-semibold transition sm:self-end",
-                  )}
-                  onClick={() =>
-                    onUpdateField(field.id, {
-                      showLabelOnCardFront: !(field.showLabelOnCardFront ?? true),
-                    })
-                  }
-                  type="button"
-                >
-                  <span>Label</span>
-                  <span
-                    className={clsx(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                      field.showLabelOnCardFront ?? true
-                        ? "bg-emerald-500"
-                        : isDarkMode
-                          ? "bg-white/15"
-                          : "bg-slate-300",
-                    )}
-                  >
-                    <span
-                      className={clsx(
-                        "inline-block h-5 w-5 transform rounded-full bg-white transition",
-                        field.showLabelOnCardFront ?? true ? "translate-x-5" : "translate-x-0.5",
-                      )}
-                    />
-                  </span>
-                </button>
-                {field.type === "date" ? (
-                  <label className="grid gap-2 sm:col-span-3">
-                    <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">
-                      Date format
-                    </span>
-                    <select
-                      className={clsx(
-                        "w-[180px] rounded-xl border px-3 py-2 text-sm outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                      )}
-                      value={field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT}
-                      onChange={(event) =>
-                        onUpdateField(field.id, { dateFormat: event.target.value as DateFieldFormat })
-                      }
-                    >
-                      <option value="mm/dd/yyyy">mm/dd/yyyy</option>
-                      <option value="dd/mm/yyyy">dd/mm/yyyy</option>
-                      <option value="yyyy">yyyy</option>
-                    </select>
-                  </label>
-                ) : null}
-              </div>
-            ) : null}
-            {field.type === "select" ? (
-              <input
-                className={clsx(
-                  "mt-3 w-full rounded-xl border px-3 py-2 text-sm outline-none transition",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-900 text-white placeholder:text-slate-500 focus:border-white/40"
-                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                )}
-                value={(field.options ?? []).join(", ")}
-                onChange={(event) =>
-                  onUpdateField(field.id, {
-                    options: event.target.value
-                      .split(",")
-                      .map((option) => option.trim())
-                      .filter(Boolean),
-                  })
-                }
-                placeholder="Dropdown options, comma separated"
-              />
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("short_text")} type="button">
-          Add Short Text
-        </button>
-        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("long_text")} type="button">
-          Add Long Text
-        </button>
-        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("date")} type="button">
-          Add Date
-        </button>
-        <button className={clsx("rounded-xl border px-3 py-2 text-sm font-semibold transition", isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950")} onClick={() => onAddField("select")} type="button">
-          Add Dropdown
-        </button>
-      </div>
-      {pendingFieldRemoval ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setPendingFieldRemoval(null)}
-        >
-          <div
-            className={clsx(
-              "w-full max-w-md rounded-[28px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
-              isDarkMode
-                ? "border-white/10 bg-slate-900 text-slate-100"
-                : "border-white/70 bg-white text-slate-950",
-            )}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className={clsx("text-sm font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-              Delete Field
-            </p>
-            <h3 className={clsx("mt-3 text-2xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-              Remove {pendingFieldRemoval.label}?
-            </h3>
-            <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-              This will also delete the saved values from every card that uses this field.
-            </p>
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                className={clsx(
-                  "rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                  isDarkMode
-                    ? "bg-white/10 text-white hover:bg-white/15"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                )}
-                onClick={() => setPendingFieldRemoval(null)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className={clsx(
-                  "rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                  isDarkMode
-                    ? "bg-rose-500 text-white hover:bg-rose-400"
-                    : "bg-rose-600 text-white hover:bg-rose-500",
-                )}
-                onClick={() => {
-                  setOpenFieldSettingsId((current) =>
-                    current === pendingFieldRemoval.id ? null : current,
-                  );
-                  onRemoveField(pendingFieldRemoval.id);
-                  setPendingFieldRemoval(null);
-                }}
-                type="button"
-              >
-                Delete Field
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 function normalizeTitleForComparison(title: string) {
   return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
@@ -6128,890 +5644,207 @@ function copyCardToDraft(card: CardEntry) {
           </section>
         </section>
 
-        {editingCardId && editingCardDraft ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            onClick={cancelEditingCard}
-          >
-            <div
-              className={clsx(
-                "relative w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
-                isDarkMode
-                  ? "border-white/10 bg-slate-900 text-slate-100"
-                  : "border-white/70 bg-white text-slate-950",
-              )}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p
-                    className={clsx(
-                      "text-sm font-semibold uppercase tracking-[0.24em]",
-                      isDarkMode ? "text-slate-400" : "text-slate-500",
-                    )}
-                  >
-                    Edit Game
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Update card details
-                  </h2>
-                  {Object.values(cardsByColumn)
-                    .flat()
-                    .find((card) => card.entryId === editingCardId)?.mirroredFromEntryId ? (
-                    <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                      This entry is a mirrored copy linked to another column.
-                    </p>
-                  ) : null}
-                </div>
-                <button
-                  className={clsx(
-                    "rounded-full p-2 transition",
-                    isDarkMode
-                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                  )}
-                  onClick={cancelEditingCard}
-                  type="button"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+        <EditCardDialog
+          activeBoardFieldDefinitions={activeBoardFieldDefinitions}
+          currentCardIsMirrored={Boolean(
+            editingCardId &&
+              Object.values(cardsByColumn)
+                .flat()
+                .find((card) => card.entryId === editingCardId)?.mirroredFromEntryId,
+          )}
+          defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
+          editArtworkInputRef={editArtworkInputRef}
+          editingCardDraft={editingCardDraft}
+          editingCardId={editingCardId}
+          editingDuplicateAction={editingDuplicateAction}
+          imageFieldLabel={imageFieldLabel}
+          isDarkMode={isDarkMode}
+          isEditFieldSettingsOpen={isEditFieldSettingsOpen}
+          isOpen={Boolean(editingCardId && editingCardDraft)}
+          isUploadingArtwork={isUploadingArtwork}
+          notesFieldLabel={notesFieldLabel}
+          onArtworkFileSelection={(event) => {
+            void handleArtworkFileSelection("edit", event);
+          }}
+          onClose={cancelEditingCard}
+          onCopy={() => {
+            const currentCard = editingCardId
+              ? Object.values(cardsByColumn)
+                  .flat()
+                  .find((card) => card.entryId === editingCardId)
+              : null;
+            if (currentCard) {
+              copyCardToDraft(currentCard);
+            }
+          }}
+          onCustomFieldChange={(fieldId, value) =>
+            setEditingCardDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    customFields: {
+                      ...current.customFields,
+                      [fieldId]: value,
+                    },
+                  }
+                : current,
+            )
+          }
+          onDelete={() => {
+            if (editingCardId) {
+              const columnId = findColumnIdForEntry(editingCardId);
+              if (columnId) {
+                handleDeleteCard(columnId, editingCardId);
+              }
+            }
+          }}
+          onImageUrlChange={(value) => {
+            setEditingDuplicateAction(null);
+            setEditingCardDraft((current) =>
+              current ? { ...current, imageUrl: value, imageStoragePath: undefined } : current,
+            );
+          }}
+          onMove={() => {
+            const currentCard = editingCardId
+              ? Object.values(cardsByColumn)
+                  .flat()
+                  .find((card) => card.entryId === editingCardId)
+              : null;
+            if (currentCard) {
+              openMoveCardModal(currentCard);
+            }
+          }}
+          onNotesChange={(value) =>
+            setEditingCardDraft((current) =>
+              current ? { ...current, notes: value } : current,
+            )
+          }
+          onOpenGifSearch={() => autofillEditingCardImage("gif")}
+          onOpenImageSearch={() => autofillEditingCardImage("image")}
+          onOpenUploadPicker={() => openArtworkUploadPicker("edit")}
+          onReleaseYearChange={(value) =>
+            setEditingCardDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    releaseYear: value.replace(/[^\d]/g, "").slice(0, 4),
+                  }
+                : current,
+            )
+          }
+          onResolveDuplicate={resolveEditingDuplicate}
+          onSeriesChange={(value) => {
+            setEditingDuplicateAction(null);
+            setEditingCardDraft((current) =>
+              current ? { ...current, series: value } : current,
+            );
+          }}
+          onSubmit={handleEditingCardSubmit}
+          onTitleChange={(value) => {
+            setEditingDuplicateAction(null);
+            setEditingCardDraft((current) =>
+              current ? { ...current, title: value } : current,
+            );
+          }}
+          onToggleFieldSettings={() => setIsEditFieldSettingsOpen((current) => !current)}
+          onToggleFieldVisibility={toggleActiveBoardFieldVisibility}
+          releaseYearFieldLabel={releaseYearFieldLabel}
+          seriesFieldLabel={seriesFieldLabel}
+          shouldShowImageField={shouldShowImageField}
+          shouldShowNotesField={shouldShowNotesField}
+          shouldShowReleaseYearField={shouldShowReleaseYearField}
+          shouldShowSeriesField={shouldShowSeriesField}
+          visibleCustomFieldDefinitions={visibleCustomFieldDefinitions}
+          normalizeDateFieldInput={normalizeDateFieldInput}
+        />
 
-              <form className="mt-6" onSubmit={handleEditingCardSubmit}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
-                  <input
-                    name="title"
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    value={editingCardDraft.title}
-                    onChange={(event) =>
-                      {
-                        setEditingDuplicateAction(null);
-                        setEditingCardDraft((current) =>
-                          current ? { ...current, title: event.target.value } : current,
-                        );
-                      }
-                    }
-                  />
-                </label>
-
-                {shouldShowSeriesField ? (
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{seriesFieldLabel}</span>
-                    <input
-                      name="series"
-                      list="series-suggestions"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      value={editingCardDraft.series}
-                      onChange={(event) =>
-                        {
-                          setEditingDuplicateAction(null);
-                          setEditingCardDraft((current) =>
-                            current ? { ...current, series: event.target.value } : current,
-                          );
-                        }
-                      }
-                    />
-                  </label>
-                ) : null}
-
-                {shouldShowReleaseYearField ? (
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{releaseYearFieldLabel}</span>
-                    <input
-                      name="releaseYear"
-                      inputMode="numeric"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      placeholder="2025"
-                      value={editingCardDraft.releaseYear}
-                      onChange={(event) =>
-                        setEditingCardDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                  </label>
-                ) : null}
-              </div>
-
-              {shouldShowImageField ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      {imageFieldLabel}
-                    </span>
-                    <input
-                      name="imageUrl"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      value={editingCardDraft.imageUrl}
-                      onChange={(event) =>
-                        {
-                          setEditingDuplicateAction(null);
-                          setEditingCardDraft((current) =>
-                            current ? { ...current, imageUrl: event.target.value, imageStoragePath: undefined } : current,
-                          );
-                        }
-                      }
-                    />
-                  </label>
-                  <input
-                    ref={editArtworkInputRef}
-                    accept="image/*,.gif"
-                    className="hidden"
-                    onChange={(event) => {
-                      void handleArtworkFileSelection("edit", event);
-                    }}
-                    type="file"
-                  />
-
-                  <button
-                    className={clsx(
-                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                    )}
-                    onClick={() => autofillEditingCardImage("image")}
-                    type="button"
-                    title="Search Google Images in a new tab"
-                  >
-                    <ImagePlus className="h-4 w-4" />
-                    Image
-                  </button>
-                  <button
-                    className={clsx(
-                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                    )}
-                    onClick={() => autofillEditingCardImage("gif")}
-                    type="button"
-                    title="Search Tenor in a new tab"
-                  >
-                    <Clapperboard className="h-4 w-4" />
-                    GIF
-                  </button>
-                  <button
-                    className={clsx(
-                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:opacity-60"
-                        : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:opacity-60",
-                    )}
-                    disabled={isUploadingArtwork}
-                    onClick={() => openArtworkUploadPicker("edit")}
-                    type="button"
-                    title="Upload artwork from your device"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload
-                  </button>
-                </div>
-              ) : null}
-
-              {shouldShowNotesField ? (
-                <label className="mt-4 grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{notesFieldLabel}</span>
-                  <textarea
-                    name="notes"
-                    className={clsx(
-                      "min-h-32 rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    value={editingCardDraft.notes}
-                    onChange={(event) =>
-                      setEditingCardDraft((current) =>
-                        current ? { ...current, notes: event.target.value } : current,
-                      )
-                    }
-                  />
-                </label>
-              ) : null}
-
-              {visibleCustomFieldDefinitions.map((field) => (
-                <label key={field.id} className="mt-4 grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{field.label}</span>
-                  {field.type === "long_text" ? (
-                    <textarea
-                      className={clsx(
-                        "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      value={editingCardDraft.customFields[field.id] ?? ""}
-                      onChange={(event) =>
-                        setEditingCardDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                customFields: {
-                                  ...current.customFields,
-                                  [field.id]: event.target.value,
-                                },
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                  ) : field.type === "select" ? (
-                    <select
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                      )}
-                      value={editingCardDraft.customFields[field.id] ?? ""}
-                      onChange={(event) =>
-                        setEditingCardDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                customFields: {
-                                  ...current.customFields,
-                                  [field.id]: event.target.value,
-                                },
-                              }
-                            : current,
-                        )
-                      }
-                    >
-                      <option value="">Select one</option>
-                      {(field.options ?? []).map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      inputMode={field.type === "date" ? "numeric" : undefined}
-                      placeholder={field.type === "date" ? (field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT) : undefined}
-                      type="text"
-                      value={editingCardDraft.customFields[field.id] ?? ""}
-                      onChange={(event) =>
-                        setEditingCardDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                customFields: {
-                                  ...current.customFields,
-                                  [field.id]:
-                                    field.type === "date"
-                                      ? normalizeDateFieldInput(
-                                          event.target.value,
-                                          field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT,
-                                        )
-                                      : event.target.value,
-                                },
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                  )}
-                </label>
-              ))}
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  className={clsx(
-                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "bg-white text-slate-950 hover:bg-slate-200"
-                      : "bg-slate-950 text-white hover:bg-slate-800",
-                  )}
-                  type="submit"
-                >
-                  <Save className="h-4 w-4" />
-                  Save Changes
-                </button>
-                {editingDuplicateAction ? (
-                  <div
-                    className={clsx(
-                      "flex min-w-full flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm",
-                      isDarkMode
-                        ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-                        : "border-amber-300 bg-amber-50 text-amber-900",
-                    )}
-                    >
-                      <span className="mr-2">
-                        &quot;{editingDuplicateAction.match.card.title}&quot; already exists in
-                        &nbsp;&quot;{editingDuplicateAction.match.column.title}&quot;.
-                      </span>
-                    <button
-                      className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
-                      onClick={() => resolveEditingDuplicate("discard")}
-                      type="button"
-                    >
-                      Discard
-                    </button>
-                    <button
-                      className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
-                      onClick={() => resolveEditingDuplicate("update")}
-                      type="button"
-                    >
-                      Update Original
-                    </button>
-                    <button
-                      className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
-                      onClick={() => resolveEditingDuplicate("duplicate")}
-                      type="button"
-                    >
-                      Allow Duplicate
-                    </button>
-                  </div>
-                ) : null}
-                <button
-                  className={clsx(
-                    "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={cancelEditingCard}
-                  type="button"
-                >
-                  <X className="h-4 w-4" />
-                  Cancel
-                </button>
-                <div className="relative flex flex-wrap gap-3">
-                  <HoverLabelIconButton
-                    icon={<MoveVertical className="h-4 w-4" />}
-                    isDarkMode={isDarkMode}
-                    label="Move"
-                    onClick={() => {
-                      const currentCard = Object.values(cardsByColumn)
-                        .flat()
-                        .find((card) => card.entryId === editingCardId);
-                      if (currentCard) {
-                        openMoveCardModal(currentCard);
-                      }
-                    }}
-                  />
-                  <HoverLabelIconButton
-                    icon={<Copy className="h-4 w-4" />}
-                    isDarkMode={isDarkMode}
-                    label="Copy"
-                    onClick={() => {
-                      const currentCard = Object.values(cardsByColumn)
-                        .flat()
-                        .find((card) => card.entryId === editingCardId);
-                      if (currentCard) {
-                        copyCardToDraft(currentCard);
-                      }
-                    }}
-                  />
-                  <HoverLabelIconButton
-                    icon={<Trash2 className="h-4 w-4" />}
-                    isDarkMode={isDarkMode}
-                    label="Delete"
-                    onClick={() => {
-                      if (editingCardId) {
-                        const columnId = findColumnIdForEntry(editingCardId);
-                        if (columnId) {
-                          handleDeleteCard(columnId, editingCardId);
-                        }
-                      }
-                    }}
-                  />
-                  <HoverLabelIconButton
-                    icon={<Settings2 className="h-4 w-4" />}
-                    isDarkMode={isDarkMode}
-                    label="Fields"
-                    onClick={() => setIsEditFieldSettingsOpen((current) => !current)}
-                  />
-                  {isEditFieldSettingsOpen ? (
-                    <div className="absolute bottom-14 right-0 z-10">
-                      <FieldSettingsPanel
-                        isDarkMode={isDarkMode}
-                        fieldDefinitions={activeBoardFieldDefinitions}
-                        onToggleField={toggleActiveBoardFieldVisibility}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              </form>
-            </div>
-          </div>
-        ) : null}
-
-        {addCardTarget ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            onClick={closeAddGameModal}
-          >
-            <div
-              className={clsx(
-                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
-                isDarkMode
-                  ? "border-white/10 bg-slate-900 text-slate-100"
-                  : "border-white/70 bg-white text-slate-950",
-              )}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    {`Add ${boardVocabulary.singular}`}
-                  </h2>
-                </div>
-                <button
-                  className={clsx(
-                    "rounded-full p-2 transition",
-                    isDarkMode
-                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                  )}
-                  onClick={closeAddGameModal}
-                  type="button"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <form className="mt-6 grid gap-4" onSubmit={handleDraftSubmit}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
-                    <input
-                      name="title"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      placeholder={boardVocabulary.titleExamples}
-                      value={draft.title}
-                      onChange={(event) => {
-                        setDraftDuplicateAction(null);
-                        setDraft((current) => ({ ...current, title: event.target.value }));
-                      }}
-                      />
-                    </label>
-
-                  {shouldShowSeriesField ? (
-                    <label className="grid gap-2">
-                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{seriesFieldLabel}</span>
-                      <input
-                        name="series"
-                        list="series-suggestions"
-                        className={clsx(
-                          "rounded-2xl border px-4 py-3 outline-none transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                        )}
-                        placeholder={boardVocabulary.seriesExamples}
-                        value={draft.series}
-                        onChange={(event) => {
-                          setDraftDuplicateAction(null);
-                          setDraft((current) => ({ ...current, series: event.target.value }));
-                        }}
-                      />
-                  </label>
-                ) : null}
-
-                {shouldShowReleaseYearField ? (
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{releaseYearFieldLabel}</span>
-                    <input
-                      name="releaseYear"
-                      inputMode="numeric"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      placeholder="2025"
-                      value={draft.releaseYear}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4),
-                        }))
-                      }
-                    />
-                  </label>
-                ) : null}
-                </div>
-
-                {shouldShowImageField ? (
-                  <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
-                    <label className="grid gap-2">
-                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                        {imageFieldLabel}
-                      </span>
-                      <div className="relative">
-                        <ImagePlus
-                          className={clsx(
-                            "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
-                            isDarkMode ? "text-slate-500" : "text-slate-400",
-                          )}
-                        />
-                        <input
-                          name="imageUrl"
-                          className={clsx(
-                            "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                          )}
-                          placeholder="Enter the URL of the image or GIF, or upload one from your device."
-                          value={draft.imageUrl}
-                          onChange={(event) => {
-                            setDraftDuplicateAction(null);
-                            setDraft((current) => ({
-                              ...current,
-                              imageUrl: event.target.value,
-                              imageStoragePath: undefined,
-                            }));
-                          }}
-                        />
-                      </div>
-                    </label>
-                    <input
-                      ref={addArtworkInputRef}
-                      accept="image/*,.gif"
-                      className="hidden"
-                      onChange={(event) => {
-                        void handleArtworkFileSelection("draft", event);
-                      }}
-                      type="file"
-                    />
-
-                    <button
-                      className={clsx(
-                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                      )}
-                      onClick={() => handleAutofillDraftImage("image")}
-                      type="button"
-                      title="Search Google Images in a new tab"
-                    >
-                      <ImagePlus className="h-4 w-4" />
-                      Image
-                    </button>
-                    <button
-                      className={clsx(
-                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                      )}
-                      onClick={() => handleAutofillDraftImage("gif")}
-                      type="button"
-                      title="Search Tenor in a new tab"
-                    >
-                      <Clapperboard className="h-4 w-4" />
-                      GIF
-                    </button>
-                    <button
-                      className={clsx(
-                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:opacity-60"
-                          : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:opacity-60",
-                      )}
-                      disabled={isUploadingArtwork}
-                      onClick={() => openArtworkUploadPicker("draft")}
-                      type="button"
-                      title="Upload artwork from your device"
-                    >
-                      <Upload className="h-4 w-4" />
-                      Upload
-                    </button>
-                  </div>
-                ) : null}
-
-                {shouldShowNotesField ? (
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{notesFieldLabel}</span>
-                    <textarea
-                      name="notes"
-                      className={clsx(
-                        "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      value={draft.notes}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          notes: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                ) : null}
-
-                {visibleCustomFieldDefinitions.map((field) => (
-                  <label key={field.id} className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{field.label}</span>
-                    {field.type === "long_text" ? (
-                      <textarea
-                        className={clsx(
-                          "min-h-28 rounded-2xl border px-4 py-3 outline-none transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                        )}
-                        value={draft.customFields[field.id] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            customFields: {
-                              ...current.customFields,
-                              [field.id]: event.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    ) : field.type === "select" ? (
-                      <select
-                        className={clsx(
-                          "rounded-2xl border px-4 py-3 outline-none transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                            : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                        )}
-                        value={draft.customFields[field.id] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            customFields: {
-                              ...current.customFields,
-                              [field.id]: event.target.value,
-                            },
-                          }))
-                        }
-                      >
-                        <option value="">Select one</option>
-                        {(field.options ?? []).map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        className={clsx(
-                          "rounded-2xl border px-4 py-3 outline-none transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                        )}
-                        inputMode={field.type === "date" ? "numeric" : undefined}
-                        placeholder={field.type === "date" ? (field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT) : undefined}
-                        type="text"
-                        value={draft.customFields[field.id] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            customFields: {
-                              ...current.customFields,
-                              [field.id]:
-                                field.type === "date"
-                                  ? normalizeDateFieldInput(
-                                      event.target.value,
-                                      field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT,
-                                    )
-                                  : event.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    )}
-                  </label>
-                ))}
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="grid gap-2">
-                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      Column
-                    </span>
-                    <select
-                      name="columnId"
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                      )}
-                      value={draft.columnId || addCardTarget.columnId}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          columnId: event.target.value,
-                        }))
-                      }
-                    >
-                      {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => (
-                        <option key={column.id} value={column.id}>
-                          {column.title}
-                        </option>
-                      ))}
-                      <option value={NEW_COLUMN_OPTION}>Create new column</option>
-                    </select>
-                  </label>
-
-                  {draft.columnId === NEW_COLUMN_OPTION ? (
-                    <label className="grid gap-2">
-                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                        New column title
-                      </span>
-                      <input
-                        name="newColumnTitle"
-                        className={clsx(
-                          "rounded-2xl border px-4 py-3 outline-none transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                        )}
-                        placeholder="Favorites, 2026, Horror..."
-                        value={draft.newColumnTitle}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            newColumnTitle: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    className={clsx(
-                      "rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                      isDarkMode
-                        ? "bg-white text-slate-950 hover:bg-slate-200"
-                        : "bg-slate-950 text-white hover:bg-slate-800",
-                    )}
-                    type="submit"
-                  >
-                    {`Add ${boardVocabulary.singular}`}
-                  </button>
-                  {draftDuplicateAction ? (
-                    <div
-                      className={clsx(
-                        "flex min-w-full flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm",
-                        isDarkMode
-                          ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-                          : "border-amber-300 bg-amber-50 text-amber-900",
-                      )}
-                    >
-                      <span className="mr-2">
-                        &quot;{draftDuplicateAction.match.card.title}&quot; already exists in
-                        &nbsp;&quot;{draftDuplicateAction.match.column.title}&quot;.
-                      </span>
-                      <button
-                        className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
-                        onClick={() => resolveDraftDuplicate("discard")}
-                        type="button"
-                      >
-                        Discard
-                      </button>
-                      <button
-                        className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
-                        onClick={() => resolveDraftDuplicate("update")}
-                        type="button"
-                      >
-                        Update Original
-                      </button>
-                      <button
-                        className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950"
-                        onClick={() => resolveDraftDuplicate("duplicate")}
-                        type="button"
-                      >
-                        Allow Duplicate
-                      </button>
-                    </div>
-                  ) : null}
-                  <button
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                    )}
-                    onClick={closeAddGameModal}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                  <div className="relative">
-                    <button
-                      className={clsx(
-                        "inline-flex h-[50px] w-[50px] items-center justify-center rounded-full border transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      onClick={() => setIsAddFieldSettingsOpen((current) => !current)}
-                      type="button"
-                      aria-label="Customize card fields"
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </button>
-                    {isAddFieldSettingsOpen ? (
-                      <div className="absolute bottom-14 right-0 z-10">
-                        <FieldSettingsPanel
-                          isDarkMode={isDarkMode}
-                          fieldDefinitions={activeBoardFieldDefinitions}
-                          onToggleField={toggleActiveBoardFieldVisibility}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-        ) : null}
+        <AddCardDialog
+          activeBoardFieldDefinitions={activeBoardFieldDefinitions}
+          addArtworkInputRef={addArtworkInputRef}
+          addCardTargetColumnId={addCardTarget?.columnId ?? columns[0]?.id ?? ""}
+          boardSingular={boardVocabulary.singular}
+          columns={columns}
+          defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
+          draft={draft}
+          draftDuplicateAction={draftDuplicateAction}
+          imageFieldLabel={imageFieldLabel}
+          isAddFieldSettingsOpen={isAddFieldSettingsOpen}
+          isDarkMode={isDarkMode}
+          isOpen={Boolean(addCardTarget)}
+          isUploadingArtwork={isUploadingArtwork}
+          newColumnOption={NEW_COLUMN_OPTION}
+          notesFieldLabel={notesFieldLabel}
+          onArtworkFileSelection={(event) => {
+            void handleArtworkFileSelection("draft", event);
+          }}
+          onClose={closeAddGameModal}
+          onColumnIdChange={(value) =>
+            setDraft((current) => ({
+              ...current,
+              columnId: value,
+            }))
+          }
+          onCustomFieldChange={(fieldId, value) =>
+            setDraft((current) => ({
+              ...current,
+              customFields: {
+                ...current.customFields,
+                [fieldId]: value,
+              },
+            }))
+          }
+          onImageUrlChange={(value) => {
+            setDraftDuplicateAction(null);
+            setDraft((current) => ({
+              ...current,
+              imageUrl: value,
+              imageStoragePath: undefined,
+            }));
+          }}
+          onNewColumnTitleChange={(value) =>
+            setDraft((current) => ({
+              ...current,
+              newColumnTitle: value,
+            }))
+          }
+          onNotesChange={(value) =>
+            setDraft((current) => ({
+              ...current,
+              notes: value,
+            }))
+          }
+          onOpenGifSearch={() => handleAutofillDraftImage("gif")}
+          onOpenImageSearch={() => handleAutofillDraftImage("image")}
+          onOpenUploadPicker={() => openArtworkUploadPicker("draft")}
+          onReleaseYearChange={(value) =>
+            setDraft((current) => ({
+              ...current,
+              releaseYear: value.replace(/[^\d]/g, "").slice(0, 4),
+            }))
+          }
+          onResolveDuplicate={resolveDraftDuplicate}
+          onSeriesChange={(value) => {
+            setDraftDuplicateAction(null);
+            setDraft((current) => ({ ...current, series: value }));
+          }}
+          onSubmit={handleDraftSubmit}
+          onTitleChange={(value) => {
+            setDraftDuplicateAction(null);
+            setDraft((current) => ({ ...current, title: value }));
+          }}
+          onToggleFieldSettings={() => setIsAddFieldSettingsOpen((current) => !current)}
+          onToggleFieldVisibility={toggleActiveBoardFieldVisibility}
+          releaseYearFieldLabel={releaseYearFieldLabel}
+          seriesFieldLabel={seriesFieldLabel}
+          seriesPlaceholder={boardVocabulary.seriesExamples}
+          shouldShowImageField={shouldShowImageField}
+          shouldShowNotesField={shouldShowNotesField}
+          shouldShowReleaseYearField={shouldShowReleaseYearField}
+          shouldShowSeriesField={shouldShowSeriesField}
+          titlePlaceholder={boardVocabulary.titleExamples}
+          visibleCustomFieldDefinitions={visibleCustomFieldDefinitions}
+          normalizeDateFieldInput={normalizeDateFieldInput}
+        />
 
         {artworkPicker ? (
           <div
@@ -7125,6 +5958,7 @@ function copyCardToDraft(card: CardEntry) {
                   onUpdateField={updateActiveBoardField}
                   onRemoveField={removeActiveBoardField}
                   onAddField={addActiveBoardField}
+                  defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
                 />
               </div>
             </div>
@@ -7562,181 +6396,89 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
-        {isCreateBoardModalOpen ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            onClick={() => {
-              setIsCreateBoardModalOpen(false);
-              setNewBoardTitle("");
-              setNewBoardSettings(getDefaultBoardSettings("New Board"));
-            }}
-          >
-            <div
-              className={clsx(
-                "w-full max-w-[760px] rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:min-w-[680px]",
-                isDarkMode
-                  ? "border-white/10 bg-slate-900 text-slate-100"
-                  : "border-white/70 bg-white text-slate-950",
-              )}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Board Setup
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    What are you ranking?
-                  </h2>
-                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Give the board a title and choose which fields should appear when adding new cards.
-                  </p>
-                </div>
-                <button
-                  className={clsx(
-                    "rounded-full p-2 transition",
-                    isDarkMode
-                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                  )}
-                  onClick={() => {
-                    setIsCreateBoardModalOpen(false);
-                    setNewBoardTitle("");
-                    setNewBoardSettings(getDefaultBoardSettings("New Board"));
-                  }}
-                  type="button"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <label className="mt-6 grid gap-2">
-                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                  Board title
-                </span>
-                <input
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                  )}
-                  placeholder="Favorites, Waifus, Horror Games..."
-                  value={newBoardTitle}
-                  onChange={(event) => {
-                    const nextTitle = event.target.value;
-                    const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board");
-                    setNewBoardTitle(nextTitle);
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      fieldDefinitions: normalizeFieldDefinitions(
-                        current.fieldDefinitions,
-                        nextTitle || "New Board",
-                        nextDefaults,
-                      ).map((field) =>
-                        field.builtInKey === "series"
-                          ? {
-                              ...field,
-                              label: getDefaultFieldDefinitions(nextTitle || "New Board").find(
-                                (defaultField) => defaultField.builtInKey === "series",
-                              )?.label ?? field.label,
-                            }
-                          : field,
-                      ),
-                    }));
-                  }}
-                />
-              </label>
-
-              <div className="mt-6">
-                <FieldDefinitionManager
-                  isDarkMode={isDarkMode}
-                  fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
-                  onToggleVisibility={(fieldId) =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
-                        field.id === fieldId ? { ...field, visible: !field.visible } : field,
-                      ),
-                    }))
-                  }
-                  onUpdateField={(fieldId, patch) =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
-                        field.id === fieldId ? { ...field, ...patch } : field,
-                      ),
-                    }))
-                  }
-                  onRemoveField={(fieldId) =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).filter(
-                        (field) => field.id !== fieldId,
-                      ),
-                    }))
-                  }
-                  onAddField={(type) =>
-                    setNewBoardSettings((current) => ({
-                      ...current,
-                      fieldDefinitions: [
-                        ...normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current),
-                        {
-                          id: makeFieldId(),
-                          label:
-                            type === "short_text"
-                              ? "New Field"
-                              : type === "long_text"
-                                ? "New Notes"
-                                : type === "date"
-                                  ? "New Date"
-                                  : "New Dropdown",
-                          type,
-                          visible: true,
-                          showLabelOnCardFront: true,
-                          options: type === "select" ? ["Option 1", "Option 2"] : undefined,
-                          dateFormat: type === "date" ? DEFAULT_DATE_FIELD_FORMAT : undefined,
-                        },
-                      ],
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  className={clsx(
-                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "bg-white text-slate-950 hover:bg-slate-200"
-                      : "bg-slate-950 text-white hover:bg-slate-800",
-                  )}
-                  onClick={createBoardFromModal}
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Board
-                </button>
-                <button
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() => {
-                    setIsCreateBoardModalOpen(false);
-                    setNewBoardTitle("");
-                    setNewBoardSettings(getDefaultBoardSettings("New Board"));
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <BoardSetupDialog
+          isDarkMode={isDarkMode}
+          isOpen={isCreateBoardModalOpen}
+          newBoardTitle={newBoardTitle}
+          fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
+          defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
+          onClose={() => {
+            setIsCreateBoardModalOpen(false);
+            setNewBoardTitle("");
+            setNewBoardSettings(getDefaultBoardSettings("New Board"));
+          }}
+          onTitleChange={(nextTitle) => {
+            const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board");
+            setNewBoardTitle(nextTitle);
+            setNewBoardSettings((current) => ({
+              ...current,
+              fieldDefinitions: normalizeFieldDefinitions(
+                current.fieldDefinitions,
+                nextTitle || "New Board",
+                nextDefaults,
+              ).map((field) =>
+                field.builtInKey === "series"
+                  ? {
+                      ...field,
+                      label:
+                        getDefaultFieldDefinitions(nextTitle || "New Board").find(
+                          (defaultField) => defaultField.builtInKey === "series",
+                        )?.label ?? field.label,
+                    }
+                  : field,
+              ),
+            }));
+          }}
+          onToggleVisibility={(fieldId) =>
+            setNewBoardSettings((current) => ({
+              ...current,
+              fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
+                field.id === fieldId ? { ...field, visible: !field.visible } : field,
+              ),
+            }))
+          }
+          onUpdateField={(fieldId, patch) =>
+            setNewBoardSettings((current) => ({
+              ...current,
+              fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).map((field) =>
+                field.id === fieldId ? { ...field, ...patch } : field,
+              ),
+            }))
+          }
+          onRemoveField={(fieldId) =>
+            setNewBoardSettings((current) => ({
+              ...current,
+              fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current).filter(
+                (field) => field.id !== fieldId,
+              ),
+            }))
+          }
+          onAddField={(type) =>
+            setNewBoardSettings((current) => ({
+              ...current,
+              fieldDefinitions: [
+                ...normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", current),
+                {
+                  id: makeFieldId(),
+                  label:
+                    type === "short_text"
+                      ? "New Field"
+                      : type === "long_text"
+                        ? "New Notes"
+                        : type === "date"
+                          ? "New Date"
+                          : "New Dropdown",
+                  type,
+                  visible: true,
+                  showLabelOnCardFront: true,
+                  options: type === "select" ? ["Option 1", "Option 2"] : undefined,
+                  dateFormat: type === "date" ? DEFAULT_DATE_FIELD_FORMAT : undefined,
+                },
+              ],
+            }))
+          }
+          onCreateBoard={createBoardFromModal}
+        />
 
         {isDuplicateCleanupModalOpen ? (
           <div

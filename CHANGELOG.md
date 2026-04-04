@@ -9,6 +9,9 @@
 - Simplified card hover actions so cards now show only `Edit` on hover.
 - Kept `Move`, `Copy`, `Delete`, and `Fields` inside the card edit modal, where they are easier to understand and less fragile than the old card settings flyout.
 - Made card copy-from-edit close the edit modal and open the add-card draft flow immediately.
+- Extracted the shared field/settings UI into [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx).
+- Extracted the board setup, add-card, and edit-card dialogs into [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx).
+- Reduced [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) further by moving form-heavy UI out into dedicated component files.
 
 ## 2026-04-03
 

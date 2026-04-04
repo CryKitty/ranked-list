@@ -5,6 +5,8 @@
 - Main UI entrypoint: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx)
 - Main UI implementation: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx)
 - Safety backup from before the split: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx)
+- Extracted field/settings UI: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx)
+- Extracted dialogs: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx)
 - Types: [`/Users/avarycooney/Documents/Playground/src/lib/types.ts`](/Users/avarycooney/Documents/Playground/src/lib/types.ts)
 - Trello import: [`/Users/avarycooney/Documents/Playground/src/lib/trello-import.ts`](/Users/avarycooney/Documents/Playground/src/lib/trello-import.ts)
 - Supabase browser/server clients:
@@ -80,6 +82,19 @@
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
 
+## Component Split Status
+
+- [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx) owns reusable field-management UI:
+  - field definition manager
+  - field settings panel
+  - hover-label icon button
+  - shared toggle/menu button primitives
+- [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx) now owns the form-heavy modal flows:
+  - board setup
+  - add card
+  - edit card
+- [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) still contains most application state, board lane rendering, settings, maintenance flows, and synchronization logic.
+
 ## Toggle Language
 
 - Switch-style toggles are the preferred design language for binary settings.
@@ -104,10 +119,9 @@
 ## Important Notes
 
 - The public board component entrypoint is intentionally tiny now; the large implementation lives in `rankboard-app-impl.tsx`.
-- This is a first-stage reorganization, not a full decomposition. The big implementation file still contains too much UI and state logic, but the split makes future refactors safer because imports and app routes now point at a stable wrapper.
+- This is still an incremental reorganization, not a full decomposition. The implementation file remains large, but the highest-duplication form UIs now live in dedicated component files and the stable wrapper keeps import churn low.
 - The next cleanups should target extracting:
-  - card/editor modal sections
   - column lane / column menu sections
   - maintenance/import/export modals
-  - board settings / creation flows
+  - board header / settings shell
 - Persistence and media helpers should continue living in lib files instead of expanding the implementation file further.
