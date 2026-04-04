@@ -16,11 +16,20 @@ create table if not exists public.boards (
   position integer not null default 0,
   settings jsonb not null default '{}'::jsonb,
   field_definitions jsonb not null default '[]'::jsonb,
+  is_public boolean not null default false,
+  public_slug text unique,
+  last_published_at timestamptz,
   created_at timestamptz not null default now()
 );
 
 alter table public.boards
   add column if not exists updated_at timestamptz not null default now();
+alter table public.boards
+  add column if not exists is_public boolean not null default false;
+alter table public.boards
+  add column if not exists public_slug text;
+alter table public.boards
+  add column if not exists last_published_at timestamptz;
 
 create table if not exists public.columns (
   id uuid primary key default gen_random_uuid(),
@@ -92,6 +101,9 @@ create policy "profiles are writable by owner" on public.profiles
 create policy "owners manage boards" on public.boards
   for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
 
+create policy "public read shared boards" on public.boards
+  for select using (is_public = true);
+
 create policy "owners manage columns" on public.columns
   for all using (
     exists (
@@ -107,6 +119,16 @@ create policy "owners manage columns" on public.columns
       from public.boards
       where public.boards.id = public.columns.board_id
         and public.boards.owner_id = auth.uid()
+    )
+  );
+
+create policy "public read shared columns" on public.columns
+  for select using (
+    exists (
+      select 1
+      from public.boards
+      where public.boards.id = public.columns.board_id
+        and public.boards.is_public = true
     )
   );
 
@@ -128,6 +150,16 @@ create policy "owners manage items" on public.items
     )
   );
 
+create policy "public read shared items" on public.items
+  for select using (
+    exists (
+      select 1
+      from public.boards
+      where public.boards.id = public.items.board_id
+        and public.boards.is_public = true
+    )
+  );
+
 create policy "owners manage column entries" on public.column_entries
   for all using (
     exists (
@@ -145,6 +177,17 @@ create policy "owners manage column entries" on public.column_entries
       join public.boards on public.boards.id = public.columns.board_id
       where public.columns.id = public.column_entries.column_id
         and public.boards.owner_id = auth.uid()
+    )
+  );
+
+create policy "public read shared column entries" on public.column_entries
+  for select using (
+    exists (
+      select 1
+      from public.columns
+      join public.boards on public.boards.id = public.columns.board_id
+      where public.columns.id = public.column_entries.column_id
+        and public.boards.is_public = true
     )
   );
 

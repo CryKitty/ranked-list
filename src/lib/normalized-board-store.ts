@@ -21,6 +21,9 @@ function columnMetadata(column: ColumnDefinition) {
     mirrorsEntireBoard: Boolean(column.mirrorsEntireBoard),
     excludedMirrorItemIds: column.excludedMirrorItemIds ?? [],
     excludeFromBoardMirrors: Boolean(column.excludeFromBoardMirrors),
+    dontRank: Boolean(column.dontRank),
+    sortMode: column.sortMode ?? "manual",
+    confirmMirrorClones: Boolean(column.confirmMirrorClones),
   };
 }
 
@@ -39,6 +42,12 @@ function extractColumnFromRow(row: NormalizedColumnRow): ColumnDefinition {
       ? metadata.excludedMirrorItemIds.filter((value): value is string => typeof value === "string")
       : [],
     excludeFromBoardMirrors: Boolean(metadata.excludeFromBoardMirrors),
+    dontRank: Boolean(metadata.dontRank),
+    sortMode:
+      metadata.sortMode === "title-asc" || metadata.sortMode === "title-desc"
+        ? metadata.sortMode
+        : "manual",
+    confirmMirrorClones: Boolean(metadata.confirmMirrorClones),
   };
 }
 
@@ -188,6 +197,9 @@ export async function loadNormalizedBoards(
       },
       columns,
       cardsByColumn,
+      isPublic: Boolean(boardRow.is_public),
+      publicSlug: boardRow.public_slug ?? null,
+      lastPublishedAt: boardRow.last_published_at ?? null,
       createdAt: boardRow.created_at,
       updatedAt: boardRow.updated_at,
     };
@@ -221,6 +233,9 @@ export async function syncNormalizedBoards(
     description: null,
     settings: board.settings,
     field_definitions: board.settings.fieldDefinitions ?? [],
+    is_public: Boolean(board.isPublic),
+    public_slug: board.publicSlug ?? null,
+    last_published_at: board.lastPublishedAt ?? null,
     created_at: board.createdAt,
     updated_at: board.updatedAt,
     position: index,
@@ -370,12 +385,25 @@ export async function syncNormalizedBoards(
       })).filter((entry) => Boolean(entry.item_id));
     });
 
-    const { error: entriesUpsertError } = entryPayload.length
-      ? await supabase.from("column_entries").upsert(entryPayload, { onConflict: "client_id" })
-      : { error: null };
+    if (columnDbIds.length > 0) {
+      const { error: deleteEntriesError } = await supabase
+        .from("column_entries")
+        .delete()
+        .in("column_id", columnDbIds);
 
-    if (entriesUpsertError) {
-      throw entriesUpsertError;
+      if (deleteEntriesError) {
+        throw deleteEntriesError;
+      }
+    }
+
+    if (entryPayload.length > 0) {
+      const { error: insertEntriesError } = await supabase
+        .from("column_entries")
+        .insert(entryPayload);
+
+      if (insertEntriesError) {
+        throw insertEntriesError;
+      }
     }
 
     const currentEntryIds = new Set(entryPayload.map((entry) => entry.client_id));
@@ -387,6 +415,29 @@ export async function syncNormalizedBoards(
       await supabase.from("column_entries").delete().in("id", removedEntryIds);
     }
   }
+}
+
+export async function loadPublicBoardBySlug(
+  supabase: SupabaseLike,
+  publicSlug: string,
+): Promise<SavedBoard | null> {
+  const { data: boardRow, error: boardError } = await supabase
+    .from("boards")
+    .select("*")
+    .eq("public_slug", publicSlug)
+    .eq("is_public", true)
+    .maybeSingle();
+
+  if (boardError) {
+    throw boardError;
+  }
+
+  if (!boardRow) {
+    return null;
+  }
+
+  const boards = await loadNormalizedBoards(supabase, (boardRow as NormalizedBoardRow).owner_id);
+  return boards.find((board) => board.id === (boardRow as NormalizedBoardRow).client_id) ?? null;
 }
 
 export async function uploadArtworkToStorage(

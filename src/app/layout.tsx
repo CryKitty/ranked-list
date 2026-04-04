@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
@@ -13,8 +13,12 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Rankboard",
+  title: "Rankr",
   description: "A Trello-style ranking board for games, movies, shows, and more.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#020617",
 };
 
 export default function RootLayout({
@@ -27,7 +31,7 @@ export default function RootLayout({
       lang="en"
       className={`${spaceGrotesk.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-slate-950">{children}</body>
     </html>
   );
 }

@@ -1,4 +1,5 @@
 export type ColumnType = "ranked" | "wishlist";
+export type ColumnSortMode = "manual" | "title-asc" | "title-desc";
 
 export type CardFieldType = "short_text" | "long_text" | "date" | "select";
 export type DateFieldFormat = "mm/dd/yyyy" | "dd/mm/yyyy" | "yyyy";
@@ -36,10 +37,13 @@ export type ColumnDefinition = {
   description: string;
   type: ColumnType;
   accent: string;
+  dontRank?: boolean;
+  sortMode?: ColumnSortMode;
   autoMirrorToColumnId?: string;
   mirrorsEntireBoard?: boolean;
   excludedMirrorItemIds?: string[];
   excludeFromBoardMirrors?: boolean;
+  confirmMirrorClones?: boolean;
 };
 
 export type BoardSnapshot = {
@@ -63,11 +67,14 @@ export type SavedBoard = BoardSnapshot & {
   id: string;
   title: string;
   settings: BoardSettings;
+  isPublic?: boolean;
+  publicSlug?: string | null;
+  lastPublishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export type SaveState = "idle" | "saving" | "saved" | "error" | "offline";
+export type SaveState = "idle" | "pending" | "saving" | "saved" | "error" | "offline";
 
 export type NormalizedBoardRow = {
   id: string;
@@ -77,6 +84,10 @@ export type NormalizedBoardRow = {
   title: string;
   description: string | null;
   settings: BoardSettings | null;
+  field_definitions?: BoardFieldDefinition[] | null;
+  is_public?: boolean | null;
+  public_slug?: string | null;
+  last_published_at?: string | null;
   created_at: string;
   updated_at: string;
 };

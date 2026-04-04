@@ -2,6 +2,17 @@
 
 ## 2026-04-03
 
+- Hardened active-board restoration so refresh and remote hydration prefer the last board the user was actually on.
+- Made in-session hydration prefer richer local board snapshots over emptier remote data to reduce disappearing-card regressions.
+- Fixed normalized `column_entries` sync to replace board entries in a deterministic pass instead of conflicting on repeated upserts.
+- Added column-level `Don't Rank` and persistent A-Z / Z-A sort modes with metadata-backed behavior.
+- Sorted columns now auto-place new and edited cards by title instead of behaving like one-shot sort actions.
+- Added a direct card move flow with destination column and target-rank controls, plus card copy and settings-driven delete actions.
+- Replaced browser confirm for column deletion with an in-app confirmation modal.
+- Tightened the board lane spacing and between-column add affordance again.
+- Widened the board-creation modal and improved safe-area theming for iOS Safari.
+- Added v1 public sharing with read-only `/share/[slug]` board links.
+- Added share metadata to normalized boards and schema updates for public board reads.
 - Moved live persistence toward normalized Supabase tables and kept `board_states` as backup/migration compatibility storage.
 - Added automatic migration support from snapshot backups into normalized board rows.
 - Added inline `+` affordances between columns for easier column insertion.

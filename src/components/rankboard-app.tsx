@@ -26,13 +26,16 @@ import {
   ArrowUpDown,
   BookOpen,
   Check,
+  CheckCheck,
   CircleDashed,
   Clapperboard,
+  Copy,
   Edit3,
   Gamepad2,
   Heart,
   ImagePlus,
   LoaderCircle,
+  MoveVertical,
   LogOut,
   MoreHorizontal,
   Moon,
@@ -42,6 +45,7 @@ import {
   RotateCcw,
   Save,
   Settings2,
+  Share2,
   Sparkles,
   Sun,
   Trash2,
@@ -66,6 +70,7 @@ import {
   BoardSnapshot,
   CardEntry,
   CardFieldType,
+  ColumnSortMode,
   ColumnDefinition,
   DateFieldFormat,
   SaveState,
@@ -168,6 +173,20 @@ type PendingMirrorDelete = {
   columnTitle: string;
 };
 
+type PendingColumnDelete = {
+  id: string;
+  title: string;
+};
+
+type MoveCardState = {
+  entryId: string;
+  itemId: string;
+  title: string;
+  sourceColumnId: string;
+  targetColumnId: string;
+  targetRank: string;
+};
+
 type PairwiseQuizState = {
   columnId: string;
   columnTitle: string;
@@ -266,6 +285,7 @@ function createEmptyBoard(title = "New Board"): SavedBoard {
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
 const LOCAL_BACKUP_STORAGE_KEY = "rankboard-backups-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
+const LAST_ACTIVE_BOARD_KEY = "rankboard-last-active-board-v1";
 const COLUMN_ACCENTS = [
   "from-amber-300 via-orange-400 to-rose-500",
   "from-sky-300 via-cyan-400 to-teal-500",
@@ -407,8 +427,34 @@ function getUserBoardCacheKey(userId: string) {
   return `rankboard-user-${userId}-v1`;
 }
 
+function getLastActiveBoardStorageKey(userId?: string | null) {
+  return userId ? `${LAST_ACTIVE_BOARD_KEY}-${userId}` : LAST_ACTIVE_BOARD_KEY;
+}
+
 function isRankedColumn(column: ColumnDefinition) {
-  return column.type === "ranked";
+  return column.type === "ranked" && !column.dontRank && (column.sortMode ?? "manual") === "manual";
+}
+
+function getColumnSortMode(column: ColumnDefinition): ColumnSortMode {
+  return column.sortMode ?? "manual";
+}
+
+function isColumnAutoSorted(column: ColumnDefinition) {
+  return getColumnSortMode(column) !== "manual";
+}
+
+function sortCardsForColumn(cards: CardEntry[], column: ColumnDefinition) {
+  const sortMode = getColumnSortMode(column);
+
+  if (sortMode === "title-asc") {
+    return [...cards].sort((left, right) => left.title.localeCompare(right.title));
+  }
+
+  if (sortMode === "title-desc") {
+    return [...cards].sort((left, right) => right.title.localeCompare(left.title));
+  }
+
+  return cards;
 }
 
 function filterCards(
@@ -675,8 +721,11 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
     ...board,
     columns: board.columns.map((column) => ({
       ...column,
+      dontRank: column.dontRank ?? false,
+      sortMode: column.sortMode ?? "manual",
       excludedMirrorItemIds: column.excludedMirrorItemIds ?? [],
       excludeFromBoardMirrors: column.excludeFromBoardMirrors ?? false,
+      confirmMirrorClones: column.confirmMirrorClones ?? false,
     })),
     settings: {
       ...getDefaultBoardSettings(board.title),
@@ -692,6 +741,9 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
         })),
       ]),
     ),
+    isPublic: board.isPublic ?? false,
+    publicSlug: board.publicSlug ?? null,
+    lastPublishedAt: board.lastPublishedAt ?? null,
   } satisfies SavedBoard;
 }
 
@@ -773,6 +825,41 @@ function choosePreferredBoards(
     }
 
     return normalizedBoard;
+  });
+}
+
+function chooseSessionPreferredBoards(
+  remoteBoards: SavedBoard[],
+  localBoards: SavedBoard[],
+) {
+  if (localBoards.length === 0) {
+    return remoteBoards;
+  }
+
+  if (remoteBoards.length === 0) {
+    return localBoards;
+  }
+
+  const remoteById = new Map(remoteBoards.map((board) => [board.id, board]));
+  const localById = new Map(localBoards.map((board) => [board.id, board]));
+  const orderedIds = [
+    ...localBoards.map((board) => board.id),
+    ...remoteBoards.map((board) => board.id).filter((id) => !localById.has(id)),
+  ];
+
+  return orderedIds.map((boardId) => {
+    const remoteBoard = remoteById.get(boardId);
+    const localBoard = localById.get(boardId);
+
+    if (!remoteBoard) {
+      return localBoard!;
+    }
+
+    if (!localBoard) {
+      return remoteBoard;
+    }
+
+    return choosePreferredBoards([remoteBoard], [localBoard])[0] ?? remoteBoard;
   });
 }
 
@@ -1523,14 +1610,18 @@ function SaveStatusIcon({
   }
 
   if (saveState === "saved") {
-    return <Check className="h-4 w-4" />;
+    return <CheckCheck className="h-4 w-4" />;
+  }
+
+  if (saveState === "pending") {
+    return <CircleDashed className="h-4 w-4" />;
   }
 
   if (saveState === "error" || saveState === "offline") {
     return <AlertCircle className="h-4 w-4" />;
   }
 
-  return <CircleDashed className="h-4 w-4" />;
+  return <Check className="h-4 w-4" />;
 }
 
 export function RankboardApp() {
@@ -1595,9 +1686,11 @@ export function RankboardApp() {
   const [seriesScrapeScopeColumnId, setSeriesScrapeScopeColumnId] = useState<string | undefined>(undefined);
   const [artworkPicker, setArtworkPicker] = useState<ArtworkPickerState | null>(null);
   const [pendingMirrorDelete, setPendingMirrorDelete] = useState<PendingMirrorDelete | null>(null);
+  const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
+  const [moveCardState, setMoveCardState] = useState<MoveCardState | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -1798,7 +1891,7 @@ export function RankboardApp() {
 
   const queuePersistBoardState = useCallback((options?: PersistBoardStateOptions) => {
     pendingPersistOptionsRef.current = options ?? null;
-    setSaveState("idle");
+    setSaveState("pending");
     setPersistRequestId((current) => current + 1);
   }, []);
 
@@ -1891,6 +1984,34 @@ export function RankboardApp() {
       : null;
   }
 
+  function updateColumnsAndPersist(
+    updater: (current: ColumnDefinition[]) => ColumnDefinition[],
+    options?: { nextCardsByColumn?: Record<string, CardEntry[]> },
+  ) {
+    let nextColumnsSnapshot = latestColumnsRef.current;
+    setColumns((current) => {
+      const nextColumns = updater(current);
+      nextColumnsSnapshot = nextColumns;
+      latestColumnsRef.current = nextColumns;
+      return nextColumns;
+    });
+
+    const persistOptions: PersistBoardStateOptions = {
+      columns: nextColumnsSnapshot,
+    };
+
+    if (options?.nextCardsByColumn) {
+      latestCardsByColumnRef.current = options.nextCardsByColumn;
+      persistOptions.cardsByColumn = options.nextCardsByColumn;
+    }
+
+    queuePersistBoardState(persistOptions);
+  }
+
+  function applyColumnSortMode(column: ColumnDefinition, cards: CardEntry[]) {
+    return sortCardsForColumn(cards, column);
+  }
+
   useEffect(() => {
     try {
       const storedBackups = window.localStorage.getItem(LOCAL_BACKUP_STORAGE_KEY);
@@ -1901,16 +2022,10 @@ export function RankboardApp() {
 
     if (authEnabled) {
       try {
-        const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+        const preferredBoardId = window.localStorage.getItem(getLastActiveBoardStorageKey());
 
-        if (storedValue) {
-          const parsedState = JSON.parse(storedValue) as {
-            activeBoardId?: string;
-          };
-
-          if (parsedState.activeBoardId) {
-            setActiveBoardId(parsedState.activeBoardId);
-          }
+        if (preferredBoardId) {
+          setActiveBoardId(preferredBoardId);
         }
       } catch {
         // Ignore local preference parsing failures for auth-enabled mode.
@@ -2101,6 +2216,20 @@ export function RankboardApp() {
   }, [activeBoardId, boards]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        getLastActiveBoardStorageKey(currentUser?.id ?? null),
+        activeBoardId,
+      );
+      if (currentUser) {
+        window.localStorage.setItem(getLastActiveBoardStorageKey(), activeBoardId);
+      }
+    } catch {
+      // Ignore local preference persistence failures.
+    }
+  }, [activeBoardId, currentUser]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
@@ -2256,9 +2385,17 @@ export function RankboardApp() {
         const backupState = data ? readBoardsFromBackupRow(data) : null;
         const localBoards = latestBoardsRef.current;
         const localActiveBoardId = latestActiveBoardIdRef.current;
-        const preferredBoards = backupState?.boards.length
+        const remotePreferredBoards = backupState?.boards.length
           ? choosePreferredBoards(normalizedBoards, backupState.boards)
           : normalizedBoards;
+        const preferredBoards = chooseSessionPreferredBoards(remotePreferredBoards, localBoards);
+        const preferredActiveBoardId = (() => {
+          try {
+            return window.localStorage.getItem(getLastActiveBoardStorageKey(user.id));
+          } catch {
+            return null;
+          }
+        })();
         const preferredLatestTimestamp =
           backupState?.boards.length && preferredBoards.some((board) => backupState.boards.some((backupBoard) => backupBoard.id === board.id))
             ? getLatestBoardTimestamp(preferredBoards) ?? backupState?.updatedAt ?? null
@@ -2267,9 +2404,11 @@ export function RankboardApp() {
         if (preferredBoards.length > 0) {
           const localActiveBoardId = latestActiveBoardIdRef.current;
           const remoteActiveBoardId =
-            localActiveBoardId && preferredBoards.some((board) => board.id === localActiveBoardId)
-              ? localActiveBoardId
-              : preferredBoards[0].id;
+            preferredActiveBoardId && preferredBoards.some((board) => board.id === preferredActiveBoardId)
+              ? preferredActiveBoardId
+              : localActiveBoardId && preferredBoards.some((board) => board.id === localActiveBoardId)
+                ? localActiveBoardId
+                : preferredBoards[0].id;
           const nextActiveBoard =
             preferredBoards.find((board) => board.id === remoteActiveBoardId) ??
             preferredBoards[0];
@@ -2589,9 +2728,11 @@ export function RankboardApp() {
       const nextState: Record<string, CardEntry[]> = {};
 
       for (const [columnId, cards] of Object.entries(current)) {
-        nextState[columnId] = cards.map((card) =>
+        const updatedCards = cards.map((card) =>
           card.itemId === itemId ? updater(card) : card,
         );
+        const column = latestColumnsRef.current.find((item) => item.id === columnId);
+        nextState[columnId] = column ? applyColumnSortMode(column, updatedCards) : updatedCards;
       }
 
       latestCardsByColumnRef.current = nextState;
@@ -2600,7 +2741,6 @@ export function RankboardApp() {
     });
 
     if (nextStateSnapshot) {
-      void persistBoardState({ cardsByColumn: nextStateSnapshot });
       queuePersistBoardState({ cardsByColumn: nextStateSnapshot });
     } else {
       queuePersistBoardState();
@@ -2782,6 +2922,8 @@ export function RankboardApp() {
 
     const sourceCards = cardsByColumn[sourceColumnId] ?? [];
     const destinationCards = cardsByColumn[overColumnId] ?? [];
+    const sourceColumn = columns.find((column) => column.id === sourceColumnId);
+    const destinationColumn = columns.find((column) => column.id === overColumnId);
     const sourceIndex = sourceCards.findIndex((card) => card.entryId === activeId);
 
     if (sourceIndex < 0) {
@@ -2804,6 +2946,10 @@ export function RankboardApp() {
     }
 
     if (sourceColumnId === overColumnId) {
+      if (sourceColumn && isColumnAutoSorted(sourceColumn)) {
+        return;
+      }
+
       const adjustedDestinationIndex =
         sourceIndex < destinationIndex ? destinationIndex - 1 : destinationIndex;
 
@@ -2843,12 +2989,14 @@ export function RankboardApp() {
     const nextDestinationCards = [...destinationCards];
 
     nextDestinationCards.splice(destinationIndex, 0, movedCard);
+    const normalizedDestinationCards =
+      destinationColumn ? applyColumnSortMode(destinationColumn, nextDestinationCards) : nextDestinationCards;
 
     const nextState = reconcileMirrorForMove(
       {
         ...cardsByColumn,
         [sourceColumnId]: nextSourceCards,
-        [overColumnId]: nextDestinationCards,
+        [overColumnId]: normalizedDestinationCards,
       },
       movedCard,
       sourceColumnId,
@@ -2868,13 +3016,14 @@ export function RankboardApp() {
       return;
     }
 
-    const title = draft.title.trim() || `Untitled ${boardVocabulary.singular}`;
-    const series = draft.series.trim();
-    const imageUrl = draft.imageUrl.trim();
-    const notes = draft.notes.trim();
-    const releaseYear = draft.releaseYear.trim();
-    const columnId = draft.columnId.trim();
-    const newColumnTitle = draft.newColumnTitle.trim();
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? draft.title).trim() || `Untitled ${boardVocabulary.singular}`;
+    const series = String(formData.get("series") ?? draft.series).trim();
+    const imageUrl = String(formData.get("imageUrl") ?? draft.imageUrl).trim();
+    const notes = String(formData.get("notes") ?? draft.notes).trim();
+    const releaseYear = String(formData.get("releaseYear") ?? draft.releaseYear).trim();
+    const columnId = String(formData.get("columnId") ?? draft.columnId).trim();
+    const newColumnTitle = String(formData.get("newColumnTitle") ?? draft.newColumnTitle).trim();
     const selectedColumnId =
       columnId === NEW_COLUMN_OPTION ? "" : columnId || addCardTarget.columnId;
     const duplicate = selectedColumnId
@@ -2961,11 +3110,15 @@ export function RankboardApp() {
     const destinationCards = nextCardsByColumn[destinationColumnId] ?? [];
     const nextDestinationCards = [...destinationCards];
 
-    nextDestinationCards.splice(destinationInsertIndex, 0, newCard);
+    if (column && isColumnAutoSorted(column)) {
+      nextDestinationCards.push(newCard);
+    } else {
+      nextDestinationCards.splice(destinationInsertIndex, 0, newCard);
+    }
 
     let nextState = {
       ...nextCardsByColumn,
-      [destinationColumnId]: nextDestinationCards,
+      [destinationColumnId]: column ? applyColumnSortMode(column, nextDestinationCards) : nextDestinationCards,
     };
 
     if (column?.autoMirrorToColumnId) {
@@ -3088,6 +3241,99 @@ export function RankboardApp() {
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     setEditingCardId((current) => (current === entryId ? null : current));
+    queuePersistBoardState({ cardsByColumn: nextState });
+  }
+
+  function openMoveCardModal(card: CardEntry) {
+    const sourceColumnId = findColumnIdForEntry(card.entryId);
+
+    if (!sourceColumnId) {
+      return;
+    }
+
+    const sourceCards = cardsByColumn[sourceColumnId] ?? [];
+    const sourceIndex = sourceCards.findIndex((item) => item.entryId === card.entryId);
+    setMoveCardState({
+      entryId: card.entryId,
+      itemId: card.itemId,
+      title: card.title,
+      sourceColumnId,
+      targetColumnId: sourceColumnId,
+      targetRank: sourceIndex >= 0 ? String(sourceIndex + 1) : "1",
+    });
+  }
+
+  function copyCardToDraft(card: CardEntry) {
+    const sourceColumnId = findColumnIdForEntry(card.entryId) ?? columns.find((column) => !column.mirrorsEntireBoard)?.id ?? "";
+    setDraft({
+      title: card.title,
+      imageUrl: card.imageUrl,
+      imageStoragePath: card.imageStoragePath,
+      series: card.series,
+      releaseYear: card.releaseYear ?? "",
+      notes: card.notes ?? "",
+      customFields: { ...(card.customFieldValues ?? {}) },
+      columnId: sourceColumnId || NEW_COLUMN_OPTION,
+      newColumnTitle: "",
+    });
+    setAddCardTarget({
+      columnId: sourceColumnId,
+      insertIndex: (cardsByColumn[sourceColumnId] ?? []).length,
+    });
+  }
+
+  function confirmMoveCard() {
+    if (!moveCardState) {
+      return;
+    }
+
+    const sourceCards = cardsByColumn[moveCardState.sourceColumnId] ?? [];
+    const sourceIndex = sourceCards.findIndex((card) => card.entryId === moveCardState.entryId);
+
+    if (sourceIndex < 0) {
+      setMoveCardState(null);
+      return;
+    }
+
+    const movedCard = sourceCards[sourceIndex];
+    const nextSourceCards = sourceCards.filter((card) => card.entryId !== moveCardState.entryId);
+    const targetColumn = columns.find((column) => column.id === moveCardState.targetColumnId);
+    const targetCardsBase =
+      moveCardState.targetColumnId === moveCardState.sourceColumnId
+        ? nextSourceCards
+        : [...(cardsByColumn[moveCardState.targetColumnId] ?? [])];
+    const requestedRank = Number.parseInt(moveCardState.targetRank, 10);
+    const insertIndex = Number.isFinite(requestedRank)
+      ? Math.max(0, Math.min(targetCardsBase.length, requestedRank - 1))
+      : targetCardsBase.length;
+    const nextTargetCards = [...targetCardsBase];
+
+    if (targetColumn && isColumnAutoSorted(targetColumn)) {
+      nextTargetCards.push(movedCard);
+    } else {
+      nextTargetCards.splice(insertIndex, 0, movedCard);
+    }
+
+    const nextState = reconcileMirrorForMove(
+      {
+        ...cardsByColumn,
+        [moveCardState.sourceColumnId]: moveCardState.targetColumnId === moveCardState.sourceColumnId ? [] : nextSourceCards,
+        [moveCardState.targetColumnId]: targetColumn ? applyColumnSortMode(targetColumn, nextTargetCards) : nextTargetCards,
+      },
+      movedCard,
+      moveCardState.sourceColumnId,
+      moveCardState.targetColumnId,
+    );
+
+    if (moveCardState.targetColumnId === moveCardState.sourceColumnId) {
+      nextState[moveCardState.sourceColumnId] = targetColumn
+        ? applyColumnSortMode(targetColumn, nextTargetCards)
+        : nextTargetCards;
+    }
+
+    latestCardsByColumnRef.current = nextState;
+    setCardsByColumn(nextState);
+    setMoveCardState(null);
     queuePersistBoardState({ cardsByColumn: nextState });
   }
 
@@ -3235,12 +3481,13 @@ export function RankboardApp() {
       return;
     }
 
-    const title = editingCardDraft.title.trim() || `Untitled ${boardVocabulary.singular}`;
-    const imageUrl = editingCardDraft.imageUrl.trim();
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? editingCardDraft.title).trim() || `Untitled ${boardVocabulary.singular}`;
+    const imageUrl = String(formData.get("imageUrl") ?? editingCardDraft.imageUrl).trim();
     const imageStoragePath = editingCardDraft.imageStoragePath;
-    const series = editingCardDraft.series.trim();
-    const releaseYear = editingCardDraft.releaseYear.trim();
-    const notes = editingCardDraft.notes.trim();
+    const series = String(formData.get("series") ?? editingCardDraft.series).trim();
+    const releaseYear = String(formData.get("releaseYear") ?? editingCardDraft.releaseYear).trim();
+    const notes = String(formData.get("notes") ?? editingCardDraft.notes).trim();
     const editingColumnId = editingCardId ? findColumnIdForEntry(editingCardId) : null;
     const duplicate = editingColumnId
       ? findDuplicateCard(title, editingColumnId, editingCardItemId)
@@ -3342,7 +3589,7 @@ export function RankboardApp() {
   }
 
   function toggleBoardMirrorColumn(columnId: string) {
-    setColumns((current) =>
+    updateColumnsAndPersist((current) =>
       current.map((column) =>
         column.id === columnId
           ? {
@@ -3357,11 +3604,10 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
-    queuePersistBoardState();
   }
 
   function toggleExcludeColumnFromBoardMirrors(columnId: string) {
-    setColumns((current) =>
+    updateColumnsAndPersist((current) =>
       current.map((column) =>
         column.id === columnId
           ? {
@@ -3376,7 +3622,56 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
-    queuePersistBoardState();
+  }
+
+  function toggleColumnDontRank(columnId: string) {
+    updateColumnsAndPersist((current) =>
+      current.map((column) =>
+        column.id === columnId
+          ? {
+              ...column,
+              dontRank: !column.dontRank,
+            }
+          : column,
+      ),
+    );
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+  }
+
+  function toggleColumnSortMode(columnId: string, mode: Extract<ColumnSortMode, "title-asc" | "title-desc">) {
+    const column = columns.find((item) => item.id === columnId);
+
+    if (!column) {
+      return;
+    }
+
+    const nextSortMode: ColumnSortMode = getColumnSortMode(column) === mode ? "manual" : mode;
+    const nextColumns = columns.map((item) =>
+      item.id === columnId
+        ? {
+            ...item,
+            sortMode: nextSortMode,
+            dontRank: nextSortMode === "manual" ? true : true,
+          }
+        : item,
+    );
+    const targetColumn = nextColumns.find((item) => item.id === columnId) ?? column;
+    const nextCards = {
+      ...cardsByColumn,
+      [columnId]: applyColumnSortMode(targetColumn, cardsByColumn[columnId] ?? []),
+    };
+
+    latestColumnsRef.current = nextColumns;
+    latestCardsByColumnRef.current = nextCards;
+    setColumns(nextColumns);
+    setCardsByColumn(nextCards);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    queuePersistBoardState({
+      columns: nextColumns,
+      cardsByColumn: nextCards,
+    });
   }
 
   function moveColumnToTarget(sourceColumnId: string, targetColumnId: string) {
@@ -3384,7 +3679,7 @@ export function RankboardApp() {
       return;
     }
 
-    setColumns((current) => {
+    updateColumnsAndPersist((current) => {
       const sourceIndex = current.findIndex((column) => column.id === sourceColumnId);
       const targetIndex = current.findIndex((column) => column.id === targetColumnId);
 
@@ -3397,7 +3692,6 @@ export function RankboardApp() {
       nextColumns.splice(targetIndex, 0, movedColumn);
       return nextColumns;
     });
-    queuePersistBoardState();
   }
 
   function addColumnAt(insertIndex: number) {
@@ -3417,7 +3711,13 @@ export function RankboardApp() {
     setEditingColumnDraft({
       title: newColumn.title,
     });
-    queuePersistBoardState();
+    queuePersistBoardState({
+      columns: [...columns.slice(0, Math.max(0, Math.min(insertIndex, columns.length))), newColumn, ...columns.slice(Math.max(0, Math.min(insertIndex, columns.length)))],
+      cardsByColumn: {
+        ...cardsByColumn,
+        [newColumn.id]: [],
+      },
+    });
   }
 
   function deleteColumn(columnId: string) {
@@ -3426,12 +3726,15 @@ export function RankboardApp() {
     if (!column) {
       return;
     }
+    setPendingColumnDelete({ id: column.id, title: column.title });
+  }
 
-    const confirmed = window.confirm(`Delete the "${column.title}" column and its cards?`);
-
-    if (!confirmed) {
+  function confirmDeleteColumn() {
+    if (!pendingColumnDelete) {
       return;
     }
+
+    const columnId = pendingColumnDelete.id;
 
     const deletedEntryIds = new Set(
       (cardsByColumn[columnId] ?? []).map((card) => card.entryId),
@@ -3467,6 +3770,7 @@ export function RankboardApp() {
       cancelEditingColumn();
     }
 
+    setPendingColumnDelete(null);
     setOpenColumnMenuId(null);
     queuePersistBoardState();
   }
@@ -3554,27 +3858,7 @@ export function RankboardApp() {
     columnId: string,
     mode: "title-asc" | "title-desc",
   ) {
-    setCardsByColumn((current) => {
-      const cards = current[columnId] ?? [];
-      const nextCards = [...cards];
-
-      if (mode === "title-asc") {
-        nextCards.sort((a, b) => a.title.localeCompare(b.title));
-      } else {
-        nextCards.sort((a, b) => b.title.localeCompare(a.title));
-      }
-
-      return {
-        ...current,
-        [columnId]: nextCards,
-      };
-    });
-
-    setOpenColumnMenuId(null);
-    setOpenColumnSortMenuId(null);
-    setOpenColumnFilterMenuId(null);
-    setOpenColumnMirrorMenuId(null);
-    queuePersistBoardState();
+    toggleColumnSortMode(columnId, mode);
   }
 
   function setColumnTierFilter(columnId: string, tierFilter: TierFilter) {
@@ -3816,6 +4100,38 @@ export function RankboardApp() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  async function shareActiveBoard() {
+    const nextSlug = activeBoard.publicSlug ?? `${slugify(activeBoardTitle) || "board"}-${activeBoardId.slice(-8)}`;
+    const nextPublishedAt = new Date().toISOString();
+    const nextBoards = latestBoardsRef.current.map((board) =>
+      board.id === activeBoardId
+        ? {
+            ...board,
+            isPublic: true,
+            publicSlug: nextSlug,
+            lastPublishedAt: nextPublishedAt,
+            updatedAt: nextPublishedAt,
+          }
+        : board,
+    );
+    const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/share/${nextSlug}` : nextSlug;
+
+    latestBoardsRef.current = nextBoards;
+    setBoards(nextBoards);
+    queuePersistBoardState({ boards: nextBoards, activeBoardId });
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setSaveState("saved");
+    } catch {
+      // Ignore clipboard failures; the link is still published.
+    }
+
+    window.alert(`Public read-only link ready:\n${shareUrl}`);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
   }
@@ -4525,7 +4841,7 @@ export function RankboardApp() {
   return (
     <div
       className={clsx(
-        "min-h-screen transition-colors",
+        "min-h-screen pt-[env(safe-area-inset-top)] transition-colors",
         isDarkMode
           ? "bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] text-slate-100"
           : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffd9c7_20%,#ffefe6_42%,#f5f7ff_68%,#eff7ff_100%)] text-slate-950",
@@ -4735,16 +5051,24 @@ export function RankboardApp() {
                               <Upload className="h-4 w-4" />
                               Import
                             </button>
-                            <button
-                              className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                              onClick={exportActiveBoardAsJson}
-                              type="button"
-                            >
-                              <Save className="h-4 w-4" />
-                              Export
-                            </button>
-                          </div>
-                        ) : null}
+                                <button
+                                  className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                  onClick={exportActiveBoardAsJson}
+                                  type="button"
+                                >
+                                  <Save className="h-4 w-4" />
+                                  Export
+                                </button>
+                                <button
+                                  className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                  onClick={shareActiveBoard}
+                                  type="button"
+                                >
+                                  <Share2 className="h-4 w-4" />
+                                  Share
+                                </button>
+                              </div>
+                            ) : null}
                       </div>
                       <button
                         className={clsx(
@@ -5477,6 +5801,17 @@ export function RankboardApp() {
                                   <Save className="h-4 w-4" />
                                   Export
                                 </button>
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  )}
+                                  onClick={shareActiveBoard}
+                                  type="button"
+                                >
+                                  <Share2 className="h-4 w-4" />
+                                  Share
+                                </button>
                               </div>
                             ) : null}
                           </div>
@@ -5553,7 +5888,7 @@ export function RankboardApp() {
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
             >
-              <div className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
+              <div className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
                 {columns.map((column, columnIndex) => {
                   const visibleCards = filterCards(
                     cardsByColumn[column.id] ?? [],
@@ -5584,6 +5919,8 @@ export function RankboardApp() {
                         onSaveColumnEdit={() => saveEditingColumn(column.id)}
                         onDeleteCard={handleDeleteCard}
                         onEditCard={startEditingCard}
+                        onMoveCard={openMoveCardModal}
+                        onCopyCard={copyCardToDraft}
                         onAddCard={openAddGameModal}
                         onOpenPairwiseQuiz={() => openPairwiseQuiz(column.id)}
                         onSortCards={sortColumnCards}
@@ -5652,6 +5989,7 @@ export function RankboardApp() {
                         }}
                         onDeleteColumn={deleteColumn}
                         onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
+                        onToggleDontRank={toggleColumnDontRank}
                         onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
                         onLinkMirrorMatches={linkMatchingMirrorCards}
                         onSetTierFilter={setColumnTierFilter}
@@ -6732,7 +7070,7 @@ export function RankboardApp() {
           >
             <div
               className={clsx(
-                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -7797,6 +8135,154 @@ export function RankboardApp() {
             </div>
           </div>
         ) : null}
+
+        {pendingColumnDelete ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingColumnDelete(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                Column Settings
+              </p>
+              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                Delete column?
+              </h2>
+              <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                <strong>{pendingColumnDelete.title}</strong> and all cards inside it will be removed.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-rose-500 text-white hover:bg-rose-400"
+                      : "bg-rose-600 text-white hover:bg-rose-500",
+                  )}
+                  onClick={confirmDeleteColumn}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Column
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingColumnDelete(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {moveCardState ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setMoveCardState(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                Card Actions
+              </p>
+              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                Move {moveCardState.title}
+              </h2>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Column</span>
+                  <select
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                    )}
+                    value={moveCardState.targetColumnId}
+                    onChange={(event) =>
+                      setMoveCardState((current) =>
+                        current ? { ...current, targetColumnId: event.target.value } : current,
+                      )
+                    }
+                  >
+                    {columns.map((column) => (
+                      <option key={column.id} value={column.id}>
+                        {column.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Rank</span>
+                  <input
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    inputMode="numeric"
+                    value={moveCardState.targetRank}
+                    onChange={(event) =>
+                      setMoveCardState((current) =>
+                        current ? { ...current, targetRank: event.target.value.replace(/[^\d]/g, "") } : current,
+                      )
+                    }
+                  />
+                </label>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={confirmMoveCard}
+                  type="button"
+                >
+                  <MoveVertical className="h-4 w-4" />
+                  Move Card
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setMoveCardState(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
@@ -7815,7 +8301,7 @@ function AddColumnButton({
     <button
       className={clsx(
         inline
-          ? "group flex min-h-[720px] w-4 shrink-0 snap-start items-center justify-center transition sm:snap-align-none"
+          ? "group flex min-h-[720px] w-3 shrink-0 snap-start items-center justify-center transition sm:snap-align-none"
           : "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? inline
@@ -7834,21 +8320,21 @@ function AddColumnButton({
           <span
             className={clsx(
               "h-full w-px",
-              isDarkMode ? "bg-white/15 group-hover:bg-white/30" : "bg-slate-300/70 group-hover:bg-slate-500/70",
+              isDarkMode ? "bg-white/10 group-hover:bg-white/25" : "bg-slate-300/40 group-hover:bg-slate-500/55",
             )}
           />
           <span
             className={clsx(
-              "flex h-6 w-6 items-center justify-center rounded-full shadow-lg",
+              "flex h-5 w-5 items-center justify-center rounded-full shadow-lg",
               isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
             )}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3 w-3" />
           </span>
           <span
             className={clsx(
               "h-full w-px",
-              isDarkMode ? "bg-white/15 group-hover:bg-white/30" : "bg-slate-300/70 group-hover:bg-slate-500/70",
+              isDarkMode ? "bg-white/10 group-hover:bg-white/25" : "bg-slate-300/40 group-hover:bg-slate-500/55",
             )}
           />
         </span>
@@ -7886,6 +8372,8 @@ function BoardColumn({
   onSaveColumnEdit,
   onDeleteCard,
   onEditCard,
+  onMoveCard,
+  onCopyCard,
   onAddCard,
   onOpenPairwiseQuiz,
   onSortCards,
@@ -7904,6 +8392,7 @@ function BoardColumn({
   onOpenSeriesScrape,
   onDeleteColumn,
   onToggleBoardMirrorColumn,
+  onToggleDontRank,
   onToggleExcludeFromBoardMirrors,
   onLinkMirrorMatches,
   onSetTierFilter,
@@ -7933,6 +8422,8 @@ function BoardColumn({
   onSaveColumnEdit: () => void;
   onDeleteCard: (columnId: string, entryId: string) => void;
   onEditCard: (card: CardEntry) => void;
+  onMoveCard: (card: CardEntry) => void;
+  onCopyCard: (card: CardEntry) => void;
   onAddCard: (columnId: string, insertIndex: number) => void;
   onOpenPairwiseQuiz: () => void;
   onSortCards: (
@@ -7954,6 +8445,7 @@ function BoardColumn({
   onOpenSeriesScrape: () => void;
   onDeleteColumn: (columnId: string) => void;
   onToggleBoardMirrorColumn: (columnId: string) => void;
+  onToggleDontRank: (columnId: string) => void;
   onToggleExcludeFromBoardMirrors: (columnId: string) => void;
   onLinkMirrorMatches: (columnId: string) => void;
   onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
@@ -8125,6 +8617,19 @@ function BoardColumn({
                           Rank by Quiz
                         </button>
                       ) : null}
+                      <button
+                        className={clsx(
+                          "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
+                          isDarkMode
+                            ? "text-white hover:bg-white/10"
+                            : "text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={() => onToggleDontRank(column.id)}
+                        type="button"
+                      >
+                        <span>{column.dontRank ? "Ranked View Off" : "Ranked View On"}</span>
+                        <span className="text-xs opacity-70">{column.dontRank ? "Don't Rank" : "Ranked"}</span>
+                      </button>
                       <div className="relative">
                         <button
                           className={clsx(
@@ -8153,7 +8658,7 @@ function BoardColumn({
                           >
                             <button
                               className={clsx(
-                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
@@ -8161,11 +8666,12 @@ function BoardColumn({
                               onClick={() => onSortCards(column.id, "title-asc")}
                               type="button"
                             >
-                              A-Z
+                              <span>A-Z</span>
+                              {getColumnSortMode(column) === "title-asc" ? <Check className="h-4 w-4" /> : null}
                             </button>
                             <button
                               className={clsx(
-                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
@@ -8173,7 +8679,8 @@ function BoardColumn({
                               onClick={() => onSortCards(column.id, "title-desc")}
                               type="button"
                             >
-                              Z-A
+                              <span>Z-A</span>
+                              {getColumnSortMode(column) === "title-desc" ? <Check className="h-4 w-4" /> : null}
                             </button>
                           </div>
                         ) : null}
@@ -8409,6 +8916,8 @@ function BoardColumn({
               }
               onDelete={() => onDeleteCard(column.id, card.entryId)}
               onEdit={() => onEditCard(card)}
+              onMove={() => onMoveCard(card)}
+              onCopy={() => onCopyCard(card)}
             />
           ))
         ) : (
@@ -8442,6 +8951,8 @@ function BoardColumn({
                     }
                     onDelete={() => onDeleteCard(column.id, card.entryId)}
                     onEdit={() => onEditCard(card)}
+                    onMove={() => onMoveCard(card)}
+                    onCopy={() => onCopyCard(card)}
                   />
                   <AddCardRow
                     columnId={column.id}
@@ -8574,6 +9085,8 @@ function SortableCard({
   secondaryRankBadge,
   onDelete,
   onEdit,
+  onMove,
+  onCopy,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -8584,6 +9097,8 @@ function SortableCard({
   secondaryRankBadge?: RankBadge | null;
   onDelete: () => void;
   onEdit: () => void;
+  onMove: () => void;
+  onCopy: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -8619,6 +9134,8 @@ function SortableCard({
         dragProps={{ ...attributes, ...listeners }}
         onDelete={onDelete}
         onEdit={onEdit}
+        onMove={onMove}
+        onCopy={onCopy}
       />
     </div>
   );
@@ -8636,6 +9153,8 @@ function CardTile({
   isDragging = false,
   onDelete,
   onEdit,
+  onMove,
+  onCopy,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -8648,6 +9167,8 @@ function CardTile({
   isDragging?: boolean;
   onDelete?: () => void;
   onEdit?: () => void;
+  onMove?: () => void;
+  onCopy?: () => void;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
@@ -8668,6 +9189,7 @@ function CardTile({
     }))
     .filter((field) => field.value.length > 0);
   const [showCollapsedActions, setShowCollapsedActions] = useState(false);
+  const [showCardActionsMenu, setShowCardActionsMenu] = useState(false);
   const [loadedImageSource, setLoadedImageSource] = useState("");
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
@@ -8680,19 +9202,20 @@ function CardTile({
           : "border-white/10";
 
   useEffect(() => {
-    if (!collapseCards || !showCollapsedActions) {
+    if ((!collapseCards || !showCollapsedActions) && !showCardActionsMenu) {
       return;
     }
 
     function handlePointerDown(event: PointerEvent) {
       if (!cardRef.current?.contains(event.target as Node)) {
         setShowCollapsedActions(false);
+        setShowCardActionsMenu(false);
       }
     }
 
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [collapseCards, showCollapsedActions]);
+  }, [collapseCards, showCollapsedActions, showCardActionsMenu]);
 
   return (
     <article
@@ -8759,12 +9282,12 @@ function CardTile({
                       : "bg-white text-slate-950",
               )}
             >
-              {rankBadge.label ? `${rankBadge.label} #${rankBadge.value}` : `#${rankBadge.value}`}
+              {rankBadge.label ? `${rankBadge.label} ${rankBadge.value}` : `${rankBadge.value}`}
             </div>
           ) : null}
           {secondaryRankBadge ? (
             <div className="rounded-full bg-slate-950/75 px-3 py-1 text-xs font-black text-white backdrop-blur">
-              {`${secondaryRankBadge.label} #${secondaryRankBadge.value}`}
+              {`${secondaryRankBadge.label} ${secondaryRankBadge.value}`}
             </div>
           ) : null}
         </div>
@@ -8833,18 +9356,65 @@ function CardTile({
         ) : null}
 
         {onDelete ? (
-          <button
-            className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            type="button"
-            aria-label={`Delete ${card.title}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <>
+            {onMove ? (
+              <button
+                className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onMove();
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+                aria-label={`Move ${card.title}`}
+              >
+                <MoveVertical className="h-4 w-4" />
+              </button>
+            ) : null}
+            {onCopy ? (
+              <button
+                className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCopy();
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+                aria-label={`Copy ${card.title}`}
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+            ) : null}
+            <div className="relative">
+              <button
+                className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowCardActionsMenu((current) => !current);
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+                aria-label={`More actions for ${card.title}`}
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+              {showCardActionsMenu ? (
+                <div className="absolute right-0 top-11 z-20 flex min-w-[120px] flex-col rounded-2xl bg-slate-950/95 p-2 text-sm text-white shadow-[0_18px_40px_rgba(15,23,42,0.24)] backdrop-blur">
+                  <button
+                    className="rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowCardActionsMenu(false);
+                      onDelete();
+                    }}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </>
         ) : null}
       </div>
     </article>

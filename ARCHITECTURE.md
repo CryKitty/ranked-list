@@ -22,6 +22,9 @@
   - `column_entries`
 - Backup and migration compatibility:
   - `board_states`
+- Active board preference:
+  - local storage key scoped to the signed-in user when available
+  - refreshed and remote-hydrated sessions should restore the user to the same board instead of falling back to the first board
 
 ## Load Flow
 
@@ -37,12 +40,23 @@
 - The app writes `board_states` backup snapshots first, then tries to repair/update normalized rows.
 - If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
 - Local storage keeps a fast cache plus recent backup snapshots.
+- `column_entries` are now rewritten per board sync pass instead of incrementally upserted by stale IDs, which reduces the prior `409` conflict path.
 
 ## Recovery Preference
 
 - When both normalized rows and `board_states` exist, the app prefers the richer/newer source.
 - If normalized rows are suspiciously incomplete, the app hydrates from `board_states` and then attempts to repair normalized rows from that backup.
 - Recovery is evaluated per board, not just per account-wide snapshot, so one empty or partially saved board is less likely to override the rest.
+- Remote hydration is also compared against the current in-memory session snapshot so a non-empty local board is less likely to be replaced by a thinner remote payload during an active editing session.
+
+## Column Modes
+
+- Columns now carry explicit metadata for:
+  - `dontRank`
+  - `sortMode`
+  - `confirmMirrorClones`
+- Ranked presentation is no longer derived only from `column.type`; a ranked column must also be in manual sort mode and not marked `dontRank`.
+- A-Z / Z-A are persistent modes rather than one-shot actions, and sorted columns auto-place cards by title.
 
 ## Media
 
@@ -57,10 +71,17 @@
   - board title + rename control
   - desktop save-status indicator
   - search / filter / undo / settings controls
+- Cards expose action affordances for edit, move, copy, and settings-driven delete.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
+
+## Public Sharing v1
+
+- Boards can now be marked public and assigned a read-only share slug.
+- Public links render through [`/Users/avarycooney/Documents/Playground/src/app/share/[slug]/page.tsx`](/Users/avarycooney/Documents/Playground/src/app/share/[slug]/page.tsx).
+- v1 is full-board only and read-only; viewers do not get edit affordances.
 
 ## Series Scraping
 
