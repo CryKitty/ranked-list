@@ -91,7 +91,7 @@ export function HoverLabelIconButton({
   return (
     <button
       className={clsx(
-        "group inline-flex h-[50px] items-center gap-2 overflow-hidden rounded-full border px-3 transition",
+        "group inline-flex h-[50px] w-[50px] items-center justify-center gap-0 overflow-hidden rounded-full border px-0 transition hover:w-auto hover:gap-2 hover:px-3 focus-visible:w-auto focus-visible:gap-2 focus-visible:px-3",
         isDarkMode
           ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 disabled:opacity-60"
           : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:opacity-60",

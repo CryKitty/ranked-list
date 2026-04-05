@@ -549,7 +549,7 @@ export function AddCardDialog({
           </div>
 
           {shouldShowImageField ? (
-            <div className="grid grid-cols-[1fr_auto_auto_auto] items-end gap-3">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
               <label className="grid gap-2">
                 <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
                 <div className="relative">

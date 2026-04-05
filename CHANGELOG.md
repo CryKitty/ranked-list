@@ -12,6 +12,11 @@
 - Extracted the shared field/settings UI into [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx).
 - Extracted the board setup, add-card, and edit-card dialogs into [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx).
 - Reduced [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) further by moving form-heavy UI out into dedicated component files.
+- Strengthened active-board restoration again so refresh prefers the last stored board ID from both signed-in and fallback local storage keys.
+- Fixed same-column drag/drop so dropping a card lower in a list no longer tends to snap it back into place.
+- Moved mobile artwork helper buttons below the artwork URL field so the URL input stays easy to tap.
+- Changed the column filter button to use a proper filter icon instead of the board-customization sparkles icon.
+- Centered collapsed hover-label modal action icons so they sit correctly before the label expands on hover.
 
 ## 2026-04-03
 

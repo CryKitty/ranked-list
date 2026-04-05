@@ -30,6 +30,7 @@ import {
   CircleDashed,
   Clapperboard,
   Edit3,
+  Filter,
   Gamepad2,
   Heart,
   ListOrdered,
@@ -424,6 +425,21 @@ function getUserBoardCacheKey(userId: string) {
 
 function getLastActiveBoardStorageKey(userId?: string | null) {
   return userId ? `${LAST_ACTIVE_BOARD_KEY}-${userId}` : LAST_ACTIVE_BOARD_KEY;
+}
+
+function readStoredPreferredBoardId(userId?: string | null) {
+  try {
+    if (userId) {
+      return (
+        window.localStorage.getItem(getLastActiveBoardStorageKey(userId)) ??
+        window.localStorage.getItem(getLastActiveBoardStorageKey())
+      );
+    }
+
+    return window.localStorage.getItem(getLastActiveBoardStorageKey());
+  } catch {
+    return null;
+  }
 }
 
 function isRankedColumn(column: ColumnDefinition) {
@@ -1606,7 +1622,7 @@ export function RankboardApp() {
 
     if (authEnabled) {
       try {
-        const preferredBoardId = window.localStorage.getItem(getLastActiveBoardStorageKey());
+        const preferredBoardId = readStoredPreferredBoardId();
 
         if (preferredBoardId) {
           setActiveBoardId(preferredBoardId);
@@ -1639,9 +1655,12 @@ export function RankboardApp() {
 
       if ("boards" in parsedState && Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
         const nextBoards = parsedState.boards.map((board) => normalizeSavedBoard(board));
+        const preferredBoardId = readStoredPreferredBoardId();
         const nextActiveBoardId =
-          parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
-            ? parsedState.activeBoardId
+          preferredBoardId && nextBoards.some((board) => board.id === preferredBoardId)
+            ? preferredBoardId
+            : parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
+              ? parsedState.activeBoardId
             : nextBoards[0].id;
         const nextActiveBoard =
           nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
@@ -1915,9 +1934,12 @@ export function RankboardApp() {
 
         if (Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
           const nextBoards = parsedState.boards.map((board) => normalizeSavedBoard(board));
+          const preferredBoardId = readStoredPreferredBoardId(user.id);
           const nextActiveBoardId =
-            parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
-              ? parsedState.activeBoardId
+            preferredBoardId && nextBoards.some((board) => board.id === preferredBoardId)
+              ? preferredBoardId
+              : parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
+                ? parsedState.activeBoardId
               : nextBoards[0]?.id;
           const nextActiveBoard =
             nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
@@ -1973,13 +1995,7 @@ export function RankboardApp() {
           ? choosePreferredBoards(normalizedBoards, backupState.boards)
           : normalizedBoards;
         const preferredBoards = chooseSessionPreferredBoards(remotePreferredBoards, localBoards);
-        const preferredActiveBoardId = (() => {
-          try {
-            return window.localStorage.getItem(getLastActiveBoardStorageKey(user.id));
-          } catch {
-            return null;
-          }
-        })();
+        const preferredActiveBoardId = readStoredPreferredBoardId(user.id);
         const preferredLatestTimestamp =
           backupState?.boards.length && preferredBoards.some((board) => backupState.boards.some((backupBoard) => backupBoard.id === board.id))
             ? getLatestBoardTimestamp(preferredBoards) ?? backupState?.updatedAt ?? null
@@ -2525,7 +2541,8 @@ export function RankboardApp() {
       const overIndex = destinationCards.findIndex((card) => card.entryId === overId);
 
       if (overIndex >= 0) {
-        destinationIndex = overIndex;
+        destinationIndex =
+          sourceColumnId === overColumnId && sourceIndex < overIndex ? overIndex + 1 : overIndex;
       }
     }
 
@@ -7597,7 +7614,7 @@ function BoardColumn({
                             type="button"
                           >
                             <span className="inline-flex items-center gap-2">
-                              <Sparkles className="h-4 w-4" />
+                              <Filter className="h-4 w-4" />
                               Filter
                             </span>
                             <span className="text-xs opacity-70">

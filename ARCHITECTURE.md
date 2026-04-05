@@ -36,6 +36,7 @@
 2. If signed in, the app loads normalized board rows from Supabase.
 3. If normalized rows are missing but `board_states` exists, the app migrates that snapshot into normalized rows.
 4. After remote hydration, UI state uses the normalized data and `board_states` remains backup-only.
+5. Active-board restoration now checks both the user-scoped last-board key and the generic fallback key before defaulting to the first board.
 
 ## Save Flow
 
@@ -67,6 +68,7 @@
 - Manual artwork URLs are still supported.
 - Uploads are optimized client-side where possible, then sent to the `board-artwork` Supabase Storage bucket.
 - Card media uses blurred loading transitions to reduce harsh pop-in.
+- On mobile, artwork helper buttons are intentionally stacked below the URL field so the URL input remains usable.
 
 ## Key UI Conventions
 
@@ -77,6 +79,7 @@
   - search / filter / share / undo / settings controls
 - Cards expose action affordances for edit, move, copy, and settings-driven delete.
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
+- Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
@@ -120,6 +123,7 @@
 
 - The public board component entrypoint is intentionally tiny now; the large implementation lives in `rankboard-app-impl.tsx`.
 - This is still an incremental reorganization, not a full decomposition. The implementation file remains large, but the highest-duplication form UIs now live in dedicated component files and the stable wrapper keeps import churn low.
+- Same-column drag/drop logic now treats drops onto lower cards as an insertion after the hovered card, which fixes the prior “moving down doesn’t stick” behavior.
 - The next cleanups should target extracting:
   - column lane / column menu sections
   - maintenance/import/export modals
