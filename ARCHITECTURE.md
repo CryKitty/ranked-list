@@ -112,6 +112,7 @@
 - Mirror review now labels the `Link` toggle explicitly and uses a compact rank display/input rather than a wider generic status field.
 - Automatic board-mirror sync now prepends newly discovered clones so fresh mirror additions surface at the top of the mirror column.
 - Mirror review delete actions should use the mirror-specific choice modal so linked cards can be deleted together or only as a mirror copy.
+- Inside the mirror review workflow, those delete choices should appear as a local anchored popover on the row itself rather than a separate full-screen modal layered behind the review screen.
 - Card deletion from the edit dialog now goes through an in-app confirmation modal instead of deleting immediately.
 - Board customization now includes icon selection. Boards can use either a built-in icon key or an uploaded custom icon image stored directly in board settings.
 - Duplicate cleanup at board scope now groups same-title, non-mirrored cards across the active board instead of only within individual columns.

@@ -13,6 +13,9 @@
 - Simplified the mirror-link review rows further by removing the `Keep` button and the extra source/rank fields so the main actions fit more cleanly beside the card preview.
 - The mirror-link review trash button now opens the mirror-specific delete choice flow (`Delete Both Copies` / `Delete This Copy` / `Cancel`) instead of the generic card delete prompt.
 - Mobile action-sheet `Customization` and `Maintenance` rows are now centered like the other buttons, and their expanded panels open directly beneath their own buttons instead of at the bottom of the sheet.
+- Removed the leftover rank reference from the mirror-link review rows entirely.
+- The mirror-link delete choices now open as a local popover attached to the delete button instead of hiding behind the main review modal.
+- Reordered mirror delete choices to `Delete This Copy`, `Delete Both Copies`, then `Cancel`.
 - Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
 - Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
 - Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.

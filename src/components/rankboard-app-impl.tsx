@@ -6619,7 +6619,7 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
-        {pendingMirrorDelete ? (
+        {pendingMirrorDelete && !pendingMirrorLinkSuggestions ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
             onClick={() => setPendingMirrorDelete(null)}
@@ -6668,15 +6668,16 @@ function copyCardToDraft(card: CardEntry) {
                       : "bg-slate-950 text-white hover:bg-slate-800",
                   )}
                   onClick={() =>
-                    deleteAllLinkedCopies(
-                      pendingMirrorDelete.itemId,
+                    deleteOnlyMirrorCopy(
+                      pendingMirrorDelete.columnId,
                       pendingMirrorDelete.entryId,
+                      pendingMirrorDelete.itemId,
                     )
                   }
                   type="button"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Delete Both Copies
+                  Delete This Copy
                 </button>
                 <button
                   className={clsx(
@@ -6686,15 +6687,14 @@ function copyCardToDraft(card: CardEntry) {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
                   onClick={() =>
-                    deleteOnlyMirrorCopy(
-                      pendingMirrorDelete.columnId,
-                      pendingMirrorDelete.entryId,
+                    deleteAllLinkedCopies(
                       pendingMirrorDelete.itemId,
+                      pendingMirrorDelete.entryId,
                     )
                   }
                   type="button"
                 >
-                  Delete This Copy
+                  Delete Both Copies
                 </button>
                 <button
                   className={clsx(
@@ -6844,7 +6844,7 @@ function copyCardToDraft(card: CardEntry) {
                     <div
                       key={suggestion.id}
                       className={clsx(
-                        "rounded-3xl border p-4 transition",
+                        "relative rounded-3xl border p-4 transition",
                         suggestion.enabled
                           ? isDarkMode
                             ? "border-white/15 bg-slate-950/50 hover:bg-slate-950/70"
@@ -6872,25 +6872,79 @@ function copyCardToDraft(card: CardEntry) {
                             </div>
                             <div className="flex items-center gap-2 self-start">
                               {suggestion.kind === "link" && suggestion.mirrorEntryId ? (
-                                <button
-                                  className={clsx(
-                                    "rounded-full p-2 transition",
-                                    isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
-                                  )}
-                                  onClick={() =>
-                                    setPendingMirrorDelete({
-                                      columnId: suggestion.mirrorColumnId,
-                                      entryId: suggestion.mirrorEntryId!,
-                                      itemId: suggestion.sourceItemId,
-                                      title: suggestion.mirrorTitle,
-                                      columnTitle: suggestion.sourceColumnTitle,
-                                    })
-                                  }
-                                  type="button"
-                                  aria-label={`Delete ${suggestion.mirrorTitle}`}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                <div className="relative">
+                                  <button
+                                    className={clsx(
+                                      "rounded-full p-2 transition",
+                                      isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
+                                    )}
+                                    onClick={() =>
+                                      setPendingMirrorDelete({
+                                        columnId: suggestion.mirrorColumnId,
+                                        entryId: suggestion.mirrorEntryId!,
+                                        itemId: suggestion.sourceItemId,
+                                        title: suggestion.mirrorTitle,
+                                        columnTitle: suggestion.sourceColumnTitle,
+                                      })
+                                    }
+                                    type="button"
+                                    aria-label={`Delete ${suggestion.mirrorTitle}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                  {pendingMirrorDelete?.entryId === suggestion.mirrorEntryId ? (
+                                    <div
+                                      className={clsx(
+                                        "absolute right-0 top-11 z-20 w-52 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                        isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
+                                      )}
+                                    >
+                                      <button
+                                        className={clsx(
+                                          "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                          isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
+                                        )}
+                                        onClick={() =>
+                                          deleteOnlyMirrorCopy(
+                                            pendingMirrorDelete.columnId,
+                                            pendingMirrorDelete.entryId,
+                                            pendingMirrorDelete.itemId,
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete This Copy
+                                      </button>
+                                      <button
+                                        className={clsx(
+                                          "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                          isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
+                                        )}
+                                        onClick={() =>
+                                          deleteAllLinkedCopies(
+                                            pendingMirrorDelete.itemId,
+                                            pendingMirrorDelete.entryId,
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete Both Copies
+                                      </button>
+                                      <button
+                                        className={clsx(
+                                          "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                          isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
+                                        )}
+                                        onClick={() => setPendingMirrorDelete(null)}
+                                        type="button"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
                               ) : null}
                               <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                                 Link
@@ -6903,11 +6957,6 @@ function copyCardToDraft(card: CardEntry) {
                               />
                             </div>
                           </div>
-                          {suggestion.kind === "link" ? (
-                            <p className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                              Current rank: {suggestion.rank}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
                     </div>
