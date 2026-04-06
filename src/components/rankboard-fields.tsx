@@ -60,7 +60,11 @@ export function ToggleSwitch({
         "relative inline-flex h-6 w-11 items-center rounded-full transition",
         enabled ? "bg-emerald-500" : isDarkMode ? "bg-white/15" : "bg-slate-300",
       )}
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
       type="button"
     >
       <span

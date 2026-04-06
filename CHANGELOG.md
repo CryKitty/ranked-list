@@ -17,6 +17,13 @@
 - Moved mobile artwork helper buttons below the artwork URL field so the URL input stays easy to tap.
 - Changed the column filter button to use a proper filter icon instead of the board-customization sparkles icon.
 - Centered collapsed hover-label modal action icons so they sit correctly before the label expands on hover.
+- Fixed field toggles so nested switch clicks no longer cancel themselves out, which restores the ability to disable built-in fields like Series.
+- Cards can now be edited while search or filter views are active by clicking into the filtered card itself.
+- Mirrored cards now show their sibling column in the edit dialog and can be explicitly unlinked without being deleted.
+- Mirror sync no longer auto-relinks manual same-title cards just because their titles match a source card.
+- Mobile quick-add now targets the column currently in view instead of always falling back to the first eligible column.
+- Added left/right column move controls to the column menu so mobile users can reorder columns without desktop drag-and-drop.
+- Delayed auth-backed local cache writes until remote hydration finishes so refresh is less likely to strand users on a fresh starter board.
 
 ## 2026-04-03
 

@@ -46,6 +46,7 @@
 - If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
 - Local storage keeps a fast cache plus recent backup snapshots.
 - `column_entries` are now rewritten per board sync pass instead of incrementally upserted by stale IDs, which reduces the prior `409` conflict path.
+- In auth mode, user-scoped local cache writes should wait until remote hydration completes, so the default starter board does not overwrite a real multi-board session during refresh.
 
 ## Recovery Preference
 
@@ -53,6 +54,7 @@
 - If normalized rows are suspiciously incomplete, the app hydrates from `board_states` and then attempts to repair normalized rows from that backup.
 - Recovery is evaluated per board, not just per account-wide snapshot, so one empty or partially saved board is less likely to override the rest.
 - Remote hydration is also compared against the current in-memory session snapshot so a non-empty local board is less likely to be replaced by a thinner remote payload during an active editing session.
+- Active-board preference now also falls back across both user-scoped and generic last-board storage keys to reduce “refresh opened the wrong board” regressions.
 
 ## Column Modes
 
@@ -82,8 +84,17 @@
 - Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
+- On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
+- Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
+- Mobile quick-add should prefer the column currently centered in the horizontal lane.
+
+## Mirror Linking
+
+- Mirror columns should only maintain explicit links, not infer new ones from title matches during normal sync.
+- The manual `Link Duplicates` action remains the opt-in path for same-title relinking.
+- Mirrored cards can be unlinked in the edit dialog, which gives the clone its own `itemId` and excludes the original source item from automatic mirror recreation in that column.
 
 ## Component Split Status
 

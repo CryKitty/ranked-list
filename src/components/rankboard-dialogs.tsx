@@ -6,6 +6,7 @@ import {
   Clapperboard,
   Copy,
   ImagePlus,
+  Link2,
   MoveVertical,
   Plus,
   Save,
@@ -69,6 +70,7 @@ export function EditCardDialog({
   isEditFieldSettingsOpen,
   activeBoardFieldDefinitions,
   editingDuplicateAction,
+  mirroredSiblingColumnTitle,
   onClose,
   onSubmit,
   onTitleChange,
@@ -86,6 +88,7 @@ export function EditCardDialog({
   onMove,
   onCopy,
   onDelete,
+  onUnlinkMirror,
   onToggleFieldSettings,
   onToggleFieldVisibility,
   normalizeDateFieldInput,
@@ -114,6 +117,7 @@ export function EditCardDialog({
       column: { title: string };
     };
   } | null;
+  mirroredSiblingColumnTitle?: string | null;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTitleChange: (value: string) => void;
@@ -131,6 +135,7 @@ export function EditCardDialog({
   onMove: () => void;
   onCopy: () => void;
   onDelete: () => void;
+  onUnlinkMirror?: () => void;
   onToggleFieldSettings: () => void;
   onToggleFieldVisibility: (fieldId: string) => void;
   normalizeDateFieldInput: (value: string, format: NonNullable<BoardFieldDefinition["dateFormat"]>) => string;
@@ -158,9 +163,22 @@ export function EditCardDialog({
               Update card details
             </h2>
             {currentCardIsMirrored ? (
-              <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                This entry is a mirrored copy linked to another column.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className={clsx("text-sm leading-6", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                  This entry is a mirrored copy linked to another column.
+                </p>
+                {mirroredSiblingColumnTitle ? (
+                  <span
+                    className={clsx(
+                      "rounded-full px-2.5 py-1 text-xs font-semibold",
+                      isDarkMode ? "bg-white/10 text-slate-200" : "bg-slate-100 text-slate-700",
+                    )}
+                    title={`Sibling card lives in ${mirroredSiblingColumnTitle}`}
+                  >
+                    {mirroredSiblingColumnTitle}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
           </div>
           <button
@@ -361,6 +379,9 @@ export function EditCardDialog({
               <HoverLabelIconButton icon={<MoveVertical className="h-4 w-4" />} isDarkMode={isDarkMode} label="Move" onClick={onMove} />
               <HoverLabelIconButton icon={<Copy className="h-4 w-4" />} isDarkMode={isDarkMode} label="Copy" onClick={onCopy} />
               <HoverLabelIconButton icon={<Trash2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Delete" onClick={onDelete} />
+              {currentCardIsMirrored && onUnlinkMirror ? (
+                <HoverLabelIconButton icon={<Link2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Unlink" onClick={onUnlinkMirror} />
+              ) : null}
               <HoverLabelIconButton icon={<Settings2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Fields" onClick={onToggleFieldSettings} />
               {isEditFieldSettingsOpen ? (
                 <div className="absolute bottom-14 right-0 z-10">
