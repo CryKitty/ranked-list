@@ -6525,11 +6525,11 @@ function copyCardToDraft(card: CardEntry) {
                         showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
                         showArtworkOnCards={shouldShowArtworkOnCards}
                         showTierHighlights={activeBoardSettings.showTierHighlights}
+                        isDarkMode={isDarkMode}
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                         isCardDragging={isCardDragging}
                         isDragGapSuppressed={isDragGapSuppressed}
-                        isDarkMode={isDarkMode}
                         cards={visibleCards}
                         activeTierFilter={columnTierFilters[column.id] ?? "all"}
                         currentSeriesFilter={seriesFilter}
@@ -6644,6 +6644,7 @@ function copyCardToDraft(card: CardEntry) {
                       showSeries={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
                       showArtwork={shouldShowArtworkOnCards}
                       showTierHighlights={activeBoardSettings.showTierHighlights}
+                      isDarkMode={isDarkMode}
                       frontFieldDefinitions={activeBoardFieldDefinitions}
                       rankBadge={activeDragRankBadge}
                     />
@@ -8844,6 +8845,7 @@ function BoardColumn({
   showSeriesOnCards,
   showArtworkOnCards,
   showTierHighlights,
+  isDarkMode,
   frontFieldDefinitions,
   disableAddAffordances,
   isCardDragging,
@@ -8889,7 +8891,6 @@ function BoardColumn({
   onMoveColumnLeft,
   onMoveColumnRight,
   draggingColumnId,
-  isDarkMode,
 }: {
   column: ColumnDefinition;
   fullCards: CardEntry[];
@@ -8898,6 +8899,7 @@ function BoardColumn({
   showSeriesOnCards: boolean;
   showArtworkOnCards: boolean;
   showTierHighlights: boolean;
+  isDarkMode: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
   isCardDragging: boolean;
@@ -8948,7 +8950,6 @@ function BoardColumn({
   onMoveColumnLeft: (columnId: string) => void;
   onMoveColumnRight: (columnId: string) => void;
   draggingColumnId: string | null;
-  isDarkMode: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -9570,6 +9571,7 @@ function BoardColumn({
               showSeries={showSeriesOnCards}
               showArtwork={showArtworkOnCards}
               showTierHighlights={showTierHighlights}
+              isDarkMode={isDarkMode}
               frontFieldDefinitions={frontFieldDefinitions}
               rankBadge={
                       isRankedColumn(column)
@@ -9616,6 +9618,7 @@ function BoardColumn({
                     showSeries={showSeriesOnCards}
                     showArtwork={showArtworkOnCards}
                     showTierHighlights={showTierHighlights}
+                    isDarkMode={isDarkMode}
                     frontFieldDefinitions={frontFieldDefinitions}
                     isAnyCardDragging={isCardDragging}
                     rankBadge={
@@ -9784,6 +9787,7 @@ function SortableCard({
   showSeries,
   showArtwork,
   showTierHighlights,
+  isDarkMode,
   frontFieldDefinitions,
   rankBadge,
   secondaryRankBadge,
@@ -9795,6 +9799,7 @@ function SortableCard({
   showSeries: boolean;
   showArtwork: boolean;
   showTierHighlights: boolean;
+  isDarkMode: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
@@ -9838,6 +9843,7 @@ function SortableCard({
         showSeries={showSeries}
         showArtwork={showArtwork}
         showTierHighlights={showTierHighlights}
+        isDarkMode={isDarkMode}
         frontFieldDefinitions={frontFieldDefinitions}
         rankBadge={rankBadge}
         secondaryRankBadge={secondaryRankBadge}
@@ -9855,6 +9861,7 @@ function CardTile({
   showSeries,
   showArtwork,
   showTierHighlights,
+  isDarkMode,
   frontFieldDefinitions,
   rankBadge,
   secondaryRankBadge,
@@ -9868,6 +9875,7 @@ function CardTile({
   showSeries: boolean;
   showArtwork: boolean;
   showTierHighlights: boolean;
+  isDarkMode: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
@@ -9913,11 +9921,21 @@ function CardTile({
         ? "bg-cyan-300/95"
         : tierKey === "top20"
           ? "bg-fuchsia-300/95"
-          : "bg-slate-900";
+          : isDarkMode
+            ? "bg-slate-900"
+            : "bg-white";
   const collapsedRankClass =
     tierKey === "top10" || tierKey === "top15" || tierKey === "top20"
       ? "bg-white/85 text-slate-950"
-      : "bg-white text-slate-950";
+      : isDarkMode
+        ? "bg-white text-slate-950"
+        : "bg-slate-950 text-white";
+  const collapsedTitleClass =
+    tierKey === "top10" || tierKey === "top15" || tierKey === "top20"
+      ? "text-slate-950"
+      : isDarkMode
+        ? "text-white"
+        : "text-slate-950";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -9940,9 +9958,10 @@ function CardTile({
       data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
-        "group relative shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
+        "group relative shrink-0 overflow-hidden rounded-[28px] border cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
+        !collapseCards && "bg-slate-900",
         tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
       )}
@@ -9961,7 +9980,8 @@ function CardTile({
     >
       <div
         className={clsx(
-          "relative overflow-hidden bg-slate-900 bg-center",
+          "relative overflow-hidden bg-center",
+          collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
           collapseCards ? "min-h-[82px]" : "aspect-video",
         )}
         style={
@@ -10028,17 +10048,20 @@ function CardTile({
 
         {collapseCards ? (
           <div className="absolute inset-x-0 bottom-0 top-0 p-4">
-            <div className="flex min-h-full flex-col justify-end">
-              <div className="flex items-center gap-3">
-                {rankBadge ? (
+            <div className="relative flex min-h-full items-center justify-center">
+              {rankBadge ? (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2">
                   <div className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-black", collapsedRankClass)}>
                     {rankBadge.label ? `${rankBadge.label} ${rankBadge.value}` : `${rankBadge.value}`}
                   </div>
-                ) : null}
-                <h3 className={clsx("min-w-0 truncate font-bold", tierKey ? "text-slate-950" : "text-white", "text-lg")}>
+                </div>
+              ) : null}
+              <div className="mx-auto flex max-w-[calc(100%-4.75rem)] justify-center px-1 text-center">
+                <h3 className={clsx("line-clamp-2 text-lg font-bold leading-tight", collapsedTitleClass)}>
                   {displayTitle}
                 </h3>
               </div>
+              {rankBadge ? <div className="pointer-events-none invisible absolute right-0 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-black">00</div> : null}
             </div>
           </div>
         ) : hasArtwork ? (

@@ -172,3 +172,4 @@
 - Renamed the built-in `Artwork URL` field label to `Artwork`.
 - Added an intentional no-art card-face layout for artwork-hidden or artwork-missing cards, with centered titles, bottom-left series text, and a subtle patterned fallback background.
 - Restyled collapsed cards so rank and title share one line, and tier-highlighted collapsed cards now use the tier color as the card surface.
+- Fixed collapsed-card theme handling so Lumos no longer inherits the dark collapsed surface, and adjusted collapsed titles to stay centered and wrap to two lines.
