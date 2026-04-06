@@ -1489,6 +1489,7 @@ export function RankboardApp() {
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
+  const pendingScrollFocusEntryIdRef = useRef<string | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -2578,6 +2579,32 @@ export function RankboardApp() {
     }, 1000);
   }
 
+  function keepCardInViewAfterDrop(entryId: string) {
+    pendingScrollFocusEntryIdRef.current = entryId;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const target = document.querySelector<HTMLElement>(`[data-card-entry-id="${entryId}"]`);
+        const scrollContainer = target?.closest("[data-column-scroll-id]") as HTMLElement | null;
+
+        if (!target || !scrollContainer) {
+          return;
+        }
+
+        const targetRect = target.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+
+        if (targetRect.top < containerRect.top) {
+          scrollContainer.scrollTop -= containerRect.top - targetRect.top + 12;
+        } else if (targetRect.bottom > containerRect.bottom) {
+          scrollContainer.scrollTop += targetRect.bottom - containerRect.bottom + 12;
+        }
+
+        pendingScrollFocusEntryIdRef.current = null;
+      });
+    });
+  }
+
   function removeMirroredCard(
     nextState: Record<string, CardEntry[]>,
     sourceEntryId: string,
@@ -3151,6 +3178,7 @@ export function RankboardApp() {
         [sourceColumnId]: reorderedCards,
       }));
       latestCardsByColumnRef.current = nextState;
+      keepCardInViewAfterDrop(removedCard.entryId);
       queuePersistBoardState({
         cardsByColumn: nextState,
         debounceMs: 900,
@@ -3182,6 +3210,7 @@ export function RankboardApp() {
 
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
+    keepCardInViewAfterDrop(movedCard.entryId);
     queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
   }
 
@@ -9745,6 +9774,7 @@ function CardTile({
   return (
     <article
       ref={cardRef}
+      data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
         "group relative shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",

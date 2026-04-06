@@ -2,6 +2,7 @@
 
 ## 2026-04-06
 
+- After dropping a card, the column now keeps that moved card in view instead of jumping a few cards away from it.
 - Desktop auto-scroll is slightly faster again.
 - Drag insertion rows now have a much wider hidden hit zone, extending into the surrounding card area so users no longer have to hover over a tiny exact gap to trigger the drop target.
 - Same-column dragging now keeps neighboring cards visually steadier while you drag, and leans on clearer insertion lanes instead of shuffling the whole list around under the pointer.

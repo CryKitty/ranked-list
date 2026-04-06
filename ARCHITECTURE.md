@@ -175,6 +175,7 @@
 - The drag overlay is intentionally smaller, more translucent, and pointer-transparent so it keeps more of the destination column visible without interfering with hit testing.
 - Desktop auto-scroll now resolves the hovered column from `elementsFromPoint`, which is more reliable when drag overlays and floating UI layers are present.
 - Insert-row droppable zones now extend well beyond the visible gap, overlapping into the surrounding card area so the user can hover within roughly the upper/lower half of adjacent cards and still trigger the correct insertion gap.
+- After a drop is committed, the app now explicitly scrolls the moved card back into the visible area of its column so the user keeps visual focus on the card they just placed.
 - Mirror creation paths now guard against duplicate clones by checking both `mirroredFromEntryId` and `itemId`, which helps when a source card moves between columns after it already has a mirror copy.
 - Cross-column moves now also run the board-wide mirror synchronizer immediately, so source-card column changes update linked mirror content without disturbing the existing mirror order.
 - Column maintenance now includes a bulk `Move All` action that transfers every card into a chosen target column without invoking mirror-clone side effects.
