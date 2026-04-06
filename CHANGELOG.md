@@ -23,6 +23,8 @@
 - Removed the old full-screen mirror delete modal entirely so only the inline mirror-delete popover remains.
 - Drag-and-drop reorders now save through a quieter debounce window instead of trying to persist immediately on every drop event.
 - Explicit mirror relinks/creates now clear prior `excludedMirrorItemIds` for those source cards, which should stop manually re-created clones from being instantly suppressed again.
+- Added a real drag overlay for cards so the dragged card stays attached to the cursor/finger while the list keeps a steadier placeholder underneath.
+- Tightened card-sort animation timing and fades the original dragged card out during drag, which should make same-column reordering feel less jittery.
 - Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
 - Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
 - Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.

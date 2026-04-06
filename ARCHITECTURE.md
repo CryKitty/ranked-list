@@ -164,6 +164,7 @@
 - Same-column drag/drop logic now treats drops onto lower cards as an insertion after the hovered card, which fixes the prior “moving down doesn’t stick” behavior.
 - Card drag collision detection now prefers direct pointer hits before falling back to corner proximity, which should make cross-column drops more reliable in the horizontal board lane.
 - Drag persistence now uses a short debounce queue for drop events so rapid reorder bursts collapse into the latest intended rank instead of racing several immediate saves.
+- Card dragging now uses a visual drag overlay so the dragged card remains attached to the pointer while the source slot stays stable in the column layout.
 - The next cleanups should target extracting:
   - column lane / column menu sections
   - maintenance/import/export modals

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
+  DragOverlay,
   DragEndEvent,
   MouseSensor,
   TouchSensor,
@@ -1409,6 +1410,7 @@ export function RankboardApp() {
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [mobileFocusedColumnId, setMobileFocusedColumnId] = useState<string | null>(null);
   const [isCardDragging, setIsCardDragging] = useState(false);
+  const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1538,6 +1540,22 @@ export function RankboardApp() {
   const notesFieldLabel = notesFieldDefinition?.label ?? "Notes";
   const boardIconKeysById = new Map<string, BoardIconKey>();
   const usedBoardIcons = new Set<BoardIconKey>();
+  const activeDragColumnId = activeDragEntryId ? findColumnIdForEntry(activeDragEntryId) : null;
+  const activeDragCard = activeDragColumnId
+    ? (cardsByColumn[activeDragColumnId] ?? []).find((card) => card.entryId === activeDragEntryId) ?? null
+    : null;
+  const activeDragColumn = activeDragColumnId
+    ? columns.find((column) => column.id === activeDragColumnId) ?? null
+    : null;
+  const activeDragRankBadge =
+    activeDragCard && activeDragColumn && isRankedColumn(activeDragColumn)
+      ? {
+          value: Math.max(
+            1,
+            (cardsByColumn[activeDragColumnId!] ?? []).findIndex((card) => card.entryId === activeDragCard.entryId) + 1,
+          ),
+        }
+      : null;
 
   for (const board of boards) {
     const configuredIconKey = board.settings?.boardIconKey as BoardIconKey | undefined;
@@ -2913,6 +2931,7 @@ export function RankboardApp() {
 
   function handleDragEnd(event: DragEndEvent) {
     setIsCardDragging(false);
+    setActiveDragEntryId(null);
 
     if (filtering || !event.over) {
       return;
@@ -6117,8 +6136,14 @@ function copyCardToDraft(card: CardEntry) {
                 const pointerHits = pointerWithin(args);
                 return pointerHits.length > 0 ? pointerHits : closestCorners(args);
               }}
-              onDragStart={() => setIsCardDragging(true)}
-              onDragCancel={() => setIsCardDragging(false)}
+              onDragStart={({ active }) => {
+                setIsCardDragging(true);
+                setActiveDragEntryId(String(active.id));
+              }}
+              onDragCancel={() => {
+                setIsCardDragging(false);
+                setActiveDragEntryId(null);
+              }}
               onDragEnd={handleDragEnd}
             >
               <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
@@ -6238,12 +6263,26 @@ function copyCardToDraft(card: CardEntry) {
                     </div>
                   );
                 })}
-                {columns.length === 0 ? (
-                  <div className="flex min-h-[220px] w-full items-center justify-center">
-                    <AddColumnButton isDarkMode={isDarkMode} onClick={() => addColumnAt(0)} />
+              {columns.length === 0 ? (
+                <div className="flex min-h-[220px] w-full items-center justify-center">
+                  <AddColumnButton isDarkMode={isDarkMode} onClick={() => addColumnAt(0)} />
+                </div>
+              ) : null}
+              </div>
+              <DragOverlay dropAnimation={null}>
+                {activeDragCard ? (
+                  <div className="w-[292px] rotate-[1deg] shadow-[0_28px_60px_rgba(15,23,42,0.32)]">
+                    <CardTile
+                      card={activeDragCard}
+                      collapseCards={activeBoardSettings.collapseCards}
+                      showSeries={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
+                      showTierHighlights={activeBoardSettings.showTierHighlights}
+                      frontFieldDefinitions={activeBoardFieldDefinitions}
+                      rankBadge={activeDragRankBadge}
+                    />
                   </div>
                 ) : null}
-              </div>
+              </DragOverlay>
             </DndContext>
           </section>
         </section>
@@ -9182,10 +9221,10 @@ function SortableCard({
   return (
     <div
       ref={setNodeRef}
-      className={clsx("relative", isDragging && "z-20")}
+      className={clsx("relative", isDragging && "z-20 opacity-0")}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition: isDragging ? undefined : (transition ?? "transform 180ms ease"),
+        transition: isDragging ? undefined : (transition ?? "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)"),
         willChange: "transform",
       }}
     >
