@@ -1,5 +1,6 @@
 export type ColumnType = "ranked" | "wishlist";
 export type ColumnSortMode = "manual" | "title-asc" | "title-desc";
+export type BoardLayout = "board" | "tier-list";
 
 export type CardFieldType = "short_text" | "long_text" | "date" | "select";
 export type DateFieldFormat = "mm/dd/yyyy" | "dd/mm/yyyy" | "yyyy";
@@ -85,6 +86,7 @@ export type BoardSettings = {
   cardLabel?: string;
   boardIconKey?: string;
   boardIconUrl?: string;
+  boardLayout?: BoardLayout;
   publicShare?: BoardShareSettings;
   pairwiseQuizProgressByColumn?: Record<string, PairwiseQuizProgress>;
   showSeriesOnCards: boolean;
@@ -165,4 +167,14 @@ export type NormalizedEntryRow = {
   mirrored_from_client_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+};
+
+export type PairwiseQuizProgressRow = {
+  id: string;
+  owner_id: string;
+  board_client_id: string;
+  column_client_id: string;
+  progress: PairwiseQuizProgress | null;
+  created_at: string;
+  updated_at: string;
 };

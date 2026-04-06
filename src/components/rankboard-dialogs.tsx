@@ -25,7 +25,7 @@ import {
   FieldSettingsPanel,
   HoverLabelIconButton,
 } from "@/components/rankboard-fields";
-import type { BoardFieldDefinition, ColumnDefinition, ShareTierFilter } from "@/lib/types";
+import type { BoardFieldDefinition, BoardLayout, ColumnDefinition, ShareTierFilter } from "@/lib/types";
 
 type CardEditorDraftLike = {
   title: string;
@@ -1289,12 +1289,14 @@ export function BoardSetupDialog({
   isOpen,
   isDarkMode,
   newBoardTitle,
+  boardLayout,
   fieldDefinitions,
   showLoginHint,
   isLoginDisabled,
   onClose,
   onLogin,
   onTitleChange,
+  onBoardLayoutChange,
   onToggleVisibility,
   onUpdateField,
   onRemoveField,
@@ -1305,12 +1307,14 @@ export function BoardSetupDialog({
   isOpen: boolean;
   isDarkMode: boolean;
   newBoardTitle: string;
+  boardLayout: BoardLayout;
   fieldDefinitions: BoardFieldDefinition[];
   showLoginHint?: boolean;
   isLoginDisabled?: boolean;
   onClose: () => void;
   onLogin?: () => void;
   onTitleChange: (value: string) => void;
+  onBoardLayoutChange: (value: BoardLayout) => void;
   onToggleVisibility: (fieldId: string) => void;
   onUpdateField: (fieldId: string, patch: Partial<BoardFieldDefinition>) => void;
   onRemoveField: (fieldId: string) => void;
@@ -1369,6 +1373,37 @@ export function BoardSetupDialog({
             onChange={(event) => onTitleChange(event.target.value)}
           />
         </label>
+
+        <div className="mt-5 grid gap-2">
+          <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Layout</span>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "board", label: "Board" },
+              { id: "tier-list", label: "Tier List" },
+            ].map((option) => {
+              const enabled = boardLayout === option.id;
+              return (
+                <button
+                  key={option.id}
+                  className={clsx(
+                    "rounded-full border px-3 py-2 text-sm font-semibold transition",
+                    enabled
+                      ? isDarkMode
+                        ? "border-white/35 bg-white text-slate-950"
+                        : "border-slate-950 bg-slate-950 text-white"
+                      : isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                  )}
+                  onClick={() => onBoardLayoutChange(option.id as BoardLayout)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="mt-6">
           <FieldDefinitionManager

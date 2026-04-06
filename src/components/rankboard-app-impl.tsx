@@ -17,6 +17,7 @@ import {
 import {
   SortableContext,
   defaultAnimateLayoutChanges,
+  horizontalListSortingStrategy,
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -71,12 +72,15 @@ import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
 import {
+  deletePairwiseQuizProgress,
   ensureNormalizedProfile,
+  loadPairwiseQuizProgress,
   loadNormalizedBoards,
+  savePairwiseQuizProgress as savePairwiseQuizProgressRemote,
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import { BoardFieldDefinition, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, ShareTierFilter } from "@/lib/types";
+import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, ShareTierFilter } from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -288,6 +292,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   cardLabel: "",
   boardIconKey: "",
   boardIconUrl: "",
+  boardLayout: "board",
   publicShare: {
     columnIds: [],
     tierFilter: "all",
@@ -325,14 +330,46 @@ function createStarterBoardSnapshot(): BoardSnapshot {
   };
 }
 
-function createEmptyBoard(title = "New Board"): SavedBoard {
+function createTierListBoardSnapshot(): BoardSnapshot {
+  const rows = [
+    { title: "S", accent: "from-amber-300 via-yellow-400 to-orange-500" },
+    { title: "A", accent: "from-rose-300 via-pink-400 to-fuchsia-500" },
+    { title: "B", accent: "from-cyan-300 via-sky-400 to-blue-500" },
+    { title: "C", accent: "from-emerald-300 via-green-400 to-teal-500" },
+    { title: "D", accent: "from-violet-300 via-indigo-400 to-purple-500" },
+    { title: "Unsorted", accent: "from-slate-300 via-slate-400 to-slate-500" },
+  ].map((row) => ({
+    id: makeId("column"),
+    title: row.title,
+    description: "",
+    type: "ranked" as const,
+    accent: row.accent,
+    dontRank: true,
+    sortMode: "manual" as const,
+  }));
+
+  return {
+    columns: rows,
+    cardsByColumn: Object.fromEntries(rows.map((row) => [row.id, []])),
+  };
+}
+
+function getTierListUnsortedColumnId(columns: ColumnDefinition[]) {
+  return (
+    columns.find((column) => column.title.trim().toLowerCase() === "unsorted")?.id ??
+    columns[columns.length - 1]?.id ??
+    ""
+  );
+}
+
+function createEmptyBoard(title = "New Board", layout: BoardLayout = "board"): SavedBoard {
   const timestamp = new Date().toISOString();
-  const starterSnapshot = createStarterBoardSnapshot();
+  const starterSnapshot = layout === "tier-list" ? createTierListBoardSnapshot() : createStarterBoardSnapshot();
 
   return {
     id: makeId("board"),
     title,
-    settings: getDefaultBoardSettings(title),
+    settings: getDefaultBoardSettings(title, layout),
     columns: starterSnapshot.columns,
     cardsByColumn: starterSnapshot.cardsByColumn,
     createdAt: timestamp,
@@ -1496,12 +1533,16 @@ function getCardLinkedSiblings(cardsByColumn: Record<string, CardEntry[]>, entry
   );
 }
 
-function getDefaultBoardSettings(boardTitle: string): BoardSettings {
+function getDefaultBoardSettings(boardTitle: string, boardLayout: BoardLayout = "board"): BoardSettings {
   const boardKind = getBoardKind(boardTitle);
+  const isTierList = boardLayout === "tier-list";
 
   return {
     ...DEFAULT_BOARD_SETTINGS,
+    boardLayout,
     cardLabel: deriveDefaultCardLabel(boardTitle),
+    collapseCards: false,
+    showTierHighlights: !isTierList,
     includeSeriesField: boardKind !== "show",
     includeReleaseYearField: true,
     includeImageField: true,
@@ -1684,6 +1725,8 @@ export function RankboardApp() {
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [pendingPairwiseQuizResume, setPendingPairwiseQuizResume] = useState<PendingPairwiseQuizResume | null>(null);
+  const [pairwiseQuizSavedNotice, setPairwiseQuizSavedNotice] = useState<string | null>(null);
+  const [isSavingPairwiseQuiz, setIsSavingPairwiseQuiz] = useState(false);
   const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
   const [moveAllCardsState, setMoveAllCardsState] = useState<MoveAllCardsState | null>(null);
   const [moveCardState, setMoveCardState] = useState<MoveCardState | null>(null);
@@ -1749,6 +1792,7 @@ export function RankboardApp() {
   const activeBoardTitle =
     activeBoard.title ?? "Rankr";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
+  const activeBoardLayout = activeBoardSettings.boardLayout ?? "board";
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeBoardFieldDefinitions = normalizeFieldDefinitions(
@@ -2391,7 +2435,13 @@ export function RankboardApp() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || hasHandledSharedCopyQueryRef.current) {
+    if (
+      typeof window === "undefined" ||
+      hasHandledSharedCopyQueryRef.current ||
+      !hasLoadedPersistedState ||
+      isAuthLoading ||
+      !hasLoadedRemoteState
+    ) {
       return;
     }
 
@@ -2409,12 +2459,15 @@ export function RankboardApp() {
         const parsedBoard = normalizeSavedBoard(JSON.parse(rawTemplate) as SavedBoard);
         const nextBoard = cloneBoardFromTemplate(parsedBoard);
 
+        let nextBoardsSnapshot: SavedBoard[] = [];
+
         skipNextHistoryRef.current = true;
         setBoards((current) => {
           const nonStarterBoards =
             current.length > 1 ? current.filter((board) => !isEphemeralStarterBoard(board)) : current;
           const nextBoards = [...nonStarterBoards, nextBoard];
           latestBoardsRef.current = nextBoards;
+          nextBoardsSnapshot = nextBoards;
           return nextBoards;
         });
         latestActiveBoardIdRef.current = nextBoard.id;
@@ -2427,8 +2480,8 @@ export function RankboardApp() {
         setIsBoardsMenuOpen(false);
         setIsActionsMenuOpen(false);
         setIsMobileActionsOpen(false);
-        queuePersistBoardState({
-          boards: [...latestBoardsRef.current],
+        void persistBoardState({
+          boards: nextBoardsSnapshot,
           activeBoardId: nextBoard.id,
           cardsByColumn: nextBoard.cardsByColumn,
         });
@@ -2442,7 +2495,7 @@ export function RankboardApp() {
       const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", nextUrl);
     }
-  }, [queuePersistBoardState]);
+  }, [hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, persistBoardState]);
 
   useEffect(() => {
     if (!isCardDragging) {
@@ -3694,10 +3747,13 @@ export function RankboardApp() {
   }
 
   function openQuickAddModal() {
+    const tierListDefaultColumnId =
+      activeBoardLayout === "tier-list" ? getTierListUnsortedColumnId(columns) : "";
     const focusedColumnId =
-      getFocusedColumnIdFromLane(boardLaneRef.current) ??
-      mobileFocusedColumnId ??
-      columns.find((column) => !column.mirrorsEntireBoard)?.id ??
+      tierListDefaultColumnId ||
+      getFocusedColumnIdFromLane(boardLaneRef.current) ||
+      mobileFocusedColumnId ||
+      columns.find((column) => !column.mirrorsEntireBoard)?.id ||
       "";
     const fallbackColumnId = focusedColumnId;
     const selectedColumnId = fallbackColumnId || NEW_COLUMN_OPTION;
@@ -4597,6 +4653,39 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
+  async function loadSavedPairwiseQuizProgress(columnId: string) {
+    if (supabase && currentUser) {
+      try {
+        const remoteProgress = await loadPairwiseQuizProgress(
+          supabase,
+          currentUser.id,
+          activeBoardId,
+          columnId,
+        );
+
+        if (remoteProgress) {
+          return remoteProgress;
+        }
+      } catch (error) {
+        console.error("Could not load saved pairwise quiz progress.", error);
+      }
+    }
+
+    return readStoredPairwiseQuizProgress(columnId);
+  }
+
+  async function persistPairwiseQuizProgress(columnId: string, nextProgress: PairwiseQuizProgress | null) {
+    writeStoredPairwiseQuizProgress(columnId, nextProgress);
+
+    if (supabase && currentUser) {
+      if (nextProgress) {
+        await savePairwiseQuizProgressRemote(supabase, currentUser.id, activeBoardId, columnId, nextProgress);
+      } else {
+        await deletePairwiseQuizProgress(supabase, currentUser.id, activeBoardId, columnId);
+      }
+    }
+  }
+
   function startPairwiseQuizFromScratch(columnId: string) {
     const column = columns.find((item) => item.id === columnId);
     const cards = cardsByColumn[columnId] ?? [];
@@ -4614,7 +4703,7 @@ function copyCardToDraft(card: CardEntry) {
       0,
     );
 
-    writeStoredPairwiseQuizProgress(columnId, null);
+    void persistPairwiseQuizProgress(columnId, null);
     setPairwiseQuizReview(null);
     setPairwiseQuizState(nextState);
     setPendingPairwiseQuizResume(null);
@@ -4625,7 +4714,7 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMaintenanceMenuId(null);
   }
 
-  function openPairwiseQuiz(columnId: string) {
+  async function openPairwiseQuiz(columnId: string) {
     const column = columns.find((item) => item.id === columnId);
     const cards = cardsByColumn[columnId] ?? [];
 
@@ -4639,7 +4728,7 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMirrorMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
 
-    const savedProgress = readStoredPairwiseQuizProgress(columnId);
+    const savedProgress = await loadSavedPairwiseQuizProgress(columnId);
 
     if (savedProgress) {
       setPendingPairwiseQuizResume({
@@ -4665,12 +4754,12 @@ function copyCardToDraft(card: CardEntry) {
     setPendingPairwiseQuizResume(null);
   }
 
-  function savePairwiseQuizForLater() {
+  async function savePairwiseQuizForLater() {
     if (!pairwiseQuizState) {
       return;
     }
 
-    writeStoredPairwiseQuizProgress(pairwiseQuizState.columnId, {
+    const nextProgress = {
       ...pairwiseQuizState,
       sortedCards: [...pairwiseQuizState.sortedCards],
       remainingCards: [...pairwiseQuizState.remainingCards],
@@ -4681,8 +4770,25 @@ function copyCardToDraft(card: CardEntry) {
         remainingCards: [...step.remainingCards],
         candidateCard: step.candidateCard ? { ...step.candidateCard } : null,
       })),
-    });
-    setPairwiseQuizState(null);
+    } satisfies PairwiseQuizProgress;
+
+    try {
+      setIsSavingPairwiseQuiz(true);
+      await persistPairwiseQuizProgress(pairwiseQuizState.columnId, nextProgress);
+      setPairwiseQuizSavedNotice("Quiz progress saved.");
+      setPairwiseQuizState(null);
+      window.setTimeout(() => {
+        setPairwiseQuizSavedNotice((current) => (current === "Quiz progress saved." ? null : current));
+      }, 2200);
+    } catch (error) {
+      console.error("Could not save pairwise quiz progress.", error);
+      setPairwiseQuizSavedNotice("Quiz progress could not be saved.");
+      window.setTimeout(() => {
+        setPairwiseQuizSavedNotice((current) => (current === "Quiz progress could not be saved." ? null : current));
+      }, 2600);
+    } finally {
+      setIsSavingPairwiseQuiz(false);
+    }
   }
 
   function resolvePairwiseChoice(choice: "candidate" | "comparison") {
@@ -4806,7 +4912,7 @@ function copyCardToDraft(card: CardEntry) {
 
     latestCardsByColumnRef.current = nextCardsByColumn;
     setCardsByColumn(nextCardsByColumn);
-    writeStoredPairwiseQuizProgress(pairwiseQuizReview.columnId, null);
+    void persistPairwiseQuizProgress(pairwiseQuizReview.columnId, null);
     setPairwiseQuizReview(null);
     setPairwiseQuizState(null);
     queuePersistBoardState({
@@ -5183,7 +5289,7 @@ function copyCardToDraft(card: CardEntry) {
   const openCreateBoardModal = useCallback(() => {
     const suggestedTitle = "";
     setNewBoardTitle(suggestedTitle);
-    setNewBoardSettings(getDefaultBoardSettings("New Board"));
+    setNewBoardSettings(getDefaultBoardSettings("New Board", "board"));
     setIsCreateBoardModalOpen(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
@@ -5191,10 +5297,11 @@ function copyCardToDraft(card: CardEntry) {
 
   function createBoardFromModal() {
     const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
+    const boardLayout = newBoardSettings.boardLayout ?? "board";
     const nextBoard: SavedBoard = {
-      ...createEmptyBoard(title),
+      ...createEmptyBoard(title, boardLayout),
       settings: {
-        ...getDefaultBoardSettings(title),
+        ...getDefaultBoardSettings(title, boardLayout),
         ...newBoardSettings,
         fieldDefinitions: normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, title, newBoardSettings),
       },
@@ -5207,12 +5314,75 @@ function copyCardToDraft(card: CardEntry) {
     setCardsByColumn(nextBoard.cardsByColumn);
     setHistory([]);
     setNewBoardTitle("");
-    setNewBoardSettings(getDefaultBoardSettings("New Board"));
+    setNewBoardSettings(getDefaultBoardSettings("New Board", "board"));
     setIsCreateBoardModalOpen(false);
     setIsBoardsMenuOpen(false);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
     queuePersistBoardState();
+  }
+
+  function convertActiveBoardToTierList() {
+    if (activeBoardLayout === "tier-list") {
+      return;
+    }
+
+    const tierSnapshot = createTierListBoardSnapshot();
+    const unsortedColumnId = tierSnapshot.columns[tierSnapshot.columns.length - 1]?.id;
+
+    if (!unsortedColumnId) {
+      return;
+    }
+
+    const seenItemIds = new Set<string>();
+    const flattenedCards: CardEntry[] = [];
+
+    for (const column of columns) {
+      if (column.mirrorsEntireBoard) {
+        continue;
+      }
+
+      for (const card of cardsByColumn[column.id] ?? []) {
+        if (seenItemIds.has(card.itemId)) {
+          continue;
+        }
+        seenItemIds.add(card.itemId);
+        flattenedCards.push({
+          ...card,
+          mirroredFromEntryId: undefined,
+        });
+      }
+    }
+
+    latestColumnsRef.current = tierSnapshot.columns;
+    latestCardsByColumnRef.current = {
+      ...tierSnapshot.cardsByColumn,
+      [unsortedColumnId]: flattenedCards,
+    };
+    setColumns(tierSnapshot.columns);
+    setCardsByColumn({
+      ...tierSnapshot.cardsByColumn,
+      [unsortedColumnId]: flattenedCards,
+    });
+    updateActiveBoardSettings({
+      boardLayout: "tier-list",
+      collapseCards: false,
+      showTierHighlights: false,
+    });
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    queuePersistBoardState({
+      columns: tierSnapshot.columns,
+      cardsByColumn: {
+        ...tierSnapshot.cardsByColumn,
+        [unsortedColumnId]: flattenedCards,
+      },
+    });
   }
 
   function requestDeleteBoard(boardId = activeBoardId) {
@@ -5872,15 +6042,25 @@ function copyCardToDraft(card: CardEntry) {
                               <Sparkles className="h-4 w-4" />
                               Tidy Titles
                             </button>
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
-                              <WandSparkles className="h-4 w-4" />
-                              Series Scraper
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                boards.length <= 1 && "cursor-not-allowed opacity-50",
+                                <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
+                                  <WandSparkles className="h-4 w-4" />
+                                  Series Scraper
+                                </button>
+                                {activeBoardLayout !== "tier-list" ? (
+                                  <button
+                                    className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={convertActiveBoardToTierList}
+                                    type="button"
+                                  >
+                                    <ListOrdered className="h-4 w-4" />
+                                    Convert to Tier List
+                                  </button>
+                                ) : null}
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                    boards.length <= 1 && "cursor-not-allowed opacity-50",
                               )}
                               disabled={boards.length <= 1}
                               onClick={() => requestDeleteBoard()}
@@ -6719,6 +6899,16 @@ function copyCardToDraft(card: CardEntry) {
                                   <WandSparkles className="h-4 w-4" />
                                   Series Scraper
                                 </button>
+                                {activeBoardLayout !== "tier-list" ? (
+                                  <button
+                                    className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={convertActiveBoardToTierList}
+                                    type="button"
+                                  >
+                                    <ListOrdered className="h-4 w-4" />
+                                    Convert to Tier List
+                                  </button>
+                                ) : null}
                               </div>
                             ) : null}
                           </div>
@@ -6871,151 +7061,182 @@ function copyCardToDraft(card: CardEntry) {
               }}
               onDragEnd={handleDragEnd}
             >
-              <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
-                {columns.map((column, columnIndex) => {
-                  const visibleCards = filterCards(
-                    cardsByColumn[column.id] ?? [],
-                    searchTerm,
-                    seriesFilter,
-                  );
+              {activeBoardLayout === "tier-list" ? (
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-3 pb-3">
+                  {columns.map((column) => {
+                    const visibleCards = filterCards(
+                      cardsByColumn[column.id] ?? [],
+                      searchTerm,
+                      seriesFilter,
+                    );
 
-                  return (
-                    <div key={column.id} className="contents">
-                      <BoardColumn
-                        column={column}
-                        fullCards={cardsByColumn[column.id] ?? []}
+                    return (
+                      <TierListRow
+                        key={column.id}
                         addLabel={boardVocabulary.singular}
-                        collapseCards={activeBoardSettings.collapseCards}
-                        showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
-                        showArtworkOnCards={shouldShowArtworkOnCards}
-                        showTierHighlights={activeBoardSettings.showTierHighlights}
-                        isDarkMode={isDarkMode}
-                        isMobileViewport={isMobileViewport}
-                        frontFieldDefinitions={activeBoardFieldDefinitions}
-                        disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
-                        isCardDragging={isCardDragging}
-                        isDragGapSuppressed={isDragGapSuppressed}
                         cards={visibleCards}
-                        activeTierFilter={columnTierFilters[column.id] ?? "all"}
-                        currentSeriesFilter={seriesFilter}
-                        filtering={filtering}
-                        isEditingColumn={editingColumnId === column.id}
-                        editingColumnDraft={editingColumnDraft}
-                        onColumnDraftChange={setEditingColumnDraft}
-                        onEditColumn={() => startEditingColumn(column)}
-                        onCancelColumnEdit={cancelEditingColumn}
-                        onSaveColumnEdit={() => saveEditingColumn(column.id)}
-                        onEditCard={startEditingCard}
+                        collapseCards={activeBoardSettings.collapseCards}
+                        column={column}
+                        frontFieldDefinitions={activeBoardFieldDefinitions}
+                        isDarkMode={isDarkMode}
                         onAddCard={openAddGameModal}
-                        onOpenPairwiseQuiz={() => openPairwiseQuiz(column.id)}
-                        onSortCards={sortColumnCards}
-                        isMenuOpen={openColumnMenuId === column.id}
-                        isSortMenuOpen={openColumnSortMenuId === column.id}
-                        isFilterMenuOpen={openColumnFilterMenuId === column.id}
-                        isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
-                        isMaintenanceMenuOpen={openColumnMaintenanceMenuId === column.id}
-                        onToggleMenu={() =>
-                          setOpenColumnMenuId((current) => {
-                            const nextId = current === column.id ? null : column.id;
-                            if (nextId !== column.id) {
-                              setOpenColumnSortMenuId(null);
-                              setOpenColumnFilterMenuId(null);
-                              setOpenColumnMirrorMenuId(null);
-                            }
-                            return nextId;
-                          })
-                        }
-                        onToggleSortMenu={() =>
-                          setOpenColumnSortMenuId((current) => {
-                            const nextId = current === column.id ? null : column.id;
-                            if (nextId === column.id) {
-                              setOpenColumnFilterMenuId(null);
-                              setOpenColumnMirrorMenuId(null);
-                            }
-                            return nextId;
-                          })
-                        }
-                        onToggleFilterMenu={() =>
-                          setOpenColumnFilterMenuId((current) => {
-                            const nextId = current === column.id ? null : column.id;
-                            if (nextId === column.id) {
-                              setOpenColumnSortMenuId(null);
-                              setOpenColumnMirrorMenuId(null);
-                            }
-                            return nextId;
-                          })
-                        }
-                        onToggleMirrorMenu={() =>
-                          setOpenColumnMirrorMenuId((current) => {
-                            const nextId = current === column.id ? null : column.id;
-                            if (nextId === column.id) {
-                              setOpenColumnSortMenuId(null);
-                              setOpenColumnFilterMenuId(null);
-                              setOpenColumnMaintenanceMenuId(null);
-                            }
-                            return nextId;
-                          })
-                        }
-                        onToggleMaintenanceMenu={() =>
-                          setOpenColumnMaintenanceMenuId((current) => {
-                            const nextId = current === column.id ? null : column.id;
-                            if (nextId === column.id) {
-                              setOpenColumnSortMenuId(null);
-                              setOpenColumnFilterMenuId(null);
-                              setOpenColumnMirrorMenuId(null);
-                            }
-                            return nextId;
-                          })
-                        }
-                        onOpenDuplicateCleanup={() => openDuplicateCleanupModal(column.id)}
-                        onOpenMoveAll={() => requestMoveAllCards(column.id)}
-                        onOpenTitleTidy={() => openTitleTidyModal(column.id)}
-                        onOpenSeriesScrape={() => {
-                          void openSeriesScrapeModal(column.id);
-                        }}
-                        onDeleteColumn={deleteColumn}
-                        onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
-                        onToggleDontRank={toggleColumnDontRank}
-                        onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
-                        onLinkMirrorMatches={linkMatchingMirrorCards}
-                        onSetTierFilter={setColumnTierFilter}
-                        onSetSeriesFilter={(nextSeries) => {
-                          setSeriesFilter(nextSeries);
-                          setOpenColumnMenuId(null);
-                        }}
                         onDragScrollActivity={suppressDragGapsTemporarily}
-                        onColumnDragStart={setDraggingColumnId}
-                        onColumnDrop={moveColumnToTarget}
-                        onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
-                        onMoveColumnRight={(columnId) => moveColumnByDirection(columnId, "right")}
-                        draggingColumnId={draggingColumnId}
-                        revealedMobileAddCardTarget={revealedMobileAddCardTarget}
-                        onRevealMobileAddCardTarget={setRevealedMobileAddCardTarget}
+                        onEditCard={startEditingCard}
+                        showArtworkOnCards={shouldShowArtworkOnCards}
+                        showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
                       />
+                    );
+                  })}
+                </div>
+              ) : (
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-3 sm:snap-none">
+                  {columns.map((column, columnIndex) => {
+                    const visibleCards = filterCards(
+                      cardsByColumn[column.id] ?? [],
+                      searchTerm,
+                      seriesFilter,
+                    );
+
+                    return (
+                      <div key={column.id} className="contents">
+                        <BoardColumn
+                          column={column}
+                          fullCards={cardsByColumn[column.id] ?? []}
+                          addLabel={boardVocabulary.singular}
+                          collapseCards={activeBoardSettings.collapseCards}
+                          showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                          showArtworkOnCards={shouldShowArtworkOnCards}
+                          showTierHighlights={activeBoardSettings.showTierHighlights}
+                          isDarkMode={isDarkMode}
+                          isMobileViewport={isMobileViewport}
+                          frontFieldDefinitions={activeBoardFieldDefinitions}
+                          disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
+                          isCardDragging={isCardDragging}
+                          isDragGapSuppressed={isDragGapSuppressed}
+                          cards={visibleCards}
+                          activeTierFilter={columnTierFilters[column.id] ?? "all"}
+                          currentSeriesFilter={seriesFilter}
+                          filtering={filtering}
+                          isEditingColumn={editingColumnId === column.id}
+                          editingColumnDraft={editingColumnDraft}
+                          onColumnDraftChange={setEditingColumnDraft}
+                          onEditColumn={() => startEditingColumn(column)}
+                          onCancelColumnEdit={cancelEditingColumn}
+                          onSaveColumnEdit={() => saveEditingColumn(column.id)}
+                          onEditCard={startEditingCard}
+                          onAddCard={openAddGameModal}
+                          onOpenPairwiseQuiz={() => {
+                            void openPairwiseQuiz(column.id);
+                          }}
+                          onSortCards={sortColumnCards}
+                          isMenuOpen={openColumnMenuId === column.id}
+                          isSortMenuOpen={openColumnSortMenuId === column.id}
+                          isFilterMenuOpen={openColumnFilterMenuId === column.id}
+                          isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
+                          isMaintenanceMenuOpen={openColumnMaintenanceMenuId === column.id}
+                          onToggleMenu={() =>
+                            setOpenColumnMenuId((current) => {
+                              const nextId = current === column.id ? null : column.id;
+                              if (nextId !== column.id) {
+                                setOpenColumnSortMenuId(null);
+                                setOpenColumnFilterMenuId(null);
+                                setOpenColumnMirrorMenuId(null);
+                              }
+                              return nextId;
+                            })
+                          }
+                          onToggleSortMenu={() =>
+                            setOpenColumnSortMenuId((current) => {
+                              const nextId = current === column.id ? null : column.id;
+                              if (nextId === column.id) {
+                                setOpenColumnFilterMenuId(null);
+                                setOpenColumnMirrorMenuId(null);
+                              }
+                              return nextId;
+                            })
+                          }
+                          onToggleFilterMenu={() =>
+                            setOpenColumnFilterMenuId((current) => {
+                              const nextId = current === column.id ? null : column.id;
+                              if (nextId === column.id) {
+                                setOpenColumnSortMenuId(null);
+                                setOpenColumnMirrorMenuId(null);
+                              }
+                              return nextId;
+                            })
+                          }
+                          onToggleMirrorMenu={() =>
+                            setOpenColumnMirrorMenuId((current) => {
+                              const nextId = current === column.id ? null : column.id;
+                              if (nextId === column.id) {
+                                setOpenColumnSortMenuId(null);
+                                setOpenColumnFilterMenuId(null);
+                                setOpenColumnMaintenanceMenuId(null);
+                              }
+                              return nextId;
+                            })
+                          }
+                          onToggleMaintenanceMenu={() =>
+                            setOpenColumnMaintenanceMenuId((current) => {
+                              const nextId = current === column.id ? null : column.id;
+                              if (nextId === column.id) {
+                                setOpenColumnSortMenuId(null);
+                                setOpenColumnFilterMenuId(null);
+                                setOpenColumnMirrorMenuId(null);
+                              }
+                              return nextId;
+                            })
+                          }
+                          onOpenDuplicateCleanup={() => openDuplicateCleanupModal(column.id)}
+                          onOpenMoveAll={() => requestMoveAllCards(column.id)}
+                          onOpenTitleTidy={() => openTitleTidyModal(column.id)}
+                          onOpenSeriesScrape={() => {
+                            void openSeriesScrapeModal(column.id);
+                          }}
+                          onDeleteColumn={deleteColumn}
+                          onToggleBoardMirrorColumn={toggleBoardMirrorColumn}
+                          onToggleDontRank={toggleColumnDontRank}
+                          onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
+                          onLinkMirrorMatches={linkMatchingMirrorCards}
+                          onSetTierFilter={setColumnTierFilter}
+                          onSetSeriesFilter={(nextSeries) => {
+                            setSeriesFilter(nextSeries);
+                            setOpenColumnMenuId(null);
+                          }}
+                          onDragScrollActivity={suppressDragGapsTemporarily}
+                          onColumnDragStart={setDraggingColumnId}
+                          onColumnDrop={moveColumnToTarget}
+                          onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
+                          onMoveColumnRight={(columnId) => moveColumnByDirection(columnId, "right")}
+                          draggingColumnId={draggingColumnId}
+                          revealedMobileAddCardTarget={revealedMobileAddCardTarget}
+                          onRevealMobileAddCardTarget={setRevealedMobileAddCardTarget}
+                        />
+                        <AddColumnButton
+                          inline
+                          isDarkMode={isDarkMode}
+                          isMobileViewport={isMobileViewport}
+                          mobileArmed={revealedMobileAddColumnIndex === columnIndex + 1}
+                          onArm={() => setRevealedMobileAddColumnIndex(columnIndex + 1)}
+                          onClick={() => {
+                            setRevealedMobileAddColumnIndex(null);
+                            addColumnAt(columnIndex + 1);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                  {columns.length === 0 ? (
+                    <div className="flex min-h-[220px] w-full items-center justify-center">
                       <AddColumnButton
-                        inline
                         isDarkMode={isDarkMode}
                         isMobileViewport={isMobileViewport}
-                        mobileArmed={revealedMobileAddColumnIndex === columnIndex + 1}
-                        onArm={() => setRevealedMobileAddColumnIndex(columnIndex + 1)}
-                        onClick={() => {
-                          setRevealedMobileAddColumnIndex(null);
-                          addColumnAt(columnIndex + 1);
-                        }}
+                        onClick={() => addColumnAt(0)}
                       />
                     </div>
-                  );
-                })}
-              {columns.length === 0 ? (
-                <div className="flex min-h-[220px] w-full items-center justify-center">
-                  <AddColumnButton
-                    isDarkMode={isDarkMode}
-                    isMobileViewport={isMobileViewport}
-                    onClick={() => addColumnAt(0)}
-                  />
+                  ) : null}
                 </div>
-              ) : null}
-              </div>
+              )}
               <DragOverlay dropAnimation={null}>
                 {activeDragCard ? (
                   <div className="pointer-events-none w-[224px] rotate-[1deg] opacity-75 shadow-[0_20px_38px_rgba(15,23,42,0.22)]">
@@ -7830,6 +8051,25 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {pairwiseQuizSavedNotice ? (
+          <div className="fixed right-4 top-4 z-[320]">
+            <div
+              className={clsx(
+                "rounded-2xl px-4 py-3 text-sm font-semibold shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                pairwiseQuizSavedNotice.includes("could not")
+                  ? isDarkMode
+                    ? "bg-rose-500/90 text-white"
+                    : "bg-rose-500 text-white"
+                  : isDarkMode
+                    ? "bg-emerald-500/90 text-white"
+                    : "bg-emerald-500 text-white",
+              )}
+            >
+              {pairwiseQuizSavedNotice}
+            </div>
+          </div>
+        ) : null}
+
         {pendingPairwiseQuizResume ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -8032,10 +8272,13 @@ function copyCardToDraft(card: CardEntry) {
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
-                    onClick={savePairwiseQuizForLater}
+                    disabled={isSavingPairwiseQuiz}
+                    onClick={() => {
+                      void savePairwiseQuizForLater();
+                    }}
                     type="button"
                   >
-                    Save &amp; Continue Later
+                    {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
                   </button>
                   <button
                     className={clsx(
@@ -8184,6 +8427,7 @@ function copyCardToDraft(card: CardEntry) {
           isDarkMode={isDarkMode}
           isOpen={isCreateBoardModalOpen}
           newBoardTitle={newBoardTitle}
+          boardLayout={newBoardSettings.boardLayout ?? "board"}
           fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           showLoginHint={authEnabled && !currentUser}
@@ -8191,13 +8435,13 @@ function copyCardToDraft(card: CardEntry) {
           onClose={() => {
             setIsCreateBoardModalOpen(false);
             setNewBoardTitle("");
-            setNewBoardSettings(getDefaultBoardSettings("New Board"));
+            setNewBoardSettings(getDefaultBoardSettings("New Board", "board"));
           }}
           onLogin={() => {
             void handleOAuthLogin("google");
           }}
           onTitleChange={(nextTitle) => {
-            const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board");
+            const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board", newBoardSettings.boardLayout ?? "board");
             const previousDefaultLabel = deriveDefaultCardLabel(newBoardTitle || "New Board");
             setNewBoardTitle(nextTitle);
             setNewBoardSettings((current) => ({
@@ -8223,6 +8467,23 @@ function copyCardToDraft(card: CardEntry) {
               ),
             }));
           }}
+          onBoardLayoutChange={(nextLayout) =>
+            setNewBoardSettings((current) => {
+              const nextDefaults = getDefaultBoardSettings(newBoardTitle || "New Board", nextLayout);
+              return {
+                ...current,
+                boardLayout: nextLayout,
+                cardLabel:
+                  !current.cardLabel?.trim() || current.cardLabel === deriveDefaultCardLabel(newBoardTitle || "New Board")
+                    ? nextDefaults.cardLabel
+                    : current.cardLabel,
+                fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", {
+                  ...current,
+                  boardLayout: nextLayout,
+                }),
+              };
+            })
+          }
           onToggleVisibility={(fieldId) =>
             setNewBoardSettings((current) => ({
               ...current,
@@ -9158,8 +9419,8 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[70] flex min-h-[720px] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:snap-align-none"
-          : "group relative z-[70] flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
+          ? "group relative z-[20] flex min-h-[720px] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:snap-align-none"
+          : "group relative z-[20] flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -10118,7 +10379,15 @@ function BoardColumn({
                 isGapSuppressed={isDragGapSuppressed}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
-                hideAction={!isCardDragging && tierFilteredCards.length === 0}
+                hideAction={
+                  !isCardDragging &&
+                  (tierFilteredCards.length === 0 ||
+                    isMenuOpen ||
+                    isSortMenuOpen ||
+                    isFilterMenuOpen ||
+                    isMirrorMenuOpen ||
+                    isMaintenanceMenuOpen)
+                }
                 isMobileViewport={isMobileViewport}
                 mobileArmed={revealedMobileAddCardTarget?.columnId === column.id && revealedMobileAddCardTarget.insertIndex === 0}
                 interactive={!disableAddAffordances}
@@ -10151,6 +10420,14 @@ function BoardColumn({
                     isGapSuppressed={isDragGapSuppressed}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
+                    hideAction={
+                      !isCardDragging &&
+                      (isMenuOpen ||
+                        isSortMenuOpen ||
+                        isFilterMenuOpen ||
+                        isMirrorMenuOpen ||
+                        isMaintenanceMenuOpen)
+                    }
                     isMobileViewport={isMobileViewport}
                     mobileArmed={
                       revealedMobileAddCardTarget?.columnId === column.id &&
@@ -10193,6 +10470,120 @@ function BoardColumn({
             </span>
           </button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TierListRow({
+  column,
+  cards,
+  addLabel,
+  collapseCards,
+  showSeriesOnCards,
+  showArtworkOnCards,
+  isDarkMode,
+  frontFieldDefinitions,
+  onEditCard,
+  onAddCard,
+  onDragScrollActivity,
+}: {
+  column: ColumnDefinition;
+  cards: CardEntry[];
+  addLabel: string;
+  collapseCards: boolean;
+  showSeriesOnCards: boolean;
+  showArtworkOnCards: boolean;
+  isDarkMode: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
+  onEditCard: (card: CardEntry) => void;
+  onAddCard: (columnId: string, insertIndex: number) => void;
+  onDragScrollActivity: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  });
+
+  return (
+    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-stretch gap-3">
+      <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
+        <div
+          className={clsx(
+            "flex h-full min-h-[176px] flex-col items-center justify-between rounded-[27px] px-3 py-4 text-center",
+            isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
+          )}
+        >
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-2xl font-black tracking-tight">{column.title}</span>
+          </div>
+          <div className="group relative">
+            <button
+              aria-label={`Add ${addLabel} to ${column.title}`}
+              className={clsx(
+                "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+                isDarkMode
+                  ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
+              )}
+              onClick={() => onAddCard(column.id, cards.length)}
+              type="button"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+            <HoverTooltip isDarkMode={isDarkMode} label={`Add ${addLabel}`} />
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref={setNodeRef}
+        data-column-id={column.id}
+        className={clsx(
+          "min-w-0 rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.12)]",
+          isDarkMode ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-[#fff7f0] text-slate-950",
+          isOver && (isDarkMode ? "border-white/80" : "border-slate-950"),
+        )}
+      >
+        <SortableContext items={cards.map((card) => card.entryId)} strategy={horizontalListSortingStrategy}>
+          <div
+            className="flex min-h-[176px] items-start gap-3 overflow-x-auto pb-1"
+            data-column-scroll-id={column.id}
+            onScroll={onDragScrollActivity}
+          >
+            {cards.length === 0 ? (
+              <button
+                className={clsx(
+                  "flex min-h-[176px] w-full min-w-[260px] items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6 transition",
+                  isDarkMode
+                    ? "border-white/15 bg-white/[0.03] text-slate-400 hover:border-white/30 hover:bg-white/[0.05]"
+                    : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white",
+                )}
+                onClick={() => onAddCard(column.id, 0)}
+                type="button"
+              >
+                <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold">
+                  <Plus className="h-4 w-4" />
+                  {`Add ${addLabel}`}
+                </span>
+              </button>
+            ) : (
+              cards.map((card) => (
+                <div key={card.entryId} className="w-[280px] shrink-0">
+                  <SortableCard
+                    card={card}
+                    collapseCards={collapseCards}
+                    showSeries={showSeriesOnCards}
+                    showArtwork={showArtworkOnCards}
+                    showTierHighlights={false}
+                    frontFieldDefinitions={frontFieldDefinitions}
+                    rankBadge={null}
+                    onEdit={() => onEditCard(card)}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        </SortableContext>
       </div>
     </div>
   );
@@ -10266,7 +10657,7 @@ function AddCardRow({
         ref={setNodeRef}
         data-mobile-inline-add-root="true"
         className={clsx(
-          "group relative z-[60] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out",
+          "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
           dragHitAreaClass,
           isDragMode
@@ -10293,7 +10684,7 @@ function AddCardRow({
       ref={setNodeRef}
       data-mobile-inline-add-root="true"
       className={clsx(
-        "group relative z-[60] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         dragHitAreaClass,
         isDragMode

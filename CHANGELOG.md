@@ -2,6 +2,12 @@
 
 ## 2026-04-06
 
+- Pairwise `Rank by Quiz` progress now saves durably to Supabase in a dedicated `pairwise_quiz_progress` table, with local storage kept as a fallback instead of the only save location.
+- `Save & Continue Later` now closes the quiz only after a real save attempt and shows a temporary success/failure notice; signed-in sessions also fall back to local quiz progress if the remote row is missing.
+- Shared `Copy Board` now clones a fresh editable board snapshot and persists it immediately instead of briefly appearing and then collapsing back into a blank board.
+- Added a second board layout type, `Tier List`, including board creation support and a `Convert to Tier List` maintenance action that moves the current board’s non-mirrored cards into an `Unsorted` row.
+- Tier List boards now render as horizontal tier rows with the same card styling/editing flow and cross-row drag-and-drop, while quick-add defaults into the `Unsorted` row.
+- Board-maintenance `Convert to Tier List` is intentionally one-way for now; it preserves cards and strips mirror-only copies when building the new tier-list rows.
 - Edit-card modal action buttons now keep a fixed size and show their labels in small hover/focus tooltips instead of widening and shifting around.
 - Series filter dropdowns now display labels without leading `The` / `A` prefixes, which keeps long series names easier to scan in the narrow filter menus.
 - Confirming `Move Card` from the edit flow now closes both the move-card modal and the edit-card modal, while `Cancel` still closes only the move-card modal.

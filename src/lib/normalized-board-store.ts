@@ -8,6 +8,8 @@ import type {
   NormalizedColumnRow,
   NormalizedEntryRow,
   NormalizedItemRow,
+  PairwiseQuizProgress,
+  PairwiseQuizProgressRow,
   SavedBoard,
 } from "./types";
 
@@ -414,6 +416,69 @@ export async function syncNormalizedBoards(
     if (removedEntryIds.length > 0) {
       await supabase.from("column_entries").delete().in("id", removedEntryIds);
     }
+  }
+}
+
+export async function loadPairwiseQuizProgress(
+  supabase: SupabaseLike,
+  userId: string,
+  boardClientId: string,
+  columnClientId: string,
+): Promise<PairwiseQuizProgress | null> {
+  const { data, error } = await supabase
+    .from("pairwise_quiz_progress")
+    .select("*")
+    .eq("owner_id", userId)
+    .eq("board_client_id", boardClientId)
+    .eq("column_client_id", columnClientId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  const row = data as PairwiseQuizProgressRow | null;
+  return row?.progress ?? null;
+}
+
+export async function savePairwiseQuizProgress(
+  supabase: SupabaseLike,
+  userId: string,
+  boardClientId: string,
+  columnClientId: string,
+  progress: PairwiseQuizProgress,
+) {
+  const { error } = await supabase.from("pairwise_quiz_progress").upsert(
+    {
+      owner_id: userId,
+      board_client_id: boardClientId,
+      column_client_id: columnClientId,
+      progress,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "owner_id,board_client_id,column_client_id" },
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function deletePairwiseQuizProgress(
+  supabase: SupabaseLike,
+  userId: string,
+  boardClientId: string,
+  columnClientId: string,
+) {
+  const { error } = await supabase
+    .from("pairwise_quiz_progress")
+    .delete()
+    .eq("owner_id", userId)
+    .eq("board_client_id", boardClientId)
+    .eq("column_client_id", columnClientId);
+
+  if (error) {
+    throw error;
   }
 }
 

@@ -110,7 +110,7 @@ export function HoverLabelIconButton({
       {!disabled ? (
         <span
           className={clsx(
-            "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100",
+            "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100",
             isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
           )}
         >

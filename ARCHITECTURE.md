@@ -26,6 +26,8 @@
   - `column_entries`
 - Backup and migration compatibility:
   - `board_states`
+- Durable quiz progress:
+  - `pairwise_quiz_progress`
 - Active board preference:
   - local storage key scoped to the signed-in user when available
   - refreshed and remote-hydrated sessions should restore the user to the same board instead of falling back to the first board
@@ -45,6 +47,7 @@
 - The app writes `board_states` backup snapshots first, then tries to repair/update normalized rows.
 - If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
 - Local storage keeps a fast cache plus recent backup snapshots.
+- Pairwise quiz progress is now stored per `owner_id + board_client_id + column_client_id` in `pairwise_quiz_progress`, with local storage retained only as a fallback/recovery layer.
 - `column_entries` are now rewritten per board sync pass instead of incrementally upserted by stale IDs, which reduces the prior `409` conflict path.
 - In auth mode, user-scoped local cache writes should wait until remote hydration completes, so the default starter board does not overwrite a real multi-board session during refresh.
 
@@ -66,6 +69,22 @@
 - Ranked presentation is no longer derived only from `column.type`; a ranked column must also be in manual sort mode and not marked `dontRank`.
 - A-Z / Z-A are persistent modes rather than one-shot actions, and sorted columns auto-place cards by title.
 - Column filter UI can drive both tier filters and the shared board-level series filter from inside the column menu.
+
+## Board Layouts
+
+- Boards now support two layouts:
+  - `board`: the default kanban/ranked column layout
+  - `tier-list`: horizontal card rows intended for tier lists
+- `boardLayout` lives in board settings and is initialized in the board-creation modal.
+- Tier List boards currently seed these rows:
+  - `S`
+  - `A`
+  - `B`
+  - `C`
+  - `D`
+  - `Unsorted`
+- `Convert to Tier List` is exposed under board maintenance and rebuilds the active board into those rows, preserving only the unique non-mirror cards and placing them in `Unsorted`.
+- Tier List quick-add defaults to the `Unsorted` row.
 
 ## Media
 

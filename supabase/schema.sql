@@ -85,12 +85,24 @@ create table if not exists public.board_states (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.pairwise_quiz_progress (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  board_client_id text not null,
+  column_client_id text not null,
+  progress jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, board_client_id, column_client_id)
+);
+
 alter table public.profiles enable row level security;
 alter table public.boards enable row level security;
 alter table public.columns enable row level security;
 alter table public.items enable row level security;
 alter table public.column_entries enable row level security;
 alter table public.board_states enable row level security;
+alter table public.pairwise_quiz_progress enable row level security;
 
 create policy "profiles are readable by owner" on public.profiles
   for select using (auth.uid() = id);
@@ -192,6 +204,9 @@ create policy "public read shared column entries" on public.column_entries
   );
 
 create policy "owners manage board states" on public.board_states
+  for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+create policy "owners manage pairwise quiz progress" on public.pairwise_quiz_progress
   for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
 
 insert into storage.buckets (id, name, public)
