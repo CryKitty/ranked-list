@@ -11,6 +11,11 @@
 - Added `Move All` under column maintenance, with a target-column chooser and confirmation flow for moving every card in a column at once.
 - Reworked the in-column drop cue again so hovered insertion points become a visible `Drop Here` slot instead of relying only on a thin line hidden behind the dragged card.
 - Ranked mode now forcibly returns a column to manual ordering, and enabling A-Z / Z-A still turns Ranked off, so those mutually exclusive modes cannot be left half-on at the same time.
+- Fixed the drag auto-scroll regression by restoring percentage-based thresholds and widening the trigger band properly, so long columns should scroll again without needing to hit the exact top or bottom pixel.
+- Replaced the `Drop Here` box with a larger expanding gap between cards, bringing the drag target back to a more Trello-like insertion feel.
+- The column `Mirror` menu now uses switch-style toggles for both `Mirror` and `Allow Cloning`.
+- Enabling `Mirror` now asks for confirmation before turning on and creating the full mirrored set.
+- Sort and mirror toggle interactions now keep their menus open instead of collapsing immediately after each click.
 
 ## 2026-04-04
 

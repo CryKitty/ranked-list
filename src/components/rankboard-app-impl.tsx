@@ -3744,11 +3744,6 @@ function copyCardToDraft(card: CardEntry) {
           : column,
       ),
     );
-
-    setOpenColumnMenuId(null);
-    setOpenColumnSortMenuId(null);
-    setOpenColumnFilterMenuId(null);
-    setOpenColumnMirrorMenuId(null);
   }
 
   function toggleExcludeColumnFromBoardMirrors(columnId: string) {
@@ -3762,11 +3757,6 @@ function copyCardToDraft(card: CardEntry) {
           : column,
       ),
     );
-
-    setOpenColumnMenuId(null);
-    setOpenColumnSortMenuId(null);
-    setOpenColumnFilterMenuId(null);
-    setOpenColumnMirrorMenuId(null);
   }
 
   function toggleColumnDontRank(columnId: string) {
@@ -3781,8 +3771,6 @@ function copyCardToDraft(card: CardEntry) {
           : column,
       ),
     );
-    setOpenColumnMenuId(null);
-    setOpenColumnSortMenuId(null);
   }
 
   function toggleColumnSortMode(columnId: string, mode: Extract<ColumnSortMode, "title-asc" | "title-desc">) {
@@ -3812,8 +3800,6 @@ function copyCardToDraft(card: CardEntry) {
     latestCardsByColumnRef.current = nextCards;
     setColumns(nextColumns);
     setCardsByColumn(nextCards);
-    setOpenColumnMenuId(null);
-    setOpenColumnSortMenuId(null);
     queuePersistBoardState({
       columns: nextColumns,
       cardsByColumn: nextCards,
@@ -6204,10 +6190,10 @@ function copyCardToDraft(card: CardEntry) {
             </div>
             <DndContext
               autoScroll={{
-                activator: AutoScrollActivator.DraggableRect,
+                activator: AutoScrollActivator.Pointer,
                 acceleration: 14,
                 interval: 3,
-                threshold: { x: 90, y: 140 },
+                threshold: { x: 0.18, y: 0.34 },
               }}
               sensors={sensors}
               collisionDetection={(args) => {
@@ -8645,6 +8631,7 @@ function BoardColumn({
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
+  const [showMirrorEnableConfirm, setShowMirrorEnableConfirm] = useState(false);
   const isTierFiltering = activeTierFilter !== "all";
   const columnSeries = Array.from(new Set(fullCards.map((card) => card.series.trim()).filter(Boolean))).sort(compareTitlesForDisplay);
   const tierFilteredCards = cards.filter((card) => {
@@ -8845,7 +8832,7 @@ function BoardColumn({
                               </span>
                               <ToggleSwitch
                                 ariaLabel={`Toggle ranked view for ${column.title}`}
-                                enabled={!column.dontRank}
+                                enabled={isRankedColumn(column)}
                                 isDarkMode={isDarkMode}
                                 onClick={() => onToggleDontRank(column.id)}
                               />
@@ -9017,31 +9004,86 @@ function BoardColumn({
                                 : "border-slate-200 bg-white",
                             )}
                           >
-                            <button
+                            <div
                               className={clsx(
-                                "rounded-xl px-3 py-2 text-left text-sm transition",
-                                isDarkMode
-                                  ? "text-white hover:bg-white/10"
-                                  : "text-slate-700 hover:bg-slate-100",
+                                "relative flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
                               )}
-                              onClick={() => onToggleBoardMirrorColumn(column.id)}
-                              type="button"
                             >
-                              {column.mirrorsEntireBoard ? "Turn Off" : "Turn On"}
-                            </button>
+                              <span className="inline-flex items-center gap-2">
+                                <Link2 className="h-4 w-4" />
+                                Mirror
+                              </span>
+                              <ToggleSwitch
+                                ariaLabel={`Toggle mirror for ${column.title}`}
+                                enabled={Boolean(column.mirrorsEntireBoard)}
+                                isDarkMode={isDarkMode}
+                                onClick={() => {
+                                  if (column.mirrorsEntireBoard) {
+                                    onToggleBoardMirrorColumn(column.id);
+                                    setShowMirrorEnableConfirm(false);
+                                    return;
+                                  }
+                                  setShowMirrorEnableConfirm((current) => !current);
+                                }}
+                              />
+                              {showMirrorEnableConfirm ? (
+                                <div
+                                  className={clsx(
+                                    "absolute left-0 right-0 top-full z-20 mt-2 rounded-2xl border p-3 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                    isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
+                                  )}
+                                >
+                                  <p className={clsx("text-xs leading-5", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                                    Enabling Mirror will create a copy of all cards from the other columns directly within this mirror column.
+                                  </p>
+                                  <div className="mt-3 flex gap-2">
+                                    <button
+                                      className={clsx(
+                                        "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition",
+                                        isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
+                                      )}
+                                    onClick={() => {
+                                      onToggleBoardMirrorColumn(column.id);
+                                      setShowMirrorEnableConfirm(false);
+                                    }}
+                                    type="button"
+                                  >
+                                      Proceed
+                                    </button>
+                                    <button
+                                      className={clsx(
+                                        "rounded-xl border px-3 py-2 text-xs font-semibold transition",
+                                        isDarkMode
+                                          ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                                      )}
+                                      onClick={() => setShowMirrorEnableConfirm(false)}
+                                      type="button"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
                             {!column.mirrorsEntireBoard ? (
-                              <button
+                              <div
                                 className={clsx(
-                                  "rounded-xl px-3 py-2 text-left text-sm transition",
+                                  "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
                                   isDarkMode
                                     ? "text-white hover:bg-white/10"
                                     : "text-slate-700 hover:bg-slate-100",
                                 )}
-                              onClick={() => onToggleExcludeFromBoardMirrors(column.id)}
-                              type="button"
-                            >
-                                {column.excludeFromBoardMirrors ? "Clone Normally" : "Don't Clone"}
-                              </button>
+                              >
+                                <span>Allow Cloning</span>
+                                <ToggleSwitch
+                                  ariaLabel={`Toggle cloning for ${column.title}`}
+                                  enabled={!column.excludeFromBoardMirrors}
+                                  isDarkMode={isDarkMode}
+                                  onClick={() => onToggleExcludeFromBoardMirrors(column.id)}
+                                />
+                              </div>
                             ) : null}
                             <button
                               className={clsx(
@@ -9302,18 +9344,7 @@ function AddCardRow({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  const rowContent = isDragMode && isOver ? (
-    <span
-      className={clsx(
-        "flex w-full items-center justify-center rounded-2xl border border-dashed px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] transition",
-        isDarkMode
-          ? "border-white/70 bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
-          : "border-slate-950/70 bg-white text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]",
-      )}
-    >
-      Drop Here
-    </span>
-  ) : (
+  const rowContent = (
     <>
       <span
         className={clsx(
@@ -9364,7 +9395,7 @@ function AddCardRow({
         className={clsx(
           "group flex items-center gap-3 opacity-0 transition",
           isDarkMode ? "text-slate-300" : "text-slate-400",
-          isDragMode ? "h-10 opacity-100" : alwaysVisible ? "h-8 opacity-100" : "h-4",
+          isDragMode ? (isOver ? "h-16 opacity-100" : "h-8 opacity-100") : alwaysVisible ? "h-8 opacity-100" : "h-4",
         )}
         aria-hidden="true"
       >
@@ -9379,7 +9410,7 @@ function AddCardRow({
       className={clsx(
         "group flex items-center gap-3 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
-        isDragMode ? (isOver ? "h-12 opacity-100" : "h-10 opacity-100") : alwaysVisible ? "h-8 opacity-100" : "h-4 opacity-0",
+        isDragMode ? (isOver ? "h-16 opacity-100" : "h-8 opacity-100") : alwaysVisible ? "h-8 opacity-100" : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
       onClick={onClick}
