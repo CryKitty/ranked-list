@@ -5,6 +5,10 @@
 - Same-column dragging now keeps neighboring cards visually steadier while you drag, and leans on clearer insertion lanes instead of shuffling the whole list around under the pointer.
 - Strengthened the in-column drop lanes during drag so the intended drop point is easier to read before you let go.
 - Added another mirror-clone duplicate guard so moving a source card between columns does not create a second clone when that card is already mirrored.
+- In-column drop indicators now highlight white so the landing position reads more clearly during drag.
+- Widened the drag auto-scroll edge zones so columns start scrolling sooner when a held card approaches the top or bottom.
+- Cross-column card moves now immediately refresh board-wide mirror columns in place, which helps preserve existing mirror clone ranks instead of letting them drift after a later sync.
+- Added `Move All` under column maintenance, with a target-column chooser and confirmation flow for moving every card in a column at once.
 
 ## 2026-04-04
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AutoScrollActivator,
   DndContext,
   DragOverlay,
   DragEndEvent,
@@ -198,6 +199,13 @@ type PendingMirrorDelete = {
 type PendingColumnDelete = {
   id: string;
   title: string;
+};
+
+type MoveAllCardsState = {
+  sourceColumnId: string;
+  sourceColumnTitle: string;
+  targetColumnId: string;
+  cardCount: number;
 };
 
 type MoveCardState = {
@@ -1460,6 +1468,7 @@ export function RankboardApp() {
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
+  const [moveAllCardsState, setMoveAllCardsState] = useState<MoveAllCardsState | null>(null);
   const [moveCardState, setMoveCardState] = useState<MoveCardState | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
@@ -3022,7 +3031,9 @@ export function RankboardApp() {
     const normalizedDestinationCards =
       destinationColumn ? applyColumnSortMode(destinationColumn, nextDestinationCards) : nextDestinationCards;
 
-    const nextState = reconcileMirrorForMove(
+    const nextState = syncBoardMirrorColumns(
+      columns,
+      reconcileMirrorForMove(
       {
         ...cardsByColumn,
         [sourceColumnId]: nextSourceCards,
@@ -3031,6 +3042,7 @@ export function RankboardApp() {
       movedCard,
       sourceColumnId,
       overColumnId,
+      ),
     );
 
     latestCardsByColumnRef.current = nextState;
@@ -3364,7 +3376,9 @@ function copyCardToDraft(card: CardEntry) {
       nextTargetCards.splice(insertIndex, 0, movedCard);
     }
 
-    const nextState = reconcileMirrorForMove(
+    const nextState = syncBoardMirrorColumns(
+      columns,
+      reconcileMirrorForMove(
       {
         ...cardsByColumn,
         [moveCardState.sourceColumnId]: moveCardState.targetColumnId === moveCardState.sourceColumnId ? [] : nextSourceCards,
@@ -3373,6 +3387,7 @@ function copyCardToDraft(card: CardEntry) {
       movedCard,
       moveCardState.sourceColumnId,
       moveCardState.targetColumnId,
+      ),
     );
 
     if (moveCardState.targetColumnId === moveCardState.sourceColumnId) {
@@ -3384,6 +3399,57 @@ function copyCardToDraft(card: CardEntry) {
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     setMoveCardState(null);
+    queuePersistBoardState({ cardsByColumn: nextState });
+  }
+
+  function requestMoveAllCards(columnId: string) {
+    const sourceColumn = columns.find((column) => column.id === columnId);
+
+    if (!sourceColumn) {
+      return;
+    }
+
+    const eligibleTargets = columns.filter((column) => column.id !== columnId);
+
+    if (eligibleTargets.length === 0) {
+      return;
+    }
+
+    setMoveAllCardsState({
+      sourceColumnId: columnId,
+      sourceColumnTitle: sourceColumn.title,
+      targetColumnId: eligibleTargets[0].id,
+      cardCount: (cardsByColumn[columnId] ?? []).length,
+    });
+    setOpenColumnMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
+  }
+
+  function confirmMoveAllCards() {
+    if (!moveAllCardsState) {
+      return;
+    }
+
+    const sourceCards = cardsByColumn[moveAllCardsState.sourceColumnId] ?? [];
+
+    if (sourceCards.length === 0) {
+      setMoveAllCardsState(null);
+      return;
+    }
+
+    const targetColumn = columns.find((column) => column.id === moveAllCardsState.targetColumnId);
+    const targetCards = [...(cardsByColumn[moveAllCardsState.targetColumnId] ?? [])];
+    const combinedCards = [...targetCards, ...sourceCards];
+    const nextTargetCards = targetColumn ? applyColumnSortMode(targetColumn, combinedCards) : combinedCards;
+    const nextState = {
+      ...latestCardsByColumnRef.current,
+      [moveAllCardsState.sourceColumnId]: [],
+      [moveAllCardsState.targetColumnId]: nextTargetCards,
+    };
+
+    latestCardsByColumnRef.current = nextState;
+    setCardsByColumn(nextState);
+    setMoveAllCardsState(null);
     queuePersistBoardState({ cardsByColumn: nextState });
   }
 
@@ -6136,6 +6202,12 @@ function copyCardToDraft(card: CardEntry) {
               )}
             </div>
             <DndContext
+              autoScroll={{
+                activator: AutoScrollActivator.Pointer,
+                acceleration: 12,
+                interval: 4,
+                threshold: { x: 0.12, y: 0.22 },
+              }}
               sensors={sensors}
               collisionDetection={(args) => {
                 const pointerHits = pointerWithin(args);
@@ -6252,6 +6324,7 @@ function copyCardToDraft(card: CardEntry) {
                           })
                         }
                         onOpenDuplicateCleanup={() => openDuplicateCleanupModal(column.id)}
+                        onOpenMoveAll={() => requestMoveAllCards(column.id)}
                         onOpenTitleTidy={() => openTitleTidyModal(column.id)}
                         onOpenSeriesScrape={() => {
                           void openSeriesScrapeModal(column.id);
@@ -8103,6 +8176,85 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {moveAllCardsState ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setMoveAllCardsState(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                Column Maintenance
+              </p>
+              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                Move all cards
+              </h2>
+              <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                Move all {moveAllCardsState.cardCount} cards from <strong>{moveAllCardsState.sourceColumnTitle}</strong> into another column.
+              </p>
+              <div className="mt-6 grid gap-2">
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Target column</span>
+                <select
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                  )}
+                  value={moveAllCardsState.targetColumnId}
+                  onChange={(event) =>
+                    setMoveAllCardsState((current) =>
+                      current ? { ...current, targetColumnId: event.target.value } : current,
+                    )
+                  }
+                >
+                  {columns
+                    .filter((column) => column.id !== moveAllCardsState.sourceColumnId)
+                    .map((column) => (
+                      <option key={column.id} value={column.id}>
+                        {column.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={confirmMoveAllCards}
+                  type="button"
+                >
+                  <MoveVertical className="h-4 w-4" />
+                  Move All
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setMoveAllCardsState(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {moveCardState ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -8416,6 +8568,7 @@ function BoardColumn({
   onToggleMirrorMenu,
   onToggleMaintenanceMenu,
   onOpenDuplicateCleanup,
+  onOpenMoveAll,
   onOpenTitleTidy,
   onOpenSeriesScrape,
   onDeleteColumn,
@@ -8471,6 +8624,7 @@ function BoardColumn({
   onToggleMirrorMenu: () => void;
   onToggleMaintenanceMenu: () => void;
   onOpenDuplicateCleanup: () => void;
+  onOpenMoveAll: () => void;
   onOpenTitleTidy: () => void;
   onOpenSeriesScrape: () => void;
   onDeleteColumn: (columnId: string) => void;
@@ -8962,6 +9116,19 @@ function BoardColumn({
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
                               )}
+                              onClick={onOpenMoveAll}
+                              type="button"
+                            >
+                              <MoveVertical className="h-4 w-4" />
+                              Move All
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
                               onClick={onOpenDuplicateCleanup}
                               type="button"
                             >
@@ -9144,7 +9311,7 @@ function AddCardRow({
             ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
             : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
           isOver &&
-            (isDarkMode ? "bg-cyan-200/80 shadow-[0_0_0_1px_rgba(165,243,252,0.2)]" : "bg-cyan-500"),
+            (isDarkMode ? "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)]" : "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"),
         )}
       />
       <span
@@ -9158,8 +9325,8 @@ function AddCardRow({
             : "border-transparent bg-transparent text-transparent",
           isOver && interactive &&
             (isDarkMode
-              ? "border-cyan-200/80 bg-slate-900 text-cyan-100"
-              : "border-cyan-500 bg-cyan-50 text-cyan-700"),
+              ? "border-white bg-slate-900 text-white"
+              : "border-white bg-white text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"),
         )}
       >
         <Plus className={clsx(isDragMode ? "h-3.5 w-3.5" : "h-4 w-4")} />
@@ -9172,7 +9339,7 @@ function AddCardRow({
             ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
             : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
           isOver &&
-            (isDarkMode ? "bg-cyan-200/80 shadow-[0_0_0_1px_rgba(165,243,252,0.2)]" : "bg-cyan-500"),
+            (isDarkMode ? "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)]" : "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"),
         )}
       />
     </>

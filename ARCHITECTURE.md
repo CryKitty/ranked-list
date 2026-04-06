@@ -166,7 +166,10 @@
 - Drag persistence now uses a short debounce queue for drop events so rapid reorder bursts collapse into the latest intended rank instead of racing several immediate saves.
 - Card dragging now uses a visual drag overlay so the dragged card remains attached to the pointer while the source slot stays stable in the column layout.
 - While a card is being dragged, the surrounding cards now stay visually calmer and the between-card insertion lanes become the primary drop indicator instead of aggressively reflowing the whole column on hover.
+- The drag auto-scroll zone is intentionally wider near the top and bottom edges of a column so long columns start moving sooner during a held drag.
 - Mirror creation paths now guard against duplicate clones by checking both `mirroredFromEntryId` and `itemId`, which helps when a source card moves between columns after it already has a mirror copy.
+- Cross-column moves now also run the board-wide mirror synchronizer immediately, so source-card column changes update linked mirror content without disturbing the existing mirror order.
+- Column maintenance now includes a bulk `Move All` action that transfers every card into a chosen target column without invoking mirror-clone side effects.
 - The next cleanups should target extracting:
   - column lane / column menu sections
   - maintenance/import/export modals
