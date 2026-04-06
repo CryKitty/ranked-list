@@ -5323,7 +5323,7 @@ function copyCardToDraft(card: CardEntry) {
         "min-h-screen pt-[env(safe-area-inset-top)] transition-colors",
         isDarkMode
           ? "bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] text-slate-100"
-          : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffd9c7_20%,#ffefe6_42%,#f5f7ff_68%,#eff7ff_100%)] text-slate-950",
+          : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffe3cf_18%,#fff0e2_38%,#fff4ea_62%,#fff6ef_100%)] text-slate-950",
       )}
     >
       <main className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -8969,7 +8969,7 @@ function BoardColumn({
       ref={setNodeRef}
       className={clsx(
         "relative z-10 flex h-[min(78vh,920px)] min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:snap-align-none",
-        isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
+        isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
           ? isOver
