@@ -1420,6 +1420,7 @@ export function RankboardApp() {
   const [isCardDragging, setIsCardDragging] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
   const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
+  const [isDragGapSuppressed, setIsDragGapSuppressed] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1485,6 +1486,7 @@ export function RankboardApp() {
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
+  const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
@@ -2135,11 +2137,14 @@ export function RankboardApp() {
       const coords = dragPointerCoordsRef.current;
 
       if (coords) {
-        const hoveredElements = document.elementsFromPoint(coords.x, coords.y);
+        const scrollCandidates = Array.from(
+          document.querySelectorAll<HTMLElement>("[data-column-scroll-id]"),
+        );
         const scrollContainer =
-          (hoveredElements.find((element) => element.closest("[data-column-scroll-id]"))?.closest(
-            "[data-column-scroll-id]",
-          ) as HTMLElement | null) ?? null;
+          scrollCandidates.find((element) => {
+            const rect = element.getBoundingClientRect();
+            return coords.x >= rect.left && coords.x <= rect.right;
+          }) ?? null;
 
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
@@ -2160,6 +2165,7 @@ export function RankboardApp() {
 
           if (deltaY !== 0) {
             scrollContainer.scrollTop += deltaY;
+            suppressDragGapsTemporarily();
           }
         }
       }
@@ -2559,6 +2565,17 @@ export function RankboardApp() {
       }
       setDragPointerKind("touch");
     }
+  }
+
+  function suppressDragGapsTemporarily() {
+    setIsDragGapSuppressed(true);
+    if (dragGapSuppressTimeoutRef.current) {
+      window.clearTimeout(dragGapSuppressTimeoutRef.current);
+    }
+    dragGapSuppressTimeoutRef.current = window.setTimeout(() => {
+      setIsDragGapSuppressed(false);
+      dragGapSuppressTimeoutRef.current = null;
+    }, 1000);
   }
 
   function removeMirroredCard(
@@ -3060,6 +3077,7 @@ export function RankboardApp() {
 
   function handleDragEnd(event: DragEndEvent) {
     setIsCardDragging(false);
+    setIsDragGapSuppressed(false);
     setDragPointerKind(null);
     dragPointerCoordsRef.current = null;
     setActiveDragEntryId(null);
@@ -6317,6 +6335,11 @@ function copyCardToDraft(card: CardEntry) {
               collisionDetection={(args) => {
                 const pointerHits = pointerWithin(args);
                 if (pointerHits.length > 0) {
+                  if (isDragGapSuppressed) {
+                    return pointerHits.filter(
+                      (hit) => !String(hit.id).startsWith("insert::"),
+                    );
+                  }
                   const insertHits = pointerHits.filter((hit) =>
                     String(hit.id).startsWith("insert::"),
                   );
@@ -6327,11 +6350,13 @@ function copyCardToDraft(card: CardEntry) {
               }}
               onDragStart={({ active, activatorEvent }) => {
                 setIsCardDragging(true);
+                setIsDragGapSuppressed(false);
                 captureDragPointer(activatorEvent);
                 setActiveDragEntryId(String(active.id));
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
+                setIsDragGapSuppressed(false);
                 setDragPointerKind(null);
                 dragPointerCoordsRef.current = null;
                 setActiveDragEntryId(null);
@@ -6358,6 +6383,7 @@ function copyCardToDraft(card: CardEntry) {
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                         isCardDragging={isCardDragging}
+                        isDragGapSuppressed={isDragGapSuppressed}
                         isDarkMode={isDarkMode}
                         cards={visibleCards}
                         activeTierFilter={columnTierFilters[column.id] ?? "all"}
@@ -6447,6 +6473,7 @@ function copyCardToDraft(card: CardEntry) {
                           setSeriesFilter(nextSeries);
                           setOpenColumnMenuId(null);
                         }}
+                        onDragScrollActivity={suppressDragGapsTemporarily}
                         onColumnDragStart={setDraggingColumnId}
                         onColumnDrop={moveColumnToTarget}
                         onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
@@ -8651,6 +8678,7 @@ function BoardColumn({
   frontFieldDefinitions,
   disableAddAffordances,
   isCardDragging,
+  isDragGapSuppressed,
   cards,
   activeTierFilter,
   currentSeriesFilter,
@@ -8686,6 +8714,7 @@ function BoardColumn({
   onLinkMirrorMatches,
   onSetTierFilter,
   onSetSeriesFilter,
+  onDragScrollActivity,
   onColumnDragStart,
   onColumnDrop,
   onMoveColumnLeft,
@@ -8702,6 +8731,7 @@ function BoardColumn({
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
   isCardDragging: boolean;
+  isDragGapSuppressed: boolean;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
   currentSeriesFilter: string;
@@ -8742,6 +8772,7 @@ function BoardColumn({
   onLinkMirrorMatches: (columnId: string) => void;
   onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
   onSetSeriesFilter: (series: string) => void;
+  onDragScrollActivity: () => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   onMoveColumnLeft: (columnId: string) => void;
@@ -9354,6 +9385,11 @@ function BoardColumn({
       <div
         className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1"
         data-column-scroll-id={column.id}
+        onScroll={() => {
+          if (isCardDragging) {
+            onDragScrollActivity();
+          }
+        }}
       >
         {filtering || isTierFiltering ? (
           tierFilteredCards.map((card, index) => (
@@ -9394,6 +9430,7 @@ function BoardColumn({
                 columnId={column.id}
                 isDarkMode={isDarkMode}
                 isDragMode={isCardDragging}
+                isGapSuppressed={isDragGapSuppressed}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 interactive={!disableAddAffordances}
@@ -9421,6 +9458,7 @@ function BoardColumn({
                     columnId={column.id}
                     isDarkMode={isDarkMode}
                     isDragMode={isCardDragging}
+                    isGapSuppressed={isDragGapSuppressed}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
                     interactive={!disableAddAffordances}
@@ -9451,6 +9489,7 @@ function AddCardRow({
   columnId,
   isDarkMode,
   isDragMode = false,
+  isGapSuppressed = false,
   insertIndex,
   alwaysVisible = false,
   interactive = true,
@@ -9459,6 +9498,7 @@ function AddCardRow({
   columnId: string;
   isDarkMode: boolean;
   isDragMode?: boolean;
+  isGapSuppressed?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   interactive?: boolean;
@@ -9509,9 +9549,13 @@ function AddCardRow({
           "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
           isDragMode
-            ? isOver
-              ? "h-[172px] opacity-100"
-              : "h-3 opacity-100"
+            ? isGapSuppressed
+              ? "h-3 opacity-0"
+              : isOver
+                ? "h-[172px] opacity-100"
+                : insertIndex === 0
+                  ? "h-8 opacity-100"
+                  : "h-3 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
@@ -9530,9 +9574,13 @@ function AddCardRow({
         "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         isDragMode
-          ? isOver
-            ? "h-[172px] opacity-100"
-            : "h-3 opacity-100"
+          ? isGapSuppressed
+            ? "pointer-events-none h-3 opacity-0"
+            : isOver
+              ? "h-[172px] opacity-100"
+              : insertIndex === 0
+                ? "h-8 opacity-100"
+                : "h-3 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
             : "h-4 opacity-0",
