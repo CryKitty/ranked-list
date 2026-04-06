@@ -177,3 +177,5 @@
 - Removed the last collapsed-card dark background override so collapsed cards now fully respect their white/tier fill color in both Nox and Lumos.
 - Softened non-tier collapsed cards to an off-white in Lumos so they separate better from the board background, and tightened collapsed title sizing back to a single-line treatment.
 - Warmed the Lumos board background and column shells so white collapsed cards stand off better and the page no longer fades into a colder grey at the bottom.
+- Added a black border to collapsed cards regardless of tier so compact cards stay clearly defined.
+- Added a Nox/Lumos toggle to shared boards so viewers can switch the shared view theme for themselves.

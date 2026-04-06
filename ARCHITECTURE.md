@@ -223,3 +223,5 @@
 - Collapsed-card inner shells must not set their own hardcoded dark background, or they will override the intended white/tier surface classes entirely.
 - Non-tier collapsed cards now intentionally use an off-white surface in Lumos for separation, and collapsed titles are back to a tighter single-line layout to preserve more of long names at a glance.
 - Lumos now keeps its board-wide background in the same warm family from top to bottom, and column shells use a slightly warmer off-white than the cards so white collapsed cards remain legible against the lane.
+- Collapsed cards now always draw a dark border regardless of tier, so the compact form stays legible even when the fill color is white or very light.
+- The public `/share/[slug]` route now renders through a tiny server page plus a client `SharedBoardView` component so the shared page can keep server-loaded data while still offering viewer-only UI state like the Nox/Lumos toggle.

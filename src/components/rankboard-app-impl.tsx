@@ -9943,7 +9943,7 @@ function CardTile({
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
         !collapseCards && "bg-slate-900",
-        tierBorderClass,
+        collapseCards ? "border-slate-950" : tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
       )}
       onClick={() => {
