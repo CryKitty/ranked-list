@@ -6644,7 +6644,6 @@ function copyCardToDraft(card: CardEntry) {
                       showSeries={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
                       showArtwork={shouldShowArtworkOnCards}
                       showTierHighlights={activeBoardSettings.showTierHighlights}
-                      isDarkMode={isDarkMode}
                       frontFieldDefinitions={activeBoardFieldDefinitions}
                       rankBadge={activeDragRankBadge}
                     />
@@ -9571,7 +9570,6 @@ function BoardColumn({
               showSeries={showSeriesOnCards}
               showArtwork={showArtworkOnCards}
               showTierHighlights={showTierHighlights}
-              isDarkMode={isDarkMode}
               frontFieldDefinitions={frontFieldDefinitions}
               rankBadge={
                       isRankedColumn(column)
@@ -9618,7 +9616,6 @@ function BoardColumn({
                     showSeries={showSeriesOnCards}
                     showArtwork={showArtworkOnCards}
                     showTierHighlights={showTierHighlights}
-                    isDarkMode={isDarkMode}
                     frontFieldDefinitions={frontFieldDefinitions}
                     isAnyCardDragging={isCardDragging}
                     rankBadge={
@@ -9787,7 +9784,6 @@ function SortableCard({
   showSeries,
   showArtwork,
   showTierHighlights,
-  isDarkMode,
   frontFieldDefinitions,
   rankBadge,
   secondaryRankBadge,
@@ -9799,7 +9795,6 @@ function SortableCard({
   showSeries: boolean;
   showArtwork: boolean;
   showTierHighlights: boolean;
-  isDarkMode: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
@@ -9843,7 +9838,6 @@ function SortableCard({
         showSeries={showSeries}
         showArtwork={showArtwork}
         showTierHighlights={showTierHighlights}
-        isDarkMode={isDarkMode}
         frontFieldDefinitions={frontFieldDefinitions}
         rankBadge={rankBadge}
         secondaryRankBadge={secondaryRankBadge}
@@ -9861,7 +9855,6 @@ function CardTile({
   showSeries,
   showArtwork,
   showTierHighlights,
-  isDarkMode,
   frontFieldDefinitions,
   rankBadge,
   secondaryRankBadge,
@@ -9875,7 +9868,6 @@ function CardTile({
   showSeries: boolean;
   showArtwork: boolean;
   showTierHighlights: boolean;
-  isDarkMode: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
@@ -9923,11 +9915,8 @@ function CardTile({
           ? "bg-fuchsia-300 text-fuchsia-950"
           : "bg-white text-slate-950";
   const collapsedRankClass =
-    isDarkMode
-      ? "bg-slate-950 text-white"
-      : "bg-white text-slate-950";
-  const collapsedTitleClass =
-    "text-current";
+    "bg-white text-slate-950";
+  const collapsedTitleClass = "text-slate-950";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -9977,7 +9966,9 @@ function CardTile({
           collapseCards ? "min-h-[82px]" : "aspect-video",
         )}
         style={
-          !collapseCards && !hasArtwork
+          collapseCards
+            ? undefined
+            : !hasArtwork
             ? {
                 backgroundColor: "#0f172a",
                 backgroundImage:

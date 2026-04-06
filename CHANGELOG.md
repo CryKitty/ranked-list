@@ -174,3 +174,4 @@
 - Restyled collapsed cards so rank and title share one line, and tier-highlighted collapsed cards now use the tier color as the card surface.
 - Fixed collapsed-card theme handling so Lumos no longer inherits the dark collapsed surface, and adjusted collapsed titles to stay centered and wrap to two lines.
 - Simplified collapsed-card coloring so the full collapsed card now just uses the rank/tier color instead of mixing in extra dark fallback surfaces.
+- Removed the last collapsed-card dark background override so collapsed cards now fully respect their white/tier fill color in both Nox and Lumos.
