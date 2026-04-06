@@ -10,6 +10,9 @@
 - Removed the extra instructional text and in-card column badges from the Series Scraper and mirror-link review cards to reduce repetition.
 - Adjusted the mirror-link review copy and controls so the `Link` toggle is labeled, rank values are more compact, and existing linked cards show their current rank directly.
 - New auto-mirrored cards now appear at the top of mirror columns instead of being appended to the bottom.
+- Simplified the mirror-link review rows further by removing the `Keep` button and the extra source/rank fields so the main actions fit more cleanly beside the card preview.
+- The mirror-link review trash button now opens the mirror-specific delete choice flow (`Delete Both Copies` / `Delete This Copy` / `Cancel`) instead of the generic card delete prompt.
+- Mobile action-sheet `Customization` and `Maintenance` rows are now centered like the other buttons, and their expanded panels open directly beneath their own buttons instead of at the bottom of the sheet.
 - Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
 - Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
 - Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.

@@ -87,6 +87,7 @@
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - The mobile action sheet now exposes `Customization` and `Maintenance` directly, while account/theme/import-export actions stay under `Settings`.
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
+- On mobile, the `Customization` and `Maintenance` rows should stay visually centered like the other action buttons and open their detail panels directly beneath themselves.
 - Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
@@ -110,6 +111,7 @@
 - Confirmed mirror clone creation is now immediately re-synced and persisted from the reviewed snapshot, which reduces the chance of newly approved clones being swallowed by later mirror sync passes.
 - Mirror review now labels the `Link` toggle explicitly and uses a compact rank display/input rather than a wider generic status field.
 - Automatic board-mirror sync now prepends newly discovered clones so fresh mirror additions surface at the top of the mirror column.
+- Mirror review delete actions should use the mirror-specific choice modal so linked cards can be deleted together or only as a mirror copy.
 - Card deletion from the edit dialog now goes through an in-app confirmation modal instead of deleting immediately.
 - Board customization now includes icon selection. Boards can use either a built-in icon key or an uploaded custom icon image stored directly in board settings.
 - Duplicate cleanup at board scope now groups same-title, non-mirrored cards across the active board instead of only within individual columns.

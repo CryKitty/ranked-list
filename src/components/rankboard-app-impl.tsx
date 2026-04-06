@@ -640,7 +640,7 @@ function MaintenanceCardPreview({
   return (
     <div
       className={clsx(
-        "relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[220px]",
+        "relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[240px]",
         isDarkMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-slate-100",
       )}
       style={{
@@ -2637,46 +2637,6 @@ export function RankboardApp() {
             }
           : suggestion,
       ) ?? current,
-    );
-  }
-
-  function updatePendingMirrorLinkSuggestionRank(suggestionId: string, rank: number) {
-    setPendingMirrorLinkSuggestions((current) =>
-      current
-        ? (() => {
-            const nextSuggestions = current.map((suggestion) =>
-              suggestion.id === suggestionId
-                ? {
-                    ...suggestion,
-                    rank,
-                  }
-                : suggestion,
-            );
-            const target = nextSuggestions.find((suggestion) => suggestion.id === suggestionId);
-
-            if (!target || target.kind !== "create") {
-              return nextSuggestions;
-            }
-
-            const takenRanks = new Set<number>([target.rank]);
-            return nextSuggestions.map((suggestion) => {
-              if (
-                suggestion.id === suggestionId ||
-                suggestion.kind !== "create" ||
-                !suggestion.enabled
-              ) {
-                return suggestion;
-              }
-
-              let nextRank = suggestion.rank;
-              while (takenRanks.has(nextRank)) {
-                nextRank += 1;
-              }
-              takenRanks.add(nextRank);
-              return nextRank === suggestion.rank ? suggestion : { ...suggestion, rank: nextRank };
-            });
-          })()
-        : current,
     );
   }
 
@@ -5399,50 +5359,133 @@ function copyCardToDraft(card: CardEntry) {
                         <span>Undo</span>
                       </button>
 
-                      <button
-                        className={clsx(
-                          "inline-flex h-[52px] w-full items-center justify-between gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                        )}
-                        onClick={() => {
-                          setIsCustomizationMenuOpen((current) => !current);
-                          setIsMaintenanceMenuOpen(false);
-                          setIsTransferMenuOpen(false);
-                          setIsActionsMenuOpen(false);
-                        }}
-                        type="button"
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <Sparkles className="h-4 w-4" />
-                          Customization
-                        </span>
-                        <span className="text-xs opacity-70">{isCustomizationMenuOpen ? "▾" : "▸"}</span>
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          className={clsx(
+                            "relative inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                          )}
+                          onClick={() => {
+                            setIsCustomizationMenuOpen((current) => !current);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <span className="inline-flex items-center justify-center gap-2 text-center">
+                            <Sparkles className="h-4 w-4" />
+                            Customization
+                          </span>
+                          <span className="absolute right-4 text-xs opacity-70">{isCustomizationMenuOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isCustomizationMenuOpen ? (
+                          <div className={clsx("space-y-1 rounded-2xl px-2 pb-2 pt-1", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                              <span>Collapse Cards</span>
+                              <ToggleSwitch
+                                ariaLabel="Toggle Collapse Cards"
+                                enabled={activeBoardSettings.collapseCards}
+                                isDarkMode={isDarkMode}
+                                onClick={toggleCollapseCardsSetting}
+                              />
+                            </div>
+                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                              <span>Tier Highlights</span>
+                              <ToggleSwitch
+                                ariaLabel="Toggle Tier Highlights"
+                                enabled={activeBoardSettings.showTierHighlights}
+                                isDarkMode={isDarkMode}
+                                onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                              />
+                            </div>
+                            <button
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={promptForCardLabel}
+                              type="button"
+                            >
+                              <span>Card Label</span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={() => setIsBoardIconModalOpen(true)}
+                              type="button"
+                            >
+                              <span>Board Icon</span>
+                              {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={() => {
+                                setIsBoardFieldSettingsModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <span>Fields</span>
+                              <Settings2 className="h-4 w-4 opacity-70" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
 
-                      <button
-                        className={clsx(
-                          "inline-flex h-[52px] w-full items-center justify-between gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                        )}
-                        onClick={() => {
-                          setIsMaintenanceMenuOpen((current) => !current);
-                          setIsBoardsMenuOpen(false);
-                          setIsCustomizationMenuOpen(false);
-                          setIsTransferMenuOpen(false);
-                          setIsActionsMenuOpen(false);
-                        }}
-                        type="button"
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <Wrench className="h-4 w-4" />
-                          Maintenance
-                        </span>
-                        <span className="text-xs opacity-70">{isMaintenanceMenuOpen ? "▾" : "▸"}</span>
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          className={clsx(
+                            "relative inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                          )}
+                          onClick={() => {
+                            setIsMaintenanceMenuOpen((current) => !current);
+                            setIsBoardsMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsTransferMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <span className="inline-flex items-center justify-center gap-2 text-center">
+                            <Wrench className="h-4 w-4" />
+                            Maintenance
+                          </span>
+                          <span className="absolute right-4 text-xs opacity-70">{isMaintenanceMenuOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isMaintenanceMenuOpen ? (
+                          <div className={clsx("space-y-1 rounded-2xl px-2 pb-2 pt-1", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
+                              <Trash2 className="h-4 w-4" />
+                              Delete Duplicates
+                            </button>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
+                              <Sparkles className="h-4 w-4" />
+                              Tidy Titles
+                            </button>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
+                              <WandSparkles className="h-4 w-4" />
+                              Series Scraper
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                boards.length <= 1 && "cursor-not-allowed opacity-50",
+                              )}
+                              disabled={boards.length <= 1}
+                              onClick={() => requestDeleteBoard()}
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete Board
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
 
                       <div className="relative" data-actions-menu-root="true">
                         <button
@@ -5556,86 +5599,6 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
                     </div>
 
-                    {isCustomizationMenuOpen ? (
-                      <div className={clsx("col-span-full mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                        <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                          <span>Collapse Cards</span>
-                          <ToggleSwitch
-                            ariaLabel="Toggle Collapse Cards"
-                            enabled={activeBoardSettings.collapseCards}
-                            isDarkMode={isDarkMode}
-                            onClick={toggleCollapseCardsSetting}
-                          />
-                        </div>
-                        <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                          <span>Tier Highlights</span>
-                          <ToggleSwitch
-                            ariaLabel="Toggle Tier Highlights"
-                            enabled={activeBoardSettings.showTierHighlights}
-                            isDarkMode={isDarkMode}
-                            onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
-                          />
-                        </div>
-                        <button
-                          className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                          onClick={promptForCardLabel}
-                          type="button"
-                        >
-                          <span>Card Label</span>
-                          <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
-                        </button>
-                        <button
-                          className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                          onClick={() => setIsBoardIconModalOpen(true)}
-                          type="button"
-                        >
-                          <span>Board Icon</span>
-                          {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
-                        </button>
-                        <button
-                          className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                          onClick={() => {
-                            setIsBoardFieldSettingsModalOpen(true);
-                            setIsActionsMenuOpen(false);
-                            setIsMobileActionsOpen(false);
-                          }}
-                          type="button"
-                        >
-                          <span>Fields</span>
-                          <Settings2 className="h-4 w-4 opacity-70" />
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {isMaintenanceMenuOpen ? (
-                      <div className={clsx("col-span-full mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                        <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
-                          <Trash2 className="h-4 w-4" />
-                          Delete Duplicates
-                        </button>
-                        <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
-                          <Sparkles className="h-4 w-4" />
-                          Tidy Titles
-                        </button>
-                        <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
-                          <WandSparkles className="h-4 w-4" />
-                          Series Scraper
-                        </button>
-                        <button
-                          className={clsx(
-                            "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                            isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                            boards.length <= 1 && "cursor-not-allowed opacity-50",
-                          )}
-                          disabled={boards.length <= 1}
-                          onClick={() => requestDeleteBoard()}
-                          type="button"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete Board
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </div>
@@ -6914,23 +6877,21 @@ function copyCardToDraft(card: CardEntry) {
                                     "rounded-full p-2 transition",
                                     isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
                                   )}
-                                  onClick={() => requestDeleteCard(suggestion.mirrorColumnId, suggestion.mirrorEntryId!)}
+                                  onClick={() =>
+                                    setPendingMirrorDelete({
+                                      columnId: suggestion.mirrorColumnId,
+                                      entryId: suggestion.mirrorEntryId!,
+                                      itemId: suggestion.sourceItemId,
+                                      title: suggestion.mirrorTitle,
+                                      columnTitle: suggestion.sourceColumnTitle,
+                                    })
+                                  }
                                   type="button"
                                   aria-label={`Delete ${suggestion.mirrorTitle}`}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
                               ) : null}
-                              <button
-                                className={clsx(
-                                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
-                                )}
-                                onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
-                                type="button"
-                              >
-                                {suggestion.enabled ? "Keep" : "Skip"}
-                              </button>
                               <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                                 Link
                               </span>
@@ -6942,56 +6903,11 @@ function copyCardToDraft(card: CardEntry) {
                               />
                             </div>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-                            <div className="grid gap-2">
-                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                                Source Column
-                              </span>
-                              <div
-                                className={clsx(
-                                  "rounded-2xl border px-4 py-3 text-sm",
-                                  isDarkMode ? "border-white/10 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700",
-                                )}
-                              >
-                                {suggestion.sourceColumnTitle}
-                              </div>
-                            </div>
-                            <div className="grid gap-2">
-                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                                Rank
-                              </span>
-                              {suggestion.kind === "create" ? (
-                                <input
-                                  className={clsx(
-                                    "w-full rounded-2xl border px-3 py-3 text-sm outline-none transition",
-                                    isDarkMode
-                                      ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                                  )}
-                                  inputMode="numeric"
-                                  min={1}
-                                  onChange={(event) => {
-                                    const nextRank = Number.parseInt(event.target.value || "1", 10);
-                                    updatePendingMirrorLinkSuggestionRank(
-                                      suggestion.id,
-                                      Number.isFinite(nextRank) ? Math.max(1, nextRank) : 1,
-                                    );
-                                  }}
-                                  type="number"
-                                  value={suggestion.rank}
-                                />
-                              ) : (
-                                <div
-                                  className={clsx(
-                                    "rounded-2xl border px-4 py-3 text-sm",
-                                    isDarkMode ? "border-white/10 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700",
-                                  )}
-                                >
-                                  {suggestion.rank}
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          {suggestion.kind === "link" ? (
+                            <p className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                              Current rank: {suggestion.rank}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </div>
