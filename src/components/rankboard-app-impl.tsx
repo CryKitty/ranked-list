@@ -346,6 +346,57 @@ function makeFieldId(prefix = "field") {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function singularizeCardLabel(label: string) {
+  const trimmed = label.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/ies$/i.test(trimmed) && trimmed.length > 3) {
+    return `${trimmed.slice(0, -3)}y`;
+  }
+
+  if (/s$/i.test(trimmed) && !/ss$/i.test(trimmed) && trimmed.length > 1) {
+    return trimmed.slice(0, -1);
+  }
+
+  return trimmed;
+}
+
+function deriveDefaultCardLabel(boardTitle: string) {
+  const cleanedTitle = boardTitle.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  const vocabularyFallback = getBoardVocabulary(boardTitle).singular;
+
+  if (!cleanedTitle || /^new board$/i.test(cleanedTitle)) {
+    return vocabularyFallback;
+  }
+
+  const words = cleanedTitle.split(" ");
+  const lastWord = words.at(-1) ?? cleanedTitle;
+  const normalizedLastWord = lastWord.toLowerCase();
+  const pluralKinds = new Set([
+    "albums",
+    "animes",
+    "books",
+    "cards",
+    "characters",
+    "films",
+    "games",
+    "manga",
+    "movies",
+    "shows",
+    "songs",
+    "waifus",
+  ]);
+
+  if (words.length === 1 || pluralKinds.has(normalizedLastWord)) {
+    return singularizeCardLabel(lastWord);
+  }
+
+  return vocabularyFallback;
+}
+
 function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] {
   const boardKind = getBoardKind(boardTitle);
 
@@ -373,7 +424,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: "Artwork URL",
       type: "short_text",
       visible: true,
-      showOnCardFront: false,
+      showOnCardFront: true,
       builtInKey: "imageUrl",
     },
     {
@@ -412,7 +463,10 @@ function normalizeFieldDefinitions(
 
   return fieldDefinitions.map((field) => ({
     ...field,
-    showOnCardFront: field.showOnCardFront ?? false,
+    showOnCardFront:
+      field.builtInKey === "imageUrl"
+        ? field.showOnCardFront ?? true
+        : field.showOnCardFront ?? false,
     showLabelOnCardFront: field.showLabelOnCardFront ?? true,
     options: field.type === "select" ? field.options ?? [] : undefined,
     dateFormat:
@@ -1341,6 +1395,7 @@ function getDefaultBoardSettings(boardTitle: string): BoardSettings {
 
   return {
     ...DEFAULT_BOARD_SETTINGS,
+    cardLabel: deriveDefaultCardLabel(boardTitle),
     includeSeriesField: boardKind !== "show",
     includeReleaseYearField: true,
     includeImageField: true,
@@ -1579,6 +1634,8 @@ export function RankboardApp() {
   const shouldShowSeriesField = Boolean(seriesFieldDefinition?.visible) && activeBoardKind !== "show";
   const shouldShowReleaseYearField = Boolean(releaseYearFieldDefinition?.visible);
   const shouldShowImageField = Boolean(imageFieldDefinition?.visible);
+  const shouldShowArtworkOnCards =
+    Boolean(imageFieldDefinition?.visible) && (imageFieldDefinition?.showOnCardFront ?? true);
   const shouldShowNotesField = Boolean(notesFieldDefinition?.visible);
   const visibleCustomFieldDefinitions = activeBoardFieldDefinitions.filter(
     (field) => field.visible && !field.builtInKey,
@@ -6498,6 +6555,7 @@ function copyCardToDraft(card: CardEntry) {
                         addLabel={boardVocabulary.singular}
                         collapseCards={activeBoardSettings.collapseCards}
                         showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
+                        showArtworkOnCards={shouldShowArtworkOnCards}
                         showTierHighlights={activeBoardSettings.showTierHighlights}
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
@@ -6616,6 +6674,7 @@ function copyCardToDraft(card: CardEntry) {
                       card={activeDragCard}
                       collapseCards={activeBoardSettings.collapseCards}
                       showSeries={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
+                      showArtwork={shouldShowArtworkOnCards}
                       showTierHighlights={activeBoardSettings.showTierHighlights}
                       frontFieldDefinitions={activeBoardFieldDefinitions}
                       rankBadge={activeDragRankBadge}
@@ -6742,6 +6801,7 @@ function copyCardToDraft(card: CardEntry) {
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
           addArtworkInputRef={addArtworkInputRef}
           addCardTargetColumnId={addCardTarget?.columnId ?? columns[0]?.id ?? ""}
+          allSeries={allSeries}
           boardSingular={boardVocabulary.singular}
           columns={columns}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
@@ -7695,9 +7755,14 @@ function copyCardToDraft(card: CardEntry) {
           }}
           onTitleChange={(nextTitle) => {
             const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board");
+            const previousDefaultLabel = deriveDefaultCardLabel(newBoardTitle || "New Board");
             setNewBoardTitle(nextTitle);
             setNewBoardSettings((current) => ({
               ...current,
+              cardLabel:
+                !current.cardLabel?.trim() || current.cardLabel === previousDefaultLabel
+                  ? nextDefaults.cardLabel
+                  : current.cardLabel,
               fieldDefinitions: normalizeFieldDefinitions(
                 current.fieldDefinitions,
                 nextTitle || "New Board",
@@ -8658,7 +8723,7 @@ function AddColumnButton({
     <button
       className={clsx(
         inline
-          ? "group flex min-h-[720px] w-3 shrink-0 snap-start items-center justify-center transition sm:snap-align-none"
+          ? "group flex min-h-[720px] w-3 shrink-0 snap-start items-center justify-center overflow-visible transition sm:snap-align-none"
           : "flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? inline
@@ -8677,21 +8742,23 @@ function AddColumnButton({
           <span
             className={clsx(
               "h-full w-px",
-              isDarkMode ? "bg-white/10 group-hover:bg-white/25" : "bg-slate-300/40 group-hover:bg-slate-500/55",
+              isDarkMode ? "bg-white/12 group-hover:bg-white/30" : "bg-slate-300/35 group-hover:bg-slate-500/55",
             )}
           />
           <span
             className={clsx(
-              "flex h-5 w-5 items-center justify-center rounded-full shadow-lg",
-              isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
+              "flex h-9 w-9 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
+              isDarkMode
+                ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800"
+                : "border-white bg-white text-slate-950 ring-white/70 group-hover:border-slate-300",
             )}
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-5 w-5" />
           </span>
           <span
             className={clsx(
               "h-full w-px",
-              isDarkMode ? "bg-white/10 group-hover:bg-white/25" : "bg-slate-300/40 group-hover:bg-slate-500/55",
+              isDarkMode ? "bg-white/12 group-hover:bg-white/30" : "bg-slate-300/35 group-hover:bg-slate-500/55",
             )}
           />
         </span>
@@ -8831,6 +8898,7 @@ function BoardColumn({
   addLabel,
   collapseCards,
   showSeriesOnCards,
+  showArtworkOnCards,
   showTierHighlights,
   frontFieldDefinitions,
   disableAddAffordances,
@@ -8884,6 +8952,7 @@ function BoardColumn({
   addLabel: string;
   collapseCards: boolean;
   showSeriesOnCards: boolean;
+  showArtworkOnCards: boolean;
   showTierHighlights: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
@@ -9555,6 +9624,7 @@ function BoardColumn({
               card={card}
               collapseCards={collapseCards}
               showSeries={showSeriesOnCards}
+              showArtwork={showArtworkOnCards}
               showTierHighlights={showTierHighlights}
               frontFieldDefinitions={frontFieldDefinitions}
               rankBadge={
@@ -9590,6 +9660,7 @@ function BoardColumn({
                 isGapSuppressed={isDragGapSuppressed}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
+                hideAction={!isCardDragging && tierFilteredCards.length === 0}
                 interactive={!disableAddAffordances}
                 onClick={() => onAddCard(column.id, 0)}
               />
@@ -9599,6 +9670,7 @@ function BoardColumn({
                     card={card}
                     collapseCards={collapseCards}
                     showSeries={showSeriesOnCards}
+                    showArtwork={showArtworkOnCards}
                     showTierHighlights={showTierHighlights}
                     frontFieldDefinitions={frontFieldDefinitions}
                     isAnyCardDragging={isCardDragging}
@@ -9628,14 +9700,31 @@ function BoardColumn({
         )}
 
         {tierFilteredCards.length === 0 ? (
-          <div
+          <button
             className={clsx(
-              "flex flex-1 items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6",
+              "group flex flex-1 items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6 transition",
               isDarkMode
-                ? "border-white/15 bg-white/[0.03] text-slate-400"
-                : "border-slate-200 bg-slate-50 text-slate-500",
+                ? "border-white/15 bg-white/[0.03] text-slate-400 hover:border-white/30 hover:bg-white/[0.05]"
+                : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white",
             )}
-          />
+            disabled={disableAddAffordances}
+            onClick={() => onAddCard(column.id, 0)}
+            type="button"
+            aria-label={`Add ${addLabel}`}
+          >
+            <span
+              className={clsx(
+                "flex h-12 w-12 items-center justify-center rounded-full border transition",
+                disableAddAffordances
+                  ? "border-transparent bg-transparent text-transparent"
+                  : isDarkMode
+                    ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900"
+                    : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50",
+              )}
+            >
+              <Plus className="h-6 w-6" />
+            </span>
+          </button>
         ) : null}
       </div>
     </div>
@@ -9649,6 +9738,7 @@ function AddCardRow({
   isGapSuppressed = false,
   insertIndex,
   alwaysVisible = false,
+  hideAction = false,
   interactive = true,
   onClick,
 }: {
@@ -9658,6 +9748,7 @@ function AddCardRow({
   isGapSuppressed?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
+  hideAction?: boolean;
   interactive?: boolean;
   onClick: () => void;
 }) {
@@ -9672,10 +9763,10 @@ function AddCardRow({
         : "-my-14 py-14"
     : "";
 
-  const rowContent = isDragMode ? null : (
+  const rowContent = isDragMode || hideAction ? null : (
     <span
       className={clsx(
-        "flex h-7 w-7 items-center justify-center rounded-full border transition",
+        "flex h-8 w-8 items-center justify-center rounded-full border transition",
         interactive
           ? isDarkMode
             ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
@@ -9683,7 +9774,7 @@ function AddCardRow({
           : "border-transparent bg-transparent text-transparent",
       )}
     >
-      <Plus className="h-4 w-4" />
+      <Plus className="h-5 w-5" />
     </span>
   );
 
@@ -9692,7 +9783,7 @@ function AddCardRow({
       <div
         ref={setNodeRef}
         className={clsx(
-          "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out",
+          "group flex w-full items-center justify-center gap-3 transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
           dragHitAreaClass,
           isDragMode
@@ -9718,7 +9809,7 @@ function AddCardRow({
     <button
       ref={setNodeRef}
       className={clsx(
-        "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group flex w-full items-center justify-center gap-3 transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         dragHitAreaClass,
         isDragMode
@@ -9747,6 +9838,7 @@ function SortableCard({
   card,
   collapseCards,
   showSeries,
+  showArtwork,
   showTierHighlights,
   frontFieldDefinitions,
   rankBadge,
@@ -9757,6 +9849,7 @@ function SortableCard({
   card: CardEntry;
   collapseCards: boolean;
   showSeries: boolean;
+  showArtwork: boolean;
   showTierHighlights: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
@@ -9799,6 +9892,7 @@ function SortableCard({
         card={card}
         collapseCards={collapseCards}
         showSeries={showSeries}
+        showArtwork={showArtwork}
         showTierHighlights={showTierHighlights}
         frontFieldDefinitions={frontFieldDefinitions}
         rankBadge={rankBadge}
@@ -9815,6 +9909,7 @@ function CardTile({
   card,
   collapseCards,
   showSeries,
+  showArtwork,
   showTierHighlights,
   frontFieldDefinitions,
   rankBadge,
@@ -9827,6 +9922,7 @@ function CardTile({
   card: CardEntry;
   collapseCards: boolean;
   showSeries: boolean;
+  showArtwork: boolean;
   showTierHighlights: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   rankBadge: RankBadge | null;
@@ -9838,7 +9934,7 @@ function CardTile({
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
-  const imageSource = card.imageUrl || buildFallbackImage(card.title);
+  const imageSource = showArtwork ? card.imageUrl || buildFallbackImage(card.title) : "";
   const frontChips = frontFieldDefinitions
     .filter((field) => field.showOnCardFront && field.visible && !field.builtInKey)
     .map((field) => ({
@@ -9912,7 +10008,7 @@ function CardTile({
         )}
         style={{ backgroundColor: "#0f172a" }}
       >
-        {!collapseCards ? (
+        {!collapseCards && showArtwork ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

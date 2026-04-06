@@ -167,6 +167,7 @@
 - The shared header is now intentionally compact: `Rankr Share:` label, active filter chips, board title, and a `Join` CTA on the same line when space allows.
 - The `Join` CTA links to `/?new=1`, and the main app consumes that query by opening the new-board modal once and then clearing the query string.
 - The new-board modal should encourage signed-out users to log in if they want board creation to persist across devices.
+- New-board defaults now derive the initial card label from the board title when the title looks like a collection name, so first-run copy can match the board theme without the user opening customization first.
 
 ## Series Scraping
 
@@ -209,3 +210,7 @@
   - board header / settings shell
 - Persistence and media helpers should continue living in lib files instead of expanding the implementation file further.
 - The between-card add affordance now renders as a centered plus button without horizontal divider lines, which avoids stale divider visuals after drag/drop.
+- Empty columns now treat the large dotted placeholder as the add-card button, while the top insert row hides its own plus icon until a drag operation needs that insertion target.
+- The built-in `Artwork URL` field now uses `showOnCardFront` as the actual source of truth for whether card artwork renders on the face of the card.
+- The add-card dialog now uses an in-app series suggestion menu rather than only a datalist, so existing series stay discoverable on mobile and desktop while preserving freeform entry.
+- The between-column add-column affordance is still gap-neutral (`w-3`) but the floating plus treatment is intentionally larger and more contrasty so it reads as clickable without widening the lane.

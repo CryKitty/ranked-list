@@ -163,3 +163,8 @@
 - Constrained the board shell/header so the desktop action bar stays anchored instead of drifting with the horizontal board lane.
 - Fixed import so it updates the active board snapshot itself, not just the currently visible columns/cards.
 - Added a clearer board deletion entry to the board switcher in addition to Maintenance.
+- Centered the in-column add-card `+` affordance and moved the empty-column add action into the dotted empty state itself.
+- Made the between-column add-column affordance more prominent without widening the board lane gap.
+- Defaulted new-board card labels from the board name when it reads like a collection (`Waifus` -> `Waifu`, `Games` -> `Game`) while still allowing later customization.
+- Upgraded the add-card `Series` field to an in-UI suggestion menu that surfaces existing series but still accepts new freeform values.
+- Wired the built-in `Artwork URL` field's `Front` toggle to actual card rendering so turning it off hides the card artwork/background image.

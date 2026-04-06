@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, RefObject } from "react";
 import clsx from "clsx";
 import {
   Check,
+  ChevronDown,
   Clapperboard,
   Clock3,
   Copy,
@@ -54,6 +56,110 @@ type ColumnOption = {
 };
 
 type ShareColumnOption = Pick<ColumnDefinition, "id" | "title" | "accent">;
+
+function SeriesInput({
+  isDarkMode,
+  label,
+  name,
+  placeholder,
+  value,
+  allSeries,
+  onChange,
+}: {
+  isDarkMode: boolean;
+  label: string;
+  name: string;
+  placeholder: string;
+  value: string;
+  allSeries: string[];
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const filteredSeries = useMemo(() => {
+    const normalizedValue = value.trim().toLowerCase();
+    const matches = normalizedValue
+      ? allSeries.filter((series) => series.toLowerCase().includes(normalizedValue))
+      : allSeries;
+    return matches.slice(0, 8);
+  }, [allSeries, value]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  return (
+    <label className="grid gap-2">
+      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{label}</span>
+      <div className="relative" ref={rootRef}>
+        <input
+          name={name}
+          className={clsx(
+            "w-full rounded-2xl border px-4 py-3 pr-11 outline-none transition",
+            isDarkMode
+              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+          )}
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => {
+            onChange(event.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+        />
+        <button
+          className={clsx(
+            "absolute right-3 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition",
+            isDarkMode ? "text-slate-300 hover:bg-white/10" : "text-slate-500 hover:bg-slate-100",
+          )}
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+          aria-label={`Toggle ${label} suggestions`}
+        >
+          <ChevronDown className={clsx("h-4 w-4 transition", isOpen && "rotate-180")} />
+        </button>
+        {isOpen && filteredSeries.length > 0 ? (
+          <div
+            className={clsx(
+              "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+              isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
+            )}
+          >
+            {filteredSeries.map((series) => (
+              <button
+                key={series}
+                className={clsx(
+                  "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                  isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
+                )}
+                onClick={() => {
+                  onChange(series);
+                  setIsOpen(false);
+                }}
+                type="button"
+              >
+                <span className="truncate">{series}</span>
+                {series === value ? <Check className="ml-3 h-4 w-4 shrink-0" /> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </label>
+  );
+}
 
 export function EditCardDialog({
   isOpen,
@@ -415,6 +521,7 @@ export function AddCardDialog({
   releaseYearFieldLabel,
   imageFieldLabel,
   notesFieldLabel,
+  allSeries,
   visibleCustomFieldDefinitions,
   isUploadingArtwork,
   isAddFieldSettingsOpen,
@@ -458,6 +565,7 @@ export function AddCardDialog({
   releaseYearFieldLabel: string;
   imageFieldLabel: string;
   notesFieldLabel: string;
+  allSeries: string[];
   visibleCustomFieldDefinitions: BoardFieldDefinition[];
   isUploadingArtwork: boolean;
   isAddFieldSettingsOpen: boolean;
@@ -534,22 +642,15 @@ export function AddCardDialog({
             </label>
 
             {shouldShowSeriesField ? (
-              <label className="grid gap-2">
-                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{seriesFieldLabel}</span>
-                <input
-                  name="series"
-                  list="series-suggestions"
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                  )}
-                  placeholder={seriesPlaceholder}
-                  value={draft.series}
-                  onChange={(event) => onSeriesChange(event.target.value)}
-                />
-              </label>
+              <SeriesInput
+                allSeries={allSeries}
+                isDarkMode={isDarkMode}
+                label={seriesFieldLabel}
+                name="series"
+                onChange={onSeriesChange}
+                placeholder={seriesPlaceholder}
+                value={draft.series}
+              />
             ) : null}
 
             {shouldShowReleaseYearField ? (
