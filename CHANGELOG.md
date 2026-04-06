@@ -18,6 +18,9 @@
 - Sort and mirror toggle interactions now keep their menus open instead of collapsing immediately after each click.
 - While dragging, the source card slot now collapses instead of leaving a ghost gap behind.
 - During active auto-scroll, drop targets temporarily disable and then wait a short beat before reappearing, which should cut down on the stuttery target-jumping while the column is still moving.
+- Desktop dragging now uses a custom mouse-driven auto-scroll loop for column interiors, while mobile keeps the smoother built-in touch path.
+- Slowed the auto-scroll down a bit and switched the drag target to a pure animated gap with no separator line.
+- The held drag card is now slightly smaller and semi-transparent so it obscures less of the column while you drag.
 
 ## 2026-04-04
 

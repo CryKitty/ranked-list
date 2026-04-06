@@ -171,6 +171,9 @@
 - That drag target has since been revised again into a larger expanding gap between cards, so insertion feels more like opening space in the list than aiming at a hidden target behind the dragged card.
 - The dragged card's original slot now collapses while the overlay is in your hand, which helps the list behave as though the item was truly lifted out before being reinserted elsewhere.
 - While a column is auto-scrolling during drag, insertion targets now temporarily lock out and only re-enable after a short cooldown, which reduces the visual stutter from targets continuously re-evaluating mid-scroll.
+- Desktop now supplements dnd-kit's behavior with a custom mouse-driven vertical auto-scroll loop for column interiors, while mobile still relies on the built-in touch-oriented auto-scroll.
+- The active drop target during drag is now just an animated gap; separator lines are hidden during drag so the spacing itself does the work.
+- The drag overlay is intentionally smaller and slightly translucent to keep more of the destination column visible under the user's pointer/finger.
 - Mirror creation paths now guard against duplicate clones by checking both `mirroredFromEntryId` and `itemId`, which helps when a source card moves between columns after it already has a mirror copy.
 - Cross-column moves now also run the board-wide mirror synchronizer immediately, so source-card column changes update linked mirror content without disturbing the existing mirror order.
 - Column maintenance now includes a bulk `Move All` action that transfers every card into a chosen target column without invoking mirror-clone side effects.

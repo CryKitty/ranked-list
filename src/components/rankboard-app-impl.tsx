@@ -1420,6 +1420,7 @@ export function RankboardApp() {
   const [isCardDragging, setIsCardDragging] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
   const [isDragDropLocked, setIsDragDropLocked] = useState(false);
+  const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1486,6 +1487,8 @@ export function RankboardApp() {
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const dragDropLockTimeoutRef = useRef<number | null>(null);
+  const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
+  const dragAutoScrollFrameRef = useRef<number | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -2087,6 +2090,97 @@ export function RankboardApp() {
   }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading, resetToSignedOutBoard]);
 
   useEffect(() => {
+    if (!isCardDragging) {
+      return;
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      dragPointerCoordsRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    }
+
+    function handleTouchMove(event: TouchEvent) {
+      const touch = event.touches[0] ?? event.changedTouches[0];
+      if (!touch) {
+        return;
+      }
+      dragPointerCoordsRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+      };
+    }
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [isCardDragging]);
+
+  useEffect(() => {
+    if (!isCardDragging || dragPointerKind !== "mouse") {
+      if (dragAutoScrollFrameRef.current) {
+        window.cancelAnimationFrame(dragAutoScrollFrameRef.current);
+        dragAutoScrollFrameRef.current = null;
+      }
+      return;
+    }
+
+    const edgeThreshold = 140;
+    const maxScrollStep = 8;
+
+    const tick = () => {
+      const coords = dragPointerCoordsRef.current;
+
+      if (coords) {
+        const hoveredElement = document.elementFromPoint(coords.x, coords.y);
+        const scrollContainer = hoveredElement?.closest("[data-column-scroll-id]") as HTMLElement | null;
+
+        if (scrollContainer) {
+          const rect = scrollContainer.getBoundingClientRect();
+          let deltaY = 0;
+
+          if (coords.y <= rect.top + edgeThreshold) {
+            deltaY =
+              -Math.max(
+                2,
+                ((rect.top + edgeThreshold - coords.y) / edgeThreshold) * maxScrollStep,
+              );
+          } else if (coords.y >= rect.bottom - edgeThreshold) {
+            deltaY = Math.max(
+              2,
+              ((coords.y - (rect.bottom - edgeThreshold)) / edgeThreshold) * maxScrollStep,
+            );
+          }
+
+          if (deltaY !== 0) {
+            const previousScrollTop = scrollContainer.scrollTop;
+            scrollContainer.scrollTop += deltaY;
+            if (scrollContainer.scrollTop !== previousScrollTop) {
+              noteDragScrollActivity();
+            }
+          }
+        }
+      }
+
+      dragAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    dragAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (dragAutoScrollFrameRef.current) {
+        window.cancelAnimationFrame(dragAutoScrollFrameRef.current);
+        dragAutoScrollFrameRef.current = null;
+      }
+    };
+  }, [dragPointerKind, isCardDragging]);
+
+  useEffect(() => {
     if (
       authEnabled ||
       hasAutoOpenedBoardSetupRef.current ||
@@ -2457,6 +2551,28 @@ export function RankboardApp() {
       setIsDragDropLocked(false);
       dragDropLockTimeoutRef.current = null;
     }, 1200);
+  }
+
+  function captureDragPointer(event: Event) {
+    if (event instanceof MouseEvent) {
+      dragPointerCoordsRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      setDragPointerKind("mouse");
+      return;
+    }
+
+    if (event instanceof TouchEvent) {
+      const touch = event.touches[0] ?? event.changedTouches[0];
+      if (touch) {
+        dragPointerCoordsRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+        };
+      }
+      setDragPointerKind("touch");
+    }
   }
 
   function removeMirroredCard(
@@ -2959,6 +3075,8 @@ export function RankboardApp() {
   function handleDragEnd(event: DragEndEvent) {
     setIsCardDragging(false);
     setIsDragDropLocked(false);
+    setDragPointerKind(null);
+    dragPointerCoordsRef.current = null;
     setActiveDragEntryId(null);
 
     if (filtering || !event.over) {
@@ -6204,10 +6322,11 @@ function copyCardToDraft(card: CardEntry) {
             </div>
             <DndContext
               autoScroll={{
+                enabled: dragPointerKind !== "mouse",
                 activator: AutoScrollActivator.Pointer,
-                acceleration: 14,
-                interval: 3,
-                threshold: { x: 0.18, y: 0.34 },
+                acceleration: 10,
+                interval: 4,
+                threshold: { x: 0.16, y: 0.28 },
               }}
               sensors={sensors}
               collisionDetection={(args) => {
@@ -6224,14 +6343,17 @@ function copyCardToDraft(card: CardEntry) {
 
                 return closestCorners(args);
               }}
-              onDragStart={({ active }) => {
+              onDragStart={({ active, activatorEvent }) => {
                 setIsCardDragging(true);
                 setIsDragDropLocked(false);
+                captureDragPointer(activatorEvent);
                 setActiveDragEntryId(String(active.id));
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
                 setIsDragDropLocked(false);
+                setDragPointerKind(null);
+                dragPointerCoordsRef.current = null;
                 setActiveDragEntryId(null);
               }}
               onDragEnd={handleDragEnd}
@@ -6365,7 +6487,7 @@ function copyCardToDraft(card: CardEntry) {
               </div>
               <DragOverlay dropAnimation={null}>
                 {activeDragCard ? (
-                  <div className="w-[292px] rotate-[1deg] shadow-[0_28px_60px_rgba(15,23,42,0.32)]">
+                  <div className="w-[268px] rotate-[1deg] opacity-85 shadow-[0_24px_48px_rgba(15,23,42,0.26)]">
                     <CardTile
                       card={activeDragCard}
                       collapseCards={activeBoardSettings.collapseCards}
@@ -9257,6 +9379,7 @@ function BoardColumn({
 
       <div
         className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1"
+        data-column-scroll-id={column.id}
         onScroll={() => {
           if (isCardDragging) {
             onDragScrollActivity();
@@ -9380,45 +9503,34 @@ function AddCardRow({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  const rowContent = (
+  const rowContent = isDragMode ? null : (
     <>
       <span
         className={clsx(
-          "flex-1 transition",
-          isDragMode ? "h-0.5" : "h-px",
+          "h-px flex-1 transition",
           isDarkMode
             ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
             : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
-          isOver &&
-            (isDarkMode ? "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)]" : "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"),
         )}
       />
       <span
         className={clsx(
-          "flex items-center justify-center rounded-full border transition",
-          isDragMode ? "h-6 w-6" : "h-7 w-7",
+          "flex h-7 w-7 items-center justify-center rounded-full border transition",
           interactive
             ? isDarkMode
               ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
               : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50"
             : "border-transparent bg-transparent text-transparent",
-          isOver && interactive &&
-            (isDarkMode
-              ? "border-white bg-slate-900 text-white"
-              : "border-white bg-white text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"),
         )}
       >
-        <Plus className={clsx(isDragMode ? "h-3.5 w-3.5" : "h-4 w-4")} />
+        <Plus className="h-4 w-4" />
       </span>
       <span
         className={clsx(
-          "flex-1 transition",
-          isDragMode ? "h-0.5" : "h-px",
+          "h-px flex-1 transition",
           isDarkMode
             ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
             : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
-          isOver &&
-            (isDarkMode ? "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)]" : "bg-white shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"),
         )}
       />
     </>
@@ -9429,7 +9541,7 @@ function AddCardRow({
       <div
         ref={setNodeRef}
         className={clsx(
-          "group flex items-center gap-3 opacity-0 transition",
+          "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
           isDragMode
             ? isDropLocked
@@ -9452,7 +9564,7 @@ function AddCardRow({
     <button
       ref={setNodeRef}
       className={clsx(
-        "group flex items-center gap-3 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         isDragMode
           ? isDropLocked
