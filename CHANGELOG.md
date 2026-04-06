@@ -29,6 +29,12 @@
 - Moved mobile column left/right actions under Maintenance and added arrow icons.
 - Moved the column `Ranked` toggle into the `Sort` submenu and added series options to the column filter menu.
 - Mirrored/edit-linked cards now show a compact `Clone of:` chip in the editor that can open the sibling card directly.
+- Changed the `Clone of:` chip so tapping it now opens a sever-link confirmation instead of jumping to the sibling card.
+- Removed the duplicate top-level column `Ranked` control so the only ranked toggle lives under `Sort`.
+- Made long series lists in the column filter submenu scroll within the viewport instead of running off-screen.
+- Renamed the mobile column move controls to `Move Left` and `Move Right`.
+- Exposed `Customization` and `Maintenance` directly in the mobile action sheet instead of nesting them behind the settings menu.
+- Removed the duplicate desktop share button from the board header.
 
 ## 2026-04-03
 

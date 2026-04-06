@@ -85,6 +85,7 @@
 - Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
+- The mobile action sheet now exposes `Customization` and `Maintenance` directly, while account/theme/import-export actions stay under `Settings`.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
@@ -97,6 +98,7 @@
 - Mirror columns should only maintain explicit links, not infer new ones from title matches during normal sync.
 - The manual `Link Duplicates` action remains the opt-in path for same-title relinking.
 - Mirrored cards can be unlinked in the edit dialog, which gives the clone its own `itemId` and excludes the original source item from automatic mirror recreation in that column.
+- The `Clone of:` chip in the edit dialog is now a sever-link entrypoint rather than a sibling-navigation shortcut.
 - Card identity should never be derived from title text. Same-name cards must keep separate `itemId`s unless they were explicitly linked.
 
 ## Component Split Status
