@@ -8,6 +8,7 @@ import { Moon, Sun } from "lucide-react";
 import type { BoardFieldDefinition, CardEntry, SavedBoard, ShareTierFilter } from "@/lib/types";
 
 const SHARED_THEME_STORAGE_KEY = "rankr-shared-theme";
+const SHARED_BOARD_TEMPLATE_STORAGE_KEY = "rankboard-shared-template-v1";
 
 function normalizeTitleForShare(value: string) {
   return value.trim().toLowerCase();
@@ -136,6 +137,16 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
     window.localStorage.setItem(SHARED_THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
+  function copyBoardTemplate() {
+    try {
+      window.localStorage.setItem(SHARED_BOARD_TEMPLATE_STORAGE_KEY, JSON.stringify(board));
+    } catch {
+      return;
+    }
+
+    window.location.href = "/?copyShared=1";
+  }
+
   const shareSettings = board.settings?.publicShare;
   const selectedColumnIds =
     shareSettings?.columnIds && shareSettings.columnIds.length > 0
@@ -201,6 +212,16 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
               >
                 {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 {isDarkMode ? "Lumos" : "Nox"}
+              </button>
+              <button
+                className={clsx(
+                  "inline-flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
+                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-950 hover:bg-slate-100",
+                )}
+                onClick={copyBoardTemplate}
+                type="button"
+              >
+                Copy Board
               </button>
               <Link
                 className={clsx(

@@ -342,6 +342,8 @@ function createEmptyBoard(title = "New Board"): SavedBoard {
 
 const LOCAL_STORAGE_KEY = "rankboard-state-v1";
 const LOCAL_BACKUP_STORAGE_KEY = "rankboard-backups-v1";
+const PAIRWISE_QUIZ_PROGRESS_STORAGE_KEY = "rankboard-pairwise-progress-v1";
+const SHARED_BOARD_TEMPLATE_STORAGE_KEY = "rankboard-shared-template-v1";
 const THEME_STORAGE_KEY = "rankboard-theme-v1";
 const LAST_ACTIVE_BOARD_KEY = "rankboard-last-active-board-v1";
 const COLUMN_ACCENTS = [
@@ -551,6 +553,12 @@ function getUserBoardCacheKey(userId: string) {
 
 function getLastActiveBoardStorageKey(userId?: string | null) {
   return userId ? `${LAST_ACTIVE_BOARD_KEY}-${userId}` : LAST_ACTIVE_BOARD_KEY;
+}
+
+function getPairwiseQuizProgressStorageKey(userId?: string | null) {
+  return userId
+    ? `${PAIRWISE_QUIZ_PROGRESS_STORAGE_KEY}-${userId}`
+    : PAIRWISE_QUIZ_PROGRESS_STORAGE_KEY;
 }
 
 function readStoredPreferredBoardId(userId?: string | null) {
@@ -968,6 +976,75 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
     publicSlug: board.publicSlug ?? null,
     lastPublishedAt: board.lastPublishedAt ?? null,
   } satisfies SavedBoard;
+}
+
+function cloneBoardFromTemplate(board: SavedBoard): SavedBoard {
+  const clonedAt = new Date().toISOString();
+  const nextBoardId = makeId("board");
+  const columnIdMap = new Map<string, string>();
+  const itemIdMap = new Map<string, string>();
+  const entryIdMap = new Map<string, string>();
+
+  for (const column of board.columns) {
+    columnIdMap.set(column.id, makeId("column"));
+  }
+
+  for (const cards of Object.values(board.cardsByColumn)) {
+    for (const card of cards) {
+      if (!itemIdMap.has(card.itemId)) {
+        itemIdMap.set(card.itemId, makeId("item"));
+      }
+      if (!entryIdMap.has(card.entryId)) {
+        entryIdMap.set(card.entryId, makeId("entry"));
+      }
+    }
+  }
+
+  const nextColumns = board.columns.map((column) => ({
+    ...column,
+    id: columnIdMap.get(column.id) ?? makeId("column"),
+    autoMirrorToColumnId: column.autoMirrorToColumnId ? columnIdMap.get(column.autoMirrorToColumnId) : undefined,
+    excludedMirrorItemIds: (column.excludedMirrorItemIds ?? [])
+      .map((itemId) => itemIdMap.get(itemId))
+      .filter((itemId): itemId is string => Boolean(itemId)),
+  }));
+
+  const nextCardsByColumn = Object.fromEntries(
+    Object.entries(board.cardsByColumn).map(([columnId, cards]) => [
+      columnIdMap.get(columnId) ?? makeId("column"),
+      cards.map((card) => ({
+        ...card,
+        entryId: entryIdMap.get(card.entryId) ?? makeId("entry"),
+        itemId: itemIdMap.get(card.itemId) ?? makeId("item"),
+        mirroredFromEntryId: card.mirroredFromEntryId
+          ? entryIdMap.get(card.mirroredFromEntryId) ?? undefined
+          : undefined,
+      })),
+    ]),
+  ) as Record<string, CardEntry[]>;
+
+  return normalizeSavedBoard({
+    ...board,
+    id: nextBoardId,
+    title: `${board.title} Copy`,
+    settings: {
+      ...board.settings,
+      publicShare: {
+        columnIds: [],
+        tierFilter: "all",
+        seriesFilter: "",
+        searchTerm: "",
+        expiresAt: null,
+      },
+    },
+    columns: nextColumns,
+    cardsByColumn: nextCardsByColumn,
+    isPublic: false,
+    publicSlug: null,
+    lastPublishedAt: null,
+    createdAt: clonedAt,
+    updatedAt: clonedAt,
+  });
 }
 
 function countCardsInBoard(board: SavedBoard) {
@@ -1633,6 +1710,7 @@ export function RankboardApp() {
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
   const hasHandledNewBoardQueryRef = useRef(false);
+  const hasHandledSharedCopyQueryRef = useRef(false);
   const latestColumnsRef = useRef(columns);
   const latestCardsByColumnRef = useRef(cardsByColumn);
   const latestBoardsRef = useRef(boards);
@@ -2311,6 +2389,60 @@ export function RankboardApp() {
     const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
     window.history.replaceState({}, "", nextUrl);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || hasHandledSharedCopyQueryRef.current) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("copyShared") !== "1") {
+      return;
+    }
+
+    hasHandledSharedCopyQueryRef.current = true;
+
+    try {
+      const rawTemplate = window.localStorage.getItem(SHARED_BOARD_TEMPLATE_STORAGE_KEY);
+
+      if (rawTemplate) {
+        const parsedBoard = normalizeSavedBoard(JSON.parse(rawTemplate) as SavedBoard);
+        const nextBoard = cloneBoardFromTemplate(parsedBoard);
+
+        skipNextHistoryRef.current = true;
+        setBoards((current) => {
+          const nonStarterBoards =
+            current.length > 1 ? current.filter((board) => !isEphemeralStarterBoard(board)) : current;
+          const nextBoards = [...nonStarterBoards, nextBoard];
+          latestBoardsRef.current = nextBoards;
+          return nextBoards;
+        });
+        latestActiveBoardIdRef.current = nextBoard.id;
+        latestColumnsRef.current = nextBoard.columns;
+        latestCardsByColumnRef.current = nextBoard.cardsByColumn;
+        setActiveBoardId(nextBoard.id);
+        setColumns(nextBoard.columns);
+        setCardsByColumn(nextBoard.cardsByColumn);
+        setHistory([]);
+        setIsBoardsMenuOpen(false);
+        setIsActionsMenuOpen(false);
+        setIsMobileActionsOpen(false);
+        queuePersistBoardState({
+          boards: [...latestBoardsRef.current],
+          activeBoardId: nextBoard.id,
+          cardsByColumn: nextBoard.cardsByColumn,
+        });
+      }
+    } catch {
+      // Ignore bad shared-template payloads and continue into the main app.
+    } finally {
+      window.localStorage.removeItem(SHARED_BOARD_TEMPLATE_STORAGE_KEY);
+      params.delete("copyShared");
+      const nextQuery = params.toString();
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+      window.history.replaceState({}, "", nextUrl);
+    }
+  }, [queuePersistBoardState]);
 
   useEffect(() => {
     if (!isCardDragging) {
@@ -4421,51 +4553,47 @@ function copyCardToDraft(card: CardEntry) {
     };
   }
 
-  function updatePairwiseQuizProgress(
+  function readStoredPairwiseQuizProgress(columnId: string) {
+    try {
+      const rawValue = window.localStorage.getItem(
+        getPairwiseQuizProgressStorageKey(currentUser?.id ?? null),
+      );
+
+      if (!rawValue) {
+        return null;
+      }
+
+      const parsed = JSON.parse(rawValue) as Record<string, PairwiseQuizProgress>;
+      return parsed[`${activeBoardId}:${columnId}`] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeStoredPairwiseQuizProgress(
     columnId: string,
     nextProgress: PairwiseQuizProgress | null,
-    options?: { queue?: boolean },
   ) {
-    let nextBoardsSnapshot = latestBoardsRef.current;
+    try {
+      const storageKey = getPairwiseQuizProgressStorageKey(currentUser?.id ?? null);
+      const rawValue = window.localStorage.getItem(storageKey);
+      const parsed = rawValue ? JSON.parse(rawValue) as Record<string, PairwiseQuizProgress> : {};
+      const progressKey = `${activeBoardId}:${columnId}`;
 
-    setBoards((current) => {
-      const nextBoards = current.map((board) => {
-        if (board.id !== activeBoardId) {
-          return board;
-        }
+      if (nextProgress) {
+        parsed[progressKey] = nextProgress;
+      } else {
+        delete parsed[progressKey];
+      }
 
-        const nextProgressByColumn = {
-          ...(board.settings?.pairwiseQuizProgressByColumn ?? {}),
-        };
+      if (Object.keys(parsed).length === 0) {
+        window.localStorage.removeItem(storageKey);
+        return;
+      }
 
-        if (nextProgress) {
-          nextProgressByColumn[columnId] = nextProgress;
-        } else {
-          delete nextProgressByColumn[columnId];
-        }
-
-        return {
-          ...board,
-          settings: {
-            ...DEFAULT_BOARD_SETTINGS,
-            ...board.settings,
-            pairwiseQuizProgressByColumn: nextProgressByColumn,
-          },
-          updatedAt: new Date().toISOString(),
-        };
-      });
-
-      latestBoardsRef.current = nextBoards;
-      nextBoardsSnapshot = nextBoards;
-      return nextBoards;
-    });
-
-    if (options?.queue !== false) {
-      queuePersistBoardState({
-        boards: nextBoardsSnapshot,
-        activeBoardId,
-        cardsByColumn: latestCardsByColumnRef.current,
-      });
+      window.localStorage.setItem(storageKey, JSON.stringify(parsed));
+    } catch {
+      // Ignore local progress persistence failures.
     }
   }
 
@@ -4486,7 +4614,7 @@ function copyCardToDraft(card: CardEntry) {
       0,
     );
 
-    updatePairwiseQuizProgress(columnId, null);
+    writeStoredPairwiseQuizProgress(columnId, null);
     setPairwiseQuizReview(null);
     setPairwiseQuizState(nextState);
     setPendingPairwiseQuizResume(null);
@@ -4511,7 +4639,7 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMirrorMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
 
-    const savedProgress = activeBoardSettings.pairwiseQuizProgressByColumn?.[columnId];
+    const savedProgress = readStoredPairwiseQuizProgress(columnId);
 
     if (savedProgress) {
       setPendingPairwiseQuizResume({
@@ -4542,7 +4670,7 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    updatePairwiseQuizProgress(pairwiseQuizState.columnId, {
+    writeStoredPairwiseQuizProgress(pairwiseQuizState.columnId, {
       ...pairwiseQuizState,
       sortedCards: [...pairwiseQuizState.sortedCards],
       remainingCards: [...pairwiseQuizState.remainingCards],
@@ -4678,7 +4806,7 @@ function copyCardToDraft(card: CardEntry) {
 
     latestCardsByColumnRef.current = nextCardsByColumn;
     setCardsByColumn(nextCardsByColumn);
-    updatePairwiseQuizProgress(pairwiseQuizReview.columnId, null, { queue: false });
+    writeStoredPairwiseQuizProgress(pairwiseQuizReview.columnId, null);
     setPairwiseQuizReview(null);
     setPairwiseQuizState(null);
     queuePersistBoardState({
@@ -9453,7 +9581,7 @@ function BoardColumn({
                   {isMenuOpen ? (
                     <div
                       className={clsx(
-                        "absolute right-0 top-12 z-50 flex w-56 flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                        "absolute right-0 top-12 z-[120] flex w-56 flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                         isDarkMode
                           ? "border-white/10 bg-slate-900"
                           : "border-slate-200 bg-white",
@@ -10361,7 +10489,7 @@ function CardTile({
       data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
-        "group relative shrink-0 overflow-hidden rounded-[28px] border cursor-grab active:cursor-grabbing",
+        "group relative shrink-0 rounded-[28px] border cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
         !collapseCards && "bg-slate-900",
@@ -10383,7 +10511,7 @@ function CardTile({
     >
       <div
         className={clsx(
-          "relative overflow-hidden bg-center",
+          "relative overflow-hidden rounded-[28px] bg-center",
           collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
           collapseCards ? "min-h-[82px]" : "aspect-video",
         )}

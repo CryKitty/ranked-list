@@ -195,4 +195,7 @@
 - Removed the post-drop column scroll correction so dropping a card no longer nudges the column and pulls the moved card out of view.
 - Added hover-tooltips to the main icon-only board controls, including the board switcher and the add-card / add-column affordances.
 - Shortened the bottom artwork gradient on card fronts and shared cards so more of the image stays visible.
-- Pairwise ranking quizzes can now be saved mid-run and resumed later, with an explicit option to start over from scratch.
+- Pairwise ranking quizzes can now be saved mid-run and resumed later from local device storage, with an explicit option to start over from scratch.
+- Fixed the add-card Fields button to use the same tooltip treatment as the other icon-only dialog actions.
+- Raised column action menus above the inline add affordances so `+` buttons no longer bleed over open submenus.
+- Shared boards now include a `Copy Board` action that opens Rankr with a personal editable copy of the shared board content.

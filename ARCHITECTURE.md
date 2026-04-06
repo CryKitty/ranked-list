@@ -234,5 +234,7 @@
 - The public `/share/[slug]` route now renders through a tiny server page plus a client `SharedBoardView` component so the shared page can keep server-loaded data while still offering viewer-only UI state like the Nox/Lumos toggle.
 - Post-drop card placement no longer performs any automatic column scroll correction; the board now leaves the lane where the user dropped it instead of trying to re-center the moved card afterward.
 - Icon-only controls are gradually standardizing on hover/focus tooltips instead of width-expanding labels. The board switcher and add-card / add-column affordances now use the same tooltip language as the edit-dialog action buttons.
-- Pairwise quiz progress is now stored in `board.settings.pairwiseQuizProgressByColumn`, which lets the user save a partially completed quiz and resume or discard that progress later on a per-column basis.
+- Pairwise quiz progress is now stored in local browser storage per board/column instead of synced board settings, which keeps temporary quiz state out of the remote persistence path and makes resume/start-over safer.
 - Card-front artwork gradients are intentionally shorter now on both the main board and shared boards so the lower text overlay reads clearly without consuming as much of the image.
+- Shared boards now expose a `Copy Board` action that serializes the shared snapshot into local storage and hands it off to the main app, where a fresh board copy is created with regenerated board/column/card IDs.
+- Column action menus intentionally sit above the inline add affordances in stacking order, so hovered `+` controls never cover an active submenu.

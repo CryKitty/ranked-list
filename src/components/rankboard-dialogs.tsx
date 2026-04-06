@@ -1032,17 +1032,7 @@ export function AddCardDialog({
               Cancel
             </button>
             <div className="relative">
-              <button
-                className={clsx(
-                  "inline-flex h-[50px] w-[50px] items-center justify-center rounded-full border transition",
-                  isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40" : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                )}
-                onClick={onToggleFieldSettings}
-                type="button"
-                aria-label="Customize card fields"
-              >
-                <Settings2 className="h-4 w-4" />
-              </button>
+              <HoverLabelIconButton icon={<Settings2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Fields" onClick={onToggleFieldSettings} />
               {isAddFieldSettingsOpen ? (
                 <div className="absolute bottom-14 right-0 z-10">
                   <FieldSettingsPanel isDarkMode={isDarkMode} fieldDefinitions={activeBoardFieldDefinitions} onToggleField={onToggleFieldVisibility} />
