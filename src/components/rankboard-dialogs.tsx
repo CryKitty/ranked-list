@@ -161,6 +161,129 @@ export function SeriesInput({
   );
 }
 
+function SeriesFilterInput({
+  isDarkMode,
+  value,
+  allSeries,
+  onChange,
+}: {
+  isDarkMode: boolean;
+  value: string;
+  allSeries: string[];
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  return (
+    <label className="grid min-w-0 gap-2">
+      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+      <div className="relative" ref={rootRef}>
+        <button
+          className={clsx(
+            "flex w-full items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left outline-none transition",
+            isDarkMode
+              ? "border-white/10 bg-slate-950 text-white hover:border-white/40"
+              : "border-slate-200 bg-white text-slate-950 hover:border-slate-950",
+          )}
+          onClick={() => setIsOpen((current) => !current)}
+          type="button"
+        >
+          <span className="truncate">{value || "All series"}</span>
+          <span className="flex items-center gap-2">
+            {value ? (
+              <span
+                className={clsx(
+                  "rounded-full p-1 transition",
+                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                aria-label="Clear filter"
+                role="button"
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+            <ChevronDown className={clsx("h-4 w-4 transition", isOpen && "rotate-180")} />
+          </span>
+        </button>
+        {isOpen ? (
+          <div
+            className={clsx(
+              "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+              isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
+            )}
+          >
+            <button
+              className={clsx(
+                "w-full rounded-xl px-3 py-2 text-left text-sm transition",
+                value.length === 0
+                  ? isDarkMode
+                    ? "bg-white/10 text-white"
+                    : "bg-slate-100 text-slate-900"
+                  : isDarkMode
+                    ? "text-white hover:bg-white/10"
+                    : "text-slate-700 hover:bg-slate-100",
+              )}
+              onClick={() => {
+                onChange("");
+                setIsOpen(false);
+              }}
+              type="button"
+            >
+              All series
+            </button>
+            {allSeries.map((series) => (
+              <button
+                key={series}
+                className={clsx(
+                  "w-full rounded-xl px-3 py-2 text-left text-sm transition",
+                  value === series
+                    ? isDarkMode
+                      ? "bg-white/10 text-white"
+                      : "bg-slate-100 text-slate-900"
+                    : isDarkMode
+                      ? "text-white hover:bg-white/10"
+                      : "text-slate-700 hover:bg-slate-100",
+                )}
+                onClick={() => {
+                  onChange(series);
+                  setIsOpen(false);
+                }}
+                type="button"
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span className="truncate">{series}</span>
+                  {value === series ? <Check className="h-4 w-4 shrink-0" /> : null}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </label>
+  );
+}
+
 export function EditCardDialog({
   isOpen,
   isDarkMode,
@@ -1058,7 +1181,7 @@ export function ShareBoardDialog({
                 <Clock3 className={clsx("h-4 w-4", isDarkMode ? "text-slate-300" : "text-slate-600")} />
                 <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">Filters</h3>
               </div>
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,200px)]">
+              <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid min-w-0 gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Search</span>
                   <input
@@ -1073,26 +1196,12 @@ export function ShareBoardDialog({
                     onChange={(event) => onSearchChange(event.target.value)}
                   />
                 </label>
-                <label className="grid min-w-0 gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
-                  <select
-                    className={clsx(
-                      "min-w-0 rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                    )}
-                    value={selectedSeriesFilter}
-                    onChange={(event) => onSeriesChange(event.target.value)}
-                  >
-                    <option value="">All series</option>
-                    {allSeries.map((series) => (
-                      <option key={series} value={series}>
-                        {series}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <SeriesFilterInput
+                  allSeries={allSeries}
+                  isDarkMode={isDarkMode}
+                  onChange={onSeriesChange}
+                  value={selectedSeriesFilter}
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 {tierOptions.map((tier) => {

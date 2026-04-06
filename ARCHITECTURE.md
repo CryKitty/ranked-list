@@ -55,6 +55,7 @@
 - Recovery is evaluated per board, not just per account-wide snapshot, so one empty or partially saved board is less likely to override the rest.
 - Remote hydration is also compared against the current in-memory session snapshot so a non-empty local board is less likely to be replaced by a thinner remote payload during an active editing session.
 - Active-board preference now also falls back across both user-scoped and generic last-board storage keys to reduce “refresh opened the wrong board” regressions.
+- During authenticated remote merge, a temporary signed-out `Rankr` starter board should be discarded once real saved boards are available so mobile auth handoff does not keep a stray blank board.
 
 ## Column Modes
 
@@ -84,12 +85,13 @@
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
 - Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
+- Those between-column add affordances should render above nearby cards/columns, and on mobile they now require a first tap to reveal the plus before a second tap creates the column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - The mobile action sheet now exposes `Customization` and `Maintenance` directly, while account/theme/import-export actions stay under `Settings`.
 - On mobile, `Share` and `Settings` should sit side-by-side in the action sheet, with board-level customization/maintenance rows below them.
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
-- On mobile, the `Customization` and `Maintenance` rows should stay visually centered like the other action buttons and open their detail panels directly beneath themselves.
-- Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls.
+- On mobile, the `Customization` row should sit to the left of `Maintenance`, both rows should stay visually centered like the other action buttons, and their detail panels should open directly beneath their own buttons.
+- Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls, and the share modal now uses that same treatment too.
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
