@@ -640,7 +640,7 @@ function MaintenanceCardPreview({
   return (
     <div
       className={clsx(
-        "relative aspect-[16/9] w-full overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[220px]",
+        "relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[220px]",
         isDarkMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-slate-100",
       )}
       style={{
@@ -2845,6 +2845,7 @@ export function RankboardApp() {
       );
       const excludedMirrorItemIds = new Set(mirrorColumn.excludedMirrorItemIds ?? []);
       const syncedCards: CardEntry[] = [];
+      const newMirrorCards: CardEntry[] = [];
 
       for (const existingMirror of existingMirrorCards) {
         const sourceId = existingMirror.mirroredFromEntryId;
@@ -2896,18 +2897,20 @@ export function RankboardApp() {
           continue;
         }
 
-        syncedCards.push({
+        newMirrorCards.push({
           ...sourceCard,
           entryId: makeId("mirror"),
           mirroredFromEntryId: sourceCard.entryId,
         });
       }
 
+      const nextMirrorCards = [...newMirrorCards, ...syncedCards];
+
       const currentSerialized = JSON.stringify(existingMirrorCards);
-      const nextSerialized = JSON.stringify(syncedCards);
+      const nextSerialized = JSON.stringify(nextMirrorCards);
 
       if (currentSerialized !== nextSerialized) {
-        nextState[mirrorColumn.id] = syncedCards;
+        nextState[mirrorColumn.id] = nextMirrorCards;
         didChange = true;
       }
     }
@@ -4728,11 +4731,13 @@ function copyCardToDraft(card: CardEntry) {
       ? columns.filter((column) => column.id === scopeColumnId)
       : columns;
     const cardsToInspect = scopedColumns.flatMap((column) =>
-      (cardsByColumn[column.id] ?? []).map((card) => ({
-        columnId: column.id,
-        columnTitle: column.title,
-        card,
-      })),
+      (cardsByColumn[column.id] ?? [])
+        .filter((card) => scopeColumnId || !card.mirroredFromEntryId)
+        .map((card) => ({
+          columnId: column.id,
+          columnTitle: column.title,
+          card,
+        })),
     );
 
     const suggestions = await Promise.all(
@@ -4788,7 +4793,11 @@ function copyCardToDraft(card: CardEntry) {
     const scopedColumns = getSeriesScrapeScopedColumns(columns, scopeColumnId);
 
     return scopedColumns.flatMap((column) =>
-      (cardsByColumn[column.id] ?? []).map((card) => {
+      (cardsByColumn[column.id] ?? []).flatMap((card) => {
+        if (!scopeColumnId && card.mirroredFromEntryId) {
+          return [];
+        }
+
         const currentSeries = card.series.trim();
         const currentReleaseYear = card.releaseYear?.trim() ?? "";
 
@@ -4799,7 +4808,7 @@ function copyCardToDraft(card: CardEntry) {
         const heuristicSeries = getSuggestedSeriesFromTitle(card.title, existingSeries) ?? "";
         const heuristicReleaseYear = getSuggestedReleaseYearFromTitle(card.title);
 
-        return {
+        return [{
           id: `${column.id}-${card.entryId}`,
           columnId: column.id,
           columnTitle: column.title,
@@ -4809,7 +4818,7 @@ function copyCardToDraft(card: CardEntry) {
           imageUrl: card.imageUrl,
           proposedSeries: heuristicSeries || currentSeries,
           proposedReleaseYear: heuristicReleaseYear || currentReleaseYear,
-        };
+        }];
       }).filter((suggestion): suggestion is SeriesScrapeSuggestion => Boolean(suggestion)),
     );
   }
@@ -6840,7 +6849,7 @@ function copyCardToDraft(card: CardEntry) {
                     Link duplicates
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Review the matching titles found outside this mirror column. Confirm the links you want to create. The current order of this mirror column will stay exactly as-is.
+                    Review the matching cards below and link them to their duplicates.
                   </p>
                 </div>
                 <button
@@ -6886,7 +6895,6 @@ function copyCardToDraft(card: CardEntry) {
                         <MaintenanceCardPreview
                           imageUrl={suggestion.sourceImageUrl}
                           isDarkMode={isDarkMode}
-                          subtitle={suggestion.sourceColumnTitle}
                           title={suggestion.sourceCardTitle}
                         />
                         <div className="min-w-0 flex-1 space-y-3">
@@ -6923,6 +6931,9 @@ function copyCardToDraft(card: CardEntry) {
                               >
                                 {suggestion.enabled ? "Keep" : "Skip"}
                               </button>
+                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Link
+                              </span>
                               <ToggleSwitch
                                 ariaLabel={`Toggle linking ${suggestion.mirrorTitle}`}
                                 enabled={suggestion.enabled}
@@ -6931,10 +6942,10 @@ function copyCardToDraft(card: CardEntry) {
                               />
                             </div>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
                             <div className="grid gap-2">
                               <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                                Series
+                                Source Column
                               </span>
                               <div
                                 className={clsx(
@@ -6942,7 +6953,7 @@ function copyCardToDraft(card: CardEntry) {
                                   isDarkMode ? "border-white/10 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700",
                                 )}
                               >
-                                {suggestion.sourceSeries || "No series"}
+                                {suggestion.sourceColumnTitle}
                               </div>
                             </div>
                             <div className="grid gap-2">
@@ -6952,7 +6963,7 @@ function copyCardToDraft(card: CardEntry) {
                               {suggestion.kind === "create" ? (
                                 <input
                                   className={clsx(
-                                    "w-full rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                                    "w-full rounded-2xl border px-3 py-3 text-sm outline-none transition",
                                     isDarkMode
                                       ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
                                       : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
@@ -6976,7 +6987,7 @@ function copyCardToDraft(card: CardEntry) {
                                     isDarkMode ? "border-white/10 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700",
                                   )}
                                 >
-                                  Keep current
+                                  {suggestion.rank}
                                 </div>
                               )}
                             </div>
@@ -7852,9 +7863,6 @@ function copyCardToDraft(card: CardEntry) {
                   <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Series Scraper
                   </h2>
-                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    Review proposed series and release year values for cards that look incomplete or mismatched.
-                  </p>
                 </div>
                 <button
                   className={clsx(
@@ -7922,16 +7930,12 @@ function copyCardToDraft(card: CardEntry) {
                         <MaintenanceCardPreview
                           imageUrl={suggestion.imageUrl}
                           isDarkMode={isDarkMode}
-                          subtitle={suggestion.columnTitle}
                           title={suggestion.title}
                         />
                         <div className="min-w-0 flex-1 space-y-3">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold">{suggestion.columnTitle}</p>
-                              <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                                Fill in the likely series and release year for this card.
-                              </p>
                             </div>
                             <button
                               className={clsx(
