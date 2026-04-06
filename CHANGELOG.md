@@ -16,6 +16,8 @@
 - The column `Mirror` menu now uses switch-style toggles for both `Mirror` and `Allow Cloning`.
 - Enabling `Mirror` now asks for confirmation before turning on and creating the full mirrored set.
 - Sort and mirror toggle interactions now keep their menus open instead of collapsing immediately after each click.
+- While dragging, the source card slot now collapses instead of leaving a ghost gap behind.
+- During active auto-scroll, drop targets temporarily disable and then wait a short beat before reappearing, which should cut down on the stuttery target-jumping while the column is still moving.
 
 ## 2026-04-04
 

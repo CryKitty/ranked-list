@@ -169,6 +169,8 @@
 - The drag auto-scroll zone is intentionally wider near the top and bottom edges of a column so long columns start moving sooner during a held drag.
 - The in-column insertion target now expands into a visible `Drop Here` slot while hovered during drag, instead of relying on a thin separator line alone.
 - That drag target has since been revised again into a larger expanding gap between cards, so insertion feels more like opening space in the list than aiming at a hidden target behind the dragged card.
+- The dragged card's original slot now collapses while the overlay is in your hand, which helps the list behave as though the item was truly lifted out before being reinserted elsewhere.
+- While a column is auto-scrolling during drag, insertion targets now temporarily lock out and only re-enable after a short cooldown, which reduces the visual stutter from targets continuously re-evaluating mid-scroll.
 - Mirror creation paths now guard against duplicate clones by checking both `mirroredFromEntryId` and `itemId`, which helps when a source card moves between columns after it already has a mirror copy.
 - Cross-column moves now also run the board-wide mirror synchronizer immediately, so source-card column changes update linked mirror content without disturbing the existing mirror order.
 - Column maintenance now includes a bulk `Move All` action that transfers every card into a chosen target column without invoking mirror-clone side effects.

@@ -1419,6 +1419,7 @@ export function RankboardApp() {
   const [mobileFocusedColumnId, setMobileFocusedColumnId] = useState<string | null>(null);
   const [isCardDragging, setIsCardDragging] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
+  const [isDragDropLocked, setIsDragDropLocked] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1484,6 +1485,7 @@ export function RankboardApp() {
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
+  const dragDropLockTimeoutRef = useRef<number | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -2446,6 +2448,17 @@ export function RankboardApp() {
     );
   }
 
+  function noteDragScrollActivity() {
+    setIsDragDropLocked(true);
+    if (dragDropLockTimeoutRef.current) {
+      window.clearTimeout(dragDropLockTimeoutRef.current);
+    }
+    dragDropLockTimeoutRef.current = window.setTimeout(() => {
+      setIsDragDropLocked(false);
+      dragDropLockTimeoutRef.current = null;
+    }, 1200);
+  }
+
   function removeMirroredCard(
     nextState: Record<string, CardEntry[]>,
     sourceEntryId: string,
@@ -2945,6 +2958,7 @@ export function RankboardApp() {
 
   function handleDragEnd(event: DragEndEvent) {
     setIsCardDragging(false);
+    setIsDragDropLocked(false);
     setActiveDragEntryId(null);
 
     if (filtering || !event.over) {
@@ -6197,6 +6211,9 @@ function copyCardToDraft(card: CardEntry) {
               }}
               sensors={sensors}
               collisionDetection={(args) => {
+                if (isDragDropLocked) {
+                  return [];
+                }
                 const pointerHits = pointerWithin(args);
                 if (pointerHits.length > 0) {
                   const insertHits = pointerHits.filter((hit) =>
@@ -6209,10 +6226,12 @@ function copyCardToDraft(card: CardEntry) {
               }}
               onDragStart={({ active }) => {
                 setIsCardDragging(true);
+                setIsDragDropLocked(false);
                 setActiveDragEntryId(String(active.id));
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
+                setIsDragDropLocked(false);
                 setActiveDragEntryId(null);
               }}
               onDragEnd={handleDragEnd}
@@ -6237,6 +6256,7 @@ function copyCardToDraft(card: CardEntry) {
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                         isCardDragging={isCardDragging}
+                        isDragDropLocked={isDragDropLocked}
                         isDarkMode={isDarkMode}
                         cards={visibleCards}
                         activeTierFilter={columnTierFilters[column.id] ?? "all"}
@@ -6326,6 +6346,7 @@ function copyCardToDraft(card: CardEntry) {
                           setSeriesFilter(nextSeries);
                           setOpenColumnMenuId(null);
                         }}
+                        onDragScrollActivity={noteDragScrollActivity}
                         onColumnDragStart={setDraggingColumnId}
                         onColumnDrop={moveColumnToTarget}
                         onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
@@ -8530,6 +8551,7 @@ function BoardColumn({
   frontFieldDefinitions,
   disableAddAffordances,
   isCardDragging,
+  isDragDropLocked,
   cards,
   activeTierFilter,
   currentSeriesFilter,
@@ -8565,6 +8587,7 @@ function BoardColumn({
   onLinkMirrorMatches,
   onSetTierFilter,
   onSetSeriesFilter,
+  onDragScrollActivity,
   onColumnDragStart,
   onColumnDrop,
   onMoveColumnLeft,
@@ -8581,6 +8604,7 @@ function BoardColumn({
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
   isCardDragging: boolean;
+  isDragDropLocked: boolean;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
   currentSeriesFilter: string;
@@ -8621,6 +8645,7 @@ function BoardColumn({
   onLinkMirrorMatches: (columnId: string) => void;
   onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
   onSetSeriesFilter: (series: string) => void;
+  onDragScrollActivity: () => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   onMoveColumnLeft: (columnId: string) => void;
@@ -9230,7 +9255,14 @@ function BoardColumn({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1">
+      <div
+        className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1"
+        onScroll={() => {
+          if (isCardDragging) {
+            onDragScrollActivity();
+          }
+        }}
+      >
         {filtering || isTierFiltering ? (
           tierFilteredCards.map((card, index) => (
             <CardTile
@@ -9270,6 +9302,7 @@ function BoardColumn({
                 columnId={column.id}
                 isDarkMode={isDarkMode}
                 isDragMode={isCardDragging}
+                isDropLocked={isDragDropLocked}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 interactive={!disableAddAffordances}
@@ -9297,6 +9330,7 @@ function BoardColumn({
                     columnId={column.id}
                     isDarkMode={isDarkMode}
                     isDragMode={isCardDragging}
+                    isDropLocked={isDragDropLocked}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
                     interactive={!disableAddAffordances}
@@ -9327,6 +9361,7 @@ function AddCardRow({
   columnId,
   isDarkMode,
   isDragMode = false,
+  isDropLocked = false,
   insertIndex,
   alwaysVisible = false,
   interactive = true,
@@ -9335,6 +9370,7 @@ function AddCardRow({
   columnId: string;
   isDarkMode: boolean;
   isDragMode?: boolean;
+  isDropLocked?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   interactive?: boolean;
@@ -9395,7 +9431,15 @@ function AddCardRow({
         className={clsx(
           "group flex items-center gap-3 opacity-0 transition",
           isDarkMode ? "text-slate-300" : "text-slate-400",
-          isDragMode ? (isOver ? "h-16 opacity-100" : "h-8 opacity-100") : alwaysVisible ? "h-8 opacity-100" : "h-4",
+          isDragMode
+            ? isDropLocked
+              ? "h-4 opacity-0"
+              : isOver
+                ? "h-[172px] opacity-100"
+                : "h-3 opacity-100"
+            : alwaysVisible
+              ? "h-8 opacity-100"
+              : "h-4",
         )}
         aria-hidden="true"
       >
@@ -9410,7 +9454,15 @@ function AddCardRow({
       className={clsx(
         "group flex items-center gap-3 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
-        isDragMode ? (isOver ? "h-16 opacity-100" : "h-8 opacity-100") : alwaysVisible ? "h-8 opacity-100" : "h-4 opacity-0",
+        isDragMode
+          ? isDropLocked
+            ? "pointer-events-none h-4 opacity-0"
+            : isOver
+              ? "h-[172px] opacity-100"
+              : "h-3 opacity-100"
+          : alwaysVisible
+            ? "h-8 opacity-100"
+            : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
       onClick={onClick}
@@ -9458,7 +9510,10 @@ function SortableCard({
   return (
     <div
       ref={setNodeRef}
-      className={clsx("relative", isDragging && "z-20 opacity-0")}
+      className={clsx(
+        "relative",
+        isDragging && "z-20 h-0 overflow-hidden opacity-0 pointer-events-none",
+      )}
       style={{
         transform:
           isAnyCardDragging && !isDragging ? undefined : CSS.Transform.toString(transform),
