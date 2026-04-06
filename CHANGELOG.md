@@ -42,6 +42,13 @@
 - Fixed mirror relinking so confirming a same-title match updates the existing mirror card in place instead of making it disappear.
 - Expanded the mirror-link review flow so it also surfaces source cards that are missing clones and lets the user choose a target rank before creating them.
 - Added an in-app confirmation modal before deleting a card from the edit dialog.
+- Renamed `Scrape Series` to `Series Scraper` and made the scraper skip cards that already have a series filled in.
+- Made board-level duplicate cleanup look across the current board scope instead of only within a single column, so unlinked same-title duplicates are found more reliably.
+- Added icons to the column-maintenance actions so they match the board-level maintenance buttons.
+- Changed board/action series filters to in-app menus instead of native selects and sorted series names while ignoring `The`/`A` prefixes.
+- Added board icon customization in `Customization`, including built-in icon choices plus custom image upload.
+- Changed the sibling chip copy from `Clone of:` to `Cloned from:`.
+- Expanded mirror review so new-clone rank entries are kept unique as you edit them, and added a trash shortcut for deleting redundant detected mirror-side duplicates.
 
 ## 2026-04-03
 

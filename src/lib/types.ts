@@ -53,6 +53,8 @@ export type BoardSnapshot = {
 
 export type BoardSettings = {
   cardLabel?: string;
+  boardIconKey?: string;
+  boardIconUrl?: string;
   showSeriesOnCards: boolean;
   collapseCards: boolean;
   showTierHighlights: boolean;

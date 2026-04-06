@@ -164,7 +164,7 @@ export function EditCardDialog({
             {currentCardIsMirrored ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <p className={clsx("text-sm leading-6", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                  Clone of:
+                  Cloned from:
                 </p>
                 {mirroredSiblingColumnTitle ? (
                   <button

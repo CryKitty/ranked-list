@@ -87,6 +87,7 @@
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - The mobile action sheet now exposes `Customization` and `Maintenance` directly, while account/theme/import-export actions stay under `Settings`.
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
+- Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
@@ -104,7 +105,11 @@
 - Card identity should never be derived from title text. Same-name cards must keep separate `itemId`s unless they were explicitly linked.
 - `Link Duplicates` in mirror columns is now a preview-and-confirm workflow; it should preserve card order and only attach links the user approves.
 - Mirror review now covers both relinking existing same-title cards and creating missing clones, with optional rank entry for new clones.
+- Mirror review now enforces unique rank values across enabled new-clone entries and can delete a redundant mirror-side candidate directly from the review screen.
 - Card deletion from the edit dialog now goes through an in-app confirmation modal instead of deleting immediately.
+- Board customization now includes icon selection. Boards can use either a built-in icon key or an uploaded custom icon image stored directly in board settings.
+- Duplicate cleanup at board scope now groups same-title, non-mirrored cards across the active board instead of only within individual columns.
+- Series scraping intentionally skips cards that already have a series value so it behaves like a fill-in tool rather than a rewrite tool.
 
 ## Component Split Status
 

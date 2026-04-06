@@ -132,6 +132,7 @@ type DuplicateCleanupSuggestion = {
   id: string;
   columnId: string;
   columnTitle: string;
+  keepColumnTitle?: string;
   normalizedTitle: string;
   keepCard: CardEntry;
   removeCard: CardEntry;
@@ -237,6 +238,8 @@ const NEW_COLUMN_OPTION = "__new_column__";
 const DEFAULT_DATE_FIELD_FORMAT: DateFieldFormat = "mm/dd/yyyy";
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   cardLabel: "",
+  boardIconKey: "",
+  boardIconUrl: "",
   showSeriesOnCards: false,
   collapseCards: false,
   showTierHighlights: true,
@@ -935,6 +938,7 @@ function getBoardKind(boardTitle: string) {
 }
 
 type BoardIconKey = "character" | "movie" | "show" | "anime" | "game" | "music" | "book";
+const BOARD_ICON_OPTIONS: BoardIconKey[] = ["game", "movie", "show", "anime", "music", "book", "character"];
 
 function getBoardIconCandidates(boardTitle: string): BoardIconKey[] {
   const normalizedTitle = boardTitle.toLowerCase();
@@ -992,9 +996,25 @@ function renderBoardKindIcon(iconKey: BoardIconKey, className?: string) {
   }
 }
 
+function renderBoardIcon(iconKey: BoardIconKey, iconUrl: string | undefined, className?: string) {
+  if (iconUrl?.trim()) {
+    return <img alt="" className={clsx("object-contain", className)} src={iconUrl} />;
+  }
+
+  return renderBoardKindIcon(iconKey, className);
+}
+
 
 function normalizeTitleForComparison(title: string) {
   return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+}
+
+function stripSortablePrefix(value: string) {
+  return value.trim().replace(/^(the|a)\s+/i, "");
+}
+
+function compareTitlesForDisplay(left: string, right: string) {
+  return stripSortablePrefix(left).localeCompare(stripSortablePrefix(right));
 }
 
 function getCardContentScore(card: CardEntry) {
@@ -1327,6 +1347,7 @@ export function RankboardApp() {
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
+  const [isHeaderSeriesMenuOpen, setIsHeaderSeriesMenuOpen] = useState(false);
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false);
@@ -1335,6 +1356,7 @@ export function RankboardApp() {
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
     getDefaultBoardSettings("New Board"),
   );
+  const [isBoardIconModalOpen, setIsBoardIconModalOpen] = useState(false);
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
   const [history, setHistory] = useState<BoardSnapshot[]>([]);
@@ -1364,6 +1386,7 @@ export function RankboardApp() {
     mirrorEntryId?: string;
     mirrorTitle: string;
     sourceEntryId: string;
+    sourceItemId: string;
     sourceCardTitle: string;
     sourceSeries: string;
     sourceImageUrl: string;
@@ -1395,6 +1418,7 @@ export function RankboardApp() {
   const [isEditFieldSettingsOpen, setIsEditFieldSettingsOpen] = useState(false);
   const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const boardIconUploadInputRef = useRef<HTMLInputElement | null>(null);
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
@@ -1432,7 +1456,7 @@ export function RankboardApp() {
         .map((card) => card.series)
         .filter(Boolean),
     ),
-  ).sort((a, b) => a.localeCompare(b));
+  ).sort(compareTitlesForDisplay);
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? normalizeSavedBoard(defaultBoard);
   const activeBoardTitle =
@@ -1464,7 +1488,8 @@ export function RankboardApp() {
   const usedBoardIcons = new Set<BoardIconKey>();
 
   for (const board of boards) {
-    const iconKey = resolveBoardIconKey(board.title, usedBoardIcons);
+    const configuredIconKey = board.settings?.boardIconKey as BoardIconKey | undefined;
+    const iconKey = configuredIconKey || resolveBoardIconKey(board.title, usedBoardIcons);
     boardIconKeysById.set(board.id, iconKey);
     usedBoardIcons.add(iconKey);
   }
@@ -2461,6 +2486,7 @@ export function RankboardApp() {
       mirrorEntryId?: string;
       mirrorTitle: string;
       sourceEntryId: string;
+      sourceItemId: string;
       sourceCardTitle: string;
       sourceSeries: string;
       sourceImageUrl: string;
@@ -2503,6 +2529,7 @@ export function RankboardApp() {
               mirrorEntryId: card.entryId,
               mirrorTitle: card.title,
               sourceEntryId: sourceCard.entryId,
+              sourceItemId: sourceCard.itemId,
               sourceCardTitle: sourceCard.title,
               sourceSeries: sourceCard.series,
               sourceImageUrl: sourceCard.imageUrl,
@@ -2547,6 +2574,7 @@ export function RankboardApp() {
           mirrorColumnId: columnId,
           mirrorTitle: sourceCard.title,
           sourceEntryId: sourceCard.entryId,
+          sourceItemId: sourceCard.itemId,
           sourceCardTitle: sourceCard.title,
           sourceSeries: sourceCard.series,
           sourceImageUrl: sourceCard.imageUrl,
@@ -2583,14 +2611,41 @@ export function RankboardApp() {
 
   function updatePendingMirrorLinkSuggestionRank(suggestionId: string, rank: number) {
     setPendingMirrorLinkSuggestions((current) =>
-      current?.map((suggestion) =>
-        suggestion.id === suggestionId
-          ? {
-              ...suggestion,
-              rank,
+      current
+        ? (() => {
+            const nextSuggestions = current.map((suggestion) =>
+              suggestion.id === suggestionId
+                ? {
+                    ...suggestion,
+                    rank,
+                  }
+                : suggestion,
+            );
+            const target = nextSuggestions.find((suggestion) => suggestion.id === suggestionId);
+
+            if (!target || target.kind !== "create") {
+              return nextSuggestions;
             }
-          : suggestion,
-      ) ?? current,
+
+            const takenRanks = new Set<number>([target.rank]);
+            return nextSuggestions.map((suggestion) => {
+              if (
+                suggestion.id === suggestionId ||
+                suggestion.kind !== "create" ||
+                !suggestion.enabled
+              ) {
+                return suggestion;
+              }
+
+              let nextRank = suggestion.rank;
+              while (takenRanks.has(nextRank)) {
+                nextRank += 1;
+              }
+              takenRanks.add(nextRank);
+              return nextRank === suggestion.rank ? suggestion : { ...suggestion, rank: nextRank };
+            });
+          })()
+        : current,
     );
   }
 
@@ -2624,11 +2679,7 @@ export function RankboardApp() {
             mirrorCard.entryId === suggestion.mirrorEntryId
               ? {
                   ...mirrorCard,
-                  itemId: current[
-                    Object.keys(current).find((candidateColumnId) =>
-                      (current[candidateColumnId] ?? []).some((card) => card.entryId === suggestion.sourceEntryId),
-                    ) ?? ""
-                  ]?.find((card) => card.entryId === suggestion.sourceEntryId)?.itemId ?? mirrorCard.itemId,
+                  itemId: suggestion.sourceItemId,
                   title: suggestion.sourceCardTitle,
                   imageUrl: suggestion.sourceImageUrl,
                   imageStoragePath: suggestion.sourceImageStoragePath,
@@ -2648,12 +2699,7 @@ export function RankboardApp() {
           const insertionIndex = Math.max(0, Math.min(mirrorCards.length, suggestion.rank - 1));
           mirrorCards.splice(insertionIndex, 0, {
             entryId: makeId("mirror"),
-            itemId:
-              current[
-                Object.keys(current).find((candidateColumnId) =>
-                  (current[candidateColumnId] ?? []).some((card) => card.entryId === suggestion.sourceEntryId),
-                ) ?? ""
-              ]?.find((card) => card.entryId === suggestion.sourceEntryId)?.itemId ?? makeId("item"),
+            itemId: suggestion.sourceItemId,
             title: suggestion.sourceCardTitle,
             imageUrl: suggestion.sourceImageUrl,
             imageStoragePath: suggestion.sourceImageStoragePath,
@@ -4207,6 +4253,28 @@ function copyCardToDraft(card: CardEntry) {
     updateActiveBoardSettings({ cardLabel: nextLabel.trim() });
   }
 
+  function updateBoardIconSettings(patch: Partial<BoardSettings>) {
+    updateActiveBoardSettings(patch);
+  }
+
+  function handleBoardIconUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      updateBoardIconSettings({
+        boardIconUrl: result,
+      });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
   function updateActiveBoardFieldDefinitions(
     updater: (current: BoardFieldDefinition[]) => BoardFieldDefinition[],
   ) {
@@ -4450,14 +4518,15 @@ function copyCardToDraft(card: CardEntry) {
 
   function openDuplicateCleanupModal(scopeColumnId?: string) {
     const suggestions: DuplicateCleanupSuggestion[] = [];
-    const scopedColumns = scopeColumnId
-      ? columns.filter((column) => column.id === scopeColumnId)
-      : columns;
+    const scopedColumns = scopeColumnId ? columns.filter((column) => column.id === scopeColumnId) : columns;
+    const grouped = new Map<string, Array<{ columnId: string; columnTitle: string; card: CardEntry }>>();
 
     for (const column of scopedColumns) {
-      const grouped = new Map<string, CardEntry[]>();
-
       for (const card of cardsByColumn[column.id] ?? []) {
+        if (card.mirroredFromEntryId) {
+          continue;
+        }
+
         const normalizedTitle = normalizeTitleForComparison(card.title);
 
         if (!normalizedTitle) {
@@ -4465,28 +4534,33 @@ function copyCardToDraft(card: CardEntry) {
         }
 
         const current = grouped.get(normalizedTitle) ?? [];
-        current.push(card);
+        current.push({
+          columnId: column.id,
+          columnTitle: column.title,
+          card,
+        });
         grouped.set(normalizedTitle, current);
       }
+    }
 
-      for (const [normalizedTitle, matchingCards] of grouped.entries()) {
-        if (matchingCards.length < 2) {
-          continue;
-        }
+    for (const [normalizedTitle, matchingCards] of grouped.entries()) {
+      if (matchingCards.length < 2) {
+        continue;
+      }
 
-        const sorted = [...matchingCards].sort((left, right) => getCardContentScore(right) - getCardContentScore(left));
-        const keepCard = sorted[0];
+      const sorted = [...matchingCards].sort((left, right) => getCardContentScore(right.card) - getCardContentScore(left.card));
+      const keepEntry = sorted[0];
 
-        for (const removeCard of sorted.slice(1)) {
-          suggestions.push({
-            id: `${column.id}-${removeCard.entryId}`,
-            columnId: column.id,
-            columnTitle: column.title,
-            normalizedTitle,
-            keepCard,
-            removeCard,
-          });
-        }
+      for (const removeEntry of sorted.slice(1)) {
+        suggestions.push({
+          id: `${removeEntry.columnId}-${removeEntry.card.entryId}`,
+          columnId: removeEntry.columnId,
+          columnTitle: removeEntry.columnTitle,
+          keepColumnTitle: keepEntry.columnTitle,
+          normalizedTitle,
+          keepCard: keepEntry.card,
+          removeCard: removeEntry.card,
+        });
       }
     }
 
@@ -4635,6 +4709,11 @@ function copyCardToDraft(card: CardEntry) {
       cardsToInspect.map(async ({ columnId, columnTitle, card }) => {
         const currentSeries = card.series.trim();
         const currentReleaseYear = card.releaseYear?.trim() ?? "";
+
+        if (currentSeries.length > 0) {
+          return null;
+        }
+
         const suggestedSeries =
           getSuggestedSeriesFromTitle(card.title, existingSeries) ||
           "";
@@ -4683,6 +4762,11 @@ function copyCardToDraft(card: CardEntry) {
       (cardsByColumn[column.id] ?? []).map((card) => {
         const currentSeries = card.series.trim();
         const currentReleaseYear = card.releaseYear?.trim() ?? "";
+
+        if (currentSeries.length > 0) {
+          return null;
+        }
+
         const heuristicSeries = getSuggestedSeriesFromTitle(card.title, existingSeries) ?? "";
         const heuristicReleaseYear = getSuggestedReleaseYearFromTitle(card.title);
 
@@ -4696,7 +4780,7 @@ function copyCardToDraft(card: CardEntry) {
           proposedSeries: heuristicSeries || currentSeries,
           proposedReleaseYear: heuristicReleaseYear || currentReleaseYear,
         };
-      }),
+      }).filter((suggestion): suggestion is SeriesScrapeSuggestion => Boolean(suggestion)),
     );
   }
 
@@ -4889,23 +4973,18 @@ function copyCardToDraft(card: CardEntry) {
                   onChange={(event) => setSearchTerm(event.target.value)}
                 />
 
-                <select
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950/60 text-white focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                  )}
-                  value={seriesFilter}
-                  onChange={(event) => setSeriesFilter(event.target.value)}
-                >
-                  <option value="">All series</option>
-                  {allSeries.map((series) => (
-                    <option key={series} value={series}>
-                      {series}
-                    </option>
-                  ))}
-                </select>
+                <SeriesFilterButton
+                  allSeries={allSeries}
+                  className="min-w-0"
+                  currentSeriesFilter={seriesFilter}
+                  isDarkMode={isDarkMode}
+                  isOpen={isHeaderSeriesMenuOpen}
+                  onSelect={(series) => {
+                    setSeriesFilter(series);
+                    setIsHeaderSeriesMenuOpen(false);
+                  }}
+                  onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                />
                 <button
                   className={clsx(
                     "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:px-4",
@@ -4999,6 +5078,17 @@ function copyCardToDraft(card: CardEntry) {
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                               )}
+                              onClick={() => setIsBoardIconModalOpen(true)}
+                              type="button"
+                            >
+                              <span>Board Icon</span>
+                              {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
                               onClick={() => {
                                 setIsBoardFieldSettingsModalOpen(true);
                                 setIsActionsMenuOpen(false);
@@ -5037,7 +5127,7 @@ function copyCardToDraft(card: CardEntry) {
                             </button>
                             <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                               <WandSparkles className="h-4 w-4" />
-                              Scrape Series
+                              Series Scraper
                             </button>
                             <button
                               className={clsx(
@@ -5228,23 +5318,17 @@ function copyCardToDraft(card: CardEntry) {
                       onChange={(event) => setSearchTerm(event.target.value)}
                     />
 
-                    <select
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-white focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                      )}
-                      value={seriesFilter}
-                      onChange={(event) => setSeriesFilter(event.target.value)}
-                    >
-                      <option value="">All series</option>
-                      {allSeries.map((series) => (
-                        <option key={series} value={series}>
-                          {series}
-                        </option>
-                      ))}
-                    </select>
+                    <SeriesFilterButton
+                      allSeries={allSeries}
+                      currentSeriesFilter={seriesFilter}
+                      isDarkMode={isDarkMode}
+                      isOpen={isHeaderSeriesMenuOpen}
+                      onSelect={(series) => {
+                        setSeriesFilter(series);
+                        setIsHeaderSeriesMenuOpen(false);
+                      }}
+                      onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                    />
 
                     <button
                       className={clsx(
@@ -5463,6 +5547,14 @@ function copyCardToDraft(card: CardEntry) {
                         </button>
                         <button
                           className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                          onClick={() => setIsBoardIconModalOpen(true)}
+                          type="button"
+                        >
+                          <span>Board Icon</span>
+                          {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
+                        </button>
+                        <button
+                          className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                           onClick={() => {
                             setIsBoardFieldSettingsModalOpen(true);
                             setIsActionsMenuOpen(false);
@@ -5488,7 +5580,7 @@ function copyCardToDraft(card: CardEntry) {
                         </button>
                         <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                           <WandSparkles className="h-4 w-4" />
-                          Scrape Series
+                          Series Scraper
                         </button>
                         <button
                           className={clsx(
@@ -5591,7 +5683,11 @@ function copyCardToDraft(card: CardEntry) {
                         }}
                         type="button"
                       >
-                        {renderBoardKindIcon(boardIconKeysById.get(activeBoardId) ?? "game", "h-5 w-5")}
+                        {renderBoardIcon(
+                          boardIconKeysById.get(activeBoardId) ?? "game",
+                          activeBoard.settings?.boardIconUrl,
+                          "h-5 w-5",
+                        )}
                       </button>
                       {isBoardsMenuOpen ? (
                         <div
@@ -5615,7 +5711,11 @@ function copyCardToDraft(card: CardEntry) {
                                 type="button"
                               >
                                 <span className="inline-flex min-w-0 items-center gap-2">
-                                  {renderBoardKindIcon(boardIconKeysById.get(board.id) ?? "game", "h-4 w-4 shrink-0")}
+                                  {renderBoardIcon(
+                                    boardIconKeysById.get(board.id) ?? "game",
+                                    board.settings?.boardIconUrl,
+                                    "h-4 w-4 shrink-0",
+                                  )}
                                   <span className="truncate">{board.title}</span>
                                 </span>
                                 {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
@@ -5704,23 +5804,18 @@ function copyCardToDraft(card: CardEntry) {
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
                     />
-                    <select
-                      className={clsx(
-                        "w-[190px] rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-white focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                      )}
-                      value={seriesFilter}
-                      onChange={(event) => setSeriesFilter(event.target.value)}
-                    >
-                      <option value="">All series</option>
-                      {allSeries.map((series) => (
-                        <option key={series} value={series}>
-                          {series}
-                        </option>
-                      ))}
-                    </select>
+                    <SeriesFilterButton
+                      allSeries={allSeries}
+                      className="w-[190px]"
+                      currentSeriesFilter={seriesFilter}
+                      isDarkMode={isDarkMode}
+                      isOpen={isHeaderSeriesMenuOpen}
+                      onSelect={(series) => {
+                        setSeriesFilter(series);
+                        setIsHeaderSeriesMenuOpen(false);
+                      }}
+                      onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                    />
                     <button
                       aria-label="Share board"
                       className={clsx(
@@ -5818,6 +5913,14 @@ function copyCardToDraft(card: CardEntry) {
                                 </button>
                                 <button
                                   className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                  onClick={() => setIsBoardIconModalOpen(true)}
+                                  type="button"
+                                >
+                                  <span>Board Icon</span>
+                                  {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
+                                </button>
+                                <button
+                                  className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                   onClick={() => {
                                     setIsBoardFieldSettingsModalOpen(true);
                                     setIsActionsMenuOpen(false);
@@ -5856,7 +5959,7 @@ function copyCardToDraft(card: CardEntry) {
                                 </button>
                                 <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                                   <WandSparkles className="h-4 w-4" />
-                                  Scrape Series
+                                  Series Scraper
                                 </button>
                               </div>
                             ) : null}
@@ -6768,6 +6871,18 @@ function copyCardToDraft(card: CardEntry) {
                           isDarkMode={isDarkMode}
                           onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
                         />
+                        {suggestion.kind === "link" && suggestion.mirrorEntryId ? (
+                          <button
+                            className={clsx(
+                              "rounded-full p-2 transition",
+                              isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
+                            )}
+                            onClick={() => requestDeleteCard(suggestion.mirrorColumnId, suggestion.mirrorEntryId!)}
+                            type="button"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                       {suggestion.kind === "create" ? (
                         <label className="mt-3 flex items-center gap-3 text-sm">
@@ -6880,6 +6995,9 @@ function copyCardToDraft(card: CardEntry) {
                   )}
                   onClick={() => {
                     handleDeleteCard(pendingCardDelete.columnId, pendingCardDelete.entryId);
+                    setPendingMirrorLinkSuggestions((current) =>
+                      current?.filter((suggestion) => suggestion.mirrorEntryId !== pendingCardDelete.entryId) ?? current,
+                    );
                     setPendingCardDelete(null);
                   }}
                   type="button"
@@ -7244,6 +7362,113 @@ function copyCardToDraft(card: CardEntry) {
           onCreateBoard={createBoardFromModal}
         />
 
+        {isBoardIconModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setIsBoardIconModalOpen(false)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Customization
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Board icon
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Pick one of the built-in icons or upload a custom image for this board.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setIsBoardIconModalOpen(false)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {BOARD_ICON_OPTIONS.map((iconKey) => {
+                  const enabled = (activeBoard.settings?.boardIconKey || boardIconKeysById.get(activeBoardId) || "game") === iconKey && !activeBoard.settings?.boardIconUrl;
+                  return (
+                    <button
+                      key={iconKey}
+                      className={clsx(
+                        "flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition",
+                        enabled
+                          ? isDarkMode
+                            ? "border-white/40 bg-white/10"
+                            : "border-slate-950 bg-slate-100"
+                          : isDarkMode
+                            ? "border-white/10 hover:border-white/30 hover:bg-white/5"
+                            : "border-slate-200 hover:border-slate-950 hover:bg-slate-50",
+                      )}
+                      onClick={() => updateBoardIconSettings({ boardIconKey: iconKey, boardIconUrl: "" })}
+                      type="button"
+                    >
+                      {renderBoardKindIcon(iconKey, "h-5 w-5")}
+                      <span className="capitalize">{iconKey}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <input
+                ref={boardIconUploadInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleBoardIconUpload}
+                type="file"
+              />
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={() => boardIconUploadInputRef.current?.click()}
+                  type="button"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Custom Icon
+                </button>
+                {(activeBoard.settings?.boardIconUrl || activeBoard.settings?.boardIconKey) ? (
+                  <button
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    onClick={() => updateBoardIconSettings({ boardIconKey: "", boardIconUrl: "" })}
+                    type="button"
+                  >
+                    Reset to Auto
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {isDuplicateCleanupModalOpen ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -7270,7 +7495,7 @@ function copyCardToDraft(card: CardEntry) {
                     Clean up duplicates
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    These are duplicate titles found within the same column. The suggested removal is the entry with less content.
+                    These are same-title cards found in the current scope. The suggested removal is the entry with less content.
                   </p>
                 </div>
                 <button
@@ -7313,7 +7538,8 @@ function copyCardToDraft(card: CardEntry) {
                         <div>
                           <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
                           <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                            Keep <strong>{suggestion.keepCard.title}</strong>, remove <strong>{suggestion.removeCard.title}</strong>.
+                            Keep <strong>{suggestion.keepCard.title}</strong>
+                            {suggestion.keepColumnTitle ? ` in ${suggestion.keepColumnTitle}` : ""}, remove <strong>{suggestion.removeCard.title}</strong> in {suggestion.columnTitle}.
                           </p>
                         </div>
                         <button
@@ -7549,7 +7775,7 @@ function copyCardToDraft(card: CardEntry) {
                     Maintenance
                   </p>
                   <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Scrape series
+                    Series Scraper
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
                     Review proposed series and release year values for cards that look incomplete or mismatched.
@@ -8007,6 +8233,86 @@ function AddColumnButton({
   );
 }
 
+function SeriesFilterButton({
+  allSeries,
+  currentSeriesFilter,
+  isDarkMode,
+  isOpen,
+  onSelect,
+  onToggle,
+  className,
+}: {
+  allSeries: string[];
+  currentSeriesFilter: string;
+  isDarkMode: boolean;
+  isOpen: boolean;
+  onSelect: (series: string) => void;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={clsx("relative", className)}>
+      <button
+        className={clsx(
+          "flex w-full items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left outline-none transition",
+          isDarkMode
+            ? "border-white/10 bg-slate-950/60 text-white hover:border-white/40"
+            : "border-slate-200 bg-white text-slate-950 hover:border-slate-950",
+        )}
+        onClick={onToggle}
+        type="button"
+      >
+        <span className="truncate">{currentSeriesFilter || "All series"}</span>
+        <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
+      </button>
+      {isOpen ? (
+        <div
+          className={clsx(
+            "absolute left-0 right-0 top-full z-[260] mt-2 flex max-h-[min(50vh,320px)] flex-col overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+            isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
+          )}
+        >
+          <button
+            className={clsx(
+              "rounded-xl px-3 py-2 text-left text-sm transition",
+              currentSeriesFilter.length === 0
+                ? isDarkMode
+                  ? "bg-white/10 text-white"
+                  : "bg-slate-100 text-slate-900"
+                : isDarkMode
+                  ? "text-white hover:bg-white/10"
+                  : "text-slate-700 hover:bg-slate-100",
+            )}
+            onClick={() => onSelect("")}
+            type="button"
+          >
+            All series
+          </button>
+          {allSeries.map((series) => (
+            <button
+              key={series}
+              className={clsx(
+                "rounded-xl px-3 py-2 text-left text-sm transition",
+                currentSeriesFilter === series
+                  ? isDarkMode
+                    ? "bg-white/10 text-white"
+                    : "bg-slate-100 text-slate-900"
+                  : isDarkMode
+                    ? "text-white hover:bg-white/10"
+                    : "text-slate-700 hover:bg-slate-100",
+              )}
+              onClick={() => onSelect(series)}
+              type="button"
+            >
+              {series}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BoardColumn({
   column,
   fullCards,
@@ -8115,7 +8421,7 @@ function BoardColumn({
     id: column.id,
   });
   const isTierFiltering = activeTierFilter !== "all";
-  const columnSeries = Array.from(new Set(fullCards.map((card) => card.series.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const columnSeries = Array.from(new Set(fullCards.map((card) => card.series.trim()).filter(Boolean))).sort(compareTitlesForDisplay);
   const tierFilteredCards = cards.filter((card) => {
     const originalRank = isRankedColumn(column)
       ? fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1
@@ -8563,7 +8869,7 @@ function BoardColumn({
                             </button>
                             <button
                               className={clsx(
-                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
@@ -8571,11 +8877,12 @@ function BoardColumn({
                               onClick={onOpenDuplicateCleanup}
                               type="button"
                             >
+                              <Trash2 className="h-4 w-4" />
                               Delete Duplicates
                             </button>
                             <button
                               className={clsx(
-                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
@@ -8583,11 +8890,12 @@ function BoardColumn({
                               onClick={onOpenTitleTidy}
                               type="button"
                             >
+                              <Sparkles className="h-4 w-4" />
                               Tidy Titles
                             </button>
                             <button
                               className={clsx(
-                                "rounded-xl px-3 py-2 text-left text-sm transition",
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
                                 isDarkMode
                                   ? "text-white hover:bg-white/10"
                                   : "text-slate-700 hover:bg-slate-100",
@@ -8595,7 +8903,8 @@ function BoardColumn({
                               onClick={onOpenSeriesScrape}
                               type="button"
                             >
-                              Scrape Series
+                              <WandSparkles className="h-4 w-4" />
+                              Series Scraper
                             </button>
                           </div>
                         ) : null}
