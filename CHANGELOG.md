@@ -13,6 +13,10 @@
 - Refreshing a share link now republishes to a fresh share slug and resets the 24-hour expiration window.
 - Fixed shared tier filtering so the tier limit is applied after the chosen series/search scope instead of against the full unfiltered column.
 - Compactened the shared-board header by removing the extra read-only line, dropping the column-count chip, and moving the active share chips up beside the `Rankr Share` label.
+- Shared cards now retain the main-board tier colors on both the card border and rank badge.
+- Shared cards now use the same series/title display logic as the main board, including stripping repeated series prefixes from titles and hiding the series line when title and series match exactly.
+- Shared columns now snap into place horizontally like the main board.
+- Because refreshed shares now get a brand-new slug, the previous share URL stops resolving once the new link is published.
 - After dropping a card, the column now keeps that moved card in view instead of jumping a few cards away from it.
 - Desktop auto-scroll is slightly faster again.
 - Drag insertion rows now have a much wider hidden hit zone, extending into the surrounding card area so users no longer have to hover over a tiny exact gap to trigger the drop target.

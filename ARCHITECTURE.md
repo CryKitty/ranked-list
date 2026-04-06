@@ -159,6 +159,11 @@
 - Re-publishing a share now issues a fresh slug instead of silently reusing the old one, which makes `Refresh Link` visibly produce a new link and restart the expiry window.
 - The share page must keep cards `shrink-0` inside the shared column scrollers so large boards do not collapse into unreadable strips.
 - The share modal itself should behave like a constrained sheet: scrollable body inside the viewport, persistent action row, and tighter desktop filter widths so the controls stay inside the dialog.
+- The shared board renderer should mirror the main-board display rules closely:
+  - same tier badge/border coloring
+  - same series/title reduction logic
+  - same horizontal snap scrolling across columns
+- Since refreshed shares now generate a new slug, old share links effectively self-terminate as soon as the replacement link is published.
 
 ## Series Scraping
 
