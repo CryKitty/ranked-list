@@ -16,6 +16,10 @@
 - Removed the leftover rank reference from the mirror-link review rows entirely.
 - The mirror-link delete choices now open as a local popover attached to the delete button instead of hiding behind the main review modal.
 - Reordered mirror delete choices to `Delete This Copy`, `Delete Both Copies`, then `Cancel`.
+- Rebalanced the mirror-link rows so the preview card and controls use the row height more evenly, and the delete action now has its own visible label beside the icon.
+- Tightened the mirror delete popover so each action stays on one line and every action has an icon.
+- Added inline clear-filter affordances to the series filter controls so active series filters can be removed directly from the button/menu instead of hunting for `All series`.
+- Switched card drag collision detection to prefer pointer hits first, which should improve dragging cards between columns.
 - Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
 - Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
 - Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.

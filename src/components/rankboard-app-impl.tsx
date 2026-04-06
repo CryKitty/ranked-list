@@ -7,6 +7,7 @@ import {
   MouseSensor,
   TouchSensor,
   closestCorners,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
@@ -6088,7 +6089,10 @@ function copyCardToDraft(card: CardEntry) {
             </div>
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCorners}
+              collisionDetection={(args) => {
+                const pointerHits = pointerWithin(args);
+                return pointerHits.length > 0 ? pointerHits : closestCorners(args);
+              }}
               onDragStart={() => setIsCardDragging(true)}
               onDragCancel={() => setIsCardDragging(false)}
               onDragEnd={handleDragEnd}
@@ -6619,100 +6623,6 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
-        {pendingMirrorDelete && !pendingMirrorLinkSuggestions ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            onClick={() => setPendingMirrorDelete(null)}
-          >
-            <div
-              className={clsx(
-                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
-                isDarkMode
-                  ? "border-white/10 bg-slate-900 text-slate-100"
-                  : "border-white/70 bg-white text-slate-950",
-              )}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Linked Card
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Delete linked copy?
-                  </h2>
-                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    <strong>{pendingMirrorDelete.title}</strong> is linked to another card. Choose whether to remove both copies or just the clone in <strong>{pendingMirrorDelete.columnTitle}</strong>.
-                  </p>
-                </div>
-                <button
-                  className={clsx(
-                    "rounded-full p-2 transition",
-                    isDarkMode
-                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                  )}
-                  onClick={() => setPendingMirrorDelete(null)}
-                  type="button"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  className={clsx(
-                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "bg-white text-slate-950 hover:bg-slate-200"
-                      : "bg-slate-950 text-white hover:bg-slate-800",
-                  )}
-                  onClick={() =>
-                    deleteOnlyMirrorCopy(
-                      pendingMirrorDelete.columnId,
-                      pendingMirrorDelete.entryId,
-                      pendingMirrorDelete.itemId,
-                    )
-                  }
-                  type="button"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete This Copy
-                </button>
-                <button
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() =>
-                    deleteAllLinkedCopies(
-                      pendingMirrorDelete.itemId,
-                      pendingMirrorDelete.entryId,
-                    )
-                  }
-                  type="button"
-                >
-                  Delete Both Copies
-                </button>
-                <button
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                  )}
-                  onClick={() => setPendingMirrorDelete(null)}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {pendingMirrorUnlink ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -6854,14 +6764,14 @@ function copyCardToDraft(card: CardEntry) {
                             : "border-slate-200 bg-slate-50/40 opacity-70 hover:bg-slate-100",
                       )}
                     >
-                      <div className="flex flex-col gap-4 sm:flex-row">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                         <MaintenanceCardPreview
                           imageUrl={suggestion.sourceImageUrl}
                           isDarkMode={isDarkMode}
                           title={suggestion.sourceCardTitle}
                         />
                         <div className="min-w-0 flex-1 space-y-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold">{suggestion.mirrorTitle}</p>
                               <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -6870,12 +6780,12 @@ function copyCardToDraft(card: CardEntry) {
                                   : `Create a new clone from ${suggestion.sourceColumnTitle}`}
                               </p>
                             </div>
-                            <div className="flex items-center gap-2 self-start">
+                            <div className="flex flex-wrap items-center gap-3 self-center">
                               {suggestion.kind === "link" && suggestion.mirrorEntryId ? (
                                 <div className="relative">
                                   <button
                                     className={clsx(
-                                      "rounded-full p-2 transition",
+                                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition",
                                       isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
                                     )}
                                     onClick={() =>
@@ -6891,17 +6801,18 @@ function copyCardToDraft(card: CardEntry) {
                                     aria-label={`Delete ${suggestion.mirrorTitle}`}
                                   >
                                     <Trash2 className="h-4 w-4" />
+                                    Delete
                                   </button>
                                   {pendingMirrorDelete?.entryId === suggestion.mirrorEntryId ? (
                                     <div
                                       className={clsx(
-                                        "absolute right-0 top-11 z-20 w-52 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                        "absolute right-0 top-11 z-20 w-56 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                                         isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
                                       )}
                                     >
                                       <button
                                         className={clsx(
-                                          "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                          "flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                           isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
                                         )}
                                         onClick={() =>
@@ -6918,7 +6829,7 @@ function copyCardToDraft(card: CardEntry) {
                                       </button>
                                       <button
                                         className={clsx(
-                                          "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                          "flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                           isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
                                         )}
                                         onClick={() =>
@@ -6934,12 +6845,13 @@ function copyCardToDraft(card: CardEntry) {
                                       </button>
                                       <button
                                         className={clsx(
-                                          "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                          isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
+                                          "flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                          isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
                                         )}
                                         onClick={() => setPendingMirrorDelete(null)}
                                         type="button"
                                       >
+                                        <X className="h-4 w-4" />
                                         Cancel
                                       </button>
                                     </div>
@@ -8307,7 +8219,25 @@ function SeriesFilterButton({
         type="button"
       >
         <span className="truncate">{currentSeriesFilter || "All series"}</span>
-        <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
+        <span className="flex items-center gap-2">
+          {currentSeriesFilter ? (
+            <span
+              className={clsx(
+                "rounded-full p-1 transition",
+                isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect("");
+              }}
+              aria-label="Clear filter"
+              role="button"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          ) : null}
+          <span className="text-xs opacity-70">{isOpen ? "▾" : "▸"}</span>
+        </span>
       </button>
       {isOpen ? (
         <div
@@ -8348,7 +8278,25 @@ function SeriesFilterButton({
               onClick={() => onSelect(series)}
               type="button"
             >
-              {series}
+              <span className="flex items-center justify-between gap-3">
+                <span className="truncate">{series}</span>
+                {currentSeriesFilter === series ? (
+                  <span
+                    className={clsx(
+                      "rounded-full p-1 transition",
+                      isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect("");
+                    }}
+                    aria-label={`Clear ${series} filter`}
+                    role="button"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </span>
+                ) : null}
+              </span>
             </button>
           ))}
         </div>
@@ -8783,7 +8731,25 @@ function BoardColumn({
                                       onClick={() => onSetSeriesFilter(series)}
                                       type="button"
                                     >
-                                      {series}
+                                      <span className="flex items-center justify-between gap-3">
+                                        <span className="truncate">{series}</span>
+                                        {currentSeriesFilter === series ? (
+                                          <span
+                                            className={clsx(
+                                              "rounded-full p-1 transition",
+                                              isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                                            )}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              onSetSeriesFilter("");
+                                            }}
+                                            aria-label={`Clear ${series} filter`}
+                                            role="button"
+                                          >
+                                            <X className="h-3.5 w-3.5" />
+                                          </span>
+                                        ) : null}
+                                      </span>
                                     </button>
                                   ))}
                                 </>

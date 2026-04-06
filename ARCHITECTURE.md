@@ -89,6 +89,7 @@
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
 - On mobile, the `Customization` and `Maintenance` rows should stay visually centered like the other action buttons and open their detail panels directly beneath themselves.
 - Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls.
+- Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The board switcher also exposes create/delete affordances for board-level management.
@@ -113,6 +114,7 @@
 - Automatic board-mirror sync now prepends newly discovered clones so fresh mirror additions surface at the top of the mirror column.
 - Mirror review delete actions should use the mirror-specific choice modal so linked cards can be deleted together or only as a mirror copy.
 - Inside the mirror review workflow, those delete choices should appear as a local anchored popover on the row itself rather than a separate full-screen modal layered behind the review screen.
+- Mirror review rows should use their full vertical space, with preview media and action controls visually centered rather than top-stacked.
 - Card deletion from the edit dialog now goes through an in-app confirmation modal instead of deleting immediately.
 - Board customization now includes icon selection. Boards can use either a built-in icon key or an uploaded custom icon image stored directly in board settings.
 - Duplicate cleanup at board scope now groups same-title, non-mirrored cards across the active board instead of only within individual columns.
@@ -159,6 +161,7 @@
 - The public board component entrypoint is intentionally tiny now; the large implementation lives in `rankboard-app-impl.tsx`.
 - This is still an incremental reorganization, not a full decomposition. The implementation file remains large, but the highest-duplication form UIs now live in dedicated component files and the stable wrapper keeps import churn low.
 - Same-column drag/drop logic now treats drops onto lower cards as an insertion after the hovered card, which fixes the prior “moving down doesn’t stick” behavior.
+- Card drag collision detection now prefers direct pointer hits before falling back to corner proximity, which should make cross-column drops more reliable in the horizontal board lane.
 - The next cleanups should target extracting:
   - column lane / column menu sections
   - maintenance/import/export modals
