@@ -2,6 +2,11 @@
 
 ## 2026-04-06
 
+- Edit-card modal action buttons now keep a fixed size and show their labels in small hover/focus tooltips instead of widening and shifting around.
+- Series filter dropdowns now display labels without leading `The` / `A` prefixes, which keeps long series names easier to scan in the narrow filter menus.
+- Confirming `Move Card` from the edit flow now closes both the move-card modal and the edit-card modal, while `Cancel` still closes only the move-card modal.
+- Post-drop card focus correction no longer nudges the column scroll position, which should remove the small “jump upward” after dropping a card.
+- Added a `Top 30` tier with its own emerald color across filtering, card highlighting, and shared views.
 - Collapsed cards now keep the same series/title display logic as full cards, so series can still appear above the title in compact mode and repeated series prefixes are still stripped from titles.
 - The share modal now keeps its search and series filters on the same row at matching widths, and the share-specific series filter now uses the same in-app dropdown style as the rest of Rankr.
 - Between-card and between-column add affordances now render above surrounding UI instead of getting clipped behind nearby cards or columns.

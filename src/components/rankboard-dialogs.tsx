@@ -57,6 +57,11 @@ type ColumnOption = {
 
 type ShareColumnOption = Pick<ColumnDefinition, "id" | "title" | "accent">;
 
+function formatSeriesFilterDisplayLabel(value: string) {
+  const stripped = value.trim().replace(/^(the|a)\s+/i, "");
+  return stripped || value.trim();
+}
+
 export function SeriesInput({
   isDarkMode,
   label,
@@ -206,7 +211,7 @@ function SeriesFilterInput({
           onClick={() => setIsOpen((current) => !current)}
           type="button"
         >
-          <span className="truncate">{value || "All series"}</span>
+          <span className="truncate">{value ? formatSeriesFilterDisplayLabel(value) : "All series"}</span>
           <span className="flex items-center gap-2">
             {value ? (
               <span
@@ -275,7 +280,7 @@ function SeriesFilterInput({
                 type="button"
               >
                 <span className="flex items-center justify-between gap-3">
-                  <span className="truncate">{series}</span>
+                  <span className="truncate">{formatSeriesFilterDisplayLabel(series)}</span>
                   {value === series ? <Check className="h-4 w-4 shrink-0" /> : null}
                 </span>
               </button>
@@ -1097,6 +1102,7 @@ export function ShareBoardDialog({
     { id: "top10", label: "Top 10" },
     { id: "top15", label: "Top 15" },
     { id: "top20", label: "Top 20" },
+    { id: "top30", label: "Top 30" },
   ];
 
   return (

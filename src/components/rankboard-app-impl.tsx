@@ -651,6 +651,10 @@ function getTierKey(rank: number | null): Exclude<TierFilter, "all"> | null {
     return "top20";
   }
 
+  if (rank <= 30) {
+    return "top30";
+  }
+
   return null;
 }
 
@@ -1185,6 +1189,11 @@ function normalizeTitleForComparison(title: string) {
 
 function stripSortablePrefix(value: string) {
   return value.trim().replace(/^(the|a)\s+/i, "");
+}
+
+function getSeriesFilterDisplayLabel(value: string) {
+  const stripped = stripSortablePrefix(value);
+  return stripped || value.trim();
 }
 
 function compareTitlesForDisplay(left: string, right: string) {
@@ -2766,29 +2775,10 @@ export function RankboardApp() {
     }, 1000);
   }
 
-  function keepCardInViewAfterDrop(entryId: string) {
+function keepCardInViewAfterDrop(entryId: string) {
     pendingScrollFocusEntryIdRef.current = entryId;
-
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const target = document.querySelector<HTMLElement>(`[data-card-entry-id="${entryId}"]`);
-        const scrollContainer = target?.closest("[data-column-scroll-id]") as HTMLElement | null;
-
-        if (!target || !scrollContainer) {
-          return;
-        }
-
-        const targetRect = target.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-
-        if (targetRect.top < containerRect.top) {
-          scrollContainer.scrollTop -= containerRect.top - targetRect.top + 12;
-        } else if (targetRect.bottom > containerRect.bottom) {
-          scrollContainer.scrollTop += targetRect.bottom - containerRect.bottom + 12;
-        }
-
-        pendingScrollFocusEntryIdRef.current = null;
-      });
+      pendingScrollFocusEntryIdRef.current = null;
     });
   }
 
@@ -3750,6 +3740,7 @@ function copyCardToDraft(card: CardEntry) {
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     setMoveCardState(null);
+    cancelEditingCard();
     queuePersistBoardState({ cardsByColumn: nextState });
   }
 
@@ -8872,7 +8863,9 @@ function SeriesFilterButton({
         onClick={onToggle}
         type="button"
       >
-        <span className="truncate">{currentSeriesFilter || "All series"}</span>
+        <span className="truncate">
+          {currentSeriesFilter ? getSeriesFilterDisplayLabel(currentSeriesFilter) : "All series"}
+        </span>
         <span className="flex items-center gap-2">
           {currentSeriesFilter ? (
             <span
@@ -8933,7 +8926,7 @@ function SeriesFilterButton({
               type="button"
             >
               <span className="flex items-center justify-between gap-3">
-                <span className="truncate">{series}</span>
+                <span className="truncate">{getSeriesFilterDisplayLabel(series)}</span>
                 {currentSeriesFilter === series ? (
                   <span
                     className={clsx(
@@ -9352,7 +9345,7 @@ function BoardColumn({
                                   : "border-slate-200 bg-white",
                               )}
                             >
-                              {(["all", "top10", "top15", "top20"] as TierFilter[]).map((tierOption) => (
+                              {(["all", "top10", "top15", "top20", "top30"] as TierFilter[]).map((tierOption) => (
                                 <button
                                   key={tierOption}
                                   className={clsx(
@@ -9403,7 +9396,7 @@ function BoardColumn({
                                       type="button"
                                     >
                                       <span className="flex items-center justify-between gap-3">
-                                        <span className="truncate">{series}</span>
+                                      <span className="truncate">{getSeriesFilterDisplayLabel(series)}</span>
                                         {currentSeriesFilter === series ? (
                                           <span
                                             className={clsx(
@@ -10062,6 +10055,8 @@ function CardTile({
         ? "border-cyan-300/80"
         : tierKey === "top20"
           ? "border-fuchsia-300/80"
+          : tierKey === "top30"
+            ? "border-emerald-300/80"
           : "border-white/10";
   const collapsedTierSurfaceClass =
     tierKey === "top10"
@@ -10070,6 +10065,8 @@ function CardTile({
         ? "bg-cyan-300 text-cyan-950"
         : tierKey === "top20"
           ? "bg-fuchsia-300 text-fuchsia-950"
+          : tierKey === "top30"
+            ? "bg-emerald-300 text-emerald-950"
           : "bg-slate-50 text-slate-950";
   const collapsedRankClass =
     "bg-white text-slate-950";
@@ -10172,6 +10169,8 @@ function CardTile({
                     ? "bg-cyan-300 text-cyan-950"
                     : tierKey === "top20"
                       ? "bg-fuchsia-300 text-fuchsia-950"
+                      : tierKey === "top30"
+                        ? "bg-emerald-300 text-emerald-950"
                       : "bg-white text-slate-950",
               )}
             >

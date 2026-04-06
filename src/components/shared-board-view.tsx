@@ -27,7 +27,15 @@ function matchesTierFilter(index: number, tierFilter: ShareTierFilter) {
     return rank <= 15;
   }
 
-  return rank <= 20;
+  if (tierFilter === "top20") {
+    return rank <= 20;
+  }
+
+  if (tierFilter === "top30") {
+    return rank <= 30;
+  }
+
+  return false;
 }
 
 function matchesSearchFilter(card: CardEntry, searchTerm: string) {
@@ -56,6 +64,10 @@ function getTierKey(rank: number | null): Exclude<ShareTierFilter, "all"> | null
 
   if (rank <= 20) {
     return "top20";
+  }
+
+  if (rank <= 30) {
+    return "top30";
   }
 
   return null;
@@ -238,6 +250,8 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                           ? "border-cyan-300/80"
                           : tierKey === "top20"
                             ? "border-fuchsia-300/80"
+                            : tierKey === "top30"
+                              ? "border-emerald-300/80"
                             : isDarkMode
                               ? "border-white/10"
                               : "border-slate-300";
@@ -263,6 +277,8 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                                     ? "bg-cyan-300 text-cyan-950"
                                     : tierKey === "top20"
                                       ? "bg-fuchsia-300 text-fuchsia-950"
+                                      : tierKey === "top30"
+                                        ? "bg-emerald-300 text-emerald-950"
                                       : "bg-white text-slate-950",
                               )}
                             >

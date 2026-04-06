@@ -93,22 +93,31 @@ export function HoverLabelIconButton({
   disabled?: boolean;
 }) {
   return (
-    <button
-      className={clsx(
-        "group inline-flex h-[50px] w-[50px] items-center justify-center gap-0 overflow-hidden rounded-full border px-0 transition hover:w-auto hover:gap-2 hover:px-3 focus-visible:w-auto focus-visible:gap-2 focus-visible:px-3",
-        isDarkMode
-          ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 disabled:opacity-60"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:opacity-60",
-      )}
-      disabled={disabled}
-      onClick={onClick}
-      type={type}
-    >
-      <span className="shrink-0">{icon}</span>
-      <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-150 group-hover:max-w-[120px] group-hover:opacity-100 group-focus-visible:max-w-[120px] group-focus-visible:opacity-100">
-        {label}
-      </span>
-    </button>
+    <div className="group relative inline-flex">
+      <button
+        className={clsx(
+          "inline-flex h-[50px] w-[50px] items-center justify-center rounded-full border transition",
+          isDarkMode
+            ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 disabled:opacity-60"
+            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:opacity-60",
+        )}
+        disabled={disabled}
+        onClick={onClick}
+        type={type}
+      >
+        <span className="shrink-0">{icon}</span>
+      </button>
+      {!disabled ? (
+        <span
+          className={clsx(
+            "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100",
+            isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
+          )}
+        >
+          {label}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

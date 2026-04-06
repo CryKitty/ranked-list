@@ -84,6 +84,7 @@
 - Cards expose action affordances for edit, move, copy, and settings-driven delete.
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
 - Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
+- Edit-card modal icon buttons now use anchored tooltip labels instead of widening on hover, so their hit targets stay fixed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Those between-column add affordances should render above nearby cards/columns, and on mobile they now require a first tap to reveal the plus before a second tap creates the column.
 - The same tap-to-reveal pattern now applies to between-card add affordances on mobile, and any revealed inline add control should collapse again if the user scrolls or taps elsewhere.
@@ -93,6 +94,7 @@
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
 - On mobile, the `Maintenance` row should sit to the left of `Customization`, both rows should fill the row evenly, and their detail panels should open directly beneath their own buttons.
 - Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls, and the share modal now uses that same treatment too. The share-modal series menu opens upward to avoid modal clipping.
+- Those filter menus also display series labels without leading sortable prefixes like `The` and `A`, while still keeping the stored full series value intact.
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
@@ -101,6 +103,7 @@
 - Mobile quick-add should prefer the column currently centered in the horizontal lane.
 - Boards can override the noun used for cards with `settings.cardLabel`, and `Add ...` UI should prefer that over title heuristics.
 - Collapsed cards still use their own compact visual treatment, but they should now reuse the same series/title text derivation as full cards rather than dropping the series line entirely.
+- Tier logic now includes `Top 30` in both the main board and shared board rendering paths, with its own emerald accent treatment.
 
 ## Mirror Linking
 
