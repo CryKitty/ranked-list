@@ -2465,7 +2465,9 @@ export function RankboardApp() {
 
     const targetCards = nextState[targetColumnId] ?? [];
     const alreadyMirrored = targetCards.some(
-      (card) => card.mirroredFromEntryId === sourceCard.entryId,
+      (card) =>
+        card.mirroredFromEntryId === sourceCard.entryId ||
+        card.itemId === sourceCard.itemId,
     );
 
     if (alreadyMirrored) {
@@ -2902,7 +2904,10 @@ export function RankboardApp() {
           excludedMirrorItemIds.has(sourceCard.itemId) ||
           !sourceById.has(sourceCard.entryId) ||
           existingMirrorCards.some(
-            (card) => normalizeTitleForComparison(card.title) === normalizedTitle,
+            (card) =>
+              card.mirroredFromEntryId === sourceCard.entryId ||
+              card.itemId === sourceCard.itemId ||
+              normalizeTitleForComparison(card.title) === normalizedTitle,
           )
         ) {
           continue;
@@ -6134,7 +6139,14 @@ function copyCardToDraft(card: CardEntry) {
               sensors={sensors}
               collisionDetection={(args) => {
                 const pointerHits = pointerWithin(args);
-                return pointerHits.length > 0 ? pointerHits : closestCorners(args);
+                if (pointerHits.length > 0) {
+                  const insertHits = pointerHits.filter((hit) =>
+                    String(hit.id).startsWith("insert::"),
+                  );
+                  return insertHits.length > 0 ? insertHits : pointerHits;
+                }
+
+                return closestCorners(args);
               }}
               onDragStart={({ active }) => {
                 setIsCardDragging(true);
@@ -6165,6 +6177,7 @@ function copyCardToDraft(card: CardEntry) {
                         showTierHighlights={activeBoardSettings.showTierHighlights}
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
+                        isCardDragging={isCardDragging}
                         isDarkMode={isDarkMode}
                         cards={visibleCards}
                         activeTierFilter={columnTierFilters[column.id] ?? "all"}
@@ -8377,6 +8390,7 @@ function BoardColumn({
   showTierHighlights,
   frontFieldDefinitions,
   disableAddAffordances,
+  isCardDragging,
   cards,
   activeTierFilter,
   currentSeriesFilter,
@@ -8426,6 +8440,7 @@ function BoardColumn({
   showTierHighlights: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
+  isCardDragging: boolean;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
   currentSeriesFilter: string;
@@ -9044,6 +9059,7 @@ function BoardColumn({
               <AddCardRow
                 columnId={column.id}
                 isDarkMode={isDarkMode}
+                isDragMode={isCardDragging}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 interactive={!disableAddAffordances}
@@ -9057,6 +9073,7 @@ function BoardColumn({
                     showSeries={showSeriesOnCards}
                     showTierHighlights={showTierHighlights}
                     frontFieldDefinitions={frontFieldDefinitions}
+                    isAnyCardDragging={isCardDragging}
                     rankBadge={
                       isRankedColumn(column)
                         ? {
@@ -9069,6 +9086,7 @@ function BoardColumn({
                   <AddCardRow
                     columnId={column.id}
                     isDarkMode={isDarkMode}
+                    isDragMode={isCardDragging}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
                     interactive={!disableAddAffordances}
@@ -9098,6 +9116,7 @@ function BoardColumn({
 function AddCardRow({
   columnId,
   isDarkMode,
+  isDragMode = false,
   insertIndex,
   alwaysVisible = false,
   interactive = true,
@@ -9105,6 +9124,7 @@ function AddCardRow({
 }: {
   columnId: string;
   isDarkMode: boolean;
+  isDragMode?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   interactive?: boolean;
@@ -9118,16 +9138,19 @@ function AddCardRow({
     <>
       <span
         className={clsx(
-          "h-px flex-1 transition",
+          "flex-1 transition",
+          isDragMode ? "h-0.5" : "h-px",
           isDarkMode
             ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
             : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
-          isOver && (isDarkMode ? "bg-white/35" : "bg-slate-400"),
+          isOver &&
+            (isDarkMode ? "bg-cyan-200/80 shadow-[0_0_0_1px_rgba(165,243,252,0.2)]" : "bg-cyan-500"),
         )}
       />
       <span
         className={clsx(
-          "flex h-7 w-7 items-center justify-center rounded-full border transition",
+          "flex items-center justify-center rounded-full border transition",
+          isDragMode ? "h-6 w-6" : "h-7 w-7",
           interactive
             ? isDarkMode
               ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
@@ -9135,19 +9158,21 @@ function AddCardRow({
             : "border-transparent bg-transparent text-transparent",
           isOver && interactive &&
             (isDarkMode
-              ? "border-white/40 bg-slate-900"
-              : "border-slate-500 bg-slate-50"),
+              ? "border-cyan-200/80 bg-slate-900 text-cyan-100"
+              : "border-cyan-500 bg-cyan-50 text-cyan-700"),
         )}
       >
-        <Plus className="h-4 w-4" />
+        <Plus className={clsx(isDragMode ? "h-3.5 w-3.5" : "h-4 w-4")} />
       </span>
       <span
         className={clsx(
-          "h-px flex-1 transition",
+          "flex-1 transition",
+          isDragMode ? "h-0.5" : "h-px",
           isDarkMode
             ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
             : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
-          isOver && (isDarkMode ? "bg-white/35" : "bg-slate-400"),
+          isOver &&
+            (isDarkMode ? "bg-cyan-200/80 shadow-[0_0_0_1px_rgba(165,243,252,0.2)]" : "bg-cyan-500"),
         )}
       />
     </>
@@ -9158,9 +9183,9 @@ function AddCardRow({
       <div
         ref={setNodeRef}
         className={clsx(
-          "group flex h-4 items-center gap-3 opacity-0",
+          "group flex items-center gap-3 opacity-0",
           isDarkMode ? "text-slate-300" : "text-slate-400",
-          alwaysVisible && "h-8 opacity-100",
+          isDragMode ? "h-8 opacity-100" : alwaysVisible ? "h-8 opacity-100" : "h-4",
         )}
         aria-hidden="true"
       >
@@ -9173,9 +9198,9 @@ function AddCardRow({
     <button
       ref={setNodeRef}
       className={clsx(
-        "group flex h-4 items-center gap-3 opacity-0 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group flex items-center gap-3 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
-        alwaysVisible && "h-8 opacity-100",
+        isDragMode ? "h-8 opacity-100" : alwaysVisible ? "h-8 opacity-100" : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
       onClick={onClick}
@@ -9196,6 +9221,7 @@ function SortableCard({
   rankBadge,
   secondaryRankBadge,
   onEdit,
+  isAnyCardDragging = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -9205,6 +9231,7 @@ function SortableCard({
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   onEdit: () => void;
+  isAnyCardDragging?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -9223,8 +9250,14 @@ function SortableCard({
       ref={setNodeRef}
       className={clsx("relative", isDragging && "z-20 opacity-0")}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition: isDragging ? undefined : (transition ?? "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)"),
+        transform:
+          isAnyCardDragging && !isDragging ? undefined : CSS.Transform.toString(transform),
+        transition:
+          isAnyCardDragging && !isDragging
+            ? "none"
+            : isDragging
+              ? undefined
+              : (transition ?? "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)"),
         willChange: "transform",
       }}
     >
