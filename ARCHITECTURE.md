@@ -79,13 +79,14 @@
   - board switcher icon
   - board title + rename control
   - desktop save-status indicator
-  - search / filter / share / undo / settings controls
+  - search / filter / undo / settings controls
 - Cards expose action affordances for edit, move, copy, and settings-driven delete.
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
 - Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - The mobile action sheet now exposes `Customization` and `Maintenance` directly, while account/theme/import-export actions stay under `Settings`.
+- On mobile, `Share` and `Settings` should sit side-by-side in the action sheet, with board-level customization/maintenance rows below them.
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
 - On mobile, the `Customization` and `Maintenance` rows should stay visually centered like the other action buttons and open their detail panels directly beneath themselves.
 - Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls.
@@ -145,7 +146,16 @@
 
 - Boards can now be marked public and assigned a read-only share slug.
 - Public links render through [`/Users/avarycooney/Documents/Playground/src/app/share/[slug]/page.tsx`](/Users/avarycooney/Documents/Playground/src/app/share/[slug]/page.tsx).
-- v1 is full-board only and read-only; viewers do not get edit affordances.
+- Share publication is now driven through a configuration modal instead of a bare button.
+- The chosen share configuration is stored in `board.settings.publicShare`:
+  - `columnIds`
+  - `tierFilter`
+  - `seriesFilter`
+  - `searchTerm`
+  - `expiresAt`
+- Shared links remain read-only, but they no longer have to expose the entire board. The share page now filters the board down to the chosen columns and any requested tier/series/search view.
+- Shared links should self-expire after 24 hours. The server loader rejects expired links using both `last_published_at` and the explicit `settings.publicShare.expiresAt` guard.
+- The share page must keep cards `shrink-0` inside the shared column scrollers so large boards do not collapse into unreadable strips.
 
 ## Series Scraping
 

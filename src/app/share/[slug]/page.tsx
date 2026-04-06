@@ -2,6 +2,39 @@ import clsx from "clsx";
 
 import { loadPublicBoardBySlug } from "@/lib/normalized-board-store";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { CardEntry, ShareTierFilter } from "@/lib/types";
+
+function normalizeTitleForShare(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesTierFilter(index: number, tierFilter: ShareTierFilter) {
+  if (tierFilter === "all") {
+    return true;
+  }
+
+  const rank = index + 1;
+  if (tierFilter === "top10") {
+    return rank <= 10;
+  }
+
+  if (tierFilter === "top15") {
+    return rank <= 15;
+  }
+
+  return rank <= 20;
+}
+
+function matchesSearchFilter(card: CardEntry, searchTerm: string) {
+  const normalizedSearch = normalizeTitleForShare(searchTerm);
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  return [card.title, card.series].some((value) =>
+    normalizeTitleForShare(value).includes(normalizedSearch),
+  );
+}
 
 export default async function SharedBoardPage({
   params,
@@ -21,6 +54,16 @@ export default async function SharedBoardPage({
     return <div className="min-h-screen bg-slate-950 p-8 text-white">Shared board not found.</div>;
   }
 
+  const shareSettings = board.settings?.publicShare;
+  const selectedColumnIds =
+    shareSettings?.columnIds && shareSettings.columnIds.length > 0
+      ? shareSettings.columnIds
+      : board.columns.map((column) => column.id);
+  const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
+  const tierFilter = shareSettings?.tierFilter ?? "all";
+  const selectedSeries = shareSettings?.seriesFilter?.trim() ?? "";
+  const selectedSearchTerm = shareSettings?.searchTerm?.trim() ?? "";
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1700px] flex-col gap-6">
@@ -28,11 +71,41 @@ export default async function SharedBoardPage({
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Rankr Share</p>
           <h1 className="mt-2 text-4xl font-black text-white">{board.title}</h1>
           <p className="mt-2 text-sm text-slate-300">Read-only shared board</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              {selectedColumns.length} {selectedColumns.length === 1 ? "column" : "columns"}
+            </span>
+            {tierFilter !== "all" ? (
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                {tierFilter.replace("top", "Top ")}
+              </span>
+            ) : null}
+            {selectedSeries ? (
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                {selectedSeries}
+              </span>
+            ) : null}
+            {selectedSearchTerm ? (
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                Search: {selectedSearchTerm}
+              </span>
+            ) : null}
+          </div>
         </header>
 
         <section className="flex gap-2 overflow-x-auto pb-4">
-          {board.columns.map((column) => {
-            const cards = board.cardsByColumn[column.id] ?? [];
+          {selectedColumns.map((column) => {
+            const cards = (board.cardsByColumn[column.id] ?? []).filter((card, index) => {
+              if (selectedSeries && card.series !== selectedSeries) {
+                return false;
+              }
+
+              if (!matchesTierFilter(index, tierFilter)) {
+                return false;
+              }
+
+              return matchesSearchFilter(card, selectedSearchTerm);
+            });
             return (
               <div
                 key={column.id}
@@ -47,7 +120,7 @@ export default async function SharedBoardPage({
                   {cards.map((card, index) => (
                     <article
                       key={card.entryId}
-                      className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900"
+                      className="shrink-0 overflow-hidden rounded-[28px] border border-white/10 bg-slate-900"
                     >
                       <div className="relative aspect-video bg-slate-900">
                         {card.imageUrl ? (
@@ -71,6 +144,11 @@ export default async function SharedBoardPage({
                       </div>
                     </article>
                   ))}
+                  {cards.length === 0 ? (
+                    <div className="flex min-h-32 items-center justify-center rounded-[24px] border border-dashed border-white/10 bg-white/[0.02] px-4 text-center text-sm text-slate-400">
+                      Nothing in this shared view.
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );

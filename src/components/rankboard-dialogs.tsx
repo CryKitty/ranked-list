@@ -3,13 +3,16 @@
 import type { ChangeEvent, FormEvent, RefObject } from "react";
 import clsx from "clsx";
 import {
+  Check,
   Clapperboard,
+  Clock3,
   Copy,
   ImagePlus,
   MoveVertical,
   Plus,
   Save,
   Settings2,
+  Share2,
   Trash2,
   Upload,
   X,
@@ -20,7 +23,7 @@ import {
   FieldSettingsPanel,
   HoverLabelIconButton,
 } from "@/components/rankboard-fields";
-import type { BoardFieldDefinition } from "@/lib/types";
+import type { BoardFieldDefinition, ColumnDefinition, ShareTierFilter } from "@/lib/types";
 
 type CardEditorDraftLike = {
   title: string;
@@ -49,6 +52,8 @@ type ColumnOption = {
   title: string;
   mirrorsEntireBoard?: boolean;
 };
+
+type ShareColumnOption = Pick<ColumnDefinition, "id" | "title" | "accent">;
 
 export function EditCardDialog({
   isOpen,
@@ -814,6 +819,253 @@ export function AddCardDialog({
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+export function ShareBoardDialog({
+  isOpen,
+  isDarkMode,
+  boardTitle,
+  columns,
+  allSeries,
+  selectedColumnIds,
+  selectedTierFilter,
+  selectedSeriesFilter,
+  searchTerm,
+  copiedShareUrl,
+  onClose,
+  onToggleColumn,
+  onTierChange,
+  onSeriesChange,
+  onSearchChange,
+  onSubmit,
+  onCopyAgain,
+}: {
+  isOpen: boolean;
+  isDarkMode: boolean;
+  boardTitle: string;
+  columns: ShareColumnOption[];
+  allSeries: string[];
+  selectedColumnIds: string[];
+  selectedTierFilter: ShareTierFilter;
+  selectedSeriesFilter: string;
+  searchTerm: string;
+  copiedShareUrl: string | null;
+  onClose: () => void;
+  onToggleColumn: (columnId: string) => void;
+  onTierChange: (tier: ShareTierFilter) => void;
+  onSeriesChange: (series: string) => void;
+  onSearchChange: (value: string) => void;
+  onSubmit: () => void;
+  onCopyAgain: () => void;
+}) {
+  if (!isOpen) {
+    return null;
+  }
+
+  const tierOptions: Array<{ id: ShareTierFilter; label: string }> = [
+    { id: "all", label: "All cards" },
+    { id: "top10", label: "Top 10" },
+    { id: "top15", label: "Top 15" },
+    { id: "top20", label: "Top 20" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className={clsx(
+          "relative w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
+        )}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+              Share
+            </p>
+            <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              Share {boardTitle}
+            </h2>
+            <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+              Choose what the read-only share link should include. Each link refresh lasts for 24 hours.
+            </p>
+          </div>
+          <button
+            className={clsx(
+              "rounded-full p-2 transition",
+              isDarkMode ? "bg-white/10 text-slate-200 hover:bg-white/15" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+            )}
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-5">
+          <section className="grid gap-3">
+            <div className="flex items-center gap-2">
+              <Share2 className={clsx("h-4 w-4", isDarkMode ? "text-slate-300" : "text-slate-600")} />
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">Columns</h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {columns.map((column) => {
+                const enabled = selectedColumnIds.includes(column.id);
+                return (
+                  <button
+                    key={column.id}
+                    className={clsx(
+                      "flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
+                      enabled
+                        ? isDarkMode
+                          ? "border-white/25 bg-white/10 text-white"
+                          : "border-slate-950 bg-slate-50 text-slate-950"
+                        : isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-300 hover:border-white/25"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                    )}
+                    onClick={() => onToggleColumn(column.id)}
+                    type="button"
+                  >
+                    <span className="truncate font-semibold">{column.title}</span>
+                    <span
+                      className={clsx(
+                        "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                        enabled
+                          ? isDarkMode
+                            ? "bg-white text-slate-950"
+                            : "bg-slate-950 text-white"
+                          : isDarkMode
+                            ? "bg-white/10 text-slate-400"
+                            : "bg-slate-100 text-slate-400",
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="grid gap-3">
+            <div className="flex items-center gap-2">
+              <Clock3 className={clsx("h-4 w-4", isDarkMode ? "text-slate-300" : "text-slate-600")} />
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">Filters</h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+              <label className="grid gap-2">
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Search</span>
+                <input
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                  )}
+                  placeholder="Optional title or series filter"
+                  value={searchTerm}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                <select
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                  )}
+                  value={selectedSeriesFilter}
+                  onChange={(event) => onSeriesChange(event.target.value)}
+                >
+                  <option value="">All series</option>
+                  {allSeries.map((series) => (
+                    <option key={series} value={series}>
+                      {series}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tierOptions.map((tier) => {
+                const enabled = selectedTierFilter === tier.id;
+                return (
+                  <button
+                    key={tier.id}
+                    className={clsx(
+                      "rounded-full border px-3 py-2 text-sm font-semibold transition",
+                      enabled
+                        ? isDarkMode
+                          ? "border-white/35 bg-white text-slate-950"
+                          : "border-slate-950 bg-slate-950 text-white"
+                        : isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                    )}
+                    onClick={() => onTierChange(tier.id)}
+                    type="button"
+                  >
+                    {tier.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {copiedShareUrl ? (
+            <div className={clsx("rounded-2xl border px-4 py-3", isDarkMode ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-emerald-300 bg-emerald-50 text-emerald-900")}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Share link copied to clipboard</p>
+                  <p className="mt-1 break-all text-xs opacity-80">{copiedShareUrl}</p>
+                </div>
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition",
+                    isDarkMode ? "border-white/15 bg-slate-950/40 text-white hover:border-white/35" : "border-slate-300 bg-white text-slate-700 hover:border-slate-500",
+                  )}
+                  onClick={onCopyAgain}
+                  type="button"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Again
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              className={clsx(
+                "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
+              )}
+              disabled={selectedColumnIds.length === 0}
+              onClick={onSubmit}
+              type="button"
+            >
+              <Share2 className="h-4 w-4" />
+              {copiedShareUrl ? "Refresh Link" : "Create Link"}
+            </button>
+            <button
+              className={clsx(
+                "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                isDarkMode ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40" : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+              )}
+              onClick={onClose}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

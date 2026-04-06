@@ -66,7 +66,7 @@ import {
   MenuSectionButton,
   ToggleSwitch,
 } from "@/components/rankboard-fields";
-import { AddCardDialog, BoardSetupDialog, EditCardDialog } from "@/components/rankboard-dialogs";
+import { AddCardDialog, BoardSetupDialog, EditCardDialog, ShareBoardDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
@@ -76,7 +76,7 @@ import {
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import { BoardFieldDefinition, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, SaveState, SavedBoard } from "@/lib/types";
+import { BoardFieldDefinition, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, SaveState, SavedBoard, ShareTierFilter } from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -129,7 +129,14 @@ type RankBadge = {
   value: number;
 };
 
-type TierFilter = "all" | "top10" | "top15" | "top20";
+type TierFilter = ShareTierFilter;
+
+type ShareDraft = {
+  columnIds: string[];
+  tierFilter: ShareTierFilter;
+  seriesFilter: string;
+  searchTerm: string;
+};
 
 type DuplicateCleanupSuggestion = {
   id: string;
@@ -271,6 +278,13 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   cardLabel: "",
   boardIconKey: "",
   boardIconUrl: "",
+  publicShare: {
+    columnIds: [],
+    tierFilter: "all",
+    seriesFilter: "",
+    searchTerm: "",
+    expiresAt: null,
+  },
   showSeriesOnCards: false,
   collapseCards: false,
   showTierHighlights: true,
@@ -406,6 +420,16 @@ function normalizeFieldDefinitions(
         ? field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT
         : undefined,
   }));
+}
+
+function normalizePublicShareSettings(settings?: Partial<BoardSettings>["publicShare"]): NonNullable<BoardSettings["publicShare"]> {
+  return {
+    columnIds: settings?.columnIds ?? [],
+    tierFilter: settings?.tierFilter ?? "all",
+    seriesFilter: settings?.seriesFilter ?? "",
+    searchTerm: settings?.searchTerm ?? "",
+    expiresAt: settings?.expiresAt ?? null,
+  };
 }
 
 function formatDateFieldValue(value: string, format: DateFieldFormat) {
@@ -855,6 +879,7 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
     settings: {
       ...getDefaultBoardSettings(board.title),
       ...board.settings,
+      publicShare: normalizePublicShareSettings(board.settings?.publicShare),
       fieldDefinitions: normalizeFieldDefinitions(board.settings?.fieldDefinitions, board.title, board.settings),
     },
     cardsByColumn: Object.fromEntries(
@@ -1432,6 +1457,14 @@ export function RankboardApp() {
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareDraft, setShareDraft] = useState<ShareDraft>({
+    columnIds: [],
+    tierFilter: "all",
+    seriesFilter: "",
+    searchTerm: "",
+  });
+  const [copiedShareUrl, setCopiedShareUrl] = useState<string | null>(null);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
@@ -4417,9 +4450,43 @@ function copyCardToDraft(card: CardEntry) {
     setIsMobileActionsOpen(false);
   }
 
+  function openShareModal() {
+    const existingShare = normalizePublicShareSettings(activeBoardSettings.publicShare);
+    setShareDraft({
+      columnIds:
+        existingShare.columnIds.length > 0
+          ? existingShare.columnIds.filter((columnId) => columns.some((column) => column.id === columnId))
+          : columns.map((column) => column.id),
+      tierFilter: existingShare.tierFilter,
+      seriesFilter: existingShare.seriesFilter || seriesFilter,
+      searchTerm: existingShare.searchTerm || searchTerm,
+    });
+    setCopiedShareUrl(null);
+    setIsShareModalOpen(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  async function copyShareUrlToClipboard(shareUrl: string) {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      // Ignore clipboard failures; the link is still published and visible in the modal.
+    }
+    setCopiedShareUrl(shareUrl);
+  }
+
   async function shareActiveBoard() {
     const nextSlug = activeBoard.publicSlug ?? `${slugify(activeBoardTitle) || "board"}-${activeBoardId.slice(-8)}`;
     const nextPublishedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const normalizedShareDraft = {
+      columnIds: shareDraft.columnIds.filter((columnId) => columns.some((column) => column.id === columnId)),
+      tierFilter: shareDraft.tierFilter,
+      seriesFilter: shareDraft.seriesFilter,
+      searchTerm: shareDraft.searchTerm.trim(),
+      expiresAt,
+    };
     const nextBoards = latestBoardsRef.current.map((board) =>
       board.id === activeBoardId
         ? {
@@ -4428,6 +4495,10 @@ function copyCardToDraft(card: CardEntry) {
             publicSlug: nextSlug,
             lastPublishedAt: nextPublishedAt,
             updatedAt: nextPublishedAt,
+            settings: {
+              ...board.settings,
+              publicShare: normalizedShareDraft,
+            },
           }
         : board,
     );
@@ -4436,17 +4507,8 @@ function copyCardToDraft(card: CardEntry) {
     latestBoardsRef.current = nextBoards;
     setBoards(nextBoards);
     queuePersistBoardState({ boards: nextBoards, activeBoardId });
-
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setSaveState("saved");
-    } catch {
-      // Ignore clipboard failures; the link is still published.
-    }
-
-    window.alert(`Public read-only link ready:\n${shareUrl}`);
-    setIsActionsMenuOpen(false);
-    setIsMobileActionsOpen(false);
+    await copyShareUrlToClipboard(shareUrl);
+    setSaveState("saved");
   }
 
   function handleUndo() {
@@ -5291,6 +5353,17 @@ function copyCardToDraft(card: CardEntry) {
                           : "border-slate-200 bg-white/95 text-slate-700",
                       )}
                     >
+                      <button
+                        className={clsx(
+                          "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                        )}
+                        onClick={openShareModal}
+                        type="button"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        Share
+                      </button>
                           <div className="rounded-2xl">
                             <MenuSectionButton
                               icon={<Sparkles className="h-4 w-4" />}
@@ -5443,14 +5516,6 @@ function copyCardToDraft(card: CardEntry) {
                                 >
                                   <Save className="h-4 w-4" />
                                   Export
-                                </button>
-                                <button
-                                  className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                  onClick={shareActiveBoard}
-                                  type="button"
-                                >
-                                  <Share2 className="h-4 w-4" />
-                                  Share
                                 </button>
                               </div>
                             ) : null}
@@ -5609,10 +5674,10 @@ function copyCardToDraft(card: CardEntry) {
                       {`Add ${boardVocabulary.singular}`}
                     </button>
 
-                    <div className="grid gap-3 sm:col-span-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-3 sm:col-span-2">
                       <button
                         className={clsx(
-                          "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
+                          "col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
@@ -5624,6 +5689,131 @@ function copyCardToDraft(card: CardEntry) {
                         <RotateCcw className="h-4 w-4" />
                         <span>Undo</span>
                       </button>
+
+                      <button
+                        className={clsx(
+                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
+                        onClick={openShareModal}
+                        type="button"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        <span>Share</span>
+                      </button>
+
+                      <div className="relative" data-actions-menu-root="true">
+                        <button
+                          aria-label="Settings"
+                          className={clsx(
+                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                          )}
+                          onClick={() => {
+                            setIsBoardsMenuOpen(false);
+                            setIsActionsMenuOpen((current) => !current);
+                          }}
+                          type="button"
+                        >
+                          <Settings2 className="h-4 w-4" />
+                          <span>Settings</span>
+                        </button>
+                        {isActionsMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "absolute right-0 z-40 mt-2 min-w-[260px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-950/95 text-slate-100"
+                                : "border-slate-200 bg-white/95 text-slate-700",
+                            )}
+                          >
+                            <div className="rounded-2xl">
+                              <MenuSectionButton
+                                icon={<Upload className="h-4 w-4" />}
+                                label="Import/Export"
+                                isDarkMode={isDarkMode}
+                                isOpen={isTransferMenuOpen}
+                                onClick={() => {
+                                  setIsTransferMenuOpen((current) => !current);
+                                  setIsBoardsMenuOpen(false);
+                                  setIsCustomizationMenuOpen(false);
+                                  setIsMaintenanceMenuOpen(false);
+                                }}
+                              />
+                              {isTransferMenuOpen ? (
+                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                                  <button
+                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={() => {
+                                      setIsImportModalOpen(true);
+                                      setIsActionsMenuOpen(false);
+                                      setIsMobileActionsOpen(false);
+                                    }}
+                                    type="button"
+                                  >
+                                    <Upload className="h-4 w-4" />
+                                    Import
+                                  </button>
+                                  <button
+                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={exportActiveBoardAsJson}
+                                    type="button"
+                                  >
+                                    <Save className="h-4 w-4" />
+                                    Export
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
+                                void toggleThemePreference();
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                              {isDarkMode ? "Lumos" : "Nox"}
+                            </button>
+                            {currentUser ? (
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                                )}
+                                onClick={handleSignOut}
+                                type="button"
+                              >
+                                <LogOut className="h-4 w-4" />
+                                {getUserDisplayName(currentUser)}
+                              </button>
+                            ) : authEnabled ? (
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                                )}
+                                disabled={isAuthLoading}
+                                onClick={() => {
+                                  void handleOAuthLogin("google");
+                                  setIsActionsMenuOpen(false);
+                                  setIsMobileActionsOpen(false);
+                                }}
+                                type="button"
+                              >
+                                <LogOut className="h-4 w-4" />
+                                Log In
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
 
                       <div className="space-y-2">
                         <button
@@ -5753,116 +5943,6 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
                       </div>
 
-                      <div className="relative" data-actions-menu-root="true">
-                        <button
-                          aria-label="Settings"
-                          className={clsx(
-                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                          )}
-                          onClick={() => {
-                            setIsBoardsMenuOpen(false);
-                            setIsActionsMenuOpen((current) => !current);
-                          }}
-                          type="button"
-                        >
-                          <Settings2 className="h-4 w-4" />
-                          <span>Settings</span>
-                        </button>
-                        {isActionsMenuOpen ? (
-                          <div
-                            className={clsx(
-                              "absolute right-0 z-40 mt-2 min-w-[260px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-950/95 text-slate-100"
-                                : "border-slate-200 bg-white/95 text-slate-700",
-                            )}
-                          >
-                            <div className="rounded-2xl">
-                              <MenuSectionButton
-                                icon={<Upload className="h-4 w-4" />}
-                                label="Import/Export"
-                                isDarkMode={isDarkMode}
-                                isOpen={isTransferMenuOpen}
-                                onClick={() => {
-                                  setIsTransferMenuOpen((current) => !current);
-                                  setIsBoardsMenuOpen(false);
-                                  setIsCustomizationMenuOpen(false);
-                                  setIsMaintenanceMenuOpen(false);
-                                }}
-                              />
-                              {isTransferMenuOpen ? (
-                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                  <button
-                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={() => {
-                                      setIsImportModalOpen(true);
-                                      setIsActionsMenuOpen(false);
-                                      setIsMobileActionsOpen(false);
-                                    }}
-                                    type="button"
-                                  >
-                                    <Upload className="h-4 w-4" />
-                                    Import
-                                  </button>
-                                  <button
-                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={exportActiveBoardAsJson}
-                                    type="button"
-                                  >
-                                    <Save className="h-4 w-4" />
-                                    Export
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                            <button
-                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
-                              onClick={() => {
-                                void toggleThemePreference();
-                                setIsActionsMenuOpen(false);
-                                setIsMobileActionsOpen(false);
-                              }}
-                              type="button"
-                            >
-                              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                              {isDarkMode ? "Lumos" : "Nox"}
-                            </button>
-                            {currentUser ? (
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                                )}
-                                onClick={handleSignOut}
-                                type="button"
-                              >
-                                <LogOut className="h-4 w-4" />
-                                {getUserDisplayName(currentUser)}
-                              </button>
-                            ) : authEnabled ? (
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                                )}
-                                disabled={isAuthLoading}
-                                onClick={() => {
-                                  void handleOAuthLogin("google");
-                                  setIsActionsMenuOpen(false);
-                                  setIsMobileActionsOpen(false);
-                                }}
-                                type="button"
-                              >
-                                <LogOut className="h-4 w-4" />
-                                Log In
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
                     </div>
 
                   </div>
@@ -6085,20 +6165,6 @@ function copyCardToDraft(card: CardEntry) {
                       onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
                     />
                     <button
-                      aria-label="Share board"
-                      className={clsx(
-                        "inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl border transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      onClick={shareActiveBoard}
-                      type="button"
-                      title="Share board"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                    <button
                       className={clsx(
                         "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
                         isDarkMode
@@ -6139,6 +6205,17 @@ function copyCardToDraft(card: CardEntry) {
                               : "border-slate-200 bg-white/95 text-slate-700",
                           )}
                         >
+                          <button
+                            className={clsx(
+                              "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
+                              isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                            )}
+                            onClick={openShareModal}
+                            type="button"
+                          >
+                            <Share2 className="h-4 w-4" />
+                            Share
+                          </button>
                           <div className="rounded-2xl">
                             <MenuSectionButton
                               icon={<Sparkles className="h-4 w-4" />}
@@ -6271,17 +6348,6 @@ function copyCardToDraft(card: CardEntry) {
                                 >
                                   <Save className="h-4 w-4" />
                                   Export
-                                </button>
-                                <button
-                                  className={clsx(
-                                    "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                  )}
-                                  onClick={shareActiveBoard}
-                                  type="button"
-                                >
-                                  <Share2 className="h-4 w-4" />
-                                  Share
                                 </button>
                               </div>
                             ) : null}
@@ -6854,6 +6920,39 @@ function copyCardToDraft(card: CardEntry) {
             </div>
           </div>
         ) : null}
+
+        <ShareBoardDialog
+          allSeries={allSeries}
+          boardTitle={activeBoardTitle}
+          columns={columns}
+          copiedShareUrl={copiedShareUrl}
+          isDarkMode={isDarkMode}
+          isOpen={isShareModalOpen}
+          searchTerm={shareDraft.searchTerm}
+          selectedColumnIds={shareDraft.columnIds}
+          selectedSeriesFilter={shareDraft.seriesFilter}
+          selectedTierFilter={shareDraft.tierFilter}
+          onClose={() => setIsShareModalOpen(false)}
+          onCopyAgain={() => {
+            if (copiedShareUrl) {
+              void copyShareUrlToClipboard(copiedShareUrl);
+            }
+          }}
+          onSearchChange={(value) => setShareDraft((current) => ({ ...current, searchTerm: value }))}
+          onSeriesChange={(series) => setShareDraft((current) => ({ ...current, seriesFilter: series }))}
+          onSubmit={() => {
+            void shareActiveBoard();
+          }}
+          onTierChange={(tier) => setShareDraft((current) => ({ ...current, tierFilter: tier }))}
+          onToggleColumn={(columnId) =>
+            setShareDraft((current) => ({
+              ...current,
+              columnIds: current.columnIds.includes(columnId)
+                ? current.columnIds.filter((value) => value !== columnId)
+                : [...current.columnIds, columnId],
+            }))
+          }
+        />
 
         {isImportModalOpen ? (
           <div

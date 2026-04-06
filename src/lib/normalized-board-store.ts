@@ -436,8 +436,30 @@ export async function loadPublicBoardBySlug(
     return null;
   }
 
+  const publishedAt = (boardRow as NormalizedBoardRow).last_published_at;
+  if (publishedAt) {
+    const expiresAt = new Date(new Date(publishedAt).getTime() + 24 * 60 * 60 * 1000);
+    if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      return null;
+    }
+  }
+
   const boards = await loadNormalizedBoards(supabase, (boardRow as NormalizedBoardRow).owner_id);
-  return boards.find((board) => board.id === (boardRow as NormalizedBoardRow).client_id) ?? null;
+  const board = boards.find((candidate) => candidate.id === (boardRow as NormalizedBoardRow).client_id) ?? null;
+
+  if (!board) {
+    return null;
+  }
+
+  const explicitExpiry = board.settings?.publicShare?.expiresAt;
+  if (explicitExpiry) {
+    const expiresAt = new Date(explicitExpiry);
+    if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      return null;
+    }
+  }
+
+  return board;
 }
 
 export async function uploadArtworkToStorage(

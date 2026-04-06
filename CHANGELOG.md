@@ -2,6 +2,12 @@
 
 ## 2026-04-06
 
+- Reworked sharing into a real publish flow instead of a silent clipboard action.
+- Share now lives under the board Settings menu on desktop, and mobile now puts `Share` and `Settings` side-by-side in the action sheet.
+- Added a share configuration modal that lets the user choose which columns are included plus optional tier, series, and search filters before generating the link.
+- Share generation now visibly confirms that the URL was created and copied, and keeps the link visible for quick copy-again actions.
+- Shared views now expire after 24 hours instead of staying public indefinitely.
+- The shared-board page now honors the saved share view, only renders the chosen columns/cards, and keeps shared cards at full readable height instead of flex-shrinking them into strips.
 - After dropping a card, the column now keeps that moved card in view instead of jumping a few cards away from it.
 - Desktop auto-scroll is slightly faster again.
 - Drag insertion rows now have a much wider hidden hit zone, extending into the surrounding card area so users no longer have to hover over a tiny exact gap to trigger the drop target.

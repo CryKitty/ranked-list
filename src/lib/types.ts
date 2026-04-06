@@ -5,6 +5,15 @@ export type CardFieldType = "short_text" | "long_text" | "date" | "select";
 export type DateFieldFormat = "mm/dd/yyyy" | "dd/mm/yyyy" | "yyyy";
 
 export type BuiltInFieldKey = "series" | "releaseYear" | "imageUrl" | "notes";
+export type ShareTierFilter = "all" | "top10" | "top15" | "top20";
+
+export type BoardShareSettings = {
+  columnIds: string[];
+  tierFilter: ShareTierFilter;
+  seriesFilter: string;
+  searchTerm: string;
+  expiresAt?: string | null;
+};
 
 export type BoardFieldDefinition = {
   id: string;
@@ -55,6 +64,7 @@ export type BoardSettings = {
   cardLabel?: string;
   boardIconKey?: string;
   boardIconUrl?: string;
+  publicShare?: BoardShareSettings;
   showSeriesOnCards: boolean;
   collapseCards: boolean;
   showTierHighlights: boolean;
