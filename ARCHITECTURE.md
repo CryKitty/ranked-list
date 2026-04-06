@@ -64,6 +64,7 @@
   - `confirmMirrorClones`
 - Ranked presentation is no longer derived only from `column.type`; a ranked column must also be in manual sort mode and not marked `dontRank`.
 - A-Z / Z-A are persistent modes rather than one-shot actions, and sorted columns auto-place cards by title.
+- Column filter UI can drive both tier filters and the shared board-level series filter from inside the column menu.
 
 ## Media
 
@@ -89,12 +90,14 @@
 - The board switcher also exposes create/delete affordances for board-level management.
 - Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
 - Mobile quick-add should prefer the column currently centered in the horizontal lane.
+- Boards can override the noun used for cards with `settings.cardLabel`, and `Add ...` UI should prefer that over title heuristics.
 
 ## Mirror Linking
 
 - Mirror columns should only maintain explicit links, not infer new ones from title matches during normal sync.
 - The manual `Link Duplicates` action remains the opt-in path for same-title relinking.
 - Mirrored cards can be unlinked in the edit dialog, which gives the clone its own `itemId` and excludes the original source item from automatic mirror recreation in that column.
+- Card identity should never be derived from title text. Same-name cards must keep separate `itemId`s unless they were explicitly linked.
 
 ## Component Split Status
 

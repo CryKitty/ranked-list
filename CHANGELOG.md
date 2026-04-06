@@ -24,6 +24,11 @@
 - Mobile quick-add now targets the column currently in view instead of always falling back to the first eligible column.
 - Added left/right column move controls to the column menu so mobile users can reorder columns without desktop drag-and-drop.
 - Delayed auth-backed local cache writes until remote hydration finishes so refresh is less likely to strand users on a fresh starter board.
+- Stopped creating shared `itemId`s from card titles, which prevents different same-name cards from silently sharing edits.
+- Added a board-level custom card label setting so boards like music/song lists don’t have to fall back to `Game`.
+- Moved mobile column left/right actions under Maintenance and added arrow icons.
+- Moved the column `Ranked` toggle into the `Sort` submenu and added series options to the column filter menu.
+- Mirrored/edit-linked cards now show a compact `Clone of:` chip in the editor that can open the sibling card directly.
 
 ## 2026-04-03
 

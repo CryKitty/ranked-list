@@ -23,6 +23,8 @@ import { User } from "@supabase/supabase-js";
 import {
   AlertCircle,
   ArrowLeftRight,
+  ArrowLeft,
+  ArrowRight,
   ArrowUpDown,
   BookOpen,
   Check,
@@ -234,6 +236,7 @@ const initialDraft: CardDraft = {
 const NEW_COLUMN_OPTION = "__new_column__";
 const DEFAULT_DATE_FIELD_FORMAT: DateFieldFormat = "mm/dd/yyyy";
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
+  cardLabel: "",
   showSeriesOnCards: false,
   collapseCards: false,
   showTierHighlights: true,
@@ -1180,6 +1183,37 @@ function getBoardVocabulary(boardTitle: string) {
   };
 }
 
+function getBoardVocabularyWithSettings(boardTitle: string, settings?: Partial<BoardSettings>) {
+  const vocabulary = getBoardVocabulary(boardTitle);
+  const customLabel = settings?.cardLabel?.trim();
+
+  if (!customLabel) {
+    return vocabulary;
+  }
+
+  return {
+    ...vocabulary,
+    singular: customLabel,
+  };
+}
+
+function getCardLinkedSiblings(cardsByColumn: Record<string, CardEntry[]>, entryId: string | null) {
+  if (!entryId) {
+    return [];
+  }
+
+  const allCards = Object.values(cardsByColumn).flat();
+  const currentCard = allCards.find((card) => card.entryId === entryId);
+
+  if (!currentCard) {
+    return [];
+  }
+
+  return allCards.filter(
+    (card) => card.entryId !== currentCard.entryId && card.itemId === currentCard.itemId,
+  );
+}
+
 function getDefaultBoardSettings(boardTitle: string): BoardSettings {
   const boardKind = getBoardKind(boardTitle);
 
@@ -1376,7 +1410,7 @@ export function RankboardApp() {
   const activeBoardTitle =
     activeBoard.title ?? "Rankr";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
-  const boardVocabulary = getBoardVocabulary(activeBoardTitle);
+  const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeBoardFieldDefinitions = normalizeFieldDefinitions(
     activeBoardSettings.fieldDefinitions,
@@ -2447,7 +2481,7 @@ export function RankboardApp() {
     const column = columnId ? columns.find((item) => item.id === columnId) : null;
     const card = columnId ? (cardsByColumn[columnId] ?? []).find((item) => item.entryId === entryId) : null;
 
-    if (!columnId || !column || !card?.mirroredFromEntryId) {
+    if (!columnId || !column || !card) {
       return;
     }
 
@@ -2474,8 +2508,9 @@ export function RankboardApp() {
     });
 
     setColumns((current) => {
+      const shouldExcludeOriginal = Boolean(card.mirroredFromEntryId);
       const nextColumns = current.map((currentColumn) =>
-        currentColumn.id === columnId
+        currentColumn.id === columnId && shouldExcludeOriginal
           ? {
               ...currentColumn,
               excludedMirrorItemIds: Array.from(
@@ -2792,7 +2827,7 @@ export function RankboardApp() {
       destinationInsertIndex = (nextCardsByColumn[destinationColumnId] ?? []).length;
     }
 
-    const itemId = slugify(title) || makeId("item");
+    const itemId = makeId("item");
     const newCard: CardEntry = {
       entryId: makeId("entry"),
       itemId,
@@ -3227,27 +3262,25 @@ function copyCardToDraft(card: CardEntry) {
       customFieldValues: Object.fromEntries(
         Object.entries(editingCardDraft.customFields).filter(([, value]) => value.trim().length > 0),
       ),
-      itemId: slugify(title) || card.itemId,
     }));
 
     cancelEditingCard();
   }
 
   function getMirroredSiblingColumnTitle(entryId: string | null) {
-    if (!entryId) {
+    const siblingCard = getCardLinkedSiblings(cardsByColumn, entryId)[0];
+    if (!siblingCard) {
       return null;
     }
-
-    const editingCard = Object.values(cardsByColumn)
-      .flat()
-      .find((card) => card.entryId === entryId);
-
-    if (!editingCard?.mirroredFromEntryId) {
-      return null;
-    }
-
-    const siblingColumnId = findColumnIdForEntry(editingCard.mirroredFromEntryId);
+    const siblingColumnId = findColumnIdForEntry(siblingCard.entryId);
     return columns.find((column) => column.id === siblingColumnId)?.title ?? null;
+  }
+
+  function openLinkedSiblingCard(entryId: string | null) {
+    const siblingCard = getCardLinkedSiblings(cardsByColumn, entryId)[0];
+    if (siblingCard) {
+      startEditingCard(siblingCard);
+    }
   }
 
   function autofillEditingCardImage(mode: ArtworkSearchMode = "image") {
@@ -3594,7 +3627,6 @@ function copyCardToDraft(card: CardEntry) {
       customFieldValues: Object.fromEntries(
         Object.entries(editingDuplicateAction.customFields ?? {}).filter(([, value]) => value.trim().length > 0),
       ),
-      itemId: slugify(editingDuplicateAction.title) || card.itemId,
     }));
     cancelEditingCard();
   }
@@ -3931,6 +3963,19 @@ function copyCardToDraft(card: CardEntry) {
       ),
     );
     queuePersistBoardState();
+  }
+
+  function promptForCardLabel() {
+    const nextLabel = window.prompt(
+      "What should cards on this board be called?",
+      activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular,
+    );
+
+    if (nextLabel === null) {
+      return;
+    }
+
+    updateActiveBoardSettings({ cardLabel: nextLabel.trim() });
   }
 
   function updateActiveBoardFieldDefinitions(
@@ -4714,6 +4759,17 @@ function copyCardToDraft(card: CardEntry) {
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                               )}
+                              onClick={promptForCardLabel}
+                              type="button"
+                            >
+                              <span>Card Label</span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                              )}
                               onClick={() => {
                                 setIsBoardFieldSettingsModalOpen(true);
                                 setIsActionsMenuOpen(false);
@@ -5050,6 +5106,14 @@ function copyCardToDraft(card: CardEntry) {
                                       onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
                                     />
                                   </div>
+                                  <button
+                                    className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                    onClick={promptForCardLabel}
+                                    type="button"
+                                  >
+                                    <span>Card Label</span>
+                                    <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
+                                  </button>
                                   <button
                                     className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                     onClick={() => {
@@ -5512,6 +5576,14 @@ function copyCardToDraft(card: CardEntry) {
                                 </div>
                                 <button
                                   className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                  onClick={promptForCardLabel}
+                                  type="button"
+                                >
+                                  <span>Card Label</span>
+                                  <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
+                                </button>
+                                <button
+                                  className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                                   onClick={() => {
                                     setIsBoardFieldSettingsModalOpen(true);
                                     setIsActionsMenuOpen(false);
@@ -5704,6 +5776,7 @@ function copyCardToDraft(card: CardEntry) {
                         isDarkMode={isDarkMode}
                         cards={visibleCards}
                         activeTierFilter={columnTierFilters[column.id] ?? "all"}
+                        currentSeriesFilter={seriesFilter}
                         filtering={filtering}
                         isEditingColumn={editingColumnId === column.id}
                         editingColumnDraft={editingColumnDraft}
@@ -5784,6 +5857,10 @@ function copyCardToDraft(card: CardEntry) {
                         onToggleExcludeFromBoardMirrors={toggleExcludeColumnFromBoardMirrors}
                         onLinkMirrorMatches={linkMatchingMirrorCards}
                         onSetTierFilter={setColumnTierFilter}
+                        onSetSeriesFilter={(nextSeries) => {
+                          setSeriesFilter(nextSeries);
+                          setOpenColumnMenuId(null);
+                        }}
                         onColumnDragStart={setDraggingColumnId}
                         onColumnDrop={moveColumnToTarget}
                         onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
@@ -5806,12 +5883,7 @@ function copyCardToDraft(card: CardEntry) {
 
         <EditCardDialog
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
-          currentCardIsMirrored={Boolean(
-            editingCardId &&
-              Object.values(cardsByColumn)
-                .flat()
-                .find((card) => card.entryId === editingCardId)?.mirroredFromEntryId,
-          )}
+          currentCardIsMirrored={getCardLinkedSiblings(cardsByColumn, editingCardId).length > 0}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           editArtworkInputRef={editArtworkInputRef}
           editingCardDraft={editingCardDraft}
@@ -5828,6 +5900,7 @@ function copyCardToDraft(card: CardEntry) {
             void handleArtworkFileSelection("edit", event);
           }}
           onClose={cancelEditingCard}
+          onOpenSibling={() => openLinkedSiblingCard(editingCardId)}
           onCopy={() => {
             const currentCard = editingCardId
               ? Object.values(cardsByColumn)
@@ -7420,6 +7493,7 @@ function BoardColumn({
   disableAddAffordances,
   cards,
   activeTierFilter,
+  currentSeriesFilter,
   filtering,
   isEditingColumn,
   editingColumnDraft,
@@ -7450,6 +7524,7 @@ function BoardColumn({
   onToggleExcludeFromBoardMirrors,
   onLinkMirrorMatches,
   onSetTierFilter,
+  onSetSeriesFilter,
   onColumnDragStart,
   onColumnDrop,
   onMoveColumnLeft,
@@ -7467,6 +7542,7 @@ function BoardColumn({
   disableAddAffordances: boolean;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
+  currentSeriesFilter: string;
   filtering: boolean;
   isEditingColumn: boolean;
   editingColumnDraft: ColumnEditorDraft | null;
@@ -7502,6 +7578,7 @@ function BoardColumn({
   onToggleExcludeFromBoardMirrors: (columnId: string) => void;
   onLinkMirrorMatches: (columnId: string) => void;
   onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
+  onSetSeriesFilter: (series: string) => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   onMoveColumnLeft: (columnId: string) => void;
@@ -7513,6 +7590,7 @@ function BoardColumn({
     id: column.id,
   });
   const isTierFiltering = activeTierFilter !== "all";
+  const columnSeries = Array.from(new Set(fullCards.map((card) => card.series.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   const tierFilteredCards = cards.filter((card) => {
     const originalRank = isRankedColumn(column)
       ? fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1
@@ -7657,28 +7735,6 @@ function BoardColumn({
                         <Edit3 className="h-4 w-4" />
                         Rename
                       </button>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          className={clsx(
-                            "flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                            isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
-                          )}
-                          onClick={() => onMoveColumnLeft(column.id)}
-                          type="button"
-                        >
-                          Left
-                        </button>
-                        <button
-                          className={clsx(
-                            "flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                            isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
-                          )}
-                          onClick={() => onMoveColumnRight(column.id)}
-                          type="button"
-                        >
-                          Right
-                        </button>
-                      </div>
                       {isRankedColumn(column) ? (
                         <button
                           className={clsx(
@@ -7742,6 +7798,23 @@ function BoardColumn({
                                 : "border-slate-200 bg-white",
                             )}
                           >
+                            <div
+                              className={clsx(
+                                "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode ? "text-white hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
+                              )}
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <ListOrdered className="h-4 w-4" />
+                                Ranked
+                              </span>
+                              <ToggleSwitch
+                                ariaLabel={`Toggle ranked view for ${column.title}`}
+                                enabled={!column.dontRank}
+                                isDarkMode={isDarkMode}
+                                onClick={() => onToggleDontRank(column.id)}
+                              />
+                            </div>
                             <div
                               className={clsx(
                                 "flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
@@ -7821,6 +7894,46 @@ function BoardColumn({
                                   {tierOption === "all" ? "All" : tierOption.replace("top", "Top ")}
                                 </button>
                               ))}
+                              {columnSeries.length > 0 ? (
+                                <>
+                                  <div className={clsx("my-1 h-px", isDarkMode ? "bg-white/10" : "bg-slate-200")} />
+                                  <button
+                                    className={clsx(
+                                      "rounded-xl px-3 py-2 text-left text-sm transition",
+                                      currentSeriesFilter.length === 0
+                                        ? isDarkMode
+                                          ? "bg-white/10 text-white"
+                                          : "bg-slate-100 text-slate-900"
+                                        : isDarkMode
+                                          ? "text-white hover:bg-white/10"
+                                          : "text-slate-700 hover:bg-slate-100",
+                                    )}
+                                    onClick={() => onSetSeriesFilter("")}
+                                    type="button"
+                                  >
+                                    All series
+                                  </button>
+                                  {columnSeries.map((series) => (
+                                    <button
+                                      key={series}
+                                      className={clsx(
+                                        "rounded-xl px-3 py-2 text-left text-sm transition",
+                                        currentSeriesFilter === series
+                                          ? isDarkMode
+                                            ? "bg-white/10 text-white"
+                                            : "bg-slate-100 text-slate-900"
+                                          : isDarkMode
+                                            ? "text-white hover:bg-white/10"
+                                            : "text-slate-700 hover:bg-slate-100",
+                                      )}
+                                      onClick={() => onSetSeriesFilter(series)}
+                                      type="button"
+                                    >
+                                      {series}
+                                    </button>
+                                  ))}
+                                </>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
@@ -7918,6 +8031,32 @@ function BoardColumn({
                                 : "border-slate-200 bg-white",
                             )}
                           >
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onMoveColumnLeft(column.id)}
+                              type="button"
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                              Left
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onMoveColumnRight(column.id)}
+                              type="button"
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                              Right
+                            </button>
                             <button
                               className={clsx(
                                 "rounded-xl px-3 py-2 text-left text-sm transition",

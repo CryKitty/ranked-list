@@ -72,6 +72,7 @@ export function EditCardDialog({
   editingDuplicateAction,
   mirroredSiblingColumnTitle,
   onClose,
+  onOpenSibling,
   onSubmit,
   onTitleChange,
   onSeriesChange,
@@ -119,6 +120,7 @@ export function EditCardDialog({
   } | null;
   mirroredSiblingColumnTitle?: string | null;
   onClose: () => void;
+  onOpenSibling?: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTitleChange: (value: string) => void;
   onSeriesChange: (value: string) => void;
@@ -165,18 +167,20 @@ export function EditCardDialog({
             {currentCardIsMirrored ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <p className={clsx("text-sm leading-6", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                  This entry is a mirrored copy linked to another column.
+                  Clone of:
                 </p>
                 {mirroredSiblingColumnTitle ? (
-                  <span
+                  <button
                     className={clsx(
-                      "rounded-full px-2.5 py-1 text-xs font-semibold",
+                      "rounded-full px-2.5 py-1 text-xs font-semibold transition",
                       isDarkMode ? "bg-white/10 text-slate-200" : "bg-slate-100 text-slate-700",
                     )}
+                    onClick={onOpenSibling}
                     title={`Sibling card lives in ${mirroredSiblingColumnTitle}`}
+                    type="button"
                   >
                     {mirroredSiblingColumnTitle}
-                  </span>
+                  </button>
                 ) : null}
               </div>
             ) : null}
