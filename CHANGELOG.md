@@ -192,3 +192,7 @@
 - Warmed the Lumos board background and column shells so white collapsed cards stand off better and the page no longer fades into a colder grey at the bottom.
 - Added a black border to collapsed cards regardless of tier so compact cards stay clearly defined.
 - Added a Nox/Lumos toggle to shared boards so viewers can switch the shared view theme for themselves.
+- Removed the post-drop column scroll correction so dropping a card no longer nudges the column and pulls the moved card out of view.
+- Added hover-tooltips to the main icon-only board controls, including the board switcher and the add-card / add-column affordances.
+- Shortened the bottom artwork gradient on card fronts and shared cards so more of the image stays visible.
+- Pairwise ranking quizzes can now be saved mid-run and resumed later, with an explicit option to start over from scratch.

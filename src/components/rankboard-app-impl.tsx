@@ -76,7 +76,7 @@ import {
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import { BoardFieldDefinition, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, SaveState, SavedBoard, ShareTierFilter } from "@/lib/types";
+import { BoardFieldDefinition, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, ShareTierFilter } from "@/lib/types";
 
 type CardDraft = {
   title: string;
@@ -251,6 +251,12 @@ type PairwiseQuizReview = {
   comparisons: number;
 };
 
+type PendingPairwiseQuizResume = {
+  columnId: string;
+  columnTitle: string;
+  progress: PairwiseQuizProgress;
+};
+
 type ArtworkSearchMode = "image" | "gif";
 
 type BoardBackupSnapshot = {
@@ -289,6 +295,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
     searchTerm: "",
     expiresAt: null,
   },
+  pairwiseQuizProgressByColumn: {},
   showSeriesOnCards: false,
   collapseCards: false,
   showTierHighlights: true,
@@ -1489,6 +1496,25 @@ function SaveStatusIcon({
   return <Check className="h-4 w-4" />;
 }
 
+function HoverTooltip({
+  label,
+  isDarkMode,
+}: {
+  label: string;
+  isDarkMode: boolean;
+}) {
+  return (
+    <span
+      className={clsx(
+        "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100",
+        isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
@@ -1580,6 +1606,7 @@ export function RankboardApp() {
   const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
+  const [pendingPairwiseQuizResume, setPendingPairwiseQuizResume] = useState<PendingPairwiseQuizResume | null>(null);
   const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
   const [moveAllCardsState, setMoveAllCardsState] = useState<MoveAllCardsState | null>(null);
   const [moveCardState, setMoveCardState] = useState<MoveCardState | null>(null);
@@ -1602,7 +1629,6 @@ export function RankboardApp() {
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
-  const pendingScrollFocusEntryIdRef = useRef<string | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -2775,13 +2801,6 @@ export function RankboardApp() {
     }, 1000);
   }
 
-function keepCardInViewAfterDrop(entryId: string) {
-    pendingScrollFocusEntryIdRef.current = entryId;
-    window.requestAnimationFrame(() => {
-      pendingScrollFocusEntryIdRef.current = null;
-    });
-  }
-
   function removeMirroredCard(
     nextState: Record<string, CardEntry[]>,
     sourceEntryId: string,
@@ -3355,7 +3374,6 @@ function keepCardInViewAfterDrop(entryId: string) {
         [sourceColumnId]: reorderedCards,
       }));
       latestCardsByColumnRef.current = nextState;
-      keepCardInViewAfterDrop(removedCard.entryId);
       queuePersistBoardState({
         cardsByColumn: nextState,
         debounceMs: 900,
@@ -3387,7 +3405,6 @@ function keepCardInViewAfterDrop(entryId: string) {
 
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
-    keepCardInViewAfterDrop(movedCard.entryId);
     queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
   }
 
@@ -4389,7 +4406,70 @@ function copyCardToDraft(card: CardEntry) {
     } satisfies PairwiseQuizState;
   }
 
-  function openPairwiseQuiz(columnId: string) {
+  function clonePairwiseQuizState(progress: PairwiseQuizProgress): PairwiseQuizState {
+    return {
+      ...progress,
+      sortedCards: [...progress.sortedCards],
+      remainingCards: [...progress.remainingCards],
+      candidateCard: progress.candidateCard ? { ...progress.candidateCard } : null,
+      history: progress.history.map((step) => ({
+        ...step,
+        sortedCards: [...step.sortedCards],
+        remainingCards: [...step.remainingCards],
+        candidateCard: step.candidateCard ? { ...step.candidateCard } : null,
+      })),
+    };
+  }
+
+  function updatePairwiseQuizProgress(
+    columnId: string,
+    nextProgress: PairwiseQuizProgress | null,
+    options?: { queue?: boolean },
+  ) {
+    let nextBoardsSnapshot = latestBoardsRef.current;
+
+    setBoards((current) => {
+      const nextBoards = current.map((board) => {
+        if (board.id !== activeBoardId) {
+          return board;
+        }
+
+        const nextProgressByColumn = {
+          ...(board.settings?.pairwiseQuizProgressByColumn ?? {}),
+        };
+
+        if (nextProgress) {
+          nextProgressByColumn[columnId] = nextProgress;
+        } else {
+          delete nextProgressByColumn[columnId];
+        }
+
+        return {
+          ...board,
+          settings: {
+            ...DEFAULT_BOARD_SETTINGS,
+            ...board.settings,
+            pairwiseQuizProgressByColumn: nextProgressByColumn,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      latestBoardsRef.current = nextBoards;
+      nextBoardsSnapshot = nextBoards;
+      return nextBoards;
+    });
+
+    if (options?.queue !== false) {
+      queuePersistBoardState({
+        boards: nextBoardsSnapshot,
+        activeBoardId,
+        cardsByColumn: latestCardsByColumnRef.current,
+      });
+    }
+  }
+
+  function startPairwiseQuizFromScratch(columnId: string) {
     const column = columns.find((item) => item.id === columnId);
     const cards = cardsByColumn[columnId] ?? [];
 
@@ -4406,13 +4486,75 @@ function copyCardToDraft(card: CardEntry) {
       0,
     );
 
+    updatePairwiseQuizProgress(columnId, null);
     setPairwiseQuizReview(null);
     setPairwiseQuizState(nextState);
+    setPendingPairwiseQuizResume(null);
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
+  }
+
+  function openPairwiseQuiz(columnId: string) {
+    const column = columns.find((item) => item.id === columnId);
+    const cards = cardsByColumn[columnId] ?? [];
+
+    if (!column || cards.length < 2) {
+      return;
+    }
+
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
+
+    const savedProgress = activeBoardSettings.pairwiseQuizProgressByColumn?.[columnId];
+
+    if (savedProgress) {
+      setPendingPairwiseQuizResume({
+        columnId,
+        columnTitle: column.title,
+        progress: savedProgress,
+      });
+      setPairwiseQuizReview(null);
+      setPairwiseQuizState(null);
+      return;
+    }
+
+    startPairwiseQuizFromScratch(columnId);
+  }
+
+  function continueSavedPairwiseQuiz() {
+    if (!pendingPairwiseQuizResume) {
+      return;
+    }
+
+    setPairwiseQuizReview(null);
+    setPairwiseQuizState(clonePairwiseQuizState(pendingPairwiseQuizResume.progress));
+    setPendingPairwiseQuizResume(null);
+  }
+
+  function savePairwiseQuizForLater() {
+    if (!pairwiseQuizState) {
+      return;
+    }
+
+    updatePairwiseQuizProgress(pairwiseQuizState.columnId, {
+      ...pairwiseQuizState,
+      sortedCards: [...pairwiseQuizState.sortedCards],
+      remainingCards: [...pairwiseQuizState.remainingCards],
+      candidateCard: pairwiseQuizState.candidateCard ? { ...pairwiseQuizState.candidateCard } : null,
+      history: pairwiseQuizState.history.map((step) => ({
+        ...step,
+        sortedCards: [...step.sortedCards],
+        remainingCards: [...step.remainingCards],
+        candidateCard: step.candidateCard ? { ...step.candidateCard } : null,
+      })),
+    });
+    setPairwiseQuizState(null);
   }
 
   function resolvePairwiseChoice(choice: "candidate" | "comparison") {
@@ -4529,13 +4671,21 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    setCardsByColumn((current) => ({
-      ...current,
+    const nextCardsByColumn = {
+      ...latestCardsByColumnRef.current,
       [pairwiseQuizReview.columnId]: pairwiseQuizReview.rankedCards,
-    }));
+    };
+
+    latestCardsByColumnRef.current = nextCardsByColumn;
+    setCardsByColumn(nextCardsByColumn);
+    updatePairwiseQuizProgress(pairwiseQuizReview.columnId, null, { queue: false });
     setPairwiseQuizReview(null);
     setPairwiseQuizState(null);
-    queuePersistBoardState();
+    queuePersistBoardState({
+      boards: latestBoardsRef.current,
+      activeBoardId,
+      cardsByColumn: nextCardsByColumn,
+    });
   }
 
   function exportActiveBoardAsJson() {
@@ -4691,8 +4841,10 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function updateActiveBoardSettings(nextSettings: Partial<BoardSettings>) {
-    setBoards((current) =>
-      current.map((board) =>
+    let nextBoardsSnapshot = latestBoardsRef.current;
+
+    setBoards((current) => {
+      const nextBoards = current.map((board) =>
         board.id === activeBoardId
           ? {
               ...board,
@@ -4704,9 +4856,18 @@ function copyCardToDraft(card: CardEntry) {
               updatedAt: new Date().toISOString(),
             }
           : board,
-      ),
-    );
-    queuePersistBoardState();
+      );
+
+      latestBoardsRef.current = nextBoards;
+      nextBoardsSnapshot = nextBoards;
+      return nextBoards;
+    });
+
+    queuePersistBoardState({
+      boards: nextBoardsSnapshot,
+      activeBoardId,
+      cardsByColumn: latestCardsByColumnRef.current,
+    });
   }
 
   function promptForCardLabel() {
@@ -6135,7 +6296,7 @@ function copyCardToDraft(card: CardEntry) {
               ) : (
                 <div className="group flex min-w-0 items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="relative shrink-0" data-board-switcher-root="true">
+                    <div className="group relative shrink-0" data-board-switcher-root="true">
                       <button
                         aria-label="Switch board"
                         className={clsx(
@@ -6157,6 +6318,7 @@ function copyCardToDraft(card: CardEntry) {
                           "h-5 w-5",
                         )}
                       </button>
+                      <HoverTooltip isDarkMode={isDarkMode} label="Boards" />
                       {isBoardsMenuOpen ? (
                         <div
                           className={clsx(
@@ -6245,19 +6407,22 @@ function copyCardToDraft(card: CardEntry) {
                               : "Pending"}
                       </span>
                     </div>
-                    <button
-                      className={clsx(
-                        "shrink-0 rounded-full p-2 transition opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
-                        isDarkMode
-                          ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                          : "bg-white text-slate-700 hover:bg-slate-100",
-                      )}
-                      onClick={startEditingBoardTitle}
-                      type="button"
-                      aria-label={`Rename ${activeBoardTitle}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
+                    <div className="group relative shrink-0">
+                      <button
+                        className={clsx(
+                          "shrink-0 rounded-full p-2 transition opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
+                          isDarkMode
+                            ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                            : "bg-white text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={startEditingBoardTitle}
+                        type="button"
+                        aria-label={`Rename ${activeBoardTitle}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <HoverTooltip isDarkMode={isDarkMode} label="Rename" />
+                    </div>
                   </div>
                   <div className="hidden shrink-0 items-center gap-2 xl:flex">
                     <input
@@ -7537,6 +7702,88 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {pendingPairwiseQuizResume ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingPairwiseQuizResume(null)}
+          >
+            <div
+              className={clsx(
+                "flex w-full max-w-xl flex-col rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Pairwise Quiz
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Continue where you left off?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    {`You have saved quiz progress for ${pendingPairwiseQuizResume.columnTitle}.`}
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingPairwiseQuizResume(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={continueSavedPairwiseQuiz}
+                  type="button"
+                >
+                  Continue Quiz
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => startPairwiseQuizFromScratch(pendingPairwiseQuizResume.columnId)}
+                  type="button"
+                >
+                  Start From Scratch
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingPairwiseQuizResume(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {pairwiseQuizState && pairwiseQuizState.candidateCard ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -7649,6 +7896,18 @@ function copyCardToDraft(card: CardEntry) {
                     type="button"
                   >
                     Back
+                  </button>
+                  <button
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    onClick={savePairwiseQuizForLater}
+                    type="button"
+                  >
+                    Save &amp; Continue Later
                   </button>
                   <button
                     className={clsx(
@@ -8772,7 +9031,7 @@ function AddColumnButton({
       className={clsx(
         inline
           ? "group relative z-[70] flex min-h-[720px] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:snap-align-none"
-          : "relative z-[70] flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
+          : "group relative z-[70] flex min-h-[720px] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -8785,6 +9044,10 @@ function AddColumnButton({
       type="button"
       aria-label={inline && isMobileViewport && !mobileArmed ? "Reveal add column button" : "Add column"}
     >
+      <HoverTooltip
+        isDarkMode={isDarkMode}
+        label={inline && isMobileViewport && !mobileArmed ? "Show Add Column" : "Add Column"}
+      />
       {inline ? (
         <span
           className={clsx(
@@ -9172,7 +9435,7 @@ function BoardColumn({
             ) : (
               <>
                 <h2 className="w-full truncate whitespace-nowrap pr-2 text-left text-lg font-bold">{column.title}</h2>
-                <div className="relative" data-column-menu-root="true">
+                <div className="group relative" data-column-menu-root="true">
                   <button
                     className={clsx(
                       "rounded-full p-2 transition",
@@ -9186,6 +9449,7 @@ function BoardColumn({
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
+                  <HoverTooltip isDarkMode={isDarkMode} label="Column Settings" />
                   {isMenuOpen ? (
                     <div
                       className={clsx(
@@ -9923,6 +10187,10 @@ function AddCardRow({
       type="button"
       aria-label="Add game here"
     >
+      <HoverTooltip
+        isDarkMode={isDarkMode}
+        label={isMobileViewport && !isDragMode && !mobileArmed ? "Show Add Card" : "Add Card"}
+      />
       {rowContent}
     </button>
   );
@@ -10152,7 +10420,7 @@ function CardTile({
           </>
         ) : null}
         {!collapseCards ? (
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-[56%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
         ) : null}
 
         {!collapseCards ? (
@@ -10281,18 +10549,21 @@ function CardTile({
             : "top-3",
       )}>
         {onEdit ? (
-          <button
-            className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
-            onClick={(event) => {
-              event.stopPropagation();
-              onEdit();
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            type="button"
-            aria-label={`Edit ${card.title}`}
-          >
-            <Edit3 className="h-4 w-4" />
-          </button>
+          <div className="group relative">
+            <button
+              className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit();
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              type="button"
+              aria-label={`Edit ${card.title}`}
+            >
+              <Edit3 className="h-4 w-4" />
+            </button>
+            <HoverTooltip isDarkMode={true} label="Edit" />
+          </div>
         ) : null}
       </div>
     </article>

@@ -232,3 +232,7 @@
 - Lumos now keeps its board-wide background in the same warm family from top to bottom, and column shells use a slightly warmer off-white than the cards so white collapsed cards remain legible against the lane.
 - Collapsed cards now always draw a dark border regardless of tier, so the compact form stays legible even when the fill color is white or very light.
 - The public `/share/[slug]` route now renders through a tiny server page plus a client `SharedBoardView` component so the shared page can keep server-loaded data while still offering viewer-only UI state like the Nox/Lumos toggle.
+- Post-drop card placement no longer performs any automatic column scroll correction; the board now leaves the lane where the user dropped it instead of trying to re-center the moved card afterward.
+- Icon-only controls are gradually standardizing on hover/focus tooltips instead of width-expanding labels. The board switcher and add-card / add-column affordances now use the same tooltip language as the edit-dialog action buttons.
+- Pairwise quiz progress is now stored in `board.settings.pairwiseQuizProgressByColumn`, which lets the user save a partially completed quiz and resume or discard that progress later on a per-column basis.
+- Card-front artwork gradients are intentionally shorter now on both the main board and shared boards so the lower text overlay reads clearly without consuming as much of the image.

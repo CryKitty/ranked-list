@@ -15,6 +15,27 @@ export type BoardShareSettings = {
   expiresAt?: string | null;
 };
 
+export type PairwiseQuizProgress = {
+  columnId: string;
+  columnTitle: string;
+  sortedCards: CardEntry[];
+  remainingCards: CardEntry[];
+  candidateCard: CardEntry | null;
+  low: number;
+  high: number;
+  compareIndex: number;
+  comparisons: number;
+  history: Array<{
+    sortedCards: CardEntry[];
+    remainingCards: CardEntry[];
+    candidateCard: CardEntry | null;
+    low: number;
+    high: number;
+    compareIndex: number;
+    comparisons: number;
+  }>;
+};
+
 export type BoardFieldDefinition = {
   id: string;
   label: string;
@@ -65,6 +86,7 @@ export type BoardSettings = {
   boardIconKey?: string;
   boardIconUrl?: string;
   publicShare?: BoardShareSettings;
+  pairwiseQuizProgressByColumn?: Record<string, PairwiseQuizProgress>;
   showSeriesOnCards: boolean;
   collapseCards: boolean;
   showTierHighlights: boolean;
