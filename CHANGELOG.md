@@ -2,6 +2,10 @@
 
 ## 2026-04-04
 
+- Series Scraper now skips mirror columns during board-wide runs so clone-only columns are not scraped twice unless the scraper is launched directly from that mirror column.
+- Reworked the Series Scraper review rows into a cleaner card-left/details-right layout with a single preview card plus series/year inputs beside it.
+- Reworked the mirror `Link Duplicates` review into the same card-left/details-right layout and kept the delete shortcut visible there.
+- Hardened mirror duplicate confirmation so newly created clones are synced and persisted immediately instead of disappearing after confirmation.
 - Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
 - Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
 - Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.

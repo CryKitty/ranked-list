@@ -155,8 +155,29 @@ type SeriesScrapeSuggestion = {
   entryId: string;
   itemId: string;
   title: string;
+  imageUrl: string;
   proposedSeries: string;
   proposedReleaseYear: string;
+};
+
+type PendingMirrorLinkSuggestion = {
+  id: string;
+  kind: "link" | "create";
+  mirrorColumnId: string;
+  mirrorEntryId?: string;
+  mirrorTitle: string;
+  sourceEntryId: string;
+  sourceItemId: string;
+  sourceCardTitle: string;
+  sourceSeries: string;
+  sourceImageUrl: string;
+  sourceImageStoragePath?: string;
+  sourceReleaseYear?: string;
+  sourceNotes?: string;
+  sourceCustomFieldValues?: Record<string, string>;
+  sourceColumnTitle: string;
+  enabled: boolean;
+  rank: number;
 };
 
 type ArtworkPickerState = {
@@ -592,6 +613,52 @@ function buildFallbackImage(title: string) {
   `;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function getSeriesScrapeScopedColumns(
+  columns: ColumnDefinition[],
+  scopeColumnId?: string,
+) {
+  if (scopeColumnId) {
+    return columns.filter((column) => column.id === scopeColumnId);
+  }
+
+  return columns.filter((column) => !column.mirrorsEntireBoard);
+}
+
+function MaintenanceCardPreview({
+  title,
+  imageUrl,
+  subtitle,
+  isDarkMode,
+}: {
+  title: string;
+  imageUrl?: string;
+  subtitle?: string;
+  isDarkMode: boolean;
+}) {
+  return (
+    <div
+      className={clsx(
+        "relative aspect-[16/9] w-full overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[220px]",
+        isDarkMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-slate-100",
+      )}
+      style={{
+        backgroundImage: `linear-gradient(to top, rgba(2,6,23,0.92), rgba(2,6,23,0.15)), url(${imageUrl || buildFallbackImage(title)})`,
+        backgroundPosition: "center",
+        backgroundSize: "cover",
+      }}
+    >
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        {subtitle ? (
+          <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
+            {subtitle}
+          </p>
+        ) : null}
+        <p className="mt-1 line-clamp-2 text-lg font-black leading-tight text-white">{title}</p>
+      </div>
+    </div>
+  );
 }
 
 function trimBackupSnapshots(snapshots: BoardBackupSnapshot[]) {
@@ -1379,25 +1446,7 @@ export function RankboardApp() {
     title: string;
     siblingColumnTitle: string | null;
   } | null>(null);
-  const [pendingMirrorLinkSuggestions, setPendingMirrorLinkSuggestions] = useState<Array<{
-    id: string;
-    kind: "link" | "create";
-    mirrorColumnId: string;
-    mirrorEntryId?: string;
-    mirrorTitle: string;
-    sourceEntryId: string;
-    sourceItemId: string;
-    sourceCardTitle: string;
-    sourceSeries: string;
-    sourceImageUrl: string;
-    sourceImageStoragePath?: string;
-    sourceReleaseYear?: string;
-    sourceNotes?: string;
-    sourceCustomFieldValues?: Record<string, string>;
-    sourceColumnTitle: string;
-    enabled: boolean;
-    rank: number;
-  }> | null>(null);
+  const [pendingMirrorLinkSuggestions, setPendingMirrorLinkSuggestions] = useState<PendingMirrorLinkSuggestion[] | null>(null);
   const [pendingCardDelete, setPendingCardDelete] = useState<{
     columnId: string;
     entryId: string;
@@ -2479,25 +2528,7 @@ export function RankboardApp() {
     }
     const mirrorCards = cardsByColumn[columnId] ?? [];
     const usedSourceEntryIds = new Set<string>();
-    const suggestions: Array<{
-      id: string;
-      kind: "link" | "create";
-      mirrorColumnId: string;
-      mirrorEntryId?: string;
-      mirrorTitle: string;
-      sourceEntryId: string;
-      sourceItemId: string;
-      sourceCardTitle: string;
-      sourceSeries: string;
-      sourceImageUrl: string;
-      sourceImageStoragePath?: string;
-      sourceReleaseYear?: string;
-      sourceNotes?: string;
-      sourceCustomFieldValues?: Record<string, string>;
-      sourceColumnTitle: string;
-      enabled: boolean;
-      rank: number;
-    }> = mirrorCards.flatMap((card) => {
+    const suggestions: PendingMirrorLinkSuggestion[] = mirrorCards.flatMap((card) => {
       if (card.mirroredFromEntryId) {
         return [];
       }
@@ -2714,15 +2745,16 @@ export function RankboardApp() {
         nextState[mirrorColumnId] = mirrorCards;
       }
 
-      latestCardsByColumnRef.current = nextState;
-      nextCardsSnapshot = nextState;
-      return nextState;
+      const syncedNextState = syncBoardMirrorColumns(columns, nextState);
+      latestCardsByColumnRef.current = syncedNextState;
+      nextCardsSnapshot = syncedNextState;
+      return syncedNextState;
     });
 
     setPendingMirrorLinkSuggestions(null);
-    queuePersistBoardState({
-      cardsByColumn: nextCardsSnapshot ?? undefined,
-    });
+    if (nextCardsSnapshot) {
+      void persistBoardState({ cardsByColumn: nextCardsSnapshot });
+    }
   }
 
   function unlinkMirroredCard(entryId: string) {
@@ -4608,9 +4640,7 @@ function copyCardToDraft(card: CardEntry) {
 
   function openTitleTidyModal(scopeColumnId?: string) {
     const suggestions: TitleTidySuggestion[] = [];
-    const scopedColumns = scopeColumnId
-      ? columns.filter((column) => column.id === scopeColumnId)
-      : columns;
+    const scopedColumns = getSeriesScrapeScopedColumns(columns, scopeColumnId);
 
     for (const column of scopedColumns) {
       for (const card of cardsByColumn[column.id] ?? []) {
@@ -4736,6 +4766,7 @@ function copyCardToDraft(card: CardEntry) {
           entryId: card.entryId,
           itemId: card.itemId,
           title: card.title,
+          imageUrl: card.imageUrl,
           proposedSeries: shouldSuggestSeries ? suggestedSeries : currentSeries,
           proposedReleaseYear: shouldSuggestReleaseYear ? suggestedReleaseYear : currentReleaseYear,
         } satisfies SeriesScrapeSuggestion;
@@ -4754,9 +4785,7 @@ function copyCardToDraft(card: CardEntry) {
           .filter(Boolean),
       ),
     );
-    const scopedColumns = scopeColumnId
-      ? columns.filter((column) => column.id === scopeColumnId)
-      : columns;
+    const scopedColumns = getSeriesScrapeScopedColumns(columns, scopeColumnId);
 
     return scopedColumns.flatMap((column) =>
       (cardsByColumn[column.id] ?? []).map((card) => {
@@ -4777,6 +4806,7 @@ function copyCardToDraft(card: CardEntry) {
           entryId: card.entryId,
           itemId: card.itemId,
           title: card.title,
+          imageUrl: card.imageUrl,
           proposedSeries: heuristicSeries || currentSeries,
           proposedReleaseYear: heuristicReleaseYear || currentReleaseYear,
         };
@@ -6852,62 +6882,107 @@ function copyCardToDraft(card: CardEntry) {
                             : "border-slate-200 bg-slate-50/40 opacity-70 hover:bg-slate-100",
                       )}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <button
-                          className="min-w-0 flex-1 text-left"
-                          onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
-                          type="button"
-                        >
-                          <p className="text-sm font-semibold">{suggestion.mirrorTitle}</p>
-                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                            {suggestion.kind === "link"
-                              ? `Link to ${suggestion.sourceColumnTitle}`
-                              : `Create clone from ${suggestion.sourceColumnTitle}`}
-                          </p>
-                        </button>
-                        <ToggleSwitch
-                          ariaLabel={`Toggle linking ${suggestion.mirrorTitle}`}
-                          enabled={suggestion.enabled}
+                      <div className="flex flex-col gap-4 sm:flex-row">
+                        <MaintenanceCardPreview
+                          imageUrl={suggestion.sourceImageUrl}
                           isDarkMode={isDarkMode}
-                          onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                          subtitle={suggestion.sourceColumnTitle}
+                          title={suggestion.sourceCardTitle}
                         />
-                        {suggestion.kind === "link" && suggestion.mirrorEntryId ? (
-                          <button
-                            className={clsx(
-                              "rounded-full p-2 transition",
-                              isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
-                            )}
-                            onClick={() => requestDeleteCard(suggestion.mirrorColumnId, suggestion.mirrorEntryId!)}
-                            type="button"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        ) : null}
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">{suggestion.mirrorTitle}</p>
+                              <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                                {suggestion.kind === "link"
+                                  ? `Link existing mirror card to ${suggestion.sourceColumnTitle}`
+                                  : `Create a new clone from ${suggestion.sourceColumnTitle}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 self-start">
+                              {suggestion.kind === "link" && suggestion.mirrorEntryId ? (
+                                <button
+                                  className={clsx(
+                                    "rounded-full p-2 transition",
+                                    isDarkMode ? "text-rose-300 hover:bg-rose-400/10" : "text-rose-500 hover:bg-rose-100",
+                                  )}
+                                  onClick={() => requestDeleteCard(suggestion.mirrorColumnId, suggestion.mirrorEntryId!)}
+                                  type="button"
+                                  aria-label={`Delete ${suggestion.mirrorTitle}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              ) : null}
+                              <button
+                                className={clsx(
+                                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                                )}
+                                onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                                type="button"
+                              >
+                                {suggestion.enabled ? "Keep" : "Skip"}
+                              </button>
+                              <ToggleSwitch
+                                ariaLabel={`Toggle linking ${suggestion.mirrorTitle}`}
+                                enabled={suggestion.enabled}
+                                isDarkMode={isDarkMode}
+                                onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Series
+                              </span>
+                              <div
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm",
+                                  isDarkMode ? "border-white/10 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700",
+                                )}
+                              >
+                                {suggestion.sourceSeries || "No series"}
+                              </div>
+                            </div>
+                            <div className="grid gap-2">
+                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Rank
+                              </span>
+                              {suggestion.kind === "create" ? (
+                                <input
+                                  className={clsx(
+                                    "w-full rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                                    isDarkMode
+                                      ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                                  )}
+                                  inputMode="numeric"
+                                  min={1}
+                                  onChange={(event) => {
+                                    const nextRank = Number.parseInt(event.target.value || "1", 10);
+                                    updatePendingMirrorLinkSuggestionRank(
+                                      suggestion.id,
+                                      Number.isFinite(nextRank) ? Math.max(1, nextRank) : 1,
+                                    );
+                                  }}
+                                  type="number"
+                                  value={suggestion.rank}
+                                />
+                              ) : (
+                                <div
+                                  className={clsx(
+                                    "rounded-2xl border px-4 py-3 text-sm",
+                                    isDarkMode ? "border-white/10 bg-slate-900/70 text-slate-200" : "border-slate-200 bg-white text-slate-700",
+                                  )}
+                                >
+                                  Keep current
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      {suggestion.kind === "create" ? (
-                        <label className="mt-3 flex items-center gap-3 text-sm">
-                          <span className={clsx(isDarkMode ? "text-slate-300" : "text-slate-600")}>Rank</span>
-                          <input
-                            className={clsx(
-                              "w-20 rounded-xl border px-3 py-2 outline-none transition",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
-                                : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                            )}
-                            inputMode="numeric"
-                            min={1}
-                            onChange={(event) => {
-                              const nextRank = Number.parseInt(event.target.value || "1", 10);
-                              updatePendingMirrorLinkSuggestionRank(
-                                suggestion.id,
-                                Number.isFinite(nextRank) ? Math.max(1, nextRank) : 1,
-                              );
-                            }}
-                            type="number"
-                            value={suggestion.rank}
-                          />
-                        </label>
-                      ) : null}
                     </div>
                   ))
                 )}
@@ -7843,66 +7918,66 @@ function copyCardToDraft(card: CardEntry) {
                         isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
                       )}
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
-                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                            {suggestion.title}
-                          </p>
-                        </div>
-                        <button
-                          className={clsx(
-                            "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                            isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
-                          )}
-                          onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
-                          type="button"
-                        >
-                          Skip
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                        <div
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm",
-                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
-                          )}
-                        >
-                          {suggestion.title}
-                        </div>
-                        <div className="text-center text-sm font-semibold opacity-60">series</div>
-                        <input
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                          )}
-                          value={suggestion.proposedSeries}
-                          onChange={(event) => updateSeriesScrapeSuggestion(suggestion.id, event.target.value)}
+                      <div className="flex flex-col gap-4 sm:flex-row">
+                        <MaintenanceCardPreview
+                          imageUrl={suggestion.imageUrl}
+                          isDarkMode={isDarkMode}
+                          subtitle={suggestion.columnTitle}
+                          title={suggestion.title}
                         />
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_180px] sm:items-center">
-                        <div
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm",
-                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
-                          )}
-                        >
-                          {suggestion.title}
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">{suggestion.columnTitle}</p>
+                              <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                                Fill in the likely series and release year for this card.
+                              </p>
+                            </div>
+                            <button
+                              className={clsx(
+                                "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                                isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
+                              type="button"
+                            >
+                              Skip
+                            </button>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="grid gap-2">
+                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Series
+                              </span>
+                              <input
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                                  isDarkMode
+                                    ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                )}
+                                value={suggestion.proposedSeries}
+                                onChange={(event) => updateSeriesScrapeSuggestion(suggestion.id, event.target.value)}
+                              />
+                            </label>
+                            <label className="grid gap-2">
+                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Year
+                              </span>
+                              <input
+                                inputMode="numeric"
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                                  isDarkMode
+                                    ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                )}
+                                value={suggestion.proposedReleaseYear}
+                                onChange={(event) => updateSeriesScrapeReleaseYear(suggestion.id, event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
+                              />
+                            </label>
+                          </div>
                         </div>
-                        <div className="text-center text-sm font-semibold opacity-60">year</div>
-                        <input
-                          inputMode="numeric"
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                          )}
-                          value={suggestion.proposedReleaseYear}
-                          onChange={(event) => updateSeriesScrapeReleaseYear(suggestion.id, event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
-                        />
                       </div>
                     </div>
                   ))

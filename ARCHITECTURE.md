@@ -106,10 +106,13 @@
 - `Link Duplicates` in mirror columns is now a preview-and-confirm workflow; it should preserve card order and only attach links the user approves.
 - Mirror review now covers both relinking existing same-title cards and creating missing clones, with optional rank entry for new clones.
 - Mirror review now enforces unique rank values across enabled new-clone entries and can delete a redundant mirror-side candidate directly from the review screen.
+- Mirror review now uses the same card-left/details-right presentation as the Series Scraper so maintenance review UIs stay consistent.
+- Confirmed mirror clone creation is now immediately re-synced and persisted from the reviewed snapshot, which reduces the chance of newly approved clones being swallowed by later mirror sync passes.
 - Card deletion from the edit dialog now goes through an in-app confirmation modal instead of deleting immediately.
 - Board customization now includes icon selection. Boards can use either a built-in icon key or an uploaded custom icon image stored directly in board settings.
 - Duplicate cleanup at board scope now groups same-title, non-mirrored cards across the active board instead of only within individual columns.
 - Series scraping intentionally skips cards that already have a series value so it behaves like a fill-in tool rather than a rewrite tool.
+- Board-wide Series Scraper runs now also skip mirror columns by default; the only way to scrape a mirror column is to launch the tool directly from that column's maintenance menu.
 
 ## Component Split Status
 
