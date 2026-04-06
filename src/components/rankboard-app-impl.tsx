@@ -1419,7 +1419,6 @@ export function RankboardApp() {
   const [mobileFocusedColumnId, setMobileFocusedColumnId] = useState<string | null>(null);
   const [isCardDragging, setIsCardDragging] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
-  const [isDragDropLocked, setIsDragDropLocked] = useState(false);
   const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -1486,7 +1485,6 @@ export function RankboardApp() {
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
-  const dragDropLockTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
@@ -2137,8 +2135,11 @@ export function RankboardApp() {
       const coords = dragPointerCoordsRef.current;
 
       if (coords) {
-        const hoveredElement = document.elementFromPoint(coords.x, coords.y);
-        const scrollContainer = hoveredElement?.closest("[data-column-scroll-id]") as HTMLElement | null;
+        const hoveredElements = document.elementsFromPoint(coords.x, coords.y);
+        const scrollContainer =
+          (hoveredElements.find((element) => element.closest("[data-column-scroll-id]"))?.closest(
+            "[data-column-scroll-id]",
+          ) as HTMLElement | null) ?? null;
 
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
@@ -2158,11 +2159,7 @@ export function RankboardApp() {
           }
 
           if (deltaY !== 0) {
-            const previousScrollTop = scrollContainer.scrollTop;
             scrollContainer.scrollTop += deltaY;
-            if (scrollContainer.scrollTop !== previousScrollTop) {
-              noteDragScrollActivity();
-            }
           }
         }
       }
@@ -2540,17 +2537,6 @@ export function RankboardApp() {
         cardsByColumn[column.id]?.some((card) => card.entryId === entryId),
       )?.id ?? null
     );
-  }
-
-  function noteDragScrollActivity() {
-    setIsDragDropLocked(true);
-    if (dragDropLockTimeoutRef.current) {
-      window.clearTimeout(dragDropLockTimeoutRef.current);
-    }
-    dragDropLockTimeoutRef.current = window.setTimeout(() => {
-      setIsDragDropLocked(false);
-      dragDropLockTimeoutRef.current = null;
-    }, 1200);
   }
 
   function captureDragPointer(event: Event) {
@@ -3074,7 +3060,6 @@ export function RankboardApp() {
 
   function handleDragEnd(event: DragEndEvent) {
     setIsCardDragging(false);
-    setIsDragDropLocked(false);
     setDragPointerKind(null);
     dragPointerCoordsRef.current = null;
     setActiveDragEntryId(null);
@@ -6330,9 +6315,6 @@ function copyCardToDraft(card: CardEntry) {
               }}
               sensors={sensors}
               collisionDetection={(args) => {
-                if (isDragDropLocked) {
-                  return [];
-                }
                 const pointerHits = pointerWithin(args);
                 if (pointerHits.length > 0) {
                   const insertHits = pointerHits.filter((hit) =>
@@ -6345,13 +6327,11 @@ function copyCardToDraft(card: CardEntry) {
               }}
               onDragStart={({ active, activatorEvent }) => {
                 setIsCardDragging(true);
-                setIsDragDropLocked(false);
                 captureDragPointer(activatorEvent);
                 setActiveDragEntryId(String(active.id));
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
-                setIsDragDropLocked(false);
                 setDragPointerKind(null);
                 dragPointerCoordsRef.current = null;
                 setActiveDragEntryId(null);
@@ -6378,7 +6358,6 @@ function copyCardToDraft(card: CardEntry) {
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                         isCardDragging={isCardDragging}
-                        isDragDropLocked={isDragDropLocked}
                         isDarkMode={isDarkMode}
                         cards={visibleCards}
                         activeTierFilter={columnTierFilters[column.id] ?? "all"}
@@ -6468,7 +6447,6 @@ function copyCardToDraft(card: CardEntry) {
                           setSeriesFilter(nextSeries);
                           setOpenColumnMenuId(null);
                         }}
-                        onDragScrollActivity={noteDragScrollActivity}
                         onColumnDragStart={setDraggingColumnId}
                         onColumnDrop={moveColumnToTarget}
                         onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
@@ -6487,7 +6465,7 @@ function copyCardToDraft(card: CardEntry) {
               </div>
               <DragOverlay dropAnimation={null}>
                 {activeDragCard ? (
-                  <div className="w-[268px] rotate-[1deg] opacity-85 shadow-[0_24px_48px_rgba(15,23,42,0.26)]">
+                  <div className="pointer-events-none w-[224px] rotate-[1deg] opacity-75 shadow-[0_20px_38px_rgba(15,23,42,0.22)]">
                     <CardTile
                       card={activeDragCard}
                       collapseCards={activeBoardSettings.collapseCards}
@@ -8673,7 +8651,6 @@ function BoardColumn({
   frontFieldDefinitions,
   disableAddAffordances,
   isCardDragging,
-  isDragDropLocked,
   cards,
   activeTierFilter,
   currentSeriesFilter,
@@ -8709,7 +8686,6 @@ function BoardColumn({
   onLinkMirrorMatches,
   onSetTierFilter,
   onSetSeriesFilter,
-  onDragScrollActivity,
   onColumnDragStart,
   onColumnDrop,
   onMoveColumnLeft,
@@ -8726,7 +8702,6 @@ function BoardColumn({
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
   isCardDragging: boolean;
-  isDragDropLocked: boolean;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
   currentSeriesFilter: string;
@@ -8767,7 +8742,6 @@ function BoardColumn({
   onLinkMirrorMatches: (columnId: string) => void;
   onSetTierFilter: (columnId: string, tierFilter: TierFilter) => void;
   onSetSeriesFilter: (series: string) => void;
-  onDragScrollActivity: () => void;
   onColumnDragStart: React.Dispatch<React.SetStateAction<string | null>>;
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   onMoveColumnLeft: (columnId: string) => void;
@@ -9380,11 +9354,6 @@ function BoardColumn({
       <div
         className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1"
         data-column-scroll-id={column.id}
-        onScroll={() => {
-          if (isCardDragging) {
-            onDragScrollActivity();
-          }
-        }}
       >
         {filtering || isTierFiltering ? (
           tierFilteredCards.map((card, index) => (
@@ -9425,7 +9394,6 @@ function BoardColumn({
                 columnId={column.id}
                 isDarkMode={isDarkMode}
                 isDragMode={isCardDragging}
-                isDropLocked={isDragDropLocked}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 interactive={!disableAddAffordances}
@@ -9453,7 +9421,6 @@ function BoardColumn({
                     columnId={column.id}
                     isDarkMode={isDarkMode}
                     isDragMode={isCardDragging}
-                    isDropLocked={isDragDropLocked}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
                     interactive={!disableAddAffordances}
@@ -9484,7 +9451,6 @@ function AddCardRow({
   columnId,
   isDarkMode,
   isDragMode = false,
-  isDropLocked = false,
   insertIndex,
   alwaysVisible = false,
   interactive = true,
@@ -9493,7 +9459,6 @@ function AddCardRow({
   columnId: string;
   isDarkMode: boolean;
   isDragMode?: boolean;
-  isDropLocked?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   interactive?: boolean;
@@ -9544,11 +9509,9 @@ function AddCardRow({
           "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
           isDragMode
-            ? isDropLocked
-              ? "h-4 opacity-0"
-              : isOver
-                ? "h-[172px] opacity-100"
-                : "h-3 opacity-100"
+            ? isOver
+              ? "h-[172px] opacity-100"
+              : "h-3 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
@@ -9567,11 +9530,9 @@ function AddCardRow({
         "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         isDragMode
-          ? isDropLocked
-            ? "pointer-events-none h-4 opacity-0"
-            : isOver
-              ? "h-[172px] opacity-100"
-              : "h-3 opacity-100"
+          ? isOver
+            ? "h-[172px] opacity-100"
+            : "h-3 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
             : "h-4 opacity-0",

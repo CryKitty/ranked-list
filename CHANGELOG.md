@@ -21,6 +21,9 @@
 - Desktop dragging now uses a custom mouse-driven auto-scroll loop for column interiors, while mobile keeps the smoother built-in touch path.
 - Slowed the auto-scroll down a bit and switched the drag target to a pure animated gap with no separator line.
 - The held drag card is now slightly smaller and semi-transparent so it obscures less of the column while you drag.
+- Removed the drag scroll/drop lock again because it was making desktop drop targets unreliable.
+- Desktop auto-scroll now resolves the hovered column from `elementsFromPoint`, and the drag overlay is fully pointer-transparent so it stops interfering with hit detection.
+- Shrunk the held drag card even further to keep more of the destination column visible.
 
 ## 2026-04-04
 
