@@ -2,6 +2,8 @@
 
 ## 2026-04-06
 
+- Desktop auto-scroll is slightly faster again.
+- Drag insertion rows now have a much wider hidden hit zone, extending into the surrounding card area so users no longer have to hover over a tiny exact gap to trigger the drop target.
 - Same-column dragging now keeps neighboring cards visually steadier while you drag, and leans on clearer insertion lanes instead of shuffling the whole list around under the pointer.
 - Strengthened the in-column drop lanes during drag so the intended drop point is easier to read before you let go.
 - Added another mirror-clone duplicate guard so moving a source card between columns does not create a second clone when that card is already mirrored.

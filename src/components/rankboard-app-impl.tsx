@@ -2131,7 +2131,7 @@ export function RankboardApp() {
     }
 
     const edgeThreshold = 140;
-    const maxScrollStep = 8;
+    const maxScrollStep = 10;
 
     const tick = () => {
       const coords = dragPointerCoordsRef.current;
@@ -9507,6 +9507,13 @@ function AddCardRow({
   const { setNodeRef, isOver } = useDroppable({
     id: makeInsertDropId(columnId, insertIndex),
   });
+  const dragHitAreaClass = isDragMode
+    ? isOver
+      ? "my-0 py-0"
+      : insertIndex === 0
+        ? "-mb-14 pt-8 pb-14"
+        : "-my-14 py-14"
+    : "";
 
   const rowContent = isDragMode ? null : (
     <>
@@ -9548,6 +9555,7 @@ function AddCardRow({
         className={clsx(
           "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
+          dragHitAreaClass,
           isDragMode
             ? isGapSuppressed
               ? "h-3 opacity-0"
@@ -9573,6 +9581,7 @@ function AddCardRow({
       className={clsx(
         "group flex items-center gap-3 transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
+        dragHitAreaClass,
         isDragMode
           ? isGapSuppressed
             ? "pointer-events-none h-3 opacity-0"
