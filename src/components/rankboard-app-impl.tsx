@@ -1526,6 +1526,7 @@ export function RankboardApp() {
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
+  const hasHandledNewBoardQueryRef = useRef(false);
   const latestColumnsRef = useRef(columns);
   const latestCardsByColumnRef = useRef(cardsByColumn);
   const latestBoardsRef = useRef(boards);
@@ -2122,6 +2123,28 @@ export function RankboardApp() {
 
     resetToSignedOutBoard();
   }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading, resetToSignedOutBoard]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || hasHandledNewBoardQueryRef.current) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") {
+      return;
+    }
+
+    hasHandledNewBoardQueryRef.current = true;
+    setNewBoardTitle("");
+    setNewBoardSettings(getDefaultBoardSettings("New Board"));
+    setIsCreateBoardModalOpen(true);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    params.delete("new");
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, []);
 
   useEffect(() => {
     if (!isCardDragging) {
@@ -7660,10 +7683,15 @@ function copyCardToDraft(card: CardEntry) {
           newBoardTitle={newBoardTitle}
           fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
+          showLoginHint={authEnabled && !currentUser}
+          isLoginDisabled={isAuthLoading}
           onClose={() => {
             setIsCreateBoardModalOpen(false);
             setNewBoardTitle("");
             setNewBoardSettings(getDefaultBoardSettings("New Board"));
+          }}
+          onLogin={() => {
+            void handleOAuthLogin("google");
           }}
           onTitleChange={(nextTitle) => {
             const nextDefaults = getDefaultBoardSettings(nextTitle || "New Board");
@@ -9645,36 +9673,18 @@ function AddCardRow({
     : "";
 
   const rowContent = isDragMode ? null : (
-    <>
-      <span
-        className={clsx(
-          "h-px flex-1 transition",
-          isDarkMode
-            ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
-            : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
-        )}
-      />
-      <span
-        className={clsx(
-          "flex h-7 w-7 items-center justify-center rounded-full border transition",
-          interactive
-            ? isDarkMode
-              ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
-              : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50"
-            : "border-transparent bg-transparent text-transparent",
-        )}
-      >
-        <Plus className="h-4 w-4" />
-      </span>
-      <span
-        className={clsx(
-          "h-px flex-1 transition",
-          isDarkMode
-            ? "bg-white/10 group-hover:bg-white/25 group-focus:bg-white/25"
-            : "bg-slate-200 group-hover:bg-slate-300 group-focus:bg-slate-300",
-        )}
-      />
-    </>
+    <span
+      className={clsx(
+        "flex h-7 w-7 items-center justify-center rounded-full border transition",
+        interactive
+          ? isDarkMode
+            ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
+            : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50"
+          : "border-transparent bg-transparent text-transparent",
+      )}
+    >
+      <Plus className="h-4 w-4" />
+    </span>
   );
 
   if (!interactive) {

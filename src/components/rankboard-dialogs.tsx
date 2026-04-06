@@ -1080,7 +1080,10 @@ export function BoardSetupDialog({
   isDarkMode,
   newBoardTitle,
   fieldDefinitions,
+  showLoginHint,
+  isLoginDisabled,
   onClose,
+  onLogin,
   onTitleChange,
   onToggleVisibility,
   onUpdateField,
@@ -1093,7 +1096,10 @@ export function BoardSetupDialog({
   isDarkMode: boolean;
   newBoardTitle: string;
   fieldDefinitions: BoardFieldDefinition[];
+  showLoginHint?: boolean;
+  isLoginDisabled?: boolean;
   onClose: () => void;
+  onLogin?: () => void;
   onTitleChange: (value: string) => void;
   onToggleVisibility: (fieldId: string) => void;
   onUpdateField: (fieldId: string, patch: Partial<BoardFieldDefinition>) => void;
@@ -1165,6 +1171,30 @@ export function BoardSetupDialog({
             onUpdateField={onUpdateField}
           />
         </div>
+
+        {showLoginHint ? (
+          <div
+            className={clsx(
+              "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm",
+              isDarkMode ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700",
+            )}
+          >
+            <p className="leading-6">
+              Log in to save this board to your account and sync it across devices.
+            </p>
+            <button
+              className={clsx(
+                "inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition",
+                isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200 disabled:bg-white/60" : "bg-slate-950 text-white hover:bg-slate-800 disabled:bg-slate-400",
+              )}
+              disabled={isLoginDisabled}
+              onClick={onLogin}
+              type="button"
+            >
+              Log In
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-6 flex flex-wrap gap-3">
           <button className={clsx("inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition", isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800")} onClick={onCreateBoard} type="button">

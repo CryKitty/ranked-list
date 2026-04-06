@@ -164,6 +164,9 @@
   - same series/title reduction logic
   - same horizontal snap scrolling across columns
 - Since refreshed shares now generate a new slug, old share links effectively self-terminate as soon as the replacement link is published.
+- The shared header is now intentionally compact: `Rankr Share:` label, active filter chips, board title, and a `Join` CTA on the same line when space allows.
+- The `Join` CTA links to `/?new=1`, and the main app consumes that query by opening the new-board modal once and then clearing the query string.
+- The new-board modal should encourage signed-out users to log in if they want board creation to persist across devices.
 
 ## Series Scraping
 
@@ -205,3 +208,4 @@
   - maintenance/import/export modals
   - board header / settings shell
 - Persistence and media helpers should continue living in lib files instead of expanding the implementation file further.
+- The between-card add affordance now renders as a centered plus button without horizontal divider lines, which avoids stale divider visuals after drag/drop.

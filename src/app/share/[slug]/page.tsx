@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import Link from "next/link";
 
 import { loadPublicBoardBySlug } from "@/lib/normalized-board-store";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -132,28 +133,34 @@ export default async function SharedBoardPage({
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1700px] flex-col gap-6">
-        <header className="rounded-[28px] border border-white/10 bg-slate-900/85 p-5 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur">
+        <header className="rounded-[28px] border border-white/10 bg-slate-900/85 p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Rankr Share</p>
-            <div className="flex flex-wrap gap-2">
-            {tierFilter !== "all" ? (
-              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                {tierFilter.replace("top", "Top ")}
-              </span>
-            ) : null}
-            {selectedSeries ? (
-              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                {selectedSeries}
-              </span>
-            ) : null}
-            {selectedSearchTerm ? (
-              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                Search: {selectedSearchTerm}
-              </span>
-            ) : null}
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <p className="shrink-0 text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Rankr Share:</p>
+              {tierFilter !== "all" ? (
+                <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                  {tierFilter.replace("top", "Top ")}
+                </span>
+              ) : null}
+              {selectedSeries ? (
+                <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                  {selectedSeries}
+                </span>
+              ) : null}
+              {selectedSearchTerm ? (
+                <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                  Search: {selectedSearchTerm}
+                </span>
+              ) : null}
+              <h1 className="min-w-0 truncate text-3xl font-black text-white sm:text-4xl">{board.title}</h1>
             </div>
+            <Link
+              className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              href="/?new=1"
+            >
+              Join
+            </Link>
           </div>
-          <h1 className="mt-2 text-4xl font-black text-white">{board.title}</h1>
         </header>
 
         <section className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-4">

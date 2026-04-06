@@ -17,6 +17,9 @@
 - Shared cards now use the same series/title display logic as the main board, including stripping repeated series prefixes from titles and hiding the series line when title and series match exactly.
 - Shared columns now snap into place horizontally like the main board.
 - Because refreshed shares now get a brand-new slug, the previous share URL stops resolving once the new link is published.
+- The shared-board header is now a tighter one-line `Rankr Share:` layout with the active filter chips and board title inline, plus a `Join` button that opens the app into new-board creation.
+- The new-board modal now reminds signed-out users to log in if they want their board saved/synced, and includes a direct login button.
+- Removed the leftover between-card divider lines from the add/drop affordance so only the plus button remains when the row is visible.
 - After dropping a card, the column now keeps that moved card in view instead of jumping a few cards away from it.
 - Desktop auto-scroll is slightly faster again.
 - Drag insertion rows now have a much wider hidden hit zone, extending into the surrounding card area so users no longer have to hover over a tiny exact gap to trigger the drop target.
