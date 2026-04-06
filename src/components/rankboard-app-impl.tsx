@@ -9916,26 +9916,18 @@ function CardTile({
           : "border-white/10";
   const collapsedTierSurfaceClass =
     tierKey === "top10"
-      ? "bg-amber-300/95"
+      ? "bg-amber-300 text-amber-950"
       : tierKey === "top15"
-        ? "bg-cyan-300/95"
+        ? "bg-cyan-300 text-cyan-950"
         : tierKey === "top20"
-          ? "bg-fuchsia-300/95"
-          : isDarkMode
-            ? "bg-slate-900"
-            : "bg-white";
+          ? "bg-fuchsia-300 text-fuchsia-950"
+          : "bg-white text-slate-950";
   const collapsedRankClass =
-    tierKey === "top10" || tierKey === "top15" || tierKey === "top20"
-      ? "bg-white/85 text-slate-950"
-      : isDarkMode
-        ? "bg-white text-slate-950"
-        : "bg-slate-950 text-white";
+    isDarkMode
+      ? "bg-slate-950 text-white"
+      : "bg-white text-slate-950";
   const collapsedTitleClass =
-    tierKey === "top10" || tierKey === "top15" || tierKey === "top20"
-      ? "text-slate-950"
-      : isDarkMode
-        ? "text-white"
-        : "text-slate-950";
+    "text-current";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
