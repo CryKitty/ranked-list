@@ -1336,6 +1336,7 @@ type PersistBoardStateOptions = {
   activeBoardId?: string;
   columns?: ColumnDefinition[];
   cardsByColumn?: Record<string, CardEntry[]>;
+  debounceMs?: number;
 };
 
 function formatLastSavedAt(savedAt: string | null) {
@@ -1480,6 +1481,7 @@ export function RankboardApp() {
   const latestBoardsRef = useRef(boards);
   const latestActiveBoardIdRef = useRef(activeBoardId);
   const pendingPersistOptionsRef = useRef<PersistBoardStateOptions | null>(null);
+  const pendingPersistDelayRef = useRef<number>(120);
   const recentBackupSnapshotsRef = useRef<BoardBackupSnapshot[]>([]);
   const isSigningOutRef = useRef(false);
   const hasAutoOpenedBoardSetupRef = useRef(false);
@@ -1661,6 +1663,7 @@ export function RankboardApp() {
 
   const queuePersistBoardState = useCallback((options?: PersistBoardStateOptions) => {
     pendingPersistOptionsRef.current = options ?? null;
+    pendingPersistDelayRef.current = options?.debounceMs ?? 120;
     setSaveState("pending");
     setPersistRequestId((current) => current + 1);
   }, []);
@@ -2288,7 +2291,7 @@ export function RankboardApp() {
       const nextPersistOptions = pendingPersistOptionsRef.current;
       pendingPersistOptionsRef.current = null;
       void persistBoardState(nextPersistOptions ?? undefined);
-    }, 120);
+    }, pendingPersistDelayRef.current);
 
     return () => window.clearTimeout(timeout);
   }, [currentUser, hasLoadedRemoteState, persistBoardState, persistRequestId, supabase]);
@@ -2654,6 +2657,31 @@ export function RankboardApp() {
     }
 
     let nextCardsSnapshot: Record<string, CardEntry[]> | null = null;
+    let nextColumnsSnapshot: ColumnDefinition[] | null = null;
+
+    setColumns((current) => {
+      const enabledSourceIdsByMirrorColumn = enabledSuggestions.reduce<Record<string, string[]>>((acc, suggestion) => {
+        acc[suggestion.mirrorColumnId] = [...(acc[suggestion.mirrorColumnId] ?? []), suggestion.sourceItemId];
+        return acc;
+      }, {});
+      const nextColumns = current.map((column) => {
+        const sourceItemIds = enabledSourceIdsByMirrorColumn[column.id];
+
+        if (!sourceItemIds?.length) {
+          return column;
+        }
+
+        return {
+          ...column,
+          excludedMirrorItemIds: (column.excludedMirrorItemIds ?? []).filter(
+            (itemId) => !sourceItemIds.includes(itemId),
+          ),
+        };
+      });
+      latestColumnsRef.current = nextColumns;
+      nextColumnsSnapshot = nextColumns;
+      return nextColumns;
+    });
 
     setCardsByColumn((current) => {
       const nextState = { ...current };
@@ -2714,7 +2742,11 @@ export function RankboardApp() {
 
     setPendingMirrorLinkSuggestions(null);
     if (nextCardsSnapshot) {
-      void persistBoardState({ cardsByColumn: nextCardsSnapshot });
+      queuePersistBoardState({
+        columns: nextColumnsSnapshot ?? undefined,
+        cardsByColumn: nextCardsSnapshot,
+        debounceMs: 250,
+      });
     }
   }
 
@@ -2942,25 +2974,18 @@ export function RankboardApp() {
       const [removedCard] = reorderedCards.splice(sourceIndex, 1);
       reorderedCards.splice(adjustedDestinationIndex, 0, removedCard);
 
+      const nextState = {
+        ...latestCardsByColumnRef.current,
+        [sourceColumnId]: reorderedCards,
+      };
       setCardsByColumn((current) => ({
         ...current,
         [sourceColumnId]: reorderedCards,
       }));
-      latestCardsByColumnRef.current = {
-        ...latestCardsByColumnRef.current,
-        [sourceColumnId]: reorderedCards,
-      };
-      void persistBoardState({
-        cardsByColumn: {
-          ...latestCardsByColumnRef.current,
-          [sourceColumnId]: reorderedCards,
-        },
-      });
+      latestCardsByColumnRef.current = nextState;
       queuePersistBoardState({
-        cardsByColumn: {
-          ...latestCardsByColumnRef.current,
-          [sourceColumnId]: reorderedCards,
-        },
+        cardsByColumn: nextState,
+        debounceMs: 900,
       });
 
       return;
@@ -2986,8 +3011,7 @@ export function RankboardApp() {
 
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
-    void persistBoardState({ cardsByColumn: nextState });
-    queuePersistBoardState({ cardsByColumn: nextState });
+    queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
   }
 
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
