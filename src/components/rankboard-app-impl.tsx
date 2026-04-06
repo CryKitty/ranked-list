@@ -1359,13 +1359,27 @@ export function RankboardApp() {
   } | null>(null);
   const [pendingMirrorLinkSuggestions, setPendingMirrorLinkSuggestions] = useState<Array<{
     id: string;
+    kind: "link" | "create";
     mirrorColumnId: string;
-    mirrorEntryId: string;
+    mirrorEntryId?: string;
     mirrorTitle: string;
     sourceEntryId: string;
+    sourceCardTitle: string;
+    sourceSeries: string;
+    sourceImageUrl: string;
+    sourceImageStoragePath?: string;
+    sourceReleaseYear?: string;
+    sourceNotes?: string;
+    sourceCustomFieldValues?: Record<string, string>;
     sourceColumnTitle: string;
     enabled: boolean;
+    rank: number;
   }> | null>(null);
+  const [pendingCardDelete, setPendingCardDelete] = useState<{
+    columnId: string;
+    entryId: string;
+    title: string;
+  } | null>(null);
   const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
@@ -2439,7 +2453,25 @@ export function RankboardApp() {
       return;
     }
     const mirrorCards = cardsByColumn[columnId] ?? [];
-    const suggestions = mirrorCards.flatMap((card) => {
+    const usedSourceEntryIds = new Set<string>();
+    const suggestions: Array<{
+      id: string;
+      kind: "link" | "create";
+      mirrorColumnId: string;
+      mirrorEntryId?: string;
+      mirrorTitle: string;
+      sourceEntryId: string;
+      sourceCardTitle: string;
+      sourceSeries: string;
+      sourceImageUrl: string;
+      sourceImageStoragePath?: string;
+      sourceReleaseYear?: string;
+      sourceNotes?: string;
+      sourceCustomFieldValues?: Record<string, string>;
+      sourceColumnTitle: string;
+      enabled: boolean;
+      rank: number;
+    }> = mirrorCards.flatMap((card) => {
       if (card.mirroredFromEntryId) {
         return [];
       }
@@ -2462,15 +2494,25 @@ export function RankboardApp() {
         );
 
         if (sourceCard && sourceCard.itemId !== card.itemId) {
+          usedSourceEntryIds.add(sourceCard.entryId);
           return [
             {
               id: `${card.entryId}:${sourceCard.entryId}`,
+              kind: "link" as const,
               mirrorColumnId: columnId,
               mirrorEntryId: card.entryId,
               mirrorTitle: card.title,
               sourceEntryId: sourceCard.entryId,
+              sourceCardTitle: sourceCard.title,
+              sourceSeries: sourceCard.series,
+              sourceImageUrl: sourceCard.imageUrl,
+              sourceImageStoragePath: sourceCard.imageStoragePath,
+              sourceReleaseYear: sourceCard.releaseYear,
+              sourceNotes: sourceCard.notes,
+              sourceCustomFieldValues: sourceCard.customFieldValues,
               sourceColumnTitle: column.title,
               enabled: true,
+              rank: Math.max(1, mirrorCards.findIndex((mirrorCard) => mirrorCard.entryId === card.entryId) + 1),
             },
           ];
         }
@@ -2478,6 +2520,46 @@ export function RankboardApp() {
 
       return [];
     });
+
+    const existingNormalizedMirrorTitles = new Set(
+      mirrorCards.map((card) => normalizeTitleForComparison(card.title)).filter(Boolean),
+    );
+
+    for (const column of columns) {
+      if (column.id === columnId || column.mirrorsEntireBoard || column.excludeFromBoardMirrors) {
+        continue;
+      }
+
+      for (const sourceCard of cardsByColumn[column.id] ?? []) {
+        if (sourceCard.mirroredFromEntryId || usedSourceEntryIds.has(sourceCard.entryId)) {
+          continue;
+        }
+
+        const normalizedTitle = normalizeTitleForComparison(sourceCard.title);
+
+        if (!normalizedTitle || existingNormalizedMirrorTitles.has(normalizedTitle)) {
+          continue;
+        }
+
+        suggestions.push({
+          id: `create:${sourceCard.entryId}`,
+          kind: "create",
+          mirrorColumnId: columnId,
+          mirrorTitle: sourceCard.title,
+          sourceEntryId: sourceCard.entryId,
+          sourceCardTitle: sourceCard.title,
+          sourceSeries: sourceCard.series,
+          sourceImageUrl: sourceCard.imageUrl,
+          sourceImageStoragePath: sourceCard.imageStoragePath,
+          sourceReleaseYear: sourceCard.releaseYear,
+          sourceNotes: sourceCard.notes,
+          sourceCustomFieldValues: sourceCard.customFieldValues,
+          sourceColumnTitle: column.title,
+          enabled: false,
+          rank: 1,
+        });
+      }
+    }
 
     setPendingMirrorLinkSuggestions(suggestions);
 
@@ -2493,6 +2575,19 @@ export function RankboardApp() {
           ? {
               ...suggestion,
               enabled: !suggestion.enabled,
+            }
+          : suggestion,
+      ) ?? current,
+    );
+  }
+
+  function updatePendingMirrorLinkSuggestionRank(suggestionId: string, rank: number) {
+    setPendingMirrorLinkSuggestions((current) =>
+      current?.map((suggestion) =>
+        suggestion.id === suggestionId
+          ? {
+              ...suggestion,
+              rank,
             }
           : suggestion,
       ) ?? current,
@@ -2516,25 +2611,61 @@ export function RankboardApp() {
     setCardsByColumn((current) => {
       const nextState = { ...current };
 
-      for (const suggestion of enabledSuggestions) {
-        const sourceCard = Object.values(current)
-          .flat()
-          .find((card) => card.entryId === suggestion.sourceEntryId);
+      for (const [mirrorColumnId, columnSuggestions] of Object.entries(
+        enabledSuggestions.reduce<Record<string, typeof enabledSuggestions>>((acc, suggestion) => {
+          acc[suggestion.mirrorColumnId] = [...(acc[suggestion.mirrorColumnId] ?? []), suggestion];
+          return acc;
+        }, {}),
+      )) {
+        let mirrorCards = [...(nextState[mirrorColumnId] ?? [])];
 
-        if (!sourceCard) {
-          continue;
+        for (const suggestion of columnSuggestions.filter((item) => item.kind === "link")) {
+          mirrorCards = mirrorCards.map((mirrorCard) =>
+            mirrorCard.entryId === suggestion.mirrorEntryId
+              ? {
+                  ...mirrorCard,
+                  itemId: current[
+                    Object.keys(current).find((candidateColumnId) =>
+                      (current[candidateColumnId] ?? []).some((card) => card.entryId === suggestion.sourceEntryId),
+                    ) ?? ""
+                  ]?.find((card) => card.entryId === suggestion.sourceEntryId)?.itemId ?? mirrorCard.itemId,
+                  title: suggestion.sourceCardTitle,
+                  imageUrl: suggestion.sourceImageUrl,
+                  imageStoragePath: suggestion.sourceImageStoragePath,
+                  series: suggestion.sourceSeries,
+                  releaseYear: suggestion.sourceReleaseYear,
+                  notes: suggestion.sourceNotes,
+                  customFieldValues: suggestion.sourceCustomFieldValues,
+                  mirroredFromEntryId: suggestion.sourceEntryId,
+                }
+              : mirrorCard,
+          );
         }
 
-        const mirrorCards = nextState[suggestion.mirrorColumnId] ?? [];
-        nextState[suggestion.mirrorColumnId] = mirrorCards.map((mirrorCard) =>
-          mirrorCard.entryId === suggestion.mirrorEntryId
-            ? {
-                ...sourceCard,
-                entryId: mirrorCard.entryId,
-                mirroredFromEntryId: sourceCard.entryId,
-              }
-            : mirrorCard,
-        );
+        for (const suggestion of columnSuggestions
+          .filter((item) => item.kind === "create")
+          .sort((a, b) => a.rank - b.rank)) {
+          const insertionIndex = Math.max(0, Math.min(mirrorCards.length, suggestion.rank - 1));
+          mirrorCards.splice(insertionIndex, 0, {
+            entryId: makeId("mirror"),
+            itemId:
+              current[
+                Object.keys(current).find((candidateColumnId) =>
+                  (current[candidateColumnId] ?? []).some((card) => card.entryId === suggestion.sourceEntryId),
+                ) ?? ""
+              ]?.find((card) => card.entryId === suggestion.sourceEntryId)?.itemId ?? makeId("item"),
+            title: suggestion.sourceCardTitle,
+            imageUrl: suggestion.sourceImageUrl,
+            imageStoragePath: suggestion.sourceImageStoragePath,
+            series: suggestion.sourceSeries,
+            releaseYear: suggestion.sourceReleaseYear,
+            notes: suggestion.sourceNotes,
+            customFieldValues: suggestion.sourceCustomFieldValues,
+            mirroredFromEntryId: suggestion.sourceEntryId,
+          });
+        }
+
+        nextState[mirrorColumnId] = mirrorCards;
       }
 
       latestCardsByColumnRef.current = nextState;
@@ -3056,6 +3187,20 @@ export function RankboardApp() {
     setCardsByColumn(nextState);
     setEditingCardId((current) => (current === entryId ? null : current));
     queuePersistBoardState({ cardsByColumn: nextState });
+  }
+
+  function requestDeleteCard(columnId: string, entryId: string) {
+    const card = (cardsByColumn[columnId] ?? []).find((item) => item.entryId === entryId);
+
+    if (!card) {
+      return;
+    }
+
+    setPendingCardDelete({
+      columnId,
+      entryId,
+      title: card.title,
+    });
   }
 
   function openMoveCardModal(card: CardEntry) {
@@ -6017,7 +6162,7 @@ function copyCardToDraft(card: CardEntry) {
             if (editingCardId) {
               const columnId = findColumnIdForEntry(editingCardId);
               if (columnId) {
-                handleDeleteCard(columnId, editingCardId);
+                requestDeleteCard(columnId, editingCardId);
               }
             }
           }}
@@ -6591,10 +6736,10 @@ function copyCardToDraft(card: CardEntry) {
                   </div>
                 ) : (
                   pendingMirrorLinkSuggestions.map((suggestion) => (
-                    <button
+                    <div
                       key={suggestion.id}
                       className={clsx(
-                        "flex w-full items-start justify-between gap-4 rounded-3xl border p-4 text-left transition",
+                        "rounded-3xl border p-4 transition",
                         suggestion.enabled
                           ? isDarkMode
                             ? "border-white/15 bg-slate-950/50 hover:bg-slate-950/70"
@@ -6603,22 +6748,52 @@ function copyCardToDraft(card: CardEntry) {
                             ? "border-white/10 bg-slate-950/20 opacity-70 hover:bg-slate-950/40"
                             : "border-slate-200 bg-slate-50/40 opacity-70 hover:bg-slate-100",
                       )}
-                      onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
-                      type="button"
                     >
-                      <div>
-                        <p className="text-sm font-semibold">{suggestion.mirrorTitle}</p>
-                        <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                          Link to {suggestion.sourceColumnTitle}
-                        </p>
+                      <div className="flex items-start justify-between gap-4">
+                        <button
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                          type="button"
+                        >
+                          <p className="text-sm font-semibold">{suggestion.mirrorTitle}</p>
+                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                            {suggestion.kind === "link"
+                              ? `Link to ${suggestion.sourceColumnTitle}`
+                              : `Create clone from ${suggestion.sourceColumnTitle}`}
+                          </p>
+                        </button>
+                        <ToggleSwitch
+                          ariaLabel={`Toggle linking ${suggestion.mirrorTitle}`}
+                          enabled={suggestion.enabled}
+                          isDarkMode={isDarkMode}
+                          onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                        />
                       </div>
-                      <ToggleSwitch
-                        ariaLabel={`Toggle linking ${suggestion.mirrorTitle}`}
-                        enabled={suggestion.enabled}
-                        isDarkMode={isDarkMode}
-                        onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
-                      />
-                    </button>
+                      {suggestion.kind === "create" ? (
+                        <label className="mt-3 flex items-center gap-3 text-sm">
+                          <span className={clsx(isDarkMode ? "text-slate-300" : "text-slate-600")}>Rank</span>
+                          <input
+                            className={clsx(
+                              "w-20 rounded-xl border px-3 py-2 outline-none transition",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                                : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                            )}
+                            inputMode="numeric"
+                            min={1}
+                            onChange={(event) => {
+                              const nextRank = Number.parseInt(event.target.value || "1", 10);
+                              updatePendingMirrorLinkSuggestionRank(
+                                suggestion.id,
+                                Number.isFinite(nextRank) ? Math.max(1, nextRank) : 1,
+                              );
+                            }}
+                            type="number"
+                            value={suggestion.rank}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
                   ))
                 )}
               </div>
@@ -6646,6 +6821,80 @@ function copyCardToDraft(card: CardEntry) {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
                   onClick={() => setPendingMirrorLinkSuggestions(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingCardDelete ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingCardDelete(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Delete Card
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Delete this card?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    <strong>{pendingCardDelete.title}</strong> will be removed from this column.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingCardDelete(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={() => {
+                    handleDeleteCard(pendingCardDelete.columnId, pendingCardDelete.entryId);
+                    setPendingCardDelete(null);
+                  }}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Card
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingCardDelete(null)}
                   type="button"
                 >
                   Cancel

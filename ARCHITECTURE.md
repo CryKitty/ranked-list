@@ -103,6 +103,8 @@
 - The dedicated unlink icon was removed from the edit dialog to avoid redundant destructive affordances on mobile.
 - Card identity should never be derived from title text. Same-name cards must keep separate `itemId`s unless they were explicitly linked.
 - `Link Duplicates` in mirror columns is now a preview-and-confirm workflow; it should preserve card order and only attach links the user approves.
+- Mirror review now covers both relinking existing same-title cards and creating missing clones, with optional rank entry for new clones.
+- Card deletion from the edit dialog now goes through an in-app confirmation modal instead of deleting immediately.
 
 ## Component Split Status
 

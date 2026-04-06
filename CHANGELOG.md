@@ -39,6 +39,9 @@
 - Removed the redundant unlink icon button from the card edit dialog so unlinking flows only through the `Clone of:` chip.
 - Changed `Link Duplicates` into a preview-and-confirm flow so linking no longer happens immediately on tap.
 - Kept mirror relinking in-place so confirming links preserves the current mirror-column order.
+- Fixed mirror relinking so confirming a same-title match updates the existing mirror card in place instead of making it disappear.
+- Expanded the mirror-link review flow so it also surfaces source cards that are missing clones and lets the user choose a target rank before creating them.
+- Added an in-app confirmation modal before deleting a card from the edit dialog.
 
 ## 2026-04-03
 
