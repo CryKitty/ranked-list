@@ -9,6 +9,8 @@
 - Widened the drag auto-scroll edge zones so columns start scrolling sooner when a held card approaches the top or bottom.
 - Cross-column card moves now immediately refresh board-wide mirror columns in place, which helps preserve existing mirror clone ranks instead of letting them drift after a later sync.
 - Added `Move All` under column maintenance, with a target-column chooser and confirmation flow for moving every card in a column at once.
+- Reworked the in-column drop cue again so hovered insertion points become a visible `Drop Here` slot instead of relying only on a thin line hidden behind the dragged card.
+- Ranked mode now forcibly returns a column to manual ordering, and enabling A-Z / Z-A still turns Ranked off, so those mutually exclusive modes cannot be left half-on at the same time.
 
 ## 2026-04-04
 

@@ -3776,6 +3776,7 @@ function copyCardToDraft(card: CardEntry) {
           ? {
               ...column,
               dontRank: !column.dontRank,
+              sortMode: column.dontRank ? "manual" : getColumnSortMode(column),
             }
           : column,
       ),
@@ -6203,10 +6204,10 @@ function copyCardToDraft(card: CardEntry) {
             </div>
             <DndContext
               autoScroll={{
-                activator: AutoScrollActivator.Pointer,
-                acceleration: 12,
-                interval: 4,
-                threshold: { x: 0.12, y: 0.22 },
+                activator: AutoScrollActivator.DraggableRect,
+                acceleration: 14,
+                interval: 3,
+                threshold: { x: 90, y: 140 },
               }}
               sensors={sensors}
               collisionDetection={(args) => {
@@ -9301,7 +9302,18 @@ function AddCardRow({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  const rowContent = (
+  const rowContent = isDragMode && isOver ? (
+    <span
+      className={clsx(
+        "flex w-full items-center justify-center rounded-2xl border border-dashed px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] transition",
+        isDarkMode
+          ? "border-white/70 bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
+          : "border-slate-950/70 bg-white text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]",
+      )}
+    >
+      Drop Here
+    </span>
+  ) : (
     <>
       <span
         className={clsx(
@@ -9350,9 +9362,9 @@ function AddCardRow({
       <div
         ref={setNodeRef}
         className={clsx(
-          "group flex items-center gap-3 opacity-0",
+          "group flex items-center gap-3 opacity-0 transition",
           isDarkMode ? "text-slate-300" : "text-slate-400",
-          isDragMode ? "h-8 opacity-100" : alwaysVisible ? "h-8 opacity-100" : "h-4",
+          isDragMode ? "h-10 opacity-100" : alwaysVisible ? "h-8 opacity-100" : "h-4",
         )}
         aria-hidden="true"
       >
@@ -9367,7 +9379,7 @@ function AddCardRow({
       className={clsx(
         "group flex items-center gap-3 transition duration-150 hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
-        isDragMode ? "h-8 opacity-100" : alwaysVisible ? "h-8 opacity-100" : "h-4 opacity-0",
+        isDragMode ? (isOver ? "h-12 opacity-100" : "h-10 opacity-100") : alwaysVisible ? "h-8 opacity-100" : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
       onClick={onClick}
