@@ -6602,7 +6602,7 @@ function copyCardToDraft(card: CardEntry) {
                         fullCards={cardsByColumn[column.id] ?? []}
                         addLabel={boardVocabulary.singular}
                         collapseCards={activeBoardSettings.collapseCards}
-                        showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
+                        showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
                         showArtworkOnCards={shouldShowArtworkOnCards}
                         showTierHighlights={activeBoardSettings.showTierHighlights}
                         isDarkMode={isDarkMode}
@@ -6738,7 +6738,7 @@ function copyCardToDraft(card: CardEntry) {
                     <CardTile
                       card={activeDragCard}
                       collapseCards={activeBoardSettings.collapseCards}
-                      showSeries={Boolean(seriesFieldDefinition?.showOnCardFront) && !activeBoardSettings.collapseCards}
+                      showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
                       showArtwork={shouldShowArtworkOnCards}
                       showTierHighlights={activeBoardSettings.showTierHighlights}
                       frontFieldDefinitions={activeBoardFieldDefinitions}
@@ -10196,8 +10196,18 @@ function CardTile({
                   </div>
                 </div>
               ) : null}
-              <div className="mx-auto flex max-w-[calc(100%-4.75rem)] justify-center px-1 text-center">
-                <h3 className={clsx("truncate text-base font-bold leading-tight", collapsedTitleClass)}>
+              <div className="mx-auto flex max-w-[calc(100%-4.75rem)] flex-col items-center justify-center px-1 text-center">
+                {displaySeries ? (
+                  <p className="mb-1 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700/80">
+                    {displaySeries}
+                  </p>
+                ) : null}
+                <h3
+                  className={clsx(
+                    "line-clamp-2 text-sm font-bold leading-tight",
+                    collapsedTitleClass,
+                  )}
+                >
                   {displayTitle}
                 </h3>
               </div>

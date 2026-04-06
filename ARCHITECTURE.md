@@ -100,6 +100,7 @@
 - Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
 - Mobile quick-add should prefer the column currently centered in the horizontal lane.
 - Boards can override the noun used for cards with `settings.cardLabel`, and `Add ...` UI should prefer that over title heuristics.
+- Collapsed cards still use their own compact visual treatment, but they should now reuse the same series/title text derivation as full cards rather than dropping the series line entirely.
 
 ## Mirror Linking
 

@@ -2,6 +2,7 @@
 
 ## 2026-04-06
 
+- Collapsed cards now keep the same series/title display logic as full cards, so series can still appear above the title in compact mode and repeated series prefixes are still stripped from titles.
 - The share modal now keeps its search and series filters on the same row at matching widths, and the share-specific series filter now uses the same in-app dropdown style as the rest of Rankr.
 - Between-card and between-column add affordances now render above surrounding UI instead of getting clipped behind nearby cards or columns.
 - On mobile, the between-column divider no longer shows the add-column `+` by default; one tap reveals the plus and the second tap creates the column.
