@@ -1357,6 +1357,15 @@ export function RankboardApp() {
     title: string;
     siblingColumnTitle: string | null;
   } | null>(null);
+  const [pendingMirrorLinkSuggestions, setPendingMirrorLinkSuggestions] = useState<Array<{
+    id: string;
+    mirrorColumnId: string;
+    mirrorEntryId: string;
+    mirrorTitle: string;
+    sourceEntryId: string;
+    sourceColumnTitle: string;
+    enabled: boolean;
+  }> | null>(null);
   const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
@@ -2429,56 +2438,114 @@ export function RankboardApp() {
     if (!mirrorColumn?.mirrorsEntireBoard) {
       return;
     }
+    const mirrorCards = cardsByColumn[columnId] ?? [];
+    const suggestions = mirrorCards.flatMap((card) => {
+      if (card.mirroredFromEntryId) {
+        return [];
+      }
 
-    setCardsByColumn((current) => {
-      const mirrorCards = current[columnId] ?? [];
-      const normalizedSources = new Map<string, CardEntry>();
+      const normalizedTitle = normalizeTitleForComparison(card.title);
+
+      if (!normalizedTitle) {
+        return [];
+      }
 
       for (const column of columns) {
         if (column.id === columnId || column.mirrorsEntireBoard) {
           continue;
         }
 
-        for (const card of current[column.id] ?? []) {
-          if (card.mirroredFromEntryId) {
-            continue;
-          }
+        const sourceCard = (cardsByColumn[column.id] ?? []).find(
+          (candidate) =>
+            !candidate.mirroredFromEntryId &&
+            normalizeTitleForComparison(candidate.title) === normalizedTitle,
+        );
 
-          const normalizedTitle = normalizeTitleForComparison(card.title);
-
-          if (normalizedTitle && !normalizedSources.has(normalizedTitle)) {
-            normalizedSources.set(normalizedTitle, card);
-          }
+        if (sourceCard && sourceCard.itemId !== card.itemId) {
+          return [
+            {
+              id: `${card.entryId}:${sourceCard.entryId}`,
+              mirrorColumnId: columnId,
+              mirrorEntryId: card.entryId,
+              mirrorTitle: card.title,
+              sourceEntryId: sourceCard.entryId,
+              sourceColumnTitle: column.title,
+              enabled: true,
+            },
+          ];
         }
       }
 
-      const nextMirrorCards = mirrorCards.map((card) => {
-        if (card.mirroredFromEntryId) {
-          return card;
-        }
-
-        const sourceCard = normalizedSources.get(normalizeTitleForComparison(card.title));
-
-        if (!sourceCard) {
-          return card;
-        }
-
-        return {
-          ...sourceCard,
-          entryId: card.entryId,
-          mirroredFromEntryId: sourceCard.entryId,
-        };
-      });
-
-      return {
-        ...current,
-        [columnId]: nextMirrorCards,
-      };
+      return [];
     });
+
+    setPendingMirrorLinkSuggestions(suggestions);
 
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnMirrorMenuId(null);
+  }
+
+  function togglePendingMirrorLinkSuggestion(suggestionId: string) {
+    setPendingMirrorLinkSuggestions((current) =>
+      current?.map((suggestion) =>
+        suggestion.id === suggestionId
+          ? {
+              ...suggestion,
+              enabled: !suggestion.enabled,
+            }
+          : suggestion,
+      ) ?? current,
+    );
+  }
+
+  function applyPendingMirrorLinkSuggestions() {
+    if (!pendingMirrorLinkSuggestions) {
+      return;
+    }
+
+    const enabledSuggestions = pendingMirrorLinkSuggestions.filter((suggestion) => suggestion.enabled);
+
+    if (enabledSuggestions.length === 0) {
+      setPendingMirrorLinkSuggestions(null);
+      return;
+    }
+
+    let nextCardsSnapshot: Record<string, CardEntry[]> | null = null;
+
+    setCardsByColumn((current) => {
+      const nextState = { ...current };
+
+      for (const suggestion of enabledSuggestions) {
+        const sourceCard = Object.values(current)
+          .flat()
+          .find((card) => card.entryId === suggestion.sourceEntryId);
+
+        if (!sourceCard) {
+          continue;
+        }
+
+        const mirrorCards = nextState[suggestion.mirrorColumnId] ?? [];
+        nextState[suggestion.mirrorColumnId] = mirrorCards.map((mirrorCard) =>
+          mirrorCard.entryId === suggestion.mirrorEntryId
+            ? {
+                ...sourceCard,
+                entryId: mirrorCard.entryId,
+                mirroredFromEntryId: sourceCard.entryId,
+              }
+            : mirrorCard,
+        );
+      }
+
+      latestCardsByColumnRef.current = nextState;
+      nextCardsSnapshot = nextState;
+      return nextState;
+    });
+
+    setPendingMirrorLinkSuggestions(null);
+    queuePersistBoardState({
+      cardsByColumn: nextCardsSnapshot ?? undefined,
+    });
   }
 
   function unlinkMirroredCard(entryId: string) {
@@ -5064,24 +5131,35 @@ function copyCardToDraft(card: CardEntry) {
                         <span>Undo</span>
                       </button>
 
-                      <MenuSectionButton
-                        icon={<Sparkles className="h-4 w-4" />}
-                        label="Customization"
-                        isDarkMode={isDarkMode}
-                        isOpen={isCustomizationMenuOpen}
+                      <button
+                        className={clsx(
+                          "inline-flex h-[52px] w-full items-center justify-between gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
                         onClick={() => {
                           setIsCustomizationMenuOpen((current) => !current);
                           setIsMaintenanceMenuOpen(false);
                           setIsTransferMenuOpen(false);
                           setIsActionsMenuOpen(false);
                         }}
-                      />
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          Customization
+                        </span>
+                        <span className="text-xs opacity-70">{isCustomizationMenuOpen ? "▾" : "▸"}</span>
+                      </button>
 
-                      <MenuSectionButton
-                        icon={<Wrench className="h-4 w-4" />}
-                        label="Maintenance"
-                        isDarkMode={isDarkMode}
-                        isOpen={isMaintenanceMenuOpen}
+                      <button
+                        className={clsx(
+                          "inline-flex h-[52px] w-full items-center justify-between gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
                         onClick={() => {
                           setIsMaintenanceMenuOpen((current) => !current);
                           setIsBoardsMenuOpen(false);
@@ -5089,7 +5167,14 @@ function copyCardToDraft(card: CardEntry) {
                           setIsTransferMenuOpen(false);
                           setIsActionsMenuOpen(false);
                         }}
-                      />
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Wrench className="h-4 w-4" />
+                          Maintenance
+                        </span>
+                        <span className="text-xs opacity-70">{isMaintenanceMenuOpen ? "▾" : "▸"}</span>
+                      </button>
 
                       <div className="relative" data-actions-menu-root="true">
                         <button
@@ -5204,7 +5289,7 @@ function copyCardToDraft(card: CardEntry) {
                     </div>
 
                     {isCustomizationMenuOpen ? (
-                      <div className={clsx("sm:col-span-2 mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                      <div className={clsx("col-span-full mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
                         <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                           <span>Collapse Cards</span>
                           <ToggleSwitch
@@ -5247,7 +5332,7 @@ function copyCardToDraft(card: CardEntry) {
                     ) : null}
 
                     {isMaintenanceMenuOpen ? (
-                      <div className={clsx("sm:col-span-2 mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                      <div className={clsx("col-span-full mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
                         <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
                           <Trash2 className="h-4 w-4" />
                           Delete Duplicates
@@ -5936,11 +6021,6 @@ function copyCardToDraft(card: CardEntry) {
               }
             }
           }}
-          onUnlinkMirror={() => {
-            if (editingCardId) {
-              unlinkMirroredCard(editingCardId);
-            }
-          }}
           onImageUrlChange={(value) => {
             setEditingDuplicateAction(null);
             setEditingCardDraft((current) =>
@@ -6450,6 +6530,122 @@ function copyCardToDraft(card: CardEntry) {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
                   onClick={() => setPendingMirrorUnlink(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingMirrorLinkSuggestions ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingMirrorLinkSuggestions(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Mirror
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Link duplicates
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Review the matching titles found outside this mirror column. Confirm the links you want to create. The current order of this mirror column will stay exactly as-is.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingMirrorLinkSuggestions(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                {pendingMirrorLinkSuggestions.length === 0 ? (
+                  <div
+                    className={clsx(
+                      "rounded-3xl border px-4 py-6 text-sm",
+                      isDarkMode ? "border-white/10 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+                    )}
+                  >
+                    No same-title cards were found to link right now.
+                  </div>
+                ) : (
+                  pendingMirrorLinkSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.id}
+                      className={clsx(
+                        "flex w-full items-start justify-between gap-4 rounded-3xl border p-4 text-left transition",
+                        suggestion.enabled
+                          ? isDarkMode
+                            ? "border-white/15 bg-slate-950/50 hover:bg-slate-950/70"
+                            : "border-slate-200 bg-slate-50/70 hover:bg-slate-100"
+                          : isDarkMode
+                            ? "border-white/10 bg-slate-950/20 opacity-70 hover:bg-slate-950/40"
+                            : "border-slate-200 bg-slate-50/40 opacity-70 hover:bg-slate-100",
+                      )}
+                      onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                      type="button"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold">{suggestion.mirrorTitle}</p>
+                        <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                          Link to {suggestion.sourceColumnTitle}
+                        </p>
+                      </div>
+                      <ToggleSwitch
+                        ariaLabel={`Toggle linking ${suggestion.mirrorTitle}`}
+                        enabled={suggestion.enabled}
+                        isDarkMode={isDarkMode}
+                        onClick={() => togglePendingMirrorLinkSuggestion(suggestion.id)}
+                      />
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  disabled={pendingMirrorLinkSuggestions.length === 0}
+                  onClick={applyPendingMirrorLinkSuggestions}
+                  type="button"
+                >
+                  <Link2 className="h-4 w-4" />
+                  Confirm Links
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingMirrorLinkSuggestions(null)}
                   type="button"
                 >
                   Cancel
@@ -7932,7 +8128,7 @@ function BoardColumn({
                           {isFilterMenuOpen ? (
                             <div
                               className={clsx(
-                                "mt-1 flex flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                                "mt-1 flex max-h-[min(50vh,320px)] flex-col overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900"
                                   : "border-slate-200 bg-white",

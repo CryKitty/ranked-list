@@ -35,6 +35,10 @@
 - Renamed the mobile column move controls to `Move Left` and `Move Right`.
 - Exposed `Customization` and `Maintenance` directly in the mobile action sheet instead of nesting them behind the settings menu.
 - Removed the duplicate desktop share button from the board header.
+- Restyled the mobile `Customization` and `Maintenance` rows so they match the other action-sheet buttons and made their expanded panels span the full mobile sheet width.
+- Removed the redundant unlink icon button from the card edit dialog so unlinking flows only through the `Clone of:` chip.
+- Changed `Link Duplicates` into a preview-and-confirm flow so linking no longer happens immediately on tap.
+- Kept mirror relinking in-place so confirming links preserves the current mirror-column order.
 
 ## 2026-04-03
 

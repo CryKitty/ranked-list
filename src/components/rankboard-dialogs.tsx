@@ -6,7 +6,6 @@ import {
   Clapperboard,
   Copy,
   ImagePlus,
-  Link2,
   MoveVertical,
   Plus,
   Save,
@@ -89,7 +88,6 @@ export function EditCardDialog({
   onMove,
   onCopy,
   onDelete,
-  onUnlinkMirror,
   onToggleFieldSettings,
   onToggleFieldVisibility,
   normalizeDateFieldInput,
@@ -137,7 +135,6 @@ export function EditCardDialog({
   onMove: () => void;
   onCopy: () => void;
   onDelete: () => void;
-  onUnlinkMirror?: () => void;
   onToggleFieldSettings: () => void;
   onToggleFieldVisibility: (fieldId: string) => void;
   normalizeDateFieldInput: (value: string, format: NonNullable<BoardFieldDefinition["dateFormat"]>) => string;
@@ -383,9 +380,6 @@ export function EditCardDialog({
               <HoverLabelIconButton icon={<MoveVertical className="h-4 w-4" />} isDarkMode={isDarkMode} label="Move" onClick={onMove} />
               <HoverLabelIconButton icon={<Copy className="h-4 w-4" />} isDarkMode={isDarkMode} label="Copy" onClick={onCopy} />
               <HoverLabelIconButton icon={<Trash2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Delete" onClick={onDelete} />
-              {currentCardIsMirrored && onUnlinkMirror ? (
-                <HoverLabelIconButton icon={<Link2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Unlink" onClick={onUnlinkMirror} />
-              ) : null}
               <HoverLabelIconButton icon={<Settings2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Fields" onClick={onToggleFieldSettings} />
               {isEditFieldSettingsOpen ? (
                 <div className="absolute bottom-14 right-0 z-10">
