@@ -8,6 +8,11 @@
 - Share generation now visibly confirms that the URL was created and copied, and keeps the link visible for quick copy-again actions.
 - Shared views now expire after 24 hours instead of staying public indefinitely.
 - The shared-board page now honors the saved share view, only renders the chosen columns/cards, and keeps shared cards at full readable height instead of flex-shrinking them into strips.
+- Tightened the share modal so it scrolls within the viewport on mobile while keeping the action buttons visible at the bottom.
+- Narrowed the share-modal series control so the search and series fields fit more naturally on desktop.
+- Refreshing a share link now republishes to a fresh share slug and resets the 24-hour expiration window.
+- Fixed shared tier filtering so the tier limit is applied after the chosen series/search scope instead of against the full unfiltered column.
+- Compactened the shared-board header by removing the extra read-only line, dropping the column-count chip, and moving the active share chips up beside the `Rankr Share` label.
 - After dropping a card, the column now keeps that moved card in view instead of jumping a few cards away from it.
 - Desktop auto-scroll is slightly faster again.
 - Drag insertion rows now have a much wider hidden hit zone, extending into the surrounding card area so users no longer have to hover over a tiny exact gap to trigger the drop target.

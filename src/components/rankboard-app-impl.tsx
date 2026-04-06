@@ -4477,7 +4477,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   async function shareActiveBoard() {
-    const nextSlug = activeBoard.publicSlug ?? `${slugify(activeBoardTitle) || "board"}-${activeBoardId.slice(-8)}`;
+    const nextSlug = `${slugify(activeBoardTitle) || "board"}-${crypto.randomUUID().slice(0, 8)}`;
     const nextPublishedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const normalizedShareDraft = {
@@ -4507,6 +4507,7 @@ function copyCardToDraft(card: CardEntry) {
     latestBoardsRef.current = nextBoards;
     setBoards(nextBoards);
     queuePersistBoardState({ boards: nextBoards, activeBoardId });
+    setCopiedShareUrl(null);
     await copyShareUrlToClipboard(shareUrl);
     setSaveState("saved");
   }

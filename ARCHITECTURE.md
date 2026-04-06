@@ -154,8 +154,11 @@
   - `searchTerm`
   - `expiresAt`
 - Shared links remain read-only, but they no longer have to expose the entire board. The share page now filters the board down to the chosen columns and any requested tier/series/search view.
+- Tier filtering in the shared page is applied after the selected series/search scope has narrowed the column, so `Top 15` means the top 15 cards of the published filtered view rather than the top 15 of the raw underlying column.
 - Shared links should self-expire after 24 hours. The server loader rejects expired links using both `last_published_at` and the explicit `settings.publicShare.expiresAt` guard.
+- Re-publishing a share now issues a fresh slug instead of silently reusing the old one, which makes `Refresh Link` visibly produce a new link and restart the expiry window.
 - The share page must keep cards `shrink-0` inside the shared column scrollers so large boards do not collapse into unreadable strips.
+- The share modal itself should behave like a constrained sheet: scrollable body inside the viewport, persistent action row, and tighter desktop filter widths so the controls stay inside the dialog.
 
 ## Series Scraping
 
