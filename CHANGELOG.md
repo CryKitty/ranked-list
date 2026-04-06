@@ -175,3 +175,4 @@
 - Fixed collapsed-card theme handling so Lumos no longer inherits the dark collapsed surface, and adjusted collapsed titles to stay centered and wrap to two lines.
 - Simplified collapsed-card coloring so the full collapsed card now just uses the rank/tier color instead of mixing in extra dark fallback surfaces.
 - Removed the last collapsed-card dark background override so collapsed cards now fully respect their white/tier fill color in both Nox and Lumos.
+- Softened non-tier collapsed cards to an off-white in Lumos so they separate better from the board background, and tightened collapsed title sizing back to a single-line treatment.

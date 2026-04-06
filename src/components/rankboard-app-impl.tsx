@@ -9913,7 +9913,7 @@ function CardTile({
         ? "bg-cyan-300 text-cyan-950"
         : tierKey === "top20"
           ? "bg-fuchsia-300 text-fuchsia-950"
-          : "bg-white text-slate-950";
+          : "bg-slate-50 text-slate-950";
   const collapsedRankClass =
     "bg-white text-slate-950";
   const collapsedTitleClass = "text-slate-950";
@@ -10040,7 +10040,7 @@ function CardTile({
                 </div>
               ) : null}
               <div className="mx-auto flex max-w-[calc(100%-4.75rem)] justify-center px-1 text-center">
-                <h3 className={clsx("line-clamp-2 text-lg font-bold leading-tight", collapsedTitleClass)}>
+                <h3 className={clsx("truncate text-base font-bold leading-tight", collapsedTitleClass)}>
                   {displayTitle}
                 </h3>
               </div>

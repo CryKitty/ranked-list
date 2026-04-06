@@ -221,3 +221,4 @@
 - Collapsed card theming must remain mode-aware: Lumos uses light neutral surfaces for non-tier cards and keeps enough contrast for centered multi-line titles, while tier-highlighted collapsed cards keep readable dark text on the colored surface.
 - Collapsed cards now intentionally use the same fill color family as their rank badge across the whole tile, rather than layering extra fallback dark surfaces underneath.
 - Collapsed-card inner shells must not set their own hardcoded dark background, or they will override the intended white/tier surface classes entirely.
+- Non-tier collapsed cards now intentionally use an off-white surface in Lumos for separation, and collapsed titles are back to a tighter single-line layout to preserve more of long names at a glance.
