@@ -57,7 +57,7 @@ type ColumnOption = {
 
 type ShareColumnOption = Pick<ColumnDefinition, "id" | "title" | "accent">;
 
-function SeriesInput({
+export function SeriesInput({
   isDarkMode,
   label,
   name,

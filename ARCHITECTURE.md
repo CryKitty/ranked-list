@@ -214,3 +214,7 @@
 - The built-in `Artwork URL` field now uses `showOnCardFront` as the actual source of truth for whether card artwork renders on the face of the card.
 - The add-card dialog now uses an in-app series suggestion menu rather than only a datalist, so existing series stay discoverable on mobile and desktop while preserving freeform entry.
 - The between-column add-column affordance is still gap-neutral (`w-3`) but the floating plus treatment is intentionally larger and more contrasty so it reads as clickable without widening the lane.
+- The same in-app series suggestion control is now reused inside the Series Scraper review modal so maintenance edits match add/edit card behavior.
+- Series Scraper only proposes series edits now; it no longer surfaces a release-year field in the review UI.
+- Cards whose artwork is hidden or missing should render in the fallback face layout instead of using generated fallback images: centered title, bottom-left series, subtle decorative background.
+- Collapsed cards now present rank and title on the same line, and tier-highlighted collapsed cards use the tier color as the primary surface rather than only as an accent.

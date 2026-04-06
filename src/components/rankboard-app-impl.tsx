@@ -66,7 +66,7 @@ import {
   MenuSectionButton,
   ToggleSwitch,
 } from "@/components/rankboard-fields";
-import { AddCardDialog, BoardSetupDialog, EditCardDialog, ShareBoardDialog } from "@/components/rankboard-dialogs";
+import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
@@ -167,7 +167,6 @@ type SeriesScrapeSuggestion = {
   title: string;
   imageUrl: string;
   proposedSeries: string;
-  proposedReleaseYear: string;
 };
 
 type PendingMirrorLinkSuggestion = {
@@ -421,7 +420,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
     },
     {
       id: "artwork",
-      label: "Artwork URL",
+      label: "Artwork",
       type: "short_text",
       visible: true,
       showOnCardFront: true,
@@ -1226,11 +1225,6 @@ function stripSequelMarkers(title: string) {
     .trim();
 }
 
-function getSuggestedReleaseYearFromTitle(title: string) {
-  const match = title.match(/\b(19|20)\d{2}\b/);
-  return match?.[0] ?? "";
-}
-
 function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = []) {
   const trimmed = title.trim();
 
@@ -1642,7 +1636,7 @@ export function RankboardApp() {
   );
   const seriesFieldLabel = seriesFieldDefinition?.label ?? "Series";
   const releaseYearFieldLabel = releaseYearFieldDefinition?.label ?? "Release Year";
-  const imageFieldLabel = imageFieldDefinition?.label ?? "Artwork URL";
+  const imageFieldLabel = imageFieldDefinition?.label ?? "Artwork";
   const notesFieldLabel = notesFieldDefinition?.label ?? "Notes";
   const boardIconKeysById = new Map<string, BoardIconKey>();
   const usedBoardIcons = new Set<BoardIconKey>();
@@ -5112,8 +5106,6 @@ function copyCardToDraft(card: CardEntry) {
     const suggestions = await Promise.all(
       cardsToInspect.map(async ({ columnId, columnTitle, card }) => {
         const currentSeries = card.series.trim();
-        const currentReleaseYear = card.releaseYear?.trim() ?? "";
-
         if (currentSeries.length > 0) {
           return null;
         }
@@ -5121,15 +5113,11 @@ function copyCardToDraft(card: CardEntry) {
         const suggestedSeries =
           getSuggestedSeriesFromTitle(card.title, existingSeries) ||
           "";
-        const suggestedReleaseYear =
-          getSuggestedReleaseYearFromTitle(card.title);
 
         const shouldSuggestSeries =
           Boolean(suggestedSeries) && suggestedSeries.trim() !== currentSeries;
-        const shouldSuggestReleaseYear =
-          Boolean(suggestedReleaseYear) && suggestedReleaseYear.trim() !== currentReleaseYear;
 
-        if (!shouldSuggestSeries && !shouldSuggestReleaseYear) {
+        if (!shouldSuggestSeries) {
           return null;
         }
 
@@ -5142,7 +5130,6 @@ function copyCardToDraft(card: CardEntry) {
           title: card.title,
           imageUrl: card.imageUrl,
           proposedSeries: shouldSuggestSeries ? suggestedSeries : currentSeries,
-          proposedReleaseYear: shouldSuggestReleaseYear ? suggestedReleaseYear : currentReleaseYear,
         } satisfies SeriesScrapeSuggestion;
       }),
     );
@@ -5168,14 +5155,11 @@ function copyCardToDraft(card: CardEntry) {
         }
 
         const currentSeries = card.series.trim();
-        const currentReleaseYear = card.releaseYear?.trim() ?? "";
-
         if (currentSeries.length > 0) {
           return null;
         }
 
         const heuristicSeries = getSuggestedSeriesFromTitle(card.title, existingSeries) ?? "";
-        const heuristicReleaseYear = getSuggestedReleaseYearFromTitle(card.title);
 
         return [{
           id: `${column.id}-${card.entryId}`,
@@ -5186,7 +5170,6 @@ function copyCardToDraft(card: CardEntry) {
           title: card.title,
           imageUrl: card.imageUrl,
           proposedSeries: heuristicSeries || currentSeries,
-          proposedReleaseYear: heuristicReleaseYear || currentReleaseYear,
         }];
       }).filter((suggestion): suggestion is SeriesScrapeSuggestion => Boolean(suggestion)),
     );
@@ -5227,19 +5210,6 @@ function copyCardToDraft(card: CardEntry) {
     );
   }
 
-  function updateSeriesScrapeReleaseYear(suggestionId: string, proposedReleaseYear: string) {
-    setSeriesScrapeSuggestions((current) =>
-      current.map((suggestion) =>
-        suggestion.id === suggestionId
-          ? {
-              ...suggestion,
-              proposedReleaseYear,
-            }
-          : suggestion,
-      ),
-    );
-  }
-
   function removeSeriesScrapeSuggestion(suggestionId: string) {
     setSeriesScrapeSuggestions((current) => current.filter((suggestion) => suggestion.id !== suggestionId));
   }
@@ -5250,7 +5220,6 @@ function copyCardToDraft(card: CardEntry) {
         suggestion.itemId,
         {
           series: suggestion.proposedSeries.trim(),
-          releaseYear: suggestion.proposedReleaseYear.trim(),
         },
       ]),
     );
@@ -5271,7 +5240,6 @@ function copyCardToDraft(card: CardEntry) {
           return {
             ...card,
             series: updatedValues.series || card.series,
-            releaseYear: updatedValues.releaseYear || card.releaseYear,
           };
         });
       }
@@ -8274,7 +8242,7 @@ function copyCardToDraft(card: CardEntry) {
                       isDarkMode ? "border-white/10 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
                     )}
                   >
-                    Looking up likely series and release years...
+                    Looking up likely series...
                   </div>
                 ) : seriesScrapeSuggestions.length === 0 ? (
                   <div
@@ -8331,39 +8299,15 @@ function copyCardToDraft(card: CardEntry) {
                               Skip
                             </button>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="grid gap-2">
-                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                                Series
-                              </span>
-                              <input
-                                className={clsx(
-                                  "rounded-2xl border px-4 py-3 text-sm outline-none transition",
-                                  isDarkMode
-                                    ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                                )}
-                                value={suggestion.proposedSeries}
-                                onChange={(event) => updateSeriesScrapeSuggestion(suggestion.id, event.target.value)}
-                              />
-                            </label>
-                            <label className="grid gap-2">
-                              <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                                Year
-                              </span>
-                              <input
-                                inputMode="numeric"
-                                className={clsx(
-                                  "rounded-2xl border px-4 py-3 text-sm outline-none transition",
-                                  isDarkMode
-                                    ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                                )}
-                                value={suggestion.proposedReleaseYear}
-                                onChange={(event) => updateSeriesScrapeReleaseYear(suggestion.id, event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
-                              />
-                            </label>
-                          </div>
+                          <SeriesInput
+                            allSeries={allSeries}
+                            isDarkMode={isDarkMode}
+                            label="Series"
+                            name={`series-scrape-${suggestion.id}`}
+                            onChange={(value) => updateSeriesScrapeSuggestion(suggestion.id, value)}
+                            placeholder={boardVocabulary.seriesExamples}
+                            value={suggestion.proposedSeries}
+                          />
                         </div>
                       </div>
                     </div>
@@ -9934,7 +9878,8 @@ function CardTile({
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
-  const imageSource = showArtwork ? card.imageUrl || buildFallbackImage(card.title) : "";
+  const hasArtwork = showArtwork && Boolean(card.imageUrl?.trim());
+  const imageSource = hasArtwork ? card.imageUrl.trim() : "";
   const frontChips = frontFieldDefinitions
     .filter((field) => field.showOnCardFront && field.visible && !field.builtInKey)
     .map((field) => ({
@@ -9961,6 +9906,18 @@ function CardTile({
         : tierKey === "top20"
           ? "border-fuchsia-300/80"
           : "border-white/10";
+  const collapsedTierSurfaceClass =
+    tierKey === "top10"
+      ? "bg-amber-300/95"
+      : tierKey === "top15"
+        ? "bg-cyan-300/95"
+        : tierKey === "top20"
+          ? "bg-fuchsia-300/95"
+          : "bg-slate-900";
+  const collapsedRankClass =
+    tierKey === "top10" || tierKey === "top15" || tierKey === "top20"
+      ? "bg-white/85 text-slate-950"
+      : "bg-white text-slate-950";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -9985,6 +9942,7 @@ function CardTile({
       className={clsx(
         "group relative shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
+        collapseCards && collapsedTierSurfaceClass,
         tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
       )}
@@ -10006,9 +9964,17 @@ function CardTile({
           "relative overflow-hidden bg-slate-900 bg-center",
           collapseCards ? "min-h-[82px]" : "aspect-video",
         )}
-        style={{ backgroundColor: "#0f172a" }}
+        style={
+          !collapseCards && !hasArtwork
+            ? {
+                backgroundColor: "#0f172a",
+                backgroundImage:
+                  "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.08), transparent 34%), radial-gradient(circle at 78% 18%, rgba(255,255,255,0.05), transparent 28%), linear-gradient(135deg, rgba(148,163,184,0.12), rgba(15,23,42,0.02) 42%, rgba(148,163,184,0.09))",
+              }
+            : { backgroundColor: "#0f172a" }
+        }
       >
-        {!collapseCards && showArtwork ? (
+        {!collapseCards && hasArtwork ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -10032,12 +9998,15 @@ function CardTile({
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
         ) : null}
 
+        {!collapseCards ? (
         <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
           {rankBadge ? (
             <div
               className={clsx(
                 "rounded-full px-3 py-1 text-xs font-black",
-                tierKey === "top10"
+                collapseCards
+                  ? collapsedRankClass
+                  : tierKey === "top10"
                   ? "bg-amber-300 text-amber-950"
                   : tierKey === "top15"
                     ? "bg-cyan-300 text-cyan-950"
@@ -10055,20 +10024,55 @@ function CardTile({
             </div>
           ) : null}
         </div>
+        ) : null}
 
-        <div className={clsx("absolute left-0 right-0 p-4", collapseCards ? "bottom-1 pt-11" : "bottom-0")}>
-          {!collapseCards && displaySeries ? (
-            <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-              {displaySeries}
-            </p>
-          ) : null}
-          <h3 className={clsx("truncate font-bold text-white", collapseCards ? "text-center text-lg" : "text-xl")}>
-            {displayTitle}
-          </h3>
-          {!collapseCards && card.notes ? (
-            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
-          ) : null}
-        </div>
+        {collapseCards ? (
+          <div className="absolute inset-x-0 bottom-0 top-0 p-4">
+            <div className="flex min-h-full flex-col justify-end">
+              <div className="flex items-center gap-3">
+                {rankBadge ? (
+                  <div className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-black", collapsedRankClass)}>
+                    {rankBadge.label ? `${rankBadge.label} ${rankBadge.value}` : `${rankBadge.value}`}
+                  </div>
+                ) : null}
+                <h3 className={clsx("min-w-0 truncate font-bold", tierKey ? "text-slate-950" : "text-white", "text-lg")}>
+                  {displayTitle}
+                </h3>
+              </div>
+            </div>
+          </div>
+        ) : hasArtwork ? (
+          <div className="absolute left-0 right-0 bottom-0 p-4">
+            {displaySeries ? (
+              <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                {displaySeries}
+              </p>
+            ) : null}
+            <h3 className="truncate text-xl font-bold text-white">{displayTitle}</h3>
+            {card.notes ? (
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="absolute inset-0 p-4">
+            <div className="flex min-h-full flex-col">
+              <div className="flex-1" />
+              <div className="flex flex-1 items-center justify-center text-center">
+                <h3 className="line-clamp-3 text-2xl font-bold text-white">{displayTitle}</h3>
+              </div>
+              <div className="mt-auto flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  {displaySeries ? (
+                    <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                      {displaySeries}
+                    </p>
+                  ) : null}
+                </div>
+                {card.notes ? <p className="line-clamp-2 max-w-[45%] text-right text-sm leading-5 text-slate-300">{card.notes}</p> : null}
+              </div>
+            </div>
+          </div>
+        )}
 
         {!collapseCards && (frontChips.length > 0 || card.mirroredFromEntryId) ? (
           <div className="absolute right-3 top-3 z-10 flex max-w-[58%] flex-row-reverse items-center gap-2 overflow-hidden">

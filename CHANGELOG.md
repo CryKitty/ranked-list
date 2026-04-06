@@ -168,3 +168,7 @@
 - Defaulted new-board card labels from the board name when it reads like a collection (`Waifus` -> `Waifu`, `Games` -> `Game`) while still allowing later customization.
 - Upgraded the add-card `Series` field to an in-UI suggestion menu that surfaces existing series but still accepts new freeform values.
 - Wired the built-in `Artwork URL` field's `Front` toggle to actual card rendering so turning it off hides the card artwork/background image.
+- Simplified the Series Scraper review flow to series-only suggestions and gave its series field the same in-app existing-series picker used elsewhere in the app.
+- Renamed the built-in `Artwork URL` field label to `Artwork`.
+- Added an intentional no-art card-face layout for artwork-hidden or artwork-missing cards, with centered titles, bottom-left series text, and a subtle patterned fallback background.
+- Restyled collapsed cards so rank and title share one line, and tier-highlighted collapsed cards now use the tier color as the card surface.
