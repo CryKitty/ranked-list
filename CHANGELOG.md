@@ -5,7 +5,9 @@
 - The share modal now keeps its search and series filters on the same row at matching widths, and the share-specific series filter now uses the same in-app dropdown style as the rest of Rankr.
 - Between-card and between-column add affordances now render above surrounding UI instead of getting clipped behind nearby cards or columns.
 - On mobile, the between-column divider no longer shows the add-column `+` by default; one tap reveals the plus and the second tap creates the column.
-- The mobile action sheet now puts `Customization` on the left and `Maintenance` on the right, and removes the little side-caret icons from those buttons.
+- The mobile action sheet now puts `Maintenance` on the left and `Customization` on the right, keeps them full-width within the row, and removes the little side-caret icons from those buttons.
+- On mobile, the between-card add affordances now also use the same tap-to-reveal behavior as the between-column add affordances, and both kinds of revealed `+` buttons hide again if you scroll or tap elsewhere.
+- The share modal’s in-app series dropdown now opens upward so it is no longer clipped by the modal body/footer.
 - Authenticated remote hydration now drops the ephemeral signed-out starter board before merging in real saved boards, which should stop mobile from keeping a surprise blank board after login.
 - Reworked sharing into a real publish flow instead of a silent clipboard action.
 - Share now lives under the board Settings menu on desktop, and mobile now puts `Share` and `Settings` side-by-side in the action sheet.

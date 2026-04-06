@@ -259,6 +259,11 @@ type BoardBackupSnapshot = {
   boards: SavedBoard[];
 };
 
+type MobileAddCardTarget = {
+  columnId: string;
+  insertIndex: number;
+};
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -1579,6 +1584,7 @@ export function RankboardApp() {
   const [isEditFieldSettingsOpen, setIsEditFieldSettingsOpen] = useState(false);
   const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
   const [revealedMobileAddColumnIndex, setRevealedMobileAddColumnIndex] = useState<number | null>(null);
+  const [revealedMobileAddCardTarget, setRevealedMobileAddCardTarget] = useState<MobileAddCardTarget | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const boardIconUploadInputRef = useRef<HTMLInputElement | null>(null);
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
@@ -2026,6 +2032,7 @@ export function RankboardApp() {
   useEffect(() => {
     if (!isMobileViewport) {
       setRevealedMobileAddColumnIndex(null);
+      setRevealedMobileAddCardTarget(null);
     }
   }, [isMobileViewport]);
 
@@ -2151,7 +2158,40 @@ export function RankboardApp() {
 
   useEffect(() => {
     setRevealedMobileAddColumnIndex(null);
+    setRevealedMobileAddCardTarget(null);
   }, [activeBoardId, columns.length]);
+
+  useEffect(() => {
+    if (!revealedMobileAddColumnIndex && !revealedMobileAddCardTarget) {
+      return;
+    }
+
+    function clearIfOutside(event: Event) {
+      const target = event.target as HTMLElement | null;
+
+      if (target?.closest("[data-mobile-inline-add-root='true']")) {
+        return;
+      }
+
+      setRevealedMobileAddColumnIndex(null);
+      setRevealedMobileAddCardTarget(null);
+    }
+
+    function clearOnScroll() {
+      setRevealedMobileAddColumnIndex(null);
+      setRevealedMobileAddCardTarget(null);
+    }
+
+    window.addEventListener("pointerdown", clearIfOutside);
+    window.addEventListener("touchstart", clearIfOutside);
+    window.addEventListener("scroll", clearOnScroll, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", clearIfOutside);
+      window.removeEventListener("touchstart", clearIfOutside);
+      window.removeEventListener("scroll", clearOnScroll, true);
+    };
+  }, [revealedMobileAddCardTarget, revealedMobileAddColumnIndex]);
 
   useEffect(() => {
     try {
@@ -5904,7 +5944,60 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+                      <div className="col-span-2 grid grid-cols-2 gap-3 sm:col-span-2">
+                        <div className="space-y-2">
+                          <button
+                            className={clsx(
+                              "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                            )}
+                            onClick={() => {
+                              setIsMaintenanceMenuOpen((current) => !current);
+                              setIsBoardsMenuOpen(false);
+                              setIsCustomizationMenuOpen(false);
+                              setIsTransferMenuOpen(false);
+                              setIsActionsMenuOpen(false);
+                            }}
+                            type="button"
+                          >
+                            <span className="inline-flex items-center justify-center gap-2 text-center">
+                              <Wrench className="h-4 w-4" />
+                              Maintenance
+                            </span>
+                          </button>
+                          {isMaintenanceMenuOpen ? (
+                            <div className={clsx("space-y-1 rounded-2xl px-2 pb-2 pt-1", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
+                                <Trash2 className="h-4 w-4" />
+                                Delete Duplicates
+                              </button>
+                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
+                                <Sparkles className="h-4 w-4" />
+                                Tidy Titles
+                              </button>
+                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
+                                <WandSparkles className="h-4 w-4" />
+                                Series Scraper
+                              </button>
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  boards.length <= 1 && "cursor-not-allowed opacity-50",
+                                )}
+                                disabled={boards.length <= 1}
+                                onClick={() => requestDeleteBoard()}
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete Board
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
                         <div className="space-y-2">
                           <button
                             className={clsx(
@@ -5973,59 +6066,6 @@ function copyCardToDraft(card: CardEntry) {
                               >
                                 <span>Fields</span>
                                 <Settings2 className="h-4 w-4 opacity-70" />
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="space-y-2">
-                          <button
-                            className={clsx(
-                              "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                            )}
-                            onClick={() => {
-                              setIsMaintenanceMenuOpen((current) => !current);
-                              setIsBoardsMenuOpen(false);
-                              setIsCustomizationMenuOpen(false);
-                              setIsTransferMenuOpen(false);
-                              setIsActionsMenuOpen(false);
-                            }}
-                            type="button"
-                          >
-                            <span className="inline-flex items-center justify-center gap-2 text-center">
-                              <Wrench className="h-4 w-4" />
-                              Maintenance
-                            </span>
-                          </button>
-                          {isMaintenanceMenuOpen ? (
-                            <div className={clsx("space-y-1 rounded-2xl px-2 pb-2 pt-1", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
-                                <Trash2 className="h-4 w-4" />
-                                Delete Duplicates
-                              </button>
-                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
-                                <Sparkles className="h-4 w-4" />
-                                Tidy Titles
-                              </button>
-                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
-                                <WandSparkles className="h-4 w-4" />
-                                Series Scraper
-                              </button>
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                  boards.length <= 1 && "cursor-not-allowed opacity-50",
-                                )}
-                                disabled={boards.length <= 1}
-                                onClick={() => requestDeleteBoard()}
-                                type="button"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete Board
                               </button>
                             </div>
                           ) : null}
@@ -6566,6 +6606,7 @@ function copyCardToDraft(card: CardEntry) {
                         showArtworkOnCards={shouldShowArtworkOnCards}
                         showTierHighlights={activeBoardSettings.showTierHighlights}
                         isDarkMode={isDarkMode}
+                        isMobileViewport={isMobileViewport}
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
                         isCardDragging={isCardDragging}
@@ -6664,6 +6705,8 @@ function copyCardToDraft(card: CardEntry) {
                         onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
                         onMoveColumnRight={(columnId) => moveColumnByDirection(columnId, "right")}
                         draggingColumnId={draggingColumnId}
+                        revealedMobileAddCardTarget={revealedMobileAddCardTarget}
+                        onRevealMobileAddCardTarget={setRevealedMobileAddCardTarget}
                       />
                       <AddColumnButton
                         inline
@@ -8734,6 +8777,7 @@ function AddColumnButton({
 
   return (
     <button
+      data-mobile-inline-add-root="true"
       className={clsx(
         inline
           ? "group relative z-[70] flex min-h-[720px] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:snap-align-none"
@@ -8924,6 +8968,7 @@ function BoardColumn({
   showArtworkOnCards,
   showTierHighlights,
   isDarkMode,
+  isMobileViewport,
   frontFieldDefinitions,
   disableAddAffordances,
   isCardDragging,
@@ -8969,6 +9014,8 @@ function BoardColumn({
   onMoveColumnLeft,
   onMoveColumnRight,
   draggingColumnId,
+  revealedMobileAddCardTarget,
+  onRevealMobileAddCardTarget,
 }: {
   column: ColumnDefinition;
   fullCards: CardEntry[];
@@ -8978,6 +9025,7 @@ function BoardColumn({
   showArtworkOnCards: boolean;
   showTierHighlights: boolean;
   isDarkMode: boolean;
+  isMobileViewport: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
   isCardDragging: boolean;
@@ -9028,6 +9076,8 @@ function BoardColumn({
   onMoveColumnLeft: (columnId: string) => void;
   onMoveColumnRight: (columnId: string) => void;
   draggingColumnId: string | null;
+  revealedMobileAddCardTarget: MobileAddCardTarget | null;
+  onRevealMobileAddCardTarget: React.Dispatch<React.SetStateAction<MobileAddCardTarget | null>>;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -9684,7 +9734,10 @@ function BoardColumn({
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 hideAction={!isCardDragging && tierFilteredCards.length === 0}
+                isMobileViewport={isMobileViewport}
+                mobileArmed={revealedMobileAddCardTarget?.columnId === column.id && revealedMobileAddCardTarget.insertIndex === 0}
                 interactive={!disableAddAffordances}
+                onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: 0 })}
                 onClick={() => onAddCard(column.id, 0)}
               />
               {tierFilteredCards.map((card, index) => (
@@ -9713,7 +9766,13 @@ function BoardColumn({
                     isGapSuppressed={isDragGapSuppressed}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
+                    isMobileViewport={isMobileViewport}
+                    mobileArmed={
+                      revealedMobileAddCardTarget?.columnId === column.id &&
+                      revealedMobileAddCardTarget.insertIndex === index + 1
+                    }
                     interactive={!disableAddAffordances}
+                    onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: index + 1 })}
                     onClick={() => onAddCard(column.id, index + 1)}
                   />
                 </div>
@@ -9762,7 +9821,10 @@ function AddCardRow({
   insertIndex,
   alwaysVisible = false,
   hideAction = false,
+  isMobileViewport = false,
+  mobileArmed = false,
   interactive = true,
+  onArm,
   onClick,
 }: {
   columnId: string;
@@ -9772,7 +9834,10 @@ function AddCardRow({
   insertIndex: number;
   alwaysVisible?: boolean;
   hideAction?: boolean;
+  isMobileViewport?: boolean;
+  mobileArmed?: boolean;
   interactive?: boolean;
+  onArm?: () => void;
   onClick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -9786,7 +9851,16 @@ function AddCardRow({
         : "-my-14 py-14"
     : "";
 
-  const rowContent = isDragMode || hideAction ? null : (
+  const handleClick = () => {
+    if (isMobileViewport && !isDragMode && !mobileArmed) {
+      onArm?.();
+      return;
+    }
+
+    onClick();
+  };
+
+  const rowContent = isDragMode || hideAction || (isMobileViewport && !mobileArmed) ? null : (
     <span
       className={clsx(
         "flex h-8 w-8 items-center justify-center rounded-full border transition",
@@ -9805,6 +9879,7 @@ function AddCardRow({
     return (
       <div
         ref={setNodeRef}
+        data-mobile-inline-add-root="true"
         className={clsx(
           "group relative z-[60] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
@@ -9831,6 +9906,7 @@ function AddCardRow({
   return (
     <button
       ref={setNodeRef}
+      data-mobile-inline-add-root="true"
       className={clsx(
         "group relative z-[60] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
@@ -9845,10 +9921,12 @@ function AddCardRow({
                 : "h-3 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
-            : "h-4 opacity-0",
+            : isMobileViewport
+              ? "h-4 opacity-100"
+              : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
-      onClick={onClick}
+      onClick={handleClick}
       type="button"
       aria-label="Add game here"
     >

@@ -166,11 +166,13 @@ function SeriesFilterInput({
   value,
   allSeries,
   onChange,
+  menuPlacement = "down",
 }: {
   isDarkMode: boolean;
   value: string;
   allSeries: string[];
   onChange: (value: string) => void;
+  menuPlacement?: "up" | "down";
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -229,7 +231,8 @@ function SeriesFilterInput({
         {isOpen ? (
           <div
             className={clsx(
-              "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+              "absolute left-0 right-0 z-20 max-h-56 overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+              menuPlacement === "up" ? "bottom-[calc(100%+0.5rem)]" : "top-[calc(100%+0.5rem)]",
               isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
             )}
           >
@@ -1100,7 +1103,7 @@ export function ShareBoardDialog({
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "relative flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          "relative flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-visible rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
@@ -1129,7 +1132,7 @@ export function ShareBoardDialog({
           </button>
         </div>
 
-        <div className="mt-6 flex-1 overflow-y-auto pr-1">
+        <div className="mt-6 flex-1 overflow-y-auto overflow-x-visible pr-1">
           <div className="grid gap-5">
             <section className="grid gap-3">
               <div className="flex items-center gap-2">
@@ -1199,6 +1202,7 @@ export function ShareBoardDialog({
                 <SeriesFilterInput
                   allSeries={allSeries}
                   isDarkMode={isDarkMode}
+                  menuPlacement="up"
                   onChange={onSeriesChange}
                   value={selectedSeriesFilter}
                 />

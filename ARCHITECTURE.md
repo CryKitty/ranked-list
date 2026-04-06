@@ -86,12 +86,13 @@
 - Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Those between-column add affordances should render above nearby cards/columns, and on mobile they now require a first tap to reveal the plus before a second tap creates the column.
+- The same tap-to-reveal pattern now applies to between-card add affordances on mobile, and any revealed inline add control should collapse again if the user scrolls or taps elsewhere.
 - Mobile keeps more explicit inline affordances where hover is unavailable.
 - The mobile action sheet now exposes `Customization` and `Maintenance` directly, while account/theme/import-export actions stay under `Settings`.
 - On mobile, `Share` and `Settings` should sit side-by-side in the action sheet, with board-level customization/maintenance rows below them.
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
-- On mobile, the `Customization` row should sit to the left of `Maintenance`, both rows should stay visually centered like the other action buttons, and their detail panels should open directly beneath their own buttons.
-- Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls, and the share modal now uses that same treatment too.
+- On mobile, the `Maintenance` row should sit to the left of `Customization`, both rows should fill the row evenly, and their detail panels should open directly beneath their own buttons.
+- Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls, and the share modal now uses that same treatment too. The share-modal series menu opens upward to avoid modal clipping.
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
