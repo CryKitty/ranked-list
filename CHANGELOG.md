@@ -2,6 +2,11 @@
 
 ## 2026-04-06
 
+- Tier List mobile cards now use a tighter portrait-style, image-first treatment, while desktop Tier List cards keep their text but use a slightly smaller/lower title treatment.
+- Tier List row rails are narrower now, row gaps are tighter, and both the row options button and row add button stack vertically in the rail.
+- The between-row `+ Add Row` affordance now follows the same reveal pattern as the kanban add controls: hover/focus on desktop, tap-to-reveal on mobile.
+- Tier List horizontal drop gaps are wider and sized to the actual card footprint, which should make desktop insert targets much easier to hit.
+- Tier List conversion/copy handoff now also resets the previous snapshot and row-options anchor state before activating the new board, to reduce the remaining crashy “page couldn’t load” handoff cases.
 - New-board creation now uses the same synchronized board/active-board handoff as board conversion, which should prevent the tier-list crash path seen after conversion or early saves on a new tier-list board.
 - Opening board-layout conversion from the mobile maintenance sheet now closes the action sheet immediately so the conversion modal doesn’t look like it failed to open.
 - Tier List row rails are a bit narrower now, the gap between rows is smaller, and the rail buttons now stack vertically.

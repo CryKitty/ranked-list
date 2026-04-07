@@ -1779,6 +1779,7 @@ export function RankboardApp() {
   const [isBoardFieldSettingsModalOpen, setIsBoardFieldSettingsModalOpen] = useState(false);
   const [revealedMobileAddColumnIndex, setRevealedMobileAddColumnIndex] = useState<number | null>(null);
   const [revealedMobileAddCardTarget, setRevealedMobileAddCardTarget] = useState<MobileAddCardTarget | null>(null);
+  const [revealedMobileAddTierRowIndex, setRevealedMobileAddTierRowIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const boardIconUploadInputRef = useRef<HTMLInputElement | null>(null);
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
@@ -2240,6 +2241,7 @@ export function RankboardApp() {
     if (!isMobileViewport) {
       setRevealedMobileAddColumnIndex(null);
       setRevealedMobileAddCardTarget(null);
+      setRevealedMobileAddTierRowIndex(null);
     }
   }, [isMobileViewport]);
 
@@ -2366,6 +2368,7 @@ export function RankboardApp() {
   useEffect(() => {
     setRevealedMobileAddColumnIndex(null);
     setRevealedMobileAddCardTarget(null);
+    setRevealedMobileAddTierRowIndex(null);
   }, [activeBoardId, columns.length]);
 
   useEffect(() => {
@@ -2386,7 +2389,11 @@ export function RankboardApp() {
   }, [tierRowOptionsState]);
 
   useEffect(() => {
-    if (!revealedMobileAddColumnIndex && !revealedMobileAddCardTarget) {
+    if (
+      !revealedMobileAddColumnIndex &&
+      !revealedMobileAddCardTarget &&
+      revealedMobileAddTierRowIndex === null
+    ) {
       return;
     }
 
@@ -2399,11 +2406,13 @@ export function RankboardApp() {
 
       setRevealedMobileAddColumnIndex(null);
       setRevealedMobileAddCardTarget(null);
+      setRevealedMobileAddTierRowIndex(null);
     }
 
     function clearOnScroll() {
       setRevealedMobileAddColumnIndex(null);
       setRevealedMobileAddCardTarget(null);
+      setRevealedMobileAddTierRowIndex(null);
     }
 
     window.addEventListener("pointerdown", clearIfOutside);
@@ -2415,7 +2424,7 @@ export function RankboardApp() {
       window.removeEventListener("touchstart", clearIfOutside);
       window.removeEventListener("scroll", clearOnScroll, true);
     };
-  }, [revealedMobileAddCardTarget, revealedMobileAddColumnIndex]);
+  }, [revealedMobileAddCardTarget, revealedMobileAddColumnIndex, revealedMobileAddTierRowIndex]);
 
   useEffect(() => {
     try {
@@ -5459,6 +5468,10 @@ function copyCardToDraft(card: CardEntry) {
     const nextBoards = [...boards, nextBoard];
 
     skipNextHistoryRef.current = true;
+    previousSnapshotRef.current = {
+      columns: nextBoard.columns,
+      cardsByColumn: nextBoard.cardsByColumn,
+    };
     latestBoardsRef.current = nextBoards;
     latestActiveBoardIdRef.current = nextBoard.id;
     latestColumnsRef.current = nextBoard.columns;
@@ -5473,6 +5486,7 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
+    setTierRowOptionsState(null);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
     setIsMaintenanceMenuOpen(false);
@@ -7335,6 +7349,7 @@ function copyCardToDraft(card: CardEntry) {
                           column={column}
                           frontFieldDefinitions={activeBoardFieldDefinitions}
                           isDarkMode={isDarkMode}
+                          isMobileViewport={isMobileViewport}
                           isEditingColumn={editingColumnId === column.id}
                           editingColumnDraft={editingColumnDraft}
                           isUnsortedRow={column.id === unsortedColumnId}
@@ -7353,6 +7368,13 @@ function copyCardToDraft(card: CardEntry) {
                         {column.id !== unsortedColumnId ? (
                           <TierListAddRowDivider
                             isDarkMode={isDarkMode}
+                            isMobileViewport={isMobileViewport}
+                            mobileArmed={revealedMobileAddTierRowIndex === columns.findIndex((item) => item.id === column.id) + 1}
+                            onArm={() =>
+                              setRevealedMobileAddTierRowIndex(
+                                columns.findIndex((item) => item.id === column.id) + 1,
+                              )
+                            }
                             onClick={() => addTierListRowAt(columns.findIndex((item) => item.id === column.id) + 1)}
                           />
                         ) : null}
@@ -7516,7 +7538,11 @@ function copyCardToDraft(card: CardEntry) {
                         <div
                           className={clsx(
                             "pointer-events-none rotate-[1deg] opacity-70 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
-                            activeBoardLayout === "tier-list" ? "w-[104px] sm:w-[156px]" : "w-[224px]",
+                            activeBoardLayout === "tier-list"
+                              ? isMobileViewport
+                                ? "w-[72px]"
+                                : "w-[156px]"
+                              : "w-[224px]",
                           )}
                         >
                           <CardTile
@@ -7528,6 +7554,7 @@ function copyCardToDraft(card: CardEntry) {
                             frontFieldDefinitions={activeBoardFieldDefinitions}
                             rankBadge={activeDragRankBadge}
                             forceSquare={activeBoardLayout === "tier-list" && activeDragColumn?.title.trim().toLowerCase() !== "unsorted"}
+                            compactImageOnly={activeBoardLayout === "tier-list" && isMobileViewport}
                           />
                         </div>
                       ) : null}
@@ -10945,6 +10972,7 @@ function TierListRow({
   showSeriesOnCards,
   showArtworkOnCards,
   isDarkMode,
+  isMobileViewport,
   frontFieldDefinitions,
   isEditingColumn,
   editingColumnDraft,
@@ -10966,6 +10994,7 @@ function TierListRow({
   showSeriesOnCards: boolean;
   showArtworkOnCards: boolean;
   isDarkMode: boolean;
+  isMobileViewport: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   isEditingColumn: boolean;
   editingColumnDraft: ColumnEditorDraft | null;
@@ -10987,11 +11016,12 @@ function TierListRow({
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
 
   return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-stretch gap-2">
+    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2 items-stretch sm:grid-cols-[72px_minmax(0,1fr)]">
       <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
         <div
+          tabIndex={0}
           className={clsx(
-            "group/rowrail relative flex h-full min-h-[176px] items-center justify-center rounded-[27px] px-3 py-4 text-center",
+            "group/rowrail relative flex h-full min-h-[152px] items-center justify-center rounded-[27px] px-2 py-3 text-center outline-none sm:min-h-[176px] sm:px-3 sm:py-4",
             isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
           )}
         >
@@ -11039,7 +11069,7 @@ function TierListRow({
               <span
                 className={clsx(
                   "font-black tracking-tight",
-                  useVerticalLabel ? "text-xl" : trimmedColumnTitle.length === 1 ? "text-2xl leading-none" : "text-base leading-tight",
+                  useVerticalLabel ? "text-lg sm:text-xl" : trimmedColumnTitle.length === 1 ? "text-[1.7rem] leading-none sm:text-2xl" : "text-sm leading-tight sm:text-base",
                 )}
                 style={
                   useVerticalLabel
@@ -11105,7 +11135,7 @@ function TierListRow({
         >
           <div
             className={clsx(
-              "min-h-[176px] items-start gap-3 pb-1",
+              "min-h-[152px] items-start gap-2 pb-1 sm:min-h-[176px] sm:gap-3",
               isUnsortedRow ? "flex overflow-x-auto" : "flex flex-wrap overflow-visible",
             )}
             data-column-scroll-id={column.id}
@@ -11138,8 +11168,9 @@ function TierListRow({
                       isDragging={isAnyCardDragging}
                       isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
                       isSquare
+                      isMobileViewport={isMobileViewport}
                     />
-                    <div className="w-[104px] shrink-0 sm:w-[176px]">
+                    <div className="w-[72px] shrink-0 sm:w-[176px]">
                       <SortableCard
                         card={card}
                         collapseCards={collapseCards}
@@ -11151,6 +11182,7 @@ function TierListRow({
                         isAnyCardDragging={isAnyCardDragging}
                         rankBadge={null}
                         onEdit={() => onEditCard(card)}
+                        compactImageOnly={isMobileViewport}
                       />
                     </div>
                   </Fragment>
@@ -11162,6 +11194,7 @@ function TierListRow({
                   isDragging={isAnyCardDragging}
                   isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
                   isSquare
+                  isMobileViewport={isMobileViewport}
                 />
               </>
             )}
@@ -11174,29 +11207,60 @@ function TierListRow({
 
 function TierListAddRowDivider({
   isDarkMode,
+  isMobileViewport,
+  mobileArmed = false,
+  onArm,
   onClick,
 }: {
   isDarkMode: boolean;
+  isMobileViewport: boolean;
+  mobileArmed?: boolean;
+  onArm?: () => void;
   onClick: () => void;
 }) {
+  const handleClick = () => {
+    if (isMobileViewport && !mobileArmed) {
+      onArm?.();
+      return;
+    }
+
+    onClick();
+  };
+
   return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-      <div className="flex items-center justify-center">
+    <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[72px_minmax(0,1fr)]">
+      <div
+        className="group flex items-center justify-center"
+        data-mobile-inline-add-root="true"
+        tabIndex={0}
+        onClick={() => {
+          if (isMobileViewport && !mobileArmed) {
+            onArm?.();
+          }
+        }}
+      >
         <div className="group relative">
           <button
             aria-label="Add row"
             className={clsx(
-              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
+              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
               isDarkMode
                 ? "border-white/15 bg-slate-950/90 text-white hover:border-white/35 hover:bg-slate-900"
                 : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
+              isMobileViewport
+                ? mobileArmed
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 pointer-events-none"
+                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
             )}
-            onClick={onClick}
+            onClick={handleClick}
             type="button"
           >
             <Plus className="h-5 w-5" />
           </button>
-          <HoverTooltip isDarkMode={isDarkMode} label="Add Row" />
+          {!isMobileViewport || mobileArmed ? (
+            <HoverTooltip isDarkMode={isDarkMode} label={isMobileViewport ? "Add Row" : "Add Row"} />
+          ) : null}
         </div>
       </div>
       <div />
@@ -11211,6 +11275,7 @@ function TierListInsertSlot({
   isDragging,
   isGapSuppressed,
   isSquare,
+  isMobileViewport,
 }: {
   columnId: string;
   insertIndex: number;
@@ -11218,6 +11283,7 @@ function TierListInsertSlot({
   isDragging: boolean;
   isGapSuppressed: boolean;
   isSquare: boolean;
+  isMobileViewport: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: makeInsertDropId(columnId, insertIndex),
@@ -11229,13 +11295,25 @@ function TierListInsertSlot({
     <div
       ref={setNodeRef}
       className={clsx(
-        "shrink-0 transition-all duration-200 ease-out",
+        "shrink-0 transition-[width,height,margin,opacity] duration-200 ease-out",
         isDragging && !isGapSuppressed
           ? expanded
-            ? (isSquare ? "mx-0 w-[88px] sm:w-[148px]" : "mx-0 w-[120px] sm:w-[184px]")
-            : "-mx-3 w-6"
+            ? (isSquare
+                ? isMobileViewport
+                  ? "mx-0 w-[72px]"
+                  : "mx-0 w-[176px]"
+                : "mx-0 w-[120px] sm:w-[184px]")
+            : isSquare
+              ? isMobileViewport
+                ? "-mx-2 w-8"
+                : "-mx-4 w-10"
+              : "-mx-3 w-6"
           : "mx-0 w-0",
-        isSquare ? "h-[104px] sm:h-[176px]" : "h-[84px] sm:h-[124px]",
+        isSquare
+          ? isMobileViewport
+            ? "h-[108px]"
+            : "h-[176px]"
+          : "h-[84px] sm:h-[124px]",
       )}
     >
       <div
@@ -11390,6 +11468,7 @@ function SortableCard({
   onEdit,
   isAnyCardDragging = false,
   forceSquare = false,
+  compactImageOnly = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -11402,6 +11481,7 @@ function SortableCard({
   onEdit: () => void;
   isAnyCardDragging?: boolean;
   forceSquare?: boolean;
+  compactImageOnly?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -11445,6 +11525,7 @@ function SortableCard({
         secondaryRankBadge={secondaryRankBadge}
         isDragging={isDragging}
         forceSquare={forceSquare}
+        compactImageOnly={compactImageOnly}
         dragProps={{ ...attributes, ...listeners }}
         onEdit={onEdit}
       />
@@ -11466,6 +11547,7 @@ function CardTile({
   onEdit,
   clickToEdit = false,
   forceSquare = false,
+  compactImageOnly = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -11480,6 +11562,7 @@ function CardTile({
   onEdit?: () => void;
   clickToEdit?: boolean;
   forceSquare?: boolean;
+  compactImageOnly?: boolean;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
@@ -11572,7 +11655,7 @@ function CardTile({
           className={clsx(
             "relative overflow-hidden rounded-[28px] bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
-            collapseCards ? "min-h-[82px]" : forceSquare ? "aspect-square" : "aspect-video",
+            collapseCards ? "min-h-[82px]" : compactImageOnly ? "aspect-[2/3]" : forceSquare ? "aspect-square" : "aspect-video",
           )}
         style={
           collapseCards
@@ -11606,11 +11689,11 @@ function CardTile({
             />
           </>
         ) : null}
-        {!collapseCards ? (
+        {!collapseCards && !compactImageOnly ? (
           <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
         ) : null}
 
-        {!collapseCards ? (
+        {!collapseCards && !compactImageOnly ? (
         <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
           {rankBadge ? (
             <div
@@ -11668,14 +11751,16 @@ function CardTile({
               {rankBadge ? <div className="pointer-events-none invisible absolute right-0 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-black">00</div> : null}
             </div>
           </div>
-        ) : hasArtwork ? (
-          <div className="absolute left-0 right-0 bottom-0 p-4">
+        ) : compactImageOnly ? null : hasArtwork ? (
+          <div className="absolute left-0 right-0 bottom-0 p-3 sm:p-4">
             {displaySeries ? (
-              <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+              <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
                 {displaySeries}
               </p>
             ) : null}
-            <h3 className="truncate text-xl font-bold text-white">{displayTitle}</h3>
+            <h3 className={clsx("truncate font-bold text-white", forceSquare ? "mt-0.5 text-base sm:text-lg" : "text-xl")}>
+              {displayTitle}
+            </h3>
             {card.notes ? (
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
             ) : null}
@@ -11701,7 +11786,7 @@ function CardTile({
           </div>
         )}
 
-        {!collapseCards && (frontChips.length > 0 || card.mirroredFromEntryId) ? (
+        {!collapseCards && !compactImageOnly && (frontChips.length > 0 || card.mirroredFromEntryId) ? (
           <div className="absolute right-3 top-3 z-10 flex max-w-[58%] flex-row-reverse items-center gap-2 overflow-hidden">
             {card.mirroredFromEntryId ? (
               <div
