@@ -51,6 +51,11 @@
 - `column_entries` are now rewritten per board sync pass instead of incrementally upserted by stale IDs, which reduces the prior `409` conflict path.
 - In auth mode, user-scoped local cache writes should wait until remote hydration completes, so the default starter board does not overwrite a real multi-board session during refresh.
 
+## Drag/Drop Model
+
+- Kanban insertion uses real droppable gaps between cards that stay collapsed until the pointer/finger hovers a valid target, then expand into the full card-sized drop space.
+- Tier List now follows the same pattern more closely on desktop: the dragged card’s source slot collapses to zero width, while each horizontal insert target uses a hidden hit zone that expands into a real layout gap only when active.
+
 ## Recovery Preference
 
 - When both normalized rows and `board_states` exist, the app prefers the richer/newer source.

@@ -11236,21 +11236,21 @@ function TierListRow({
                       isSquare
                       isMobileViewport={isMobileViewport}
                     />
-                    <div className="basis-[82px] w-[82px] shrink-0 self-start sm:basis-[176px] sm:w-[176px]">
-                      <SortableCard
-                        card={card}
-                        collapseCards={collapseCards}
-                        showSeries={showSeriesOnCards}
-                        showArtwork={showArtworkOnCards}
-                        showTierHighlights={false}
-                        frontFieldDefinitions={frontFieldDefinitions}
-                        forceSquare
-                        isAnyCardDragging={isAnyCardDragging}
-                        rankBadge={null}
-                        onEdit={() => onEditCard(card)}
-                        compactImageOnly={isMobileViewport}
-                      />
-                    </div>
+                    <SortableCard
+                      card={card}
+                      collapseCards={collapseCards}
+                      showSeries={showSeriesOnCards}
+                      showArtwork={showArtworkOnCards}
+                      showTierHighlights={false}
+                      frontFieldDefinitions={frontFieldDefinitions}
+                      forceSquare
+                      isAnyCardDragging={isAnyCardDragging}
+                      rankBadge={null}
+                      onEdit={() => onEditCard(card)}
+                      compactImageOnly={isMobileViewport}
+                      containerClassName="basis-[82px] w-[82px] shrink-0 self-start sm:basis-[176px] sm:w-[176px]"
+                      collapseSizeWhenDragging
+                    />
                   </Fragment>
                 ))}
                 <TierListInsertSlot
@@ -11356,34 +11356,36 @@ function TierListInsertSlot({
   });
 
   const expanded = isDragging && !isGapSuppressed && isOver;
+  const activeWidthClass = isSquare
+    ? isMobileViewport
+      ? "w-[82px]"
+      : "w-[176px]"
+    : "w-[184px]";
+  const hitWidthClass = isSquare
+    ? isMobileViewport
+      ? "w-[28px]"
+      : "w-[52px]"
+    : "w-[52px]";
+  const heightClass = isSquare
+    ? isMobileViewport
+      ? "h-[116px]"
+      : "h-[176px]"
+    : "h-[84px] sm:h-[124px]";
+
   return (
     <div
-      ref={setNodeRef}
       className={clsx(
-        "relative shrink-0 overflow-visible transition-[width,margin] duration-200 ease-out",
-        isDragging && !isGapSuppressed
-          ? expanded
-            ? isSquare
-              ? isMobileViewport
-                ? "mx-0 w-[82px]"
-                : "mx-0 w-[176px]"
-              : "mx-0 w-[184px]"
-            : isSquare
-              ? isMobileViewport
-                ? "mx-0 w-[14px]"
-                : "mx-0 w-[24px]"
-              : "mx-0 w-[24px]"
-          : "w-0",
-        isSquare
-          ? isMobileViewport
-            ? "h-[116px]"
-            : "h-[176px]"
-          : "h-[84px] sm:h-[124px]",
+        "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
+        isDragging && !isGapSuppressed && expanded ? activeWidthClass : "w-0",
+        heightClass,
       )}
     >
       <div
+        ref={setNodeRef}
         className={clsx(
-          "h-full w-full rounded-[22px] border transition-[background-color,border-color] duration-200 ease-out",
+          "absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
+          heightClass,
+          expanded ? "w-full" : hitWidthClass,
           expanded
             ? isDarkMode
               ? "border-white/45 bg-white/8"
@@ -11534,6 +11536,8 @@ function SortableCard({
   isAnyCardDragging = false,
   forceSquare = false,
   compactImageOnly = false,
+  containerClassName,
+  collapseSizeWhenDragging = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -11547,6 +11551,8 @@ function SortableCard({
   isAnyCardDragging?: boolean;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
+  containerClassName?: string;
+  collapseSizeWhenDragging?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -11565,7 +11571,11 @@ function SortableCard({
       ref={setNodeRef}
       className={clsx(
         "relative",
-        isDragging && "z-20 h-0 overflow-hidden opacity-0 pointer-events-none",
+        containerClassName,
+        isDragging &&
+          (collapseSizeWhenDragging
+            ? "z-20 h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
+            : "z-20 h-0 overflow-hidden opacity-0 pointer-events-none"),
       )}
       style={{
         transform:
