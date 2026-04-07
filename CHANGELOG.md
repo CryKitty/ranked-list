@@ -2,6 +2,7 @@
 
 ## 2026-04-06
 
+- Tier List is now quarantined out of the live app flow. The active app is back to Kanban-only while the experimental Tier List code is preserved under [`/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup) for future redesign/reference.
 - Tier List desktop insert targets now use a zero-width layout slot with a much larger hidden droppable surface that spans into neighboring cards, so the visible between-card gap can actually activate and widen like the Kanban board.
 - Tier List desktop rows now take their horizontal spacing from the insert slots themselves instead of the flex gap, so the visible space between cards matches the real drop target.
 - Tier List desktop drag/drop now mirrors the Kanban model more closely: the dragged card’s old slot collapses away, while insert targets live in a hidden horizontal hit zone that only expands into a real gap when hovered.

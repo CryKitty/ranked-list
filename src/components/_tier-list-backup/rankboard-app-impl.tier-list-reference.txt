@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
@@ -394,15 +395,14 @@ function getTierListRankedCards(columns: ColumnDefinition[], cardsByColumn: Reco
   };
 }
 
-function createEmptyBoard(title = "New Board", _layout: BoardLayout = "board"): SavedBoard {
-  void _layout;
+function createEmptyBoard(title = "New Board", layout: BoardLayout = "board"): SavedBoard {
   const timestamp = new Date().toISOString();
-  const starterSnapshot = createStarterBoardSnapshot();
+  const starterSnapshot = layout === "tier-list" ? createTierListBoardSnapshot() : createStarterBoardSnapshot();
 
   return {
     id: makeId("board"),
     title,
-    settings: getDefaultBoardSettings(title, "board"),
+    settings: getDefaultBoardSettings(title, layout),
     columns: starterSnapshot.columns,
     cardsByColumn: starterSnapshot.cardsByColumn,
     createdAt: timestamp,
@@ -1031,12 +1031,8 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
     settings: {
       ...getDefaultBoardSettings(board.title),
       ...board.settings,
-      boardLayout: "board",
       publicShare: normalizePublicShareSettings(board.settings?.publicShare),
-      fieldDefinitions: normalizeFieldDefinitions(board.settings?.fieldDefinitions, board.title, {
-        ...board.settings,
-        boardLayout: "board",
-      }),
+      fieldDefinitions: normalizeFieldDefinitions(board.settings?.fieldDefinitions, board.title, board.settings),
     },
     cardsByColumn: Object.fromEntries(
       Object.entries(board.cardsByColumn).map(([columnId, cards]) => [
@@ -1571,16 +1567,16 @@ function getCardLinkedSiblings(cardsByColumn: Record<string, CardEntry[]>, entry
   );
 }
 
-function getDefaultBoardSettings(boardTitle: string, _boardLayout: BoardLayout = "board"): BoardSettings {
-  void _boardLayout;
+function getDefaultBoardSettings(boardTitle: string, boardLayout: BoardLayout = "board"): BoardSettings {
   const boardKind = getBoardKind(boardTitle);
+  const isTierList = boardLayout === "tier-list";
 
   return {
     ...DEFAULT_BOARD_SETTINGS,
-    boardLayout: "board",
+    boardLayout,
     cardLabel: deriveDefaultCardLabel(boardTitle),
     collapseCards: false,
-    showTierHighlights: true,
+    showTierHighlights: !isTierList,
     includeSeriesField: boardKind !== "show",
     includeReleaseYearField: true,
     includeImageField: true,
@@ -1847,7 +1843,7 @@ export function RankboardApp() {
   const activeBoardTitle =
     activeBoard.title ?? "Rankr";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
-  const activeBoardLayout = "board" as BoardLayout;
+  const activeBoardLayout = activeBoardSettings.boardLayout ?? "board";
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const hasBlockingMenuOpen =
@@ -5470,13 +5466,12 @@ function copyCardToDraft(card: CardEntry) {
 
   function createBoardFromModal() {
     const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
-    const boardLayout: BoardLayout = "board";
+    const boardLayout = newBoardSettings.boardLayout ?? "board";
     const nextBoard: SavedBoard = {
       ...createEmptyBoard(title, boardLayout),
       settings: {
         ...getDefaultBoardSettings(title, boardLayout),
         ...newBoardSettings,
-        boardLayout,
         fieldDefinitions: normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, title, newBoardSettings),
       },
     };
@@ -5507,7 +5502,6 @@ function copyCardToDraft(card: CardEntry) {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function openTierListConversionModal() {
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
@@ -6375,6 +6369,17 @@ function copyCardToDraft(card: CardEntry) {
                                   className={clsx(
                                     "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                     isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  )}
+                                  onClick={openTierListConversionModal}
+                                  type="button"
+                                >
+                                  <ListOrdered className="h-4 w-4" />
+                                  {activeBoardLayout === "tier-list" ? "Convert to Kanban Board" : "Convert to Tier List"}
+                                </button>
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                                     boards.length <= 1 && "cursor-not-allowed opacity-50",
                               )}
                               disabled={boards.length <= 1}
@@ -6755,6 +6760,17 @@ function copyCardToDraft(card: CardEntry) {
                               <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                                 <WandSparkles className="h-4 w-4" />
                                 Series Scraper
+                              </button>
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                )}
+                                onClick={openTierListConversionModal}
+                                type="button"
+                              >
+                                <ListOrdered className="h-4 w-4" />
+                                {activeBoardLayout === "tier-list" ? "Convert to Kanban Board" : "Convert to Tier List"}
                               </button>
                               <button
                                 className={clsx(
@@ -7213,6 +7229,17 @@ function copyCardToDraft(card: CardEntry) {
                                 <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                                   <WandSparkles className="h-4 w-4" />
                                   Series Scraper
+                                </button>
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  )}
+                                  onClick={openTierListConversionModal}
+                                  type="button"
+                                >
+                                  <ListOrdered className="h-4 w-4" />
+                                  {activeBoardLayout === "tier-list" ? "Convert to Kanban Board" : "Convert to Tier List"}
                                 </button>
                               </div>
                             ) : null}
@@ -8775,7 +8802,7 @@ function copyCardToDraft(card: CardEntry) {
           isDarkMode={isDarkMode}
           isOpen={isCreateBoardModalOpen}
           newBoardTitle={newBoardTitle}
-          boardLayout="board"
+          boardLayout={newBoardSettings.boardLayout ?? "board"}
           fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           showLoginHint={authEnabled && !currentUser}
@@ -8815,7 +8842,23 @@ function copyCardToDraft(card: CardEntry) {
               ),
             }));
           }}
-          onBoardLayoutChange={() => {}}
+          onBoardLayoutChange={(nextLayout) =>
+            setNewBoardSettings((current) => {
+              const nextDefaults = getDefaultBoardSettings(newBoardTitle || "New Board", nextLayout);
+              return {
+                ...current,
+                boardLayout: nextLayout,
+                cardLabel:
+                  !current.cardLabel?.trim() || current.cardLabel === deriveDefaultCardLabel(newBoardTitle || "New Board")
+                    ? nextDefaults.cardLabel
+                    : current.cardLabel,
+                fieldDefinitions: normalizeFieldDefinitions(current.fieldDefinitions, newBoardTitle || "New Board", {
+                  ...current,
+                  boardLayout: nextLayout,
+                }),
+              };
+            })
+          }
           onToggleVisibility={(fieldId) =>
             setNewBoardSettings((current) => ({
               ...current,

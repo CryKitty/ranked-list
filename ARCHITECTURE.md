@@ -80,38 +80,10 @@
 
 ## Board Layouts
 
-- Boards now support two layouts:
+- The live app is currently Kanban-only:
   - `board`: the default kanban/ranked column layout
-  - `tier-list`: horizontal card rows intended for tier lists
-- `boardLayout` lives in board settings and is initialized in the board-creation modal.
-- Tier List boards currently seed these rows:
-  - `S`
-  - `A`
-  - `B`
-  - `C`
-  - `D`
-  - `Pool`
-- Board maintenance always exposes a layout-conversion action:
-  - `Convert to Tier List` for kanban boards
-  - `Convert to Kanban Board` for tier lists
-- Both conversion directions are copy-based. The current board stays untouched and the converted layout is created as a new board, then made active.
-- Copy-based board conversion now pushes the new board through synchronized board/active-board/column/card refs at once, so layout switches do not rely on async state timing during the handoff.
-- That handoff now also resets the previous snapshot ref and any open tier-row anchor state before switching boards, which reduces stale tier-list UI state during conversion/copy flows.
-- Converting to Tier List opens a confirmation modal that lets the user choose which non-mirror source columns to include before moving those cards into the backlog row.
-- That conversion modal now uses the same constrained, scrollable dialog pattern as Share so very large column lists remain usable on smaller viewports.
-- Converting back to kanban creates a `Ranked` column from the tier rows in display order and a `Backlog` column from the tier list's final intake row.
-- Tier List quick-add defaults to the backlog row.
-- Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
-- On mobile, Tier List cards intentionally shrink further than desktop to keep wrapped rows practical on narrow screens.
-- On mobile, Tier List cards now use a portrait/image-first presentation with their text hidden to preserve row density.
-- On mobile, those Tier List cards now use slightly tighter corner radii than the desktop tier cards so the dense row packing feels less pill-like.
-- On mobile, Tier List cards also sit slightly larger and a bit closer together now, so rows use the available width more efficiently.
-- Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright and slightly larger.
-- Tier List row rails now hide their small action buttons until hover/focus to keep the label rail visually cleaner, and those controls stack vertically inside the narrower rail with row options at the top and add-card at the bottom.
-- Tier List rows now expose `+ Add Row` affordances between rows, using hover/focus on desktop and tap-to-reveal on mobile, and row-specific options are handled through a small in-UI menu anchored from the row rail.
-- Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap, especially on desktop where the target previously felt too narrow. The label rail and row body also now meet with no gutter so the row reads as one connected surface.
-- On desktop, those tier-list insert slots now behave as a small real layout gap during drag rather than a zero-width overlay target, so the cards can split apart more like the Kanban drop target behavior.
-- Tier List row spacing was tightened again to increase vertical density without changing the basic row-rail layout.
+- The experimental Tier List implementation has been quarantined out of the runtime and copied to [`/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup) for future redesign/reference.
+- `boardLayout` is still present in board settings for compatibility with older saved data, but normalized boards are coerced back to `board` in the live app so unstable Tier List runtime paths do not remain active.
 
 ## Media
 
