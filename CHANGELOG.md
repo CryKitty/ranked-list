@@ -2,6 +2,8 @@
 
 ## 2026-04-06
 
+- Tier List desktop insert slots now stay as a small real layout gap during drag and expand from there, matching the Kanban split-gap behavior more closely.
+- Tier List mobile cards are slightly larger again and use even tighter corner radii.
 - Tier List rows now use a seamless label/body treatment with a narrower 44px label rail, smaller row gaps, and a hover-only between-row add button that can overlap the tighter spacing.
 - Tier List row rail actions are now split vertically, with row options at the top and add-card at the bottom, which makes them easier to target.
 - Tier List desktop insert slots now widen from the actual gap between cards instead of only responding near card edges, so dropping directly between cards is more reliable.

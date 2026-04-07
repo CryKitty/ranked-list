@@ -11236,7 +11236,7 @@ function TierListRow({
                       isSquare
                       isMobileViewport={isMobileViewport}
                     />
-                    <div className="basis-[78px] w-[78px] shrink-0 self-start sm:basis-[176px] sm:w-[176px]">
+                    <div className="basis-[82px] w-[82px] shrink-0 self-start sm:basis-[176px] sm:w-[176px]">
                       <SortableCard
                         card={card}
                         collapseCards={collapseCards}
@@ -11356,15 +11356,24 @@ function TierListInsertSlot({
   });
 
   const expanded = isDragging && !isGapSuppressed && isOver;
-  const cardWidth = isSquare ? (isMobileViewport ? 78 : 176) : 184;
-  const collapsedHitWidth = isSquare ? (isMobileViewport ? 24 : 56) : 32;
-
   return (
     <div
+      ref={setNodeRef}
       className={clsx(
-        "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
-        isDragging && !isGapSuppressed && expanded ? "w-[78px] sm:w-[176px]" : "w-0",
-        !isSquare && isDragging && !isGapSuppressed && expanded && "sm:w-[184px]",
+        "relative shrink-0 overflow-visible transition-[width,margin] duration-200 ease-out",
+        isDragging && !isGapSuppressed
+          ? expanded
+            ? isSquare
+              ? isMobileViewport
+                ? "mx-0 w-[82px]"
+                : "mx-0 w-[176px]"
+              : "mx-0 w-[184px]"
+            : isSquare
+              ? isMobileViewport
+                ? "mx-0 w-[14px]"
+                : "mx-0 w-[24px]"
+              : "mx-0 w-[24px]"
+          : "w-0",
         isSquare
           ? isMobileViewport
             ? "h-[116px]"
@@ -11373,18 +11382,14 @@ function TierListInsertSlot({
       )}
     >
       <div
-        ref={setNodeRef}
         className={clsx(
-          "absolute left-1/2 top-0 h-full -translate-x-1/2 rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
+          "h-full w-full rounded-[22px] border transition-[background-color,border-color] duration-200 ease-out",
           expanded
             ? isDarkMode
               ? "border-white/45 bg-white/8"
               : "border-slate-500/45 bg-slate-100/80"
             : "border-transparent bg-transparent",
         )}
-        style={{
-          width: !isDragging || isGapSuppressed ? 0 : expanded ? cardWidth : collapsedHitWidth,
-        }}
       />
     </div>
   );
@@ -11697,7 +11702,7 @@ function CardTile({
         !collapseCards && "bg-slate-900",
         collapseCards ? "border-slate-950" : tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
-        compactImageOnly ? "rounded-[18px]" : "rounded-[28px]",
+        compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
       )}
       onClick={() => {
         if (collapseCards) {
@@ -11717,7 +11722,7 @@ function CardTile({
             "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
             collapseCards ? "min-h-[82px]" : compactImageOnly ? "aspect-[2/3]" : forceSquare ? "aspect-square" : "aspect-video",
-            compactImageOnly ? "rounded-[18px]" : "rounded-[28px]",
+            compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
           )}
         style={
           collapseCards

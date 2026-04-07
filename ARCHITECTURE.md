@@ -104,6 +104,7 @@
 - Tier List row rails now hide their small action buttons until hover/focus to keep the label rail visually cleaner, and those controls stack vertically inside the narrower rail with row options at the top and add-card at the bottom.
 - Tier List rows now expose `+ Add Row` affordances between rows, using hover/focus on desktop and tap-to-reveal on mobile, and row-specific options are handled through a small in-UI menu anchored from the row rail.
 - Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap, especially on desktop where the target previously felt too narrow. The label rail and row body also now meet with no gutter so the row reads as one connected surface.
+- On desktop, those tier-list insert slots now behave as a small real layout gap during drag rather than a zero-width overlay target, so the cards can split apart more like the Kanban drop target behavior.
 - Tier List row spacing was tightened again to increase vertical density without changing the basic row-rail layout.
 
 ## Media
