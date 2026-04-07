@@ -11201,7 +11201,7 @@ function TierListRow({
         >
           <div
             className={clsx(
-              "min-h-[152px] items-start gap-1 pb-1 sm:min-h-[176px] sm:gap-2",
+              "min-h-[152px] content-start items-start justify-start gap-1 pb-1 sm:min-h-[176px] sm:gap-2",
               isUnsortedRow ? "flex overflow-x-auto" : "flex flex-wrap overflow-visible",
             )}
             data-column-scroll-id={column.id}
@@ -11236,7 +11236,7 @@ function TierListRow({
                       isSquare
                       isMobileViewport={isMobileViewport}
                     />
-                    <div className="w-[78px] shrink-0 sm:w-[176px]">
+                    <div className="basis-[78px] w-[78px] shrink-0 self-start sm:basis-[176px] sm:w-[176px]">
                       <SortableCard
                         card={card}
                         collapseCards={collapseCards}
@@ -11361,14 +11361,20 @@ function TierListInsertSlot({
     <div
       ref={setNodeRef}
       className={clsx(
-        "relative shrink-0 overflow-visible transition-[opacity] duration-200 ease-out",
+        "relative shrink-0 overflow-visible transition-[width,opacity] duration-200 ease-out",
         isDragging && !isGapSuppressed
-          ? isSquare
-            ? isMobileViewport
-              ? "-mx-3 w-0 px-3"
-              : "-mx-8 w-0 px-8"
-            : "-mx-3 w-0 px-3"
-          : "mx-0 w-0 px-0",
+          ? expanded
+            ? isSquare
+              ? isMobileViewport
+                ? "mx-0 w-[78px]"
+                : "mx-0 w-[176px]"
+              : "mx-0 w-[184px]"
+            : isSquare
+              ? isMobileViewport
+                ? "-mx-2 w-6"
+                : "-mx-4 w-12"
+              : "-mx-3 w-8"
+          : "mx-0 w-0",
         isSquare
           ? isMobileViewport
             ? "h-[116px]"
@@ -11386,7 +11392,20 @@ function TierListInsertSlot({
             : "border-transparent bg-transparent",
         )}
         style={{
-          width: !isDragging || isGapSuppressed ? 0 : expanded ? (isSquare ? (isMobileViewport ? 78 : 176) : 184) : 0,
+          width:
+            !isDragging || isGapSuppressed
+              ? 0
+              : expanded
+                ? isSquare
+                  ? isMobileViewport
+                    ? 78
+                    : 176
+                  : 184
+                : isSquare
+                  ? isMobileViewport
+                    ? 24
+                    : 48
+                  : 32,
         }}
       />
     </div>
