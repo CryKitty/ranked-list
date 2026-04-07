@@ -1372,11 +1372,17 @@ function HoverTooltip({
   label,
   isDarkMode,
   scope,
+  disabled = false,
 }: {
   label: string;
   isDarkMode: boolean;
   scope?: string;
+  disabled?: boolean;
 }) {
+  if (disabled) {
+    return null;
+  }
+
   const scopeClass =
     scope === "boards"
       ? "group-hover/boards:opacity-100 group-focus-within/boards:opacity-100"
@@ -1539,12 +1545,12 @@ export function RankboardApp() {
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 4,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 180,
+        delay: 120,
         tolerance: 10,
       },
     }),
@@ -11146,7 +11152,7 @@ function AddCardRow({
       <div
         data-mobile-inline-add-root="true"
         className={clsx(
-          "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out",
+          "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
           isDragMode
             ? isGapSuppressed
@@ -11170,7 +11176,7 @@ function AddCardRow({
     <button
       data-mobile-inline-add-root="true"
       className={clsx(
-        "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         isDragMode
           ? isGapSuppressed
@@ -11191,6 +11197,7 @@ function AddCardRow({
     >
       <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
       <HoverTooltip
+        disabled={isDragMode}
         isDarkMode={isDarkMode}
         label={isMobileViewport && !isDragMode && !mobileArmed ? "Show Add Card" : "Add Card"}
       />
