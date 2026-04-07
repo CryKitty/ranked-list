@@ -3056,10 +3056,11 @@ export function RankboardApp() {
   }
 
   function suppressDragGapsTemporarily() {
-    setIsDragGapSuppressed((current) => (current ? current : true));
     if (dragGapSuppressTimeoutRef.current) {
-      window.clearTimeout(dragGapSuppressTimeoutRef.current);
+      return;
     }
+
+    setIsDragGapSuppressed(true);
     dragGapSuppressTimeoutRef.current = window.setTimeout(() => {
       setIsDragGapSuppressed(false);
       dragGapSuppressTimeoutRef.current = null;
