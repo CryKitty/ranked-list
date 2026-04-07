@@ -10079,13 +10079,13 @@ function AddColumnButton({
         >
           <span
             className={clsx(
-              "absolute inset-y-0 left-0 w-px -translate-x-1/2",
+              "absolute inset-y-0 left-1/2 w-px -translate-x-1/2",
               isDarkMode ? "bg-white/12 group-hover:bg-white/30" : "bg-slate-300/35 group-hover:bg-slate-500/55",
             )}
           />
           <span
             className={clsx(
-              "absolute left-0 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
+              "absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
               isMobileViewport && !mobileArmed && "scale-75 opacity-0",
               isDarkMode
                 ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800"
@@ -10403,7 +10403,7 @@ function BoardColumn({
         isMobileViewport
           ? "h-[min(calc(var(--app-height)-11rem),860px)] min-h-[min(calc(var(--app-height)-11rem),800px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
-        isMobileViewport ? "w-[min(90vw,360px)] snap-center" : "w-[320px] snap-start",
+        isMobileViewport ? "w-[min(88vw,348px)] snap-center" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
@@ -11045,7 +11045,7 @@ function BoardColumn({
       </div>
 
       <div
-        className="mt-2 flex flex-1 flex-col gap-2 overflow-y-auto pr-1 sm:mt-3 sm:gap-3"
+        className="mt-2 flex flex-1 flex-col gap-1.5 overflow-y-auto pr-1 sm:mt-3 sm:gap-3"
         data-column-scroll-id={column.id}
         onScroll={() => {
           if (isCardDragging) {
@@ -11112,7 +11112,7 @@ function BoardColumn({
                 onClick={() => onAddCard(column.id, 0)}
               />
               {tierFilteredCards.map((card, index) => (
-                <div key={card.entryId} className="flex flex-col gap-2 sm:gap-3">
+                <div key={card.entryId} className="flex flex-col gap-1.5 sm:gap-3">
                   <SortableCard
                     card={card}
                     collapseCards={collapseCards}

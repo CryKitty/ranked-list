@@ -83,11 +83,27 @@ export function getTierKey(rank: number | null): Exclude<ShareTierFilter, "all">
 }
 
 export function matchesTierFilter(rank: number | null, tierFilter: ShareTierFilter) {
-  if (tierFilter === "all") {
+  if (tierFilter === "all" || !rank) {
     return true;
   }
 
-  return getTierKey(rank) === tierFilter;
+  if (tierFilter === "top10") {
+    return rank <= 10;
+  }
+
+  if (tierFilter === "top15") {
+    return rank <= 15;
+  }
+
+  if (tierFilter === "top20") {
+    return rank <= 20;
+  }
+
+  if (tierFilter === "top30") {
+    return rank <= 30;
+  }
+
+  return false;
 }
 
 export function matchesTierFilterByIndex(index: number, tierFilter: ShareTierFilter) {
