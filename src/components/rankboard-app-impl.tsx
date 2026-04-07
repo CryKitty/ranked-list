@@ -1361,6 +1361,30 @@ function formatLastSavedAt(savedAt: string | null) {
   }).format(new Date(savedAt));
 }
 
+function getSaveStatusLabel(saveState: SaveState) {
+  if (saveState === "error" || saveState === "offline") {
+    return "Needs attention";
+  }
+
+  if (saveState === "saved") {
+    return "Saved";
+  }
+
+  if (saveState === "saving") {
+    return "Saving";
+  }
+
+  return "Pending";
+}
+
+function getSaveStatusTitle(saveState: SaveState, lastSavedAt: string | null, saveErrorMessage: string | null) {
+  if (saveState === "error" || saveState === "offline") {
+    return saveErrorMessage ?? "Changes could not be saved.";
+  }
+
+  return `Last saved ${formatLastSavedAt(lastSavedAt)}`;
+}
+
 function SaveStatusIcon({
   saveState,
   isPersisting,
@@ -1424,6 +1448,45 @@ function HoverTooltip({
     >
       {label}
     </span>
+  );
+}
+
+function SaveStatusButton({
+  isDarkMode,
+  isPersisting,
+  saveState,
+  lastSavedAt,
+  saveErrorMessage,
+  className,
+}: {
+  isDarkMode: boolean;
+  isPersisting: boolean;
+  saveState: SaveState;
+  lastSavedAt: string | null;
+  saveErrorMessage: string | null;
+  className?: string;
+}) {
+  const tooltipLabel = saveState === "error" || saveState === "offline"
+    ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)
+    : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
+
+  return (
+    <div className={clsx("group relative shrink-0", className)}>
+      <button
+        aria-label={tooltipLabel}
+        className={clsx(
+          "inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
+          isDarkMode
+            ? "bg-white/10 text-slate-200 hover:bg-white/15"
+            : "bg-white text-slate-700 hover:bg-slate-100",
+        )}
+        title={getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)}
+        type="button"
+      >
+        <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
+      </button>
+      <HoverTooltip isDarkMode={isDarkMode} label={tooltipLabel} />
+    </div>
   );
 }
 
@@ -6703,19 +6766,14 @@ function copyCardToDraft(card: CardEntry) {
             )}
           >
             {!isEditingBoardTitle ? (
-              <div
-                className={clsx(
-                  "absolute right-4 top-4 inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold lg:hidden",
-                  isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
-                )}
-                title={
-                  saveState === "error" || saveState === "offline"
-                    ? saveErrorMessage ?? "Changes could not be saved."
-                    : `Last saved ${formatLastSavedAt(lastSavedAt)}`
-                }
-              >
-                <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
-              </div>
+              <SaveStatusButton
+                className="absolute right-4 top-4 lg:hidden"
+                isDarkMode={isDarkMode}
+                isPersisting={isPersisting}
+                lastSavedAt={lastSavedAt}
+                saveErrorMessage={saveErrorMessage}
+                saveState={saveState}
+              />
             ) : null}
             <div className="mb-4 min-w-0">
               {isEditingBoardTitle ? (
@@ -7158,28 +7216,13 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                       ) : null}
                     </div>
-                    <div
-                      className={clsx(
-                        "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold",
-                        isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
-                      )}
-                      title={
-                        saveState === "error" || saveState === "offline"
-                          ? saveErrorMessage ?? "Changes could not be saved."
-                          : `Last saved ${formatLastSavedAt(lastSavedAt)}`
-                      }
-                    >
-                      <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
-                      <span className="hidden min-[1100px]:inline">
-                        {saveState === "error" || saveState === "offline"
-                          ? "Needs attention"
-                          : saveState === "saved"
-                            ? "Saved"
-                            : saveState === "saving"
-                              ? "Saving"
-                              : "Pending"}
-                      </span>
-                    </div>
+                    <SaveStatusButton
+                      isDarkMode={isDarkMode}
+                      isPersisting={isPersisting}
+                      lastSavedAt={lastSavedAt}
+                      saveErrorMessage={saveErrorMessage}
+                      saveState={saveState}
+                    />
                   </div>
                 </div>
               )}
