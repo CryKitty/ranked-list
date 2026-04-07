@@ -88,11 +88,13 @@
   - `Convert to Tier List` for kanban boards
   - `Convert to Kanban Board` for tier lists
 - Both conversion directions are copy-based. The current board stays untouched and the converted layout is created as a new board, then made active.
+- Copy-based board conversion now pushes the new board through synchronized board/active-board/column/card refs at once, so layout switches do not rely on async state timing during the handoff.
 - Converting to Tier List opens a confirmation modal that lets the user choose which non-mirror source columns to include before moving those cards into the backlog row.
 - That conversion modal now uses the same constrained, scrollable dialog pattern as Share so very large column lists remain usable on smaller viewports.
 - Converting back to kanban creates a `Ranked` column from the tier rows in display order and a `Backlog` column from the tier list's final intake row.
 - Tier List quick-add defaults to the backlog row.
 - Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
+- On mobile, Tier List cards intentionally shrink further than desktop to keep wrapped rows practical on narrow screens.
 - Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright and slightly larger.
 - Tier List row rails now hide their small action buttons until hover/focus on desktop to keep the label rail visually cleaner.
 - Tier List rows now expose `+ Add Row` affordances between rows, and row-specific options are handled through a small in-UI menu anchored from the row rail.

@@ -5441,8 +5441,14 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function createBoardCopyFromConversion(nextBoard: SavedBoard) {
+    const nextBoards = [...boards, nextBoard];
+
     skipNextHistoryRef.current = true;
-    setBoards((current) => [...current, nextBoard]);
+    latestBoardsRef.current = nextBoards;
+    latestActiveBoardIdRef.current = nextBoard.id;
+    latestColumnsRef.current = nextBoard.columns;
+    latestCardsByColumnRef.current = nextBoard.cardsByColumn;
+    setBoards(nextBoards);
     setActiveBoardId(nextBoard.id);
     setColumns(nextBoard.columns);
     setCardsByColumn(nextBoard.cardsByColumn);
@@ -5455,7 +5461,12 @@ function copyCardToDraft(card: CardEntry) {
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
     setTierListConversionState(null);
-    queuePersistBoardState();
+    queuePersistBoardState({
+      boards: nextBoards,
+      activeBoardId: nextBoard.id,
+      columns: nextBoard.columns,
+      cardsByColumn: nextBoard.cardsByColumn,
+    });
   }
 
   function convertActiveBoardToTierList() {
@@ -7478,7 +7489,7 @@ function copyCardToDraft(card: CardEntry) {
                         <div
                           className={clsx(
                             "pointer-events-none rotate-[1deg] opacity-70 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
-                            activeBoardLayout === "tier-list" ? "w-[156px]" : "w-[224px]",
+                            activeBoardLayout === "tier-list" ? "w-[104px] sm:w-[156px]" : "w-[224px]",
                           )}
                         >
                           <CardTile
@@ -11101,7 +11112,7 @@ function TierListRow({
                       isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
                       isSquare
                     />
-                    <div className="w-[176px] shrink-0">
+                    <div className="w-[104px] shrink-0 sm:w-[176px]">
                       <SortableCard
                         card={card}
                         collapseCards={collapseCards}
@@ -11194,10 +11205,10 @@ function TierListInsertSlot({
         "shrink-0 transition-all duration-200 ease-out",
         isDragging && !isGapSuppressed
           ? expanded
-            ? (isSquare ? "mx-0 w-[148px]" : "mx-0 w-[184px]")
+            ? (isSquare ? "mx-0 w-[88px] sm:w-[148px]" : "mx-0 w-[120px] sm:w-[184px]")
             : "-mx-3 w-6"
           : "mx-0 w-0",
-        isSquare ? "h-[176px]" : "h-[124px]",
+        isSquare ? "h-[104px] sm:h-[176px]" : "h-[84px] sm:h-[124px]",
       )}
     >
       <div
