@@ -2309,35 +2309,37 @@ export function RankboardApp() {
   }, [revealedMobileAddCardTarget, revealedMobileAddColumnIndex, revealedMobileAddTierRowIndex]);
 
   useEffect(() => {
-    if (!isMobileViewport) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      // Safari on iOS exposes this non-standard flag for home screen apps.
-      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isSafari = userAgent.includes("safari") && !/crios|fxios|edgios/.test(userAgent);
+    const root = document.documentElement;
+    const visualViewport = window.visualViewport;
 
-    if (isStandalone || !isSafari) {
-      return;
-    }
-
-    const collapseBrowserChrome = () => {
-      if (window.scrollY <= 0) {
-        window.scrollTo(0, 72);
-      }
+    const syncAppHeight = () => {
+      const nextHeight = visualViewport?.height ?? window.innerHeight;
+      root.style.setProperty("--app-height", `${Math.round(nextHeight)}px`);
     };
 
-    const firstPass = window.setTimeout(collapseBrowserChrome, 80);
-    const secondPass = window.setTimeout(collapseBrowserChrome, 320);
-    const thirdPass = window.setTimeout(collapseBrowserChrome, 900);
+    syncAppHeight();
+
+    if (!isMobileViewport) {
+      return () => {
+        root.style.setProperty("--app-height", "100dvh");
+      };
+    }
+
+    visualViewport?.addEventListener("resize", syncAppHeight);
+    visualViewport?.addEventListener("scroll", syncAppHeight);
+    window.addEventListener("resize", syncAppHeight);
+    window.addEventListener("orientationchange", syncAppHeight);
 
     return () => {
-      window.clearTimeout(firstPass);
-      window.clearTimeout(secondPass);
-      window.clearTimeout(thirdPass);
+      visualViewport?.removeEventListener("resize", syncAppHeight);
+      visualViewport?.removeEventListener("scroll", syncAppHeight);
+      window.removeEventListener("resize", syncAppHeight);
+      window.removeEventListener("orientationchange", syncAppHeight);
+      root.style.setProperty("--app-height", "100dvh");
     };
   }, [isMobileViewport]);
 
@@ -6175,13 +6177,13 @@ function copyCardToDraft(card: CardEntry) {
   return (
     <div
       className={clsx(
-        "min-h-[100dvh] pt-[env(safe-area-inset-top)] transition-colors",
+        "min-h-[var(--app-height)] pt-[env(safe-area-inset-top)] transition-colors",
         isDarkMode
           ? "bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] text-slate-100"
           : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffe3cf_18%,#fff0e2_38%,#fff4ea_62%,#fff6ef_100%)] text-slate-950",
       )}
     >
-      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-6 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-[var(--app-height)] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-6 sm:px-6 lg:px-8">
         <datalist id="series-suggestions">
           {allSeries.map((series) => (
             <option key={series} value={series} />
@@ -6858,13 +6860,13 @@ function copyCardToDraft(card: CardEntry) {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 w-full min-w-0 overflow-visible rounded-[32px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur",
+              "relative z-0 w-full min-w-0 overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:p-4",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
             )}
           >
-            <div className="mb-4 min-w-0">
+            <div className="mb-3 min-w-0 sm:mb-4">
               {isEditingBoardTitle ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <input
@@ -10397,7 +10399,10 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] shrink-0 flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        "relative z-10 flex shrink-0 flex-col rounded-[28px] border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
+        isMobileViewport
+          ? "h-[min(calc(var(--app-height)-11rem),860px)] min-h-[min(calc(var(--app-height)-11rem),800px)]"
+          : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(90vw,360px)] snap-center" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
@@ -11040,7 +11045,7 @@ function BoardColumn({
       </div>
 
       <div
-        className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1"
+        className="mt-2 flex flex-1 flex-col gap-2 overflow-y-auto pr-1 sm:mt-3 sm:gap-3"
         data-column-scroll-id={column.id}
         onScroll={() => {
           if (isCardDragging) {
@@ -11107,7 +11112,7 @@ function BoardColumn({
                 onClick={() => onAddCard(column.id, 0)}
               />
               {tierFilteredCards.map((card, index) => (
-                <div key={card.entryId} className="flex flex-col gap-3">
+                <div key={card.entryId} className="flex flex-col gap-2 sm:gap-3">
                   <SortableCard
                     card={card}
                     collapseCards={collapseCards}

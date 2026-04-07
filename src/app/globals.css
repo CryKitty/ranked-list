@@ -3,6 +3,7 @@
 :root {
   --background: #fff8ef;
   --foreground: #101828;
+  --app-height: 100dvh;
 }
 
 @theme inline {
@@ -17,7 +18,9 @@
 }
 
 html {
+  height: 100%;
   min-height: 100%;
+  min-height: var(--app-height);
   background-color: #fff8ef;
   background-image: radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%);
   background-repeat: no-repeat;
@@ -32,7 +35,7 @@ html.dark {
 }
 
 body {
-  min-height: 100dvh;
+  min-height: var(--app-height);
   background-color: #fff8ef;
   background-image: radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%);
   background-repeat: no-repeat;
