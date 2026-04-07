@@ -9995,7 +9995,7 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[20] flex min-h-[min(82dvh,940px)] w-0 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:w-4 sm:snap-align-none"
+          ? "group relative z-[20] flex min-h-[min(82dvh,940px)] w-8 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:w-4 sm:snap-align-none"
           : "group relative z-[20] flex min-h-[min(82dvh,940px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
@@ -10014,7 +10014,7 @@ function AddColumnButton({
       {inline ? (
         <span
           className={clsx(
-            "flex h-full items-center gap-1 transition",
+            "relative flex h-full w-full transition",
             isMobileViewport
               ? mobileArmed
                 ? "opacity-100"
@@ -10024,30 +10024,19 @@ function AddColumnButton({
         >
           <span
             className={clsx(
-              "h-full w-px",
+              "absolute inset-y-0 left-0 w-px -translate-x-1/2",
               isDarkMode ? "bg-white/12 group-hover:bg-white/30" : "bg-slate-300/35 group-hover:bg-slate-500/55",
             )}
           />
           <span
             className={clsx(
-              "relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
+              "absolute left-0 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
               isMobileViewport && !mobileArmed && "scale-75 opacity-0",
               isDarkMode
                 ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800"
                 : "border-white bg-white text-slate-950 ring-white/70 group-hover:border-slate-300",
             )}
           >
-            {isMobileViewport && !mobileArmed ? (
-              <button
-                aria-label="Reveal add column button"
-                className="absolute inset-y-0 left-1/2 w-12 -translate-x-1/2"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onArm?.();
-                }}
-                type="button"
-              />
-            ) : null}
             <button
               className={clsx(
                 "group/edit absolute inset-0 flex items-center justify-center rounded-full",
@@ -10068,12 +10057,6 @@ function AddColumnButton({
               />
             </button>
           </span>
-          <span
-            className={clsx(
-              "h-full w-px",
-              isDarkMode ? "bg-white/12 group-hover:bg-white/30" : "bg-slate-300/35 group-hover:bg-slate-500/55",
-            )}
-          />
         </span>
       ) : (
         <span
@@ -11511,7 +11494,7 @@ function AddCardRow({
   const rowContent = (
     <span
       className={clsx(
-        "flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
+        "group/edit relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
         hideRowAction && "invisible opacity-0",
         interactive
           ? isDarkMode
@@ -11521,6 +11504,12 @@ function AddCardRow({
       )}
     >
       <Plus className="h-5 w-5" />
+      <HoverTooltip
+        disabled={isDragMode}
+        isDarkMode={isDarkMode}
+        label={isMobileViewport && !isDragMode && !mobileArmed ? "Show Add Card" : "Add Card"}
+        scope="edit"
+      />
     </span>
   );
 
@@ -11573,11 +11562,6 @@ function AddCardRow({
       aria-label="Add game here"
     >
       <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
-      <HoverTooltip
-        disabled={isDragMode}
-        isDarkMode={isDarkMode}
-        label={isMobileViewport && !isDragMode && !mobileArmed ? "Show Add Card" : "Add Card"}
-      />
       {rowContent}
     </button>
   );
