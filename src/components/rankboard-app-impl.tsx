@@ -1469,6 +1469,7 @@ export function RankboardApp() {
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
+  const [isMobileBoardRenameArmed, setIsMobileBoardRenameArmed] = useState(false);
   const [isHeaderSeriesMenuOpen, setIsHeaderSeriesMenuOpen] = useState(false);
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
@@ -1555,6 +1556,7 @@ export function RankboardApp() {
   const latestColumnsRef = useRef(columns);
   const latestCardsByColumnRef = useRef(cardsByColumn);
   const latestBoardsRef = useRef(boards);
+  const boardTitleHeaderRef = useRef<HTMLDivElement | null>(null);
   const latestActiveBoardIdRef = useRef(activeBoardId);
   const pendingPersistOptionsRef = useRef<PersistBoardStateOptions | null>(null);
   const pendingPersistDelayRef = useRef<number>(120);
@@ -2376,6 +2378,21 @@ export function RankboardApp() {
       window.removeEventListener("touchmove", handleTouchMove);
     };
   }, [isCardDragging]);
+
+  useEffect(() => {
+    if (!isMobileBoardRenameArmed) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!boardTitleHeaderRef.current?.contains(event.target as Node)) {
+        setIsMobileBoardRenameArmed(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isMobileBoardRenameArmed]);
 
   useEffect(() => {
     if (!isCardDragging || dragPointerKind !== "mouse") {
@@ -6712,7 +6729,7 @@ function copyCardToDraft(card: CardEntry) {
                 </div>
               ) : (
                 <div className="group flex min-w-0 items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div ref={boardTitleHeaderRef} className="flex min-w-0 items-center gap-3">
                     <div className="group/boards relative shrink-0" data-board-switcher-root="true">
                       <button
                         aria-label="Switch board"
@@ -6799,9 +6816,46 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                       ) : null}
                     </div>
-                    <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                      {activeBoardTitle}
-                    </h1>
+                    <div className="group/rename flex min-w-0 items-center gap-2">
+                      <button
+                        className="min-w-0 text-left"
+                        onClick={() => {
+                          if (isMobileViewport) {
+                            setIsMobileBoardRenameArmed((current) => !current);
+                          }
+                        }}
+                        type="button"
+                        aria-label={isMobileViewport ? `Show rename control for ${activeBoardTitle}` : undefined}
+                      >
+                        <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
+                          {activeBoardTitle}
+                        </h1>
+                      </button>
+                      <div className="relative shrink-0">
+                        <button
+                          className={clsx(
+                            "shrink-0 rounded-full p-2 transition",
+                            isMobileViewport
+                              ? isMobileBoardRenameArmed
+                                ? "opacity-100"
+                                : "pointer-events-none opacity-0"
+                              : "opacity-0 group-hover/rename:opacity-100 group-focus-within/rename:opacity-100",
+                            isDarkMode
+                              ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                              : "bg-white text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={() => {
+                            setIsMobileBoardRenameArmed(false);
+                            startEditingBoardTitle();
+                          }}
+                          type="button"
+                          aria-label={`Rename ${activeBoardTitle}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <HoverTooltip isDarkMode={isDarkMode} label="Rename" scope="rename" />
+                      </div>
+                    </div>
                     <div
                       className={clsx(
                         "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold",
@@ -6823,22 +6877,6 @@ function copyCardToDraft(card: CardEntry) {
                               ? "Saving"
                               : "Pending"}
                       </span>
-                    </div>
-                    <div className="group/rename relative shrink-0">
-                      <button
-                        className={clsx(
-                          "shrink-0 rounded-full p-2 transition opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
-                          isDarkMode
-                            ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                            : "bg-white text-slate-700 hover:bg-slate-100",
-                        )}
-                        onClick={startEditingBoardTitle}
-                        type="button"
-                        aria-label={`Rename ${activeBoardTitle}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <HoverTooltip isDarkMode={isDarkMode} label="Rename" scope="rename" />
                     </div>
                   </div>
                   <div className="hidden shrink-0 items-center gap-2 xl:flex">
