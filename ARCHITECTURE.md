@@ -54,7 +54,7 @@
 ## Drag/Drop Model
 
 - Kanban insertion uses real droppable gaps between cards that stay collapsed until the pointer/finger hovers a valid target, then expand into the full card-sized drop space.
-- Tier List now follows the same pattern more closely on desktop: the dragged card’s source slot collapses to zero width, while each horizontal insert target uses a hidden hit zone that expands into a real layout gap only when active.
+- Tier List now follows the same pattern more closely on desktop: the dragged card’s source slot collapses to zero width, while each horizontal insert target uses a zero-width layout slot plus a larger hidden hit zone that spans into neighboring cards and only expands into a real layout gap when active.
 - Tier List row spacing is now carried by those insert slots rather than the flex row gap, so the visible space between cards is also the actual droppable target.
 
 ## Recovery Preference

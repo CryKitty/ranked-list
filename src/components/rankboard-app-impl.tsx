@@ -11201,10 +11201,12 @@ function TierListRow({
         >
           <div
             className={clsx(
-              "min-h-[152px] content-start items-start justify-start pb-1 sm:min-h-[176px]",
+              "min-h-[152px] content-start justify-start pb-1 sm:min-h-[176px]",
               isUnsortedRow
-                ? "flex gap-0 overflow-x-auto"
-                : "flex flex-wrap gap-x-0 gap-y-1 overflow-visible sm:gap-y-2",
+                ? "flex items-center gap-0 overflow-x-auto"
+                : isMobileViewport
+                  ? "flex flex-wrap items-center gap-x-0 gap-y-1 overflow-visible"
+                  : "flex flex-wrap items-start gap-x-0 gap-y-1 overflow-visible sm:gap-y-2",
             )}
             data-column-scroll-id={column.id}
             onScroll={onDragScrollActivity}
@@ -11363,35 +11365,31 @@ function TierListInsertSlot({
       ? "w-[82px]"
       : "w-[176px]"
     : "w-[184px]";
+  const hiddenHitWidthClass = isSquare
+    ? isMobileViewport
+      ? "w-[28px]"
+      : "w-[176px]"
+    : "w-[184px]";
   const heightClass = isSquare
     ? isMobileViewport
       ? "h-[116px]"
       : "h-[176px]"
     : "h-[84px] sm:h-[124px]";
-  const idleWidthClass = isSquare
-    ? isMobileViewport
-      ? "w-[6px]"
-      : "w-[8px]"
-    : "w-[8px]";
 
   return (
     <div
-      ref={setNodeRef}
       className={clsx(
         "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
-        !isDragging
-          ? idleWidthClass
-          : !isGapSuppressed
-            ? expanded
-              ? activeWidthClass
-              : idleWidthClass
-            : idleWidthClass,
+        isDragging && !isGapSuppressed && expanded ? activeWidthClass : "w-0",
         heightClass,
       )}
     >
       <div
+        ref={setNodeRef}
         className={clsx(
-          "h-full w-full rounded-[22px] border transition-[background-color,border-color] duration-200 ease-out",
+          "absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
+          heightClass,
+          expanded ? "w-full" : hiddenHitWidthClass,
           expanded
             ? isDarkMode
               ? "border-white/45 bg-white/8"
