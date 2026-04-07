@@ -1566,6 +1566,7 @@ export function RankboardApp() {
   const [openColumnSortMenuId, setOpenColumnSortMenuId] = useState<string | null>(null);
   const [openColumnFilterMenuId, setOpenColumnFilterMenuId] = useState<string | null>(null);
   const [openColumnMirrorMenuId, setOpenColumnMirrorMenuId] = useState<string | null>(null);
+  const [openColumnColumnsMenuId, setOpenColumnColumnsMenuId] = useState<string | null>(null);
   const [openColumnMaintenanceMenuId, setOpenColumnMaintenanceMenuId] = useState<string | null>(null);
   const [columnTierFilters, setColumnTierFilters] = useState<Record<string, TierFilter>>({});
   const [hasLoadedPersistedState, setHasLoadedPersistedState] = useState(false);
@@ -1683,6 +1684,7 @@ export function RankboardApp() {
   const hasAutoOpenedBoardSetupRef = useRef(false);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
+  const mobileBoardLaneInset = "max(0.75rem, calc((100vw - min(90vw, 360px)) / 2))";
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -1724,6 +1726,7 @@ export function RankboardApp() {
     openColumnSortMenuId !== null ||
     openColumnFilterMenuId !== null ||
     openColumnMirrorMenuId !== null ||
+    openColumnColumnsMenuId !== null ||
     openColumnMaintenanceMenuId !== null;
   const activeBoardFieldDefinitions = normalizeFieldDefinitions(
     activeBoardSettings.fieldDefinitions,
@@ -1804,6 +1807,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    setOpenColumnColumnsMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
     setEditingCardId(null);
     setEditingCardItemId(null);
@@ -2933,6 +2937,7 @@ export function RankboardApp() {
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
+    setOpenColumnColumnsMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
   }, [openColumnMenuId]);
 
@@ -2945,6 +2950,7 @@ export function RankboardApp() {
         setOpenColumnSortMenuId(null);
         setOpenColumnFilterMenuId(null);
         setOpenColumnMirrorMenuId(null);
+        setOpenColumnColumnsMenuId(null);
         setOpenColumnMaintenanceMenuId(null);
       }
     }
@@ -7417,7 +7423,23 @@ function copyCardToDraft(card: CardEntry) {
                   })}
                 </div>
               ) : (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible px-6 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] sm:px-0 sm:snap-none">
+                <div
+                  ref={boardLaneRef}
+                  className={clsx(
+                    "relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
+                    isMobileViewport
+                      ? "snap-x snap-mandatory gap-4 px-0"
+                      : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
+                  )}
+                  style={
+                    isMobileViewport
+                      ? {
+                          paddingInline: mobileBoardLaneInset,
+                          scrollPaddingInline: mobileBoardLaneInset,
+                        }
+                      : undefined
+                  }
+                >
                   {columns.map((column, columnIndex) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
@@ -7461,6 +7483,7 @@ function copyCardToDraft(card: CardEntry) {
                           isSortMenuOpen={openColumnSortMenuId === column.id}
                           isFilterMenuOpen={openColumnFilterMenuId === column.id}
                           isMirrorMenuOpen={openColumnMirrorMenuId === column.id}
+                          isColumnsMenuOpen={openColumnColumnsMenuId === column.id}
                           isMaintenanceMenuOpen={openColumnMaintenanceMenuId === column.id}
                           onToggleMenu={() =>
                             setOpenColumnMenuId((current) => {
@@ -7469,6 +7492,8 @@ function copyCardToDraft(card: CardEntry) {
                                 setOpenColumnSortMenuId(null);
                                 setOpenColumnFilterMenuId(null);
                                 setOpenColumnMirrorMenuId(null);
+                                setOpenColumnColumnsMenuId(null);
+                                setOpenColumnMaintenanceMenuId(null);
                               }
                               return nextId;
                             })
@@ -7479,6 +7504,7 @@ function copyCardToDraft(card: CardEntry) {
                               if (nextId === column.id) {
                                 setOpenColumnFilterMenuId(null);
                                 setOpenColumnMirrorMenuId(null);
+                                setOpenColumnColumnsMenuId(null);
                               }
                               return nextId;
                             })
@@ -7489,6 +7515,7 @@ function copyCardToDraft(card: CardEntry) {
                               if (nextId === column.id) {
                                 setOpenColumnSortMenuId(null);
                                 setOpenColumnMirrorMenuId(null);
+                                setOpenColumnColumnsMenuId(null);
                               }
                               return nextId;
                             })
@@ -7499,6 +7526,19 @@ function copyCardToDraft(card: CardEntry) {
                               if (nextId === column.id) {
                                 setOpenColumnSortMenuId(null);
                                 setOpenColumnFilterMenuId(null);
+                                setOpenColumnColumnsMenuId(null);
+                                setOpenColumnMaintenanceMenuId(null);
+                              }
+                              return nextId;
+                            })
+                          }
+                          onToggleColumnsMenu={() =>
+                            setOpenColumnColumnsMenuId((current) => {
+                              const nextId = current === column.id ? null : column.id;
+                              if (nextId === column.id) {
+                                setOpenColumnSortMenuId(null);
+                                setOpenColumnFilterMenuId(null);
+                                setOpenColumnMirrorMenuId(null);
                                 setOpenColumnMaintenanceMenuId(null);
                               }
                               return nextId;
@@ -7511,6 +7551,7 @@ function copyCardToDraft(card: CardEntry) {
                                 setOpenColumnSortMenuId(null);
                                 setOpenColumnFilterMenuId(null);
                                 setOpenColumnMirrorMenuId(null);
+                                setOpenColumnColumnsMenuId(null);
                               }
                               return nextId;
                             })
@@ -7536,21 +7577,33 @@ function copyCardToDraft(card: CardEntry) {
                           onColumnDrop={moveColumnToTarget}
                           onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
                           onMoveColumnRight={(columnId) => moveColumnByDirection(columnId, "right")}
+                          onAddColumnLeft={() => {
+                            setOpenColumnMenuId(null);
+                            setOpenColumnColumnsMenuId(null);
+                            addColumnAt(columnIndex);
+                          }}
+                          onAddColumnRight={() => {
+                            setOpenColumnMenuId(null);
+                            setOpenColumnColumnsMenuId(null);
+                            addColumnAt(columnIndex + 1);
+                          }}
                           draggingColumnId={draggingColumnId}
                           revealedMobileAddCardTarget={revealedMobileAddCardTarget}
                           onRevealMobileAddCardTarget={setRevealedMobileAddCardTarget}
                         />
-                        <AddColumnButton
-                          inline
-                          isDarkMode={isDarkMode}
-                          isMobileViewport={isMobileViewport}
-                          mobileArmed={revealedMobileAddColumnIndex === columnIndex + 1}
-                          onArm={() => setRevealedMobileAddColumnIndex(columnIndex + 1)}
-                          onClick={() => {
-                            setRevealedMobileAddColumnIndex(null);
-                            addColumnAt(columnIndex + 1);
-                          }}
-                        />
+                        {!isMobileViewport ? (
+                          <AddColumnButton
+                            inline
+                            isDarkMode={isDarkMode}
+                            isMobileViewport={isMobileViewport}
+                            mobileArmed={revealedMobileAddColumnIndex === columnIndex + 1}
+                            onArm={() => setRevealedMobileAddColumnIndex(columnIndex + 1)}
+                            onClick={() => {
+                              setRevealedMobileAddColumnIndex(null);
+                              addColumnAt(columnIndex + 1);
+                            }}
+                          />
+                        ) : null}
                       </div>
                     );
                   })}
@@ -10230,11 +10283,13 @@ function BoardColumn({
   isSortMenuOpen,
   isFilterMenuOpen,
   isMirrorMenuOpen,
+  isColumnsMenuOpen,
   isMaintenanceMenuOpen,
   onToggleMenu,
   onToggleSortMenu,
   onToggleFilterMenu,
   onToggleMirrorMenu,
+  onToggleColumnsMenu,
   onToggleMaintenanceMenu,
   onOpenDuplicateCleanup,
   onOpenMoveAll,
@@ -10252,6 +10307,8 @@ function BoardColumn({
   onColumnDrop,
   onMoveColumnLeft,
   onMoveColumnRight,
+  onAddColumnLeft,
+  onAddColumnRight,
   draggingColumnId,
   revealedMobileAddCardTarget,
   onRevealMobileAddCardTarget,
@@ -10292,11 +10349,13 @@ function BoardColumn({
   isSortMenuOpen: boolean;
   isFilterMenuOpen: boolean;
   isMirrorMenuOpen: boolean;
+  isColumnsMenuOpen: boolean;
   isMaintenanceMenuOpen: boolean;
   onToggleMenu: () => void;
   onToggleSortMenu: () => void;
   onToggleFilterMenu: () => void;
   onToggleMirrorMenu: () => void;
+  onToggleColumnsMenu: () => void;
   onToggleMaintenanceMenu: () => void;
   onOpenDuplicateCleanup: () => void;
   onOpenMoveAll: () => void;
@@ -10314,6 +10373,8 @@ function BoardColumn({
   onColumnDrop: (sourceColumnId: string, targetColumnId: string) => void;
   onMoveColumnLeft: (columnId: string) => void;
   onMoveColumnRight: (columnId: string) => void;
+  onAddColumnLeft: () => void;
+  onAddColumnRight: () => void;
   draggingColumnId: string | null;
   revealedMobileAddCardTarget: MobileAddCardTarget | null;
   onRevealMobileAddCardTarget: React.Dispatch<React.SetStateAction<MobileAddCardTarget | null>>;
@@ -10336,7 +10397,8 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        "relative z-10 flex h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] shrink-0 flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        isMobileViewport ? "w-[min(90vw,360px)] snap-center" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
@@ -10486,6 +10548,87 @@ function BoardColumn({
                           Rank by Quiz
                         </button>
                       ) : null}
+                      <div className="relative">
+                        <button
+                          className={clsx(
+                            "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm transition",
+                            isDarkMode
+                              ? "text-white hover:bg-white/10"
+                              : "text-slate-700 hover:bg-slate-100",
+                          )}
+                          onClick={onToggleColumnsMenu}
+                          type="button"
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Columns
+                          </span>
+                          <span className="text-xs opacity-70">{isColumnsMenuOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isColumnsMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "mt-1 flex flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900"
+                                : "border-slate-200 bg-white",
+                            )}
+                          >
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={onAddColumnLeft}
+                              type="button"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Add Left
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={onAddColumnRight}
+                              type="button"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Add Right
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onMoveColumnLeft(column.id)}
+                              type="button"
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                              Move Left
+                            </button>
+                            <button
+                              className={clsx(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                                isDarkMode
+                                  ? "text-white hover:bg-white/10"
+                                  : "text-slate-700 hover:bg-slate-100",
+                              )}
+                              onClick={() => onMoveColumnRight(column.id)}
+                              type="button"
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                              Move Right
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                       <div className="relative">
                         <button
                           className={clsx(
@@ -10818,32 +10961,6 @@ function BoardColumn({
                                 : "border-slate-200 bg-white",
                             )}
                           >
-                            <button
-                              className={clsx(
-                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
-                                isDarkMode
-                                  ? "text-white hover:bg-white/10"
-                                  : "text-slate-700 hover:bg-slate-100",
-                              )}
-                              onClick={() => onMoveColumnLeft(column.id)}
-                              type="button"
-                            >
-                              <ArrowLeft className="h-4 w-4" />
-                              Move Left
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
-                                isDarkMode
-                                  ? "text-white hover:bg-white/10"
-                                  : "text-slate-700 hover:bg-slate-100",
-                              )}
-                              onClick={() => onMoveColumnRight(column.id)}
-                              type="button"
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                              Move Right
-                            </button>
                             <button
                               className={clsx(
                                 "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
