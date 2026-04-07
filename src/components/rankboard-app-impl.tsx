@@ -2322,16 +2322,18 @@ export function RankboardApp() {
 
     const collapseBrowserChrome = () => {
       if (window.scrollY <= 0) {
-        window.scrollTo(0, 1);
+        window.scrollTo(0, 72);
       }
     };
 
     const firstPass = window.setTimeout(collapseBrowserChrome, 80);
     const secondPass = window.setTimeout(collapseBrowserChrome, 320);
+    const thirdPass = window.setTimeout(collapseBrowserChrome, 900);
 
     return () => {
       window.clearTimeout(firstPass);
       window.clearTimeout(secondPass);
+      window.clearTimeout(thirdPass);
     };
   }, [isMobileViewport]);
 
@@ -6476,7 +6478,7 @@ function copyCardToDraft(card: CardEntry) {
               className={clsx(
                 "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
                 isDarkMode
-                  ? "bg-white/10 text-white hover:bg-white/15"
+                  ? "bg-slate-900 text-white shadow-[0_12px_24px_rgba(2,6,23,0.35)] hover:bg-slate-800"
                   : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
               )}
               onClick={() => {
@@ -9993,7 +9995,7 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[20] -mx-3 flex min-h-[min(82dvh,940px)] w-10 shrink-0 snap-start items-center justify-center overflow-visible transition sm:mx-0 sm:min-h-[720px] sm:w-4 sm:snap-align-none"
+          ? "group relative z-[20] flex min-h-[min(82dvh,940px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible px-3 transition sm:min-h-[720px] sm:w-4 sm:px-0 sm:snap-align-none"
           : "group relative z-[20] flex min-h-[min(82dvh,940px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
@@ -11498,12 +11500,12 @@ function AddCardRow({
   const rowContent = (
     <span
       className={clsx(
-        "flex h-8 w-8 items-center justify-center rounded-full border transition",
+        "flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
         hideRowAction && "invisible opacity-0",
         interactive
           ? isDarkMode
-            ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
-            : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50 group-focus:border-slate-500 group-focus:bg-slate-50"
+            ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800 group-focus:border-white/40 group-focus:bg-slate-800"
+            : "border-white bg-white text-slate-950 ring-white/70 group-hover:border-slate-300 group-hover:bg-slate-50 group-focus:border-slate-300 group-focus:bg-slate-50"
           : "border-transparent bg-transparent text-transparent",
       )}
     >
