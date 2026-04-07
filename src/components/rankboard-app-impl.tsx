@@ -7156,7 +7156,7 @@ function copyCardToDraft(card: CardEntry) {
                           isDarkMode={isDarkMode}
                           isMobileViewport={isMobileViewport}
                           frontFieldDefinitions={activeBoardFieldDefinitions}
-                          disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard) || hasBlockingMenuOpen}
+                          disableAddAffordances={Boolean(column.mirrorsEntireBoard) || hasBlockingMenuOpen}
                           isCardDragging={isCardDragging}
                           isDragGapSuppressed={isDragGapSuppressed}
                           cards={visibleCards}
@@ -10639,6 +10639,7 @@ function BoardColumn({
                         : null
                     }
                     onEdit={() => onEditCard(card)}
+                    preserveSpaceWhenDragging={false}
                   />
                   <AddCardRow
                     columnId={column.id}
@@ -11123,10 +11124,12 @@ function AddCardRow({
     onClick();
   };
 
-  const rowContent = isDragMode || hideAction || (isMobileViewport && !mobileArmed) ? null : (
+  const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
+  const rowContent = (
     <span
       className={clsx(
         "flex h-8 w-8 items-center justify-center rounded-full border transition",
+        hideRowAction && "invisible opacity-0",
         interactive
           ? isDarkMode
             ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900 group-focus:border-white/35 group-focus:bg-slate-900"
