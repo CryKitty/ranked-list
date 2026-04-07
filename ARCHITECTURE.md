@@ -127,6 +127,7 @@
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The mobile action-sheet Maintenance panel should expose the same board-layout conversion action as the desktop maintenance menu.
 - The board switcher also exposes create/delete affordances for board-level management.
+- In auth-enabled signed-out sessions, a welcome modal now appears before normal editing flow, gives a short three-step onboarding rundown, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board.
 - Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
 - Mobile quick-add should prefer the column currently centered in the horizontal lane.
 - Boards can override the noun used for cards with `settings.cardLabel`, and `Add ...` UI should prefer that over title heuristics.

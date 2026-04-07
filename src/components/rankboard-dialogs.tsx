@@ -10,11 +10,13 @@ import {
   Clock3,
   Copy,
   ImagePlus,
+  LogIn,
   MoveVertical,
   Plus,
   Save,
   Settings2,
   Share2,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -1293,6 +1295,138 @@ export function ShareBoardDialog({
               Close
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function WelcomeDialog({
+  isOpen,
+  isDarkMode,
+  isLoginDisabled,
+  onLogin,
+  onGetStarted,
+}: {
+  isOpen: boolean;
+  isDarkMode: boolean;
+  isLoginDisabled?: boolean;
+  onLogin: () => void;
+  onGetStarted: () => void;
+}) {
+  if (!isOpen) {
+    return null;
+  }
+
+  const steps = [
+    {
+      title: "Start a board",
+      description: "Create a fresh board for games, shows, songs, characters, or anything else you want to rank.",
+    },
+    {
+      title: "Add and organize cards",
+      description: "Drop items into columns, reorder them, and customize the board as your list takes shape.",
+    },
+    {
+      title: "Save and share",
+      description: "Log in to save your board to your account and share your favorite rankings with friends.",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+      <div
+        className={clsx(
+          "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-8",
+          isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
+        )}
+      >
+        <div className="flex items-start gap-4">
+          <div
+            className={clsx(
+              "inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+              isDarkMode ? "bg-white/10 text-white" : "bg-slate-950 text-white",
+            )}
+          >
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+              Welcome
+            </p>
+            <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              Welcome to Rankr
+            </h2>
+            <p className={clsx("mt-3 text-sm leading-6 sm:text-base", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+              Build ranking boards in minutes, then log in when you want to save them and share them with friends.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {steps.map((step, index) => (
+            <div
+              key={step.title}
+              className={clsx(
+                "flex items-start gap-4 rounded-2xl border px-4 py-4",
+                isDarkMode ? "border-white/10 bg-slate-950/70" : "border-slate-200 bg-slate-50",
+              )}
+            >
+              <div
+                className={clsx(
+                  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black",
+                  isDarkMode ? "bg-white text-slate-950" : "bg-slate-950 text-white",
+                )}
+              >
+                {index + 1}
+              </div>
+              <div>
+                <h3 className={clsx("text-sm font-semibold sm:text-base", isDarkMode ? "text-white" : "text-slate-950")}>
+                  {step.title}
+                </h3>
+                <p className={clsx("mt-1 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                  {step.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className={clsx(
+            "mt-6 rounded-2xl border px-4 py-4 text-sm leading-6",
+            isDarkMode ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700",
+          )}
+        >
+          Log in anytime to keep your boards synced and make sharing them with friends effortless.
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            className={clsx(
+              "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+              isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
+            )}
+            onClick={onGetStarted}
+            type="button"
+          >
+            <Plus className="h-4 w-4" />
+            Get Started
+          </button>
+          <button
+            className={clsx(
+              "inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+              isDarkMode
+                ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40 disabled:opacity-60"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:opacity-60",
+            )}
+            disabled={isLoginDisabled}
+            onClick={onLogin}
+            type="button"
+          >
+            <LogIn className="h-4 w-4" />
+            Log In to Save
+          </button>
         </div>
       </div>
     </div>

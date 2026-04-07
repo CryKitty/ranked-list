@@ -2,6 +2,7 @@
 
 ## 2026-04-07
 
+- Added a signed-out welcome modal that introduces Rankr in three steps, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board before editing.
 - Removed obsolete tracked backup/reference files from the runtime source tree, including [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx) and the old [`/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup) reference copies, so `src/components` now reflects the live app more directly.
 - Extracted shared Rankr display helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts), covering tier filtering, search matching, sortable series labels, and shared card title/series presentation logic used across the main app and share page.
 - Extracted browser-storage keys and small storage helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts), reducing repeated local-storage wiring inside the main app implementation.
