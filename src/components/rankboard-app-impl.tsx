@@ -9972,8 +9972,8 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[20] flex min-h-[min(76dvh,860px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
-          : "group relative z-[20] flex min-h-[min(76dvh,860px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
+          ? "group relative z-[20] -mx-3 flex min-h-[min(82dvh,940px)] w-10 shrink-0 snap-start items-center justify-center overflow-visible transition sm:mx-0 sm:min-h-[720px] sm:w-4 sm:snap-align-none"
+          : "group relative z-[20] flex min-h-[min(82dvh,940px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -9982,6 +9982,11 @@ function AddColumnButton({
             ? "text-slate-700"
             : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
       )}
+      onClick={() => {
+        if (inline && isMobileViewport && !mobileArmed) {
+          onArm?.();
+        }
+      }}
     >
       {inline ? (
         <span
@@ -10011,7 +10016,10 @@ function AddColumnButton({
           > 
             <button
               className="group/edit absolute inset-0 flex items-center justify-center rounded-full"
-              onClick={handleClick}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleClick();
+              }}
               type="button"
               aria-label={inline && isMobileViewport && !mobileArmed ? "Reveal add column button" : "Add column"}
             >
@@ -10308,7 +10316,7 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex h-[min(76dvh,920px)] min-h-[min(76dvh,860px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        "relative z-10 flex h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
