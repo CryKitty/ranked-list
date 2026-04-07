@@ -2,6 +2,7 @@
 
 ## 2026-04-06
 
+- Tier List desktop rows now take their horizontal spacing from the insert slots themselves instead of the flex gap, so the visible space between cards matches the real drop target.
 - Tier List desktop drag/drop now mirrors the Kanban model more closely: the dragged card’s old slot collapses away, while insert targets live in a hidden horizontal hit zone that only expands into a real gap when hovered.
 - Tier List desktop insert slots now stay as a small real layout gap during drag and expand from there, matching the Kanban split-gap behavior more closely.
 - Tier List mobile cards are slightly larger again and use even tighter corner radii.
