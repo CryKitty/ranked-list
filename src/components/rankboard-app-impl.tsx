@@ -10036,7 +10036,18 @@ function AddColumnButton({
                 ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800"
                 : "border-white bg-white text-slate-950 ring-white/70 group-hover:border-slate-300",
             )}
-          > 
+          >
+            {isMobileViewport && !mobileArmed ? (
+              <button
+                aria-label="Reveal add column button"
+                className="absolute inset-y-0 left-1/2 w-12 -translate-x-1/2"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onArm?.();
+                }}
+                type="button"
+              />
+            ) : null}
             <button
               className={clsx(
                 "group/edit absolute inset-0 flex items-center justify-center rounded-full",
