@@ -6672,6 +6672,17 @@ function copyCardToDraft(card: CardEntry) {
                                 className={clsx(
                                   "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                   isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                )}
+                                onClick={openTierListConversionModal}
+                                type="button"
+                              >
+                                <ListOrdered className="h-4 w-4" />
+                                {activeBoardLayout === "tier-list" ? "Convert to Kanban Board" : "Convert to Tier List"}
+                              </button>
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                                   boards.length <= 1 && "cursor-not-allowed opacity-50",
                                 )}
                                 disabled={boards.length <= 1}

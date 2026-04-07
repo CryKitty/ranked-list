@@ -2,6 +2,7 @@
 
 ## 2026-04-06
 
+- Restored the board-layout conversion action inside the mobile `Action Menu > Maintenance` sheet, so mobile now exposes the same `Convert to Tier List` / `Convert to Kanban Board` action as desktop.
 - Tier List mobile cards are now much smaller, including the backlog row, so the layout breathes better on phones.
 - Board-to-Tier-List conversion now seeds the copied board through an explicit synchronized snapshot update, which fixes the conversion path that could previously crash into the generic “This page couldn’t load” screen.
 - Tier List setup defaults now use `Pool` as the backlog row instead of `Unsorted`, and that row also uses square cards like the ranked rows.

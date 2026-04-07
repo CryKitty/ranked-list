@@ -130,6 +130,7 @@
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
+- The mobile action-sheet Maintenance panel should expose the same board-layout conversion action as the desktop maintenance menu.
 - The board switcher also exposes create/delete affordances for board-level management.
 - Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
 - Mobile quick-add should prefer the column currently centered in the horizontal lane.
