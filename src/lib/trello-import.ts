@@ -83,8 +83,8 @@ function pickAttachmentUrl(attachments: TrelloAttachment[] = []) {
   }
 
   return (
-    imageAttachment.previews?.[imageAttachment.previews.length - 1]?.url ??
     imageAttachment.url ??
+    imageAttachment.previews?.[imageAttachment.previews.length - 1]?.url ??
     ""
   );
 }

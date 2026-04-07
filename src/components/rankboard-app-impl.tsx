@@ -638,6 +638,22 @@ function buildBackupSnapshot(
   };
 }
 
+function getFilenameFromRemoteImageUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const lastSegment = parsed.pathname.split("/").filter(Boolean).pop() ?? "";
+    const sanitized = lastSegment.split("?")[0]?.trim();
+
+    if (sanitized) {
+      return sanitized;
+    }
+  } catch {
+    // Fall through to the generic filename below.
+  }
+
+  return `imported-artwork-${crypto.randomUUID()}.jpg`;
+}
+
 function mergeBoardsWithActiveSnapshot(
   boards: SavedBoard[],
   activeBoardId: string,
@@ -5853,12 +5869,63 @@ function copyCardToDraft(card: CardEntry) {
     try {
       const fileText = await file.text();
       const importedBoard = parseTrelloBoardExport(fileText);
+      let importedCardsByColumn = importedBoard.cardsByColumn;
+
+      if (supabase && currentUser) {
+        importedCardsByColumn = await Promise.all(
+          Object.entries(importedBoard.cardsByColumn).map(async ([columnId, columnCards]) => {
+            const localizedCards = await Promise.all(
+              columnCards.map(async (card) => {
+                const remoteImageUrl = card.imageUrl.trim();
+
+                if (!remoteImageUrl || card.imageStoragePath) {
+                  return card;
+                }
+
+                try {
+                  const response = await fetch(getArtworkDisplayUrl(remoteImageUrl), {
+                    credentials: "same-origin",
+                  });
+
+                  if (!response.ok) {
+                    return card;
+                  }
+
+                  const artworkBlob = await response.blob();
+
+                  if (!artworkBlob.type.startsWith("image/")) {
+                    return card;
+                  }
+
+                  const uploaded = await uploadArtworkToStorage(
+                    supabase,
+                    currentUser.id,
+                    artworkBlob,
+                    getFilenameFromRemoteImageUrl(remoteImageUrl),
+                  );
+
+                  return {
+                    ...card,
+                    imageUrl: uploaded.publicUrl,
+                    imageStoragePath: uploaded.path,
+                  };
+                } catch {
+                  return card;
+                }
+              }),
+            );
+
+            return [columnId, localizedCards] as const;
+          }),
+        ).then((entries) => Object.fromEntries(entries));
+      }
+
       const nextBoards = latestBoardsRef.current.map((board) =>
         board.id === activeBoardId
           ? {
               ...board,
               columns: importedBoard.columns,
-              cardsByColumn: importedBoard.cardsByColumn,
+              cardsByColumn: importedCardsByColumn,
               updatedAt: new Date().toISOString(),
             }
           : board,
@@ -5868,9 +5935,9 @@ function copyCardToDraft(card: CardEntry) {
 
       latestBoardsRef.current = nextBoards;
       latestColumnsRef.current = importedBoard.columns;
-      latestCardsByColumnRef.current = importedBoard.cardsByColumn;
+      latestCardsByColumnRef.current = importedCardsByColumn;
       setColumns(importedBoard.columns);
-      setCardsByColumn(importedBoard.cardsByColumn);
+      setCardsByColumn(importedCardsByColumn);
       setBoards(nextBoards);
       if (nextActiveBoard) {
         latestActiveBoardIdRef.current = nextActiveBoard.id;
@@ -5886,7 +5953,7 @@ function copyCardToDraft(card: CardEntry) {
         boards: nextBoards,
         activeBoardId: nextActiveBoard?.id ?? activeBoardId,
         columns: importedBoard.columns,
-        cardsByColumn: importedBoard.cardsByColumn,
+        cardsByColumn: importedCardsByColumn,
       });
     } catch (error) {
       const message =
