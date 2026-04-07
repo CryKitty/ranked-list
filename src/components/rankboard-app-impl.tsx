@@ -5403,9 +5403,14 @@ function copyCardToDraft(card: CardEntry) {
         fieldDefinitions: normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, title, newBoardSettings),
       },
     };
+    const nextBoards = [...boards, nextBoard];
 
     skipNextHistoryRef.current = true;
-    setBoards((current) => [...current, nextBoard]);
+    latestBoardsRef.current = nextBoards;
+    latestActiveBoardIdRef.current = nextBoard.id;
+    latestColumnsRef.current = nextBoard.columns;
+    latestCardsByColumnRef.current = nextBoard.cardsByColumn;
+    setBoards(nextBoards);
     setActiveBoardId(nextBoard.id);
     setColumns(nextBoard.columns);
     setCardsByColumn(nextBoard.cardsByColumn);
@@ -5416,10 +5421,20 @@ function copyCardToDraft(card: CardEntry) {
     setIsBoardsMenuOpen(false);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
-    queuePersistBoardState();
+    setIsMaintenanceMenuOpen(false);
+    queuePersistBoardState({
+      boards: nextBoards,
+      activeBoardId: nextBoard.id,
+      columns: nextBoard.columns,
+      cardsByColumn: nextBoard.cardsByColumn,
+    });
   }
 
   function openTierListConversionModal() {
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    setIsMaintenanceMenuOpen(false);
+
     if (activeBoardLayout === "tier-list") {
       setTierListConversionState({
         mode: "to-board",
@@ -5460,6 +5475,7 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMaintenanceMenuId(null);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+    setIsMaintenanceMenuOpen(false);
     setTierListConversionState(null);
     queuePersistBoardState({
       boards: nextBoards,
@@ -7301,7 +7317,7 @@ function copyCardToDraft(card: CardEntry) {
               onDragEnd={handleDragEnd}
             >
               {activeBoardLayout === "tier-list" ? (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-3 pb-3">
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-2 pb-3">
                   {columns.map((column) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
@@ -10971,7 +10987,7 @@ function TierListRow({
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
 
   return (
-    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-stretch gap-3">
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-stretch gap-2">
       <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
         <div
           className={clsx(
@@ -11035,13 +11051,13 @@ function TierListRow({
               </span>
             )}
           </div>
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5">
+          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1">
             {!isEditingColumn ? (
               <div className="group relative">
                 <button
                   aria-label={`Row options for ${column.title}`}
                   className={clsx(
-                    "inline-flex h-8 w-8 items-center justify-center rounded-full border transition lg:pointer-events-none lg:opacity-0 lg:group-hover/rowrail:pointer-events-auto lg:group-hover/rowrail:opacity-100 lg:group-focus-within/rowrail:pointer-events-auto lg:group-focus-within/rowrail:opacity-100",
+                    "inline-flex h-7 w-7 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
                     isDarkMode
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -11058,7 +11074,7 @@ function TierListRow({
               <button
                 aria-label={`Add ${addLabel} to ${column.title}`}
                 className={clsx(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-full border transition lg:pointer-events-none lg:opacity-0 lg:group-hover/rowrail:pointer-events-auto lg:group-hover/rowrail:opacity-100 lg:group-focus-within/rowrail:pointer-events-auto lg:group-focus-within/rowrail:opacity-100",
+                  "inline-flex h-7 w-7 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
                   isDarkMode
                     ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                     : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -11164,13 +11180,13 @@ function TierListAddRowDivider({
   onClick: () => void;
 }) {
   return (
-    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3">
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
       <div className="flex items-center justify-center">
         <div className="group relative">
           <button
             aria-label="Add row"
             className={clsx(
-              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
+              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
               isDarkMode
                 ? "border-white/15 bg-slate-950/90 text-white hover:border-white/35 hover:bg-slate-900"
                 : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",

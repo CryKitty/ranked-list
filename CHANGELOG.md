@@ -2,6 +2,10 @@
 
 ## 2026-04-06
 
+- New-board creation now uses the same synchronized board/active-board handoff as board conversion, which should prevent the tier-list crash path seen after conversion or early saves on a new tier-list board.
+- Opening board-layout conversion from the mobile maintenance sheet now closes the action sheet immediately so the conversion modal doesn’t look like it failed to open.
+- Tier List row rails are a bit narrower now, the gap between rows is smaller, and the rail buttons now stack vertically.
+- The between-row `+ Add Row` affordance is now hover/focus-only instead of staying visible all the time.
 - Restored the board-layout conversion action inside the mobile `Action Menu > Maintenance` sheet, so mobile now exposes the same `Convert to Tier List` / `Convert to Kanban Board` action as desktop.
 - Tier List mobile cards are now much smaller, including the backlog row, so the layout breathes better on phones.
 - Board-to-Tier-List conversion now seeds the copied board through an explicit synchronized snapshot update, which fixes the conversion path that could previously crash into the generic “This page couldn’t load” screen.

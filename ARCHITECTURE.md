@@ -96,7 +96,7 @@
 - Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
 - On mobile, Tier List cards intentionally shrink further than desktop to keep wrapped rows practical on narrow screens.
 - Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright and slightly larger.
-- Tier List row rails now hide their small action buttons until hover/focus on desktop to keep the label rail visually cleaner.
+- Tier List row rails now hide their small action buttons until hover/focus to keep the label rail visually cleaner, and those controls stack vertically inside the narrower rail.
 - Tier List rows now expose `+ Add Row` affordances between rows, and row-specific options are handled through a small in-UI menu anchored from the row rail.
 - Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap.
 
@@ -125,6 +125,7 @@
 - On mobile, `Share` and `Settings` should sit side-by-side in the action sheet, with board-level customization/maintenance rows below them.
 - Mobile action-sheet expansion panels should span the full sheet width rather than anchoring under a later grid slot.
 - On mobile, the `Maintenance` row should sit to the left of `Customization`, both rows should fill the row evenly, and their detail panels should open directly beneath their own buttons.
+- Opening board-layout conversion from the mobile Maintenance sheet should also close the action sheet immediately so the conversion modal is the only visible surface.
 - Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls, and the share modal now uses that same treatment too. The share-modal series menu opens upward to avoid modal clipping.
 - Those filter menus also display series labels without leading sortable prefixes like `The` and `A`, while still keeping the stored full series value intact.
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
@@ -208,6 +209,7 @@
 - The `Join` CTA links to `/?new=1`, and the main app consumes that query by opening the new-board modal once and then clearing the query string.
 - The new-board modal should encourage signed-out users to log in if they want board creation to persist across devices.
 - The board-setup modal now supports both `Kanban Board` and `Tier List` creation up front, and on mobile its body scrolls within the viewport while the action buttons remain visible.
+- New board creation now mirrors the hardened conversion handoff by updating the board list, active board, active columns/cards, and latest refs in one synchronized step before the first save queue runs.
 - New-board defaults now derive the initial card label from the board title when the title looks like a collection name, so first-run copy can match the board theme without the user opening customization first.
 - New-board defaults now enable only `Series` and `Artwork`; `Release Year` and `Notes` are available but start disabled.
 
