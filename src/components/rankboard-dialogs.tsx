@@ -1337,7 +1337,7 @@ export function WelcomeDialog({
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div
         className={clsx(
-          "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-8",
+          "max-h-[min(92vh,860px)] w-full max-w-2xl overflow-y-auto rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-8",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
       >
@@ -1351,11 +1351,8 @@ export function WelcomeDialog({
             <Sparkles className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-              Welcome
-            </p>
-            <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-              Welcome to Rankr
+            <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              Welcome to Sorta
             </h2>
             <p className={clsx("mt-3 text-sm leading-6 sm:text-base", isDarkMode ? "text-slate-300" : "text-slate-600")}>
               Build ranking boards in minutes, then log in when you want to save them and share them with friends.
@@ -1390,15 +1387,6 @@ export function WelcomeDialog({
               </div>
             </div>
           ))}
-        </div>
-
-        <div
-          className={clsx(
-            "mt-6 rounded-2xl border px-4 py-4 text-sm leading-6",
-            isDarkMode ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700",
-          )}
-        >
-          Log in anytime to keep your boards synced and make sharing them with friends effortless.
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
