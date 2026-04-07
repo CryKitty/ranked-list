@@ -11362,6 +11362,7 @@ function CardTile({
   const collapsedRankClass =
     "bg-white text-slate-950";
   const collapsedTitleClass = "text-slate-950";
+  const collapsedSeriesClass = "text-slate-950";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -11490,7 +11491,7 @@ function CardTile({
               ) : null}
               <div className="mx-auto flex max-w-[calc(100%-4.75rem)] flex-col items-center justify-center px-1 text-center">
                 {displaySeries ? (
-              <p className="mb-1 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+              <p className={clsx("mb-1 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.18em]", collapsedSeriesClass)}>
                 {displaySeries}
               </p>
                 ) : null}
