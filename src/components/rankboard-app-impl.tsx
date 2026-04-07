@@ -6478,7 +6478,7 @@ function copyCardToDraft(card: CardEntry) {
               className={clsx(
                 "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
                 isDarkMode
-                  ? "bg-slate-800 text-white shadow-[0_12px_24px_rgba(2,6,23,0.35)] hover:bg-slate-700"
+                  ? "bg-white/10 text-white shadow-[0_12px_24px_rgba(2,6,23,0.28)] hover:bg-white/15"
                   : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
               )}
               onClick={() => {
@@ -7417,7 +7417,7 @@ function copyCardToDraft(card: CardEntry) {
                   })}
                 </div>
               ) : (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible px-2 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] sm:px-0 sm:snap-none">
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] sm:px-0 sm:snap-none">
                   {columns.map((column, columnIndex) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
