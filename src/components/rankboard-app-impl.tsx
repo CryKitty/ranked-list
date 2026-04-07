@@ -3064,7 +3064,7 @@ export function RankboardApp() {
     dragGapSuppressTimeoutRef.current = window.setTimeout(() => {
       setIsDragGapSuppressed(false);
       dragGapSuppressTimeoutRef.current = null;
-    }, 1000);
+    }, 2000);
   }
 
   function getBoardInsertCollision(
@@ -6249,20 +6249,20 @@ function copyCardToDraft(card: CardEntry) {
   return (
     <div
       className={clsx(
-        "min-h-[var(--app-height)] pt-[env(safe-area-inset-top)] transition-colors",
+        "h-[var(--app-height)] overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-[var(--app-height)] sm:overflow-visible",
         isDarkMode
           ? "bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] text-slate-100"
           : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffe3cf_18%,#fff0e2_38%,#fff4ea_62%,#fff6ef_100%)] text-slate-950",
       )}
     >
-      <main className="mx-auto flex min-h-[var(--app-height)] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-6 sm:px-6 lg:px-8">
+      <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
         <datalist id="series-suggestions">
           {allSeries.map((series) => (
             <option key={series} value={series} />
           ))}
         </datalist>
 
-        <section className="grid w-full min-w-0 gap-4">
+        <section className="grid min-h-0 w-full min-w-0 gap-3 sm:gap-4">
           <div className="hidden">
             <div className="flex flex-col items-center gap-4">
               <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-[1fr_260px_auto_auto] sm:gap-4">
@@ -6932,13 +6932,13 @@ function copyCardToDraft(card: CardEntry) {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 w-full min-w-0 overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:p-4",
+              "relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:p-4",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
             )}
           >
-            <div className="mb-3 min-w-0 sm:mb-4">
+            <div className="mb-2 min-w-0 sm:mb-4">
               {isEditingBoardTitle ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <input
@@ -11698,6 +11698,7 @@ function AddCardRow({
 
     onClick();
   };
+  const showExpandedDropTarget = isDragMode && !isGapSuppressed && isOver;
 
   const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
   const rowContent = (
@@ -11726,22 +11727,36 @@ function AddCardRow({
     return (
       <div
         data-mobile-inline-add-root="true"
-      className={clsx(
-        "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out",
-        isDarkMode ? "text-slate-300" : "text-slate-400",
-        isDragMode
-          ? isGapSuppressed
+        className={clsx(
+          "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out",
+          isDarkMode ? "text-slate-300" : "text-slate-400",
+          isDragMode
+            ? isGapSuppressed
               ? "pointer-events-none h-0 opacity-0"
-              : isOver
+              : showExpandedDropTarget
                 ? "h-[172px] opacity-100"
                 : "h-0 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
         )}
+        style={{
+          transitionDelay: showExpandedDropTarget ? "220ms" : "0ms",
+        }}
         aria-hidden="true"
       >
         <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+        {showExpandedDropTarget ? (
+          <div
+            aria-hidden="true"
+            className={clsx(
+              "pointer-events-none absolute inset-x-3 inset-y-0 rounded-[24px] border border-dashed",
+              isDarkMode
+                ? "border-slate-400/55 bg-slate-400/10"
+                : "border-slate-400/60 bg-slate-200/70",
+            )}
+          />
+        ) : null}
         {rowContent}
       </div>
     );
@@ -11756,7 +11771,7 @@ function AddCardRow({
         isDragMode
           ? isGapSuppressed
             ? "pointer-events-none h-0 opacity-0"
-            : isOver
+            : showExpandedDropTarget
               ? "h-[172px] opacity-100"
               : "h-0 opacity-100"
           : alwaysVisible
@@ -11766,11 +11781,25 @@ function AddCardRow({
               : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
+      style={{
+        transitionDelay: showExpandedDropTarget ? "220ms" : "0ms",
+      }}
       onClick={handleClick}
       type="button"
       aria-label="Add game here"
     >
       <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+      {showExpandedDropTarget ? (
+        <div
+          aria-hidden="true"
+          className={clsx(
+            "pointer-events-none absolute inset-x-3 inset-y-0 rounded-[24px] border border-dashed",
+            isDarkMode
+              ? "border-slate-400/55 bg-slate-400/10"
+              : "border-slate-400/60 bg-slate-200/70",
+          )}
+        />
+      ) : null}
       {rowContent}
     </button>
   );
