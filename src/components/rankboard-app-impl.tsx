@@ -6705,7 +6705,7 @@ function copyCardToDraft(card: CardEntry) {
             {!isEditingBoardTitle ? (
               <div
                 className={clsx(
-                  "absolute right-4 top-4 inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold xl:hidden",
+                  "absolute right-4 top-4 inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold lg:hidden",
                   isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
                 )}
                 title={
@@ -6899,7 +6899,7 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
                     </div>
                   </div>
-                  <div className="hidden shrink-0 items-center gap-2 xl:flex">
+                  <div className="hidden shrink-0 items-center gap-2 lg:flex">
                     <input
                       name="title"
                       className={clsx(
@@ -7180,22 +7180,6 @@ function copyCardToDraft(card: CardEntry) {
                               : "Pending"}
                       </span>
                     </div>
-                  </div>
-                  <div className="hidden lg:block xl:hidden" data-actions-menu-root="true">
-                    <button
-                      aria-label="Open actions"
-                      className={clsx(
-                        "inline-flex h-11 w-11 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.18)]",
-                        isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
-                      )}
-                      onClick={() => {
-                        setIsBoardsMenuOpen(false);
-                        setIsMobileActionsOpen(true);
-                      }}
-                      type="button"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </button>
                   </div>
                 </div>
               )}
