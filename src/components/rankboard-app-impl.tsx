@@ -9972,8 +9972,8 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[20] flex min-h-[min(68dvh,760px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
-          : "group relative z-[20] flex min-h-[min(68dvh,760px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
+          ? "group relative z-[20] flex min-h-[min(76dvh,860px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
+          : "group relative z-[20] flex min-h-[min(76dvh,860px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -10308,7 +10308,7 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex h-[min(68dvh,840px)] min-h-[min(68dvh,760px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        "relative z-10 flex h-[min(76dvh,920px)] min-h-[min(76dvh,860px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",

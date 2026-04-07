@@ -18,22 +18,26 @@
 
 html {
   min-height: 100%;
-  background: var(--background);
+  background-color: #fff8ef;
+  background-image: radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%);
 }
 
 html.dark {
-  background: #020617;
+  background-color: #020617;
+  background-image: radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%);
 }
 
 body {
   min-height: 100dvh;
-  background: var(--background);
+  background-color: #fff8ef;
+  background-image: radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%);
   color: var(--foreground);
   font-family: var(--font-space-grotesk), sans-serif;
 }
 
 html.dark body {
-  background: #020617;
+  background-color: #020617;
+  background-image: radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%);
 }
 
 h1,
