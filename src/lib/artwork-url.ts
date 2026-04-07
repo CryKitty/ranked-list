@@ -35,6 +35,10 @@ export function getArtworkDisplayUrl(input: string) {
       return value;
     }
 
+    if (parsed.hostname === "trello.com" || parsed.hostname.endsWith(".trello.com")) {
+      return value;
+    }
+
     if (supabaseHostname && parsed.hostname === supabaseHostname) {
       return value;
     }
