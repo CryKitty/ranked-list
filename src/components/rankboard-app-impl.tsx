@@ -11108,11 +11108,11 @@ function AddCardRow({
   const restingHeightClass = alwaysVisible ? "h-8" : "h-4";
   const dragHitAreaClass = isDragMode
     ? isOver
-      ? "my-0 py-0"
+      ? "inset-y-0"
       : insertIndex === 0
-        ? "-mb-14 pt-8 pb-14"
-        : "-my-14 py-14"
-    : "";
+        ? "-top-8 -bottom-14"
+        : "-inset-y-14"
+    : "inset-y-0";
 
   const handleClick = () => {
     if (isMobileViewport && !isDragMode && !mobileArmed) {
@@ -11141,12 +11141,10 @@ function AddCardRow({
   if (!interactive) {
     return (
       <div
-        ref={setNodeRef}
         data-mobile-inline-add-root="true"
         className={clsx(
           "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out",
           isDarkMode ? "text-slate-300" : "text-slate-400",
-          dragHitAreaClass,
           isDragMode
             ? isGapSuppressed
               ? clsx(restingHeightClass, "opacity-0")
@@ -11159,6 +11157,7 @@ function AddCardRow({
         )}
         aria-hidden="true"
       >
+        <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
         {rowContent}
       </div>
     );
@@ -11166,12 +11165,10 @@ function AddCardRow({
 
   return (
     <button
-      ref={setNodeRef}
       data-mobile-inline-add-root="true"
       className={clsx(
         "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-200 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
-        dragHitAreaClass,
         isDragMode
           ? isGapSuppressed
             ? clsx("pointer-events-none", restingHeightClass, "opacity-0")
@@ -11189,6 +11186,7 @@ function AddCardRow({
       type="button"
       aria-label="Add game here"
     >
+      <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
       <HoverTooltip
         isDarkMode={isDarkMode}
         label={isMobileViewport && !isDragMode && !mobileArmed ? "Show Add Card" : "Add Card"}
