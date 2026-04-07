@@ -18,6 +18,7 @@ import {
   SortableContext,
   defaultAnimateLayoutChanges,
   horizontalListSortingStrategy,
+  rectSortingStrategy,
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -227,6 +228,12 @@ type MoveCardState = {
   targetRank: string;
 };
 
+type TierListConversionState = {
+  mode: "to-tier-list" | "to-board";
+  sourceBoardId: string;
+  selectedColumnIds: string[];
+};
+
 type PairwiseQuizState = {
   columnId: string;
   columnTitle: string;
@@ -362,6 +369,24 @@ function getTierListUnsortedColumnId(columns: ColumnDefinition[]) {
   );
 }
 
+function getTierListRankedCards(columns: ColumnDefinition[], cardsByColumn: Record<string, CardEntry[]>) {
+  const unsortedColumnId = getTierListUnsortedColumnId(columns);
+  const rankedCards: CardEntry[] = [];
+
+  for (const column of columns) {
+    if (column.id === unsortedColumnId) {
+      continue;
+    }
+    rankedCards.push(...(cardsByColumn[column.id] ?? []));
+  }
+
+  return {
+    rankedCards,
+    unsortedCards: unsortedColumnId ? (cardsByColumn[unsortedColumnId] ?? []) : [],
+    unsortedColumnId,
+  };
+}
+
 function createEmptyBoard(title = "New Board", layout: BoardLayout = "board"): SavedBoard {
   const timestamp = new Date().toISOString();
   const starterSnapshot = layout === "tier-list" ? createTierListBoardSnapshot() : createStarterBoardSnapshot();
@@ -455,7 +480,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       id: "series",
       label: boardKind === "show" ? "Franchise" : "Series",
       type: "short_text",
-      visible: boardKind !== "show",
+      visible: true,
       showOnCardFront: false,
       builtInKey: "series",
     },
@@ -463,7 +488,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       id: "release-year",
       label: "Release Year",
       type: "date",
-      visible: true,
+      visible: false,
       showOnCardFront: false,
       showLabelOnCardFront: true,
       dateFormat: "yyyy",
@@ -481,7 +506,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       id: "notes",
       label: "Notes",
       type: "long_text",
-      visible: true,
+      visible: false,
       showOnCardFront: false,
       builtInKey: "notes",
     },
@@ -1730,6 +1755,7 @@ export function RankboardApp() {
   const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
   const [moveAllCardsState, setMoveAllCardsState] = useState<MoveAllCardsState | null>(null);
   const [moveCardState, setMoveCardState] = useState<MoveCardState | null>(null);
+  const [tierListConversionState, setTierListConversionState] = useState<TierListConversionState | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -2563,13 +2589,30 @@ export function RankboardApp() {
       return;
     }
 
-    const edgeThreshold = 140;
-    const maxScrollStep = 10;
+    const edgeThreshold = activeBoardLayout === "tier-list" ? 170 : 140;
+    const maxScrollStep = activeBoardLayout === "tier-list" ? 12 : 10;
 
     const tick = () => {
       const coords = dragPointerCoordsRef.current;
 
       if (coords) {
+        if (activeBoardLayout === "tier-list") {
+          let windowDeltaY = 0;
+
+          if (coords.y <= edgeThreshold) {
+            windowDeltaY = -Math.max(2, ((edgeThreshold - coords.y) / edgeThreshold) * maxScrollStep);
+          } else if (coords.y >= window.innerHeight - edgeThreshold) {
+            windowDeltaY = Math.max(
+              2,
+              ((coords.y - (window.innerHeight - edgeThreshold)) / edgeThreshold) * maxScrollStep,
+            );
+          }
+
+          if (windowDeltaY !== 0) {
+            window.scrollBy(0, windowDeltaY);
+          }
+        }
+
         const scrollCandidates = Array.from(
           document.querySelectorAll<HTMLElement>("[data-column-scroll-id]"),
         );
@@ -2614,7 +2657,7 @@ export function RankboardApp() {
         dragAutoScrollFrameRef.current = null;
       }
     };
-  }, [dragPointerKind, isCardDragging]);
+  }, [activeBoardLayout, dragPointerKind, isCardDragging]);
 
   useEffect(() => {
     if (
@@ -5347,8 +5390,47 @@ function copyCardToDraft(card: CardEntry) {
     queuePersistBoardState();
   }
 
-  function convertActiveBoardToTierList() {
+  function openTierListConversionModal() {
     if (activeBoardLayout === "tier-list") {
+      setTierListConversionState({
+        mode: "to-board",
+        sourceBoardId: activeBoardId,
+        selectedColumnIds: [],
+      });
+      return;
+    }
+
+    const selectableColumnIds = columns
+      .filter((column) => !column.mirrorsEntireBoard)
+      .map((column) => column.id);
+
+    setTierListConversionState({
+      mode: "to-tier-list",
+      sourceBoardId: activeBoardId,
+      selectedColumnIds: selectableColumnIds,
+    });
+  }
+
+  function createBoardCopyFromConversion(nextBoard: SavedBoard) {
+    skipNextHistoryRef.current = true;
+    setBoards((current) => [...current, nextBoard]);
+    setActiveBoardId(nextBoard.id);
+    setColumns(nextBoard.columns);
+    setCardsByColumn(nextBoard.cardsByColumn);
+    setHistory([]);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    setTierListConversionState(null);
+    queuePersistBoardState();
+  }
+
+  function convertActiveBoardToTierList() {
+    if (!tierListConversionState || tierListConversionState.mode !== "to-tier-list") {
       return;
     }
 
@@ -5361,9 +5443,10 @@ function copyCardToDraft(card: CardEntry) {
 
     const seenItemIds = new Set<string>();
     const flattenedCards: CardEntry[] = [];
+    const selectedColumnIds = new Set(tierListConversionState.selectedColumnIds);
 
     for (const column of columns) {
-      if (column.mirrorsEntireBoard) {
+      if (column.mirrorsEntireBoard || !selectedColumnIds.has(column.id)) {
         continue;
       }
 
@@ -5379,35 +5462,73 @@ function copyCardToDraft(card: CardEntry) {
       }
     }
 
-    latestColumnsRef.current = tierSnapshot.columns;
-    latestCardsByColumnRef.current = {
+    const nextCardsByColumn = {
       ...tierSnapshot.cardsByColumn,
       [unsortedColumnId]: flattenedCards,
     };
-    setColumns(tierSnapshot.columns);
-    setCardsByColumn({
-      ...tierSnapshot.cardsByColumn,
-      [unsortedColumnId]: flattenedCards,
-    });
-    updateActiveBoardSettings({
-      boardLayout: "tier-list",
-      collapseCards: false,
-      showTierHighlights: false,
-    });
-    setOpenColumnMenuId(null);
-    setOpenColumnSortMenuId(null);
-    setOpenColumnFilterMenuId(null);
-    setOpenColumnMirrorMenuId(null);
-    setOpenColumnMaintenanceMenuId(null);
-    setIsActionsMenuOpen(false);
-    setIsMobileActionsOpen(false);
-    queuePersistBoardState({
-      columns: tierSnapshot.columns,
-      cardsByColumn: {
-        ...tierSnapshot.cardsByColumn,
-        [unsortedColumnId]: flattenedCards,
+
+    const nextBoardTitle = `${activeBoardTitle} Tier List`;
+    const nextBoard: SavedBoard = {
+      ...createEmptyBoard(nextBoardTitle, "tier-list"),
+      title: nextBoardTitle,
+      settings: {
+        ...getDefaultBoardSettings(nextBoardTitle, "tier-list"),
+        ...activeBoardSettings,
+        boardLayout: "tier-list",
+        collapseCards: false,
+        showTierHighlights: false,
+        publicShare: normalizePublicShareSettings(undefined),
+        fieldDefinitions: normalizeFieldDefinitions(activeBoardFieldDefinitions, nextBoardTitle, {
+          ...activeBoardSettings,
+          boardLayout: "tier-list",
+        }),
       },
-    });
+      columns: tierSnapshot.columns,
+      cardsByColumn: nextCardsByColumn,
+    };
+
+    createBoardCopyFromConversion(nextBoard);
+  }
+
+  function convertActiveBoardToKanbanBoard() {
+    if (!tierListConversionState || tierListConversionState.mode !== "to-board") {
+      return;
+    }
+
+    const { rankedCards, unsortedCards } = getTierListRankedCards(columns, cardsByColumn);
+    const rankedColumn = createColumnDefinition(1, "Ranked");
+    const backlogColumn = createColumnDefinition(2, "Backlog");
+    const nextBoardTitle = `${activeBoardTitle} Board`;
+    const nextColumns = [rankedColumn, backlogColumn];
+    const nextCardsByColumn = {
+      [rankedColumn.id]: rankedCards.map((card) => ({
+        ...card,
+        mirroredFromEntryId: undefined,
+      })),
+      [backlogColumn.id]: unsortedCards.map((card) => ({
+        ...card,
+        mirroredFromEntryId: undefined,
+      })),
+    };
+
+    const nextBoard: SavedBoard = {
+      ...createEmptyBoard(nextBoardTitle, "board"),
+      title: nextBoardTitle,
+      settings: {
+        ...getDefaultBoardSettings(nextBoardTitle, "board"),
+        ...activeBoardSettings,
+        boardLayout: "board",
+        publicShare: normalizePublicShareSettings(undefined),
+        fieldDefinitions: normalizeFieldDefinitions(activeBoardFieldDefinitions, nextBoardTitle, {
+          ...activeBoardSettings,
+          boardLayout: "board",
+        }),
+      },
+      columns: nextColumns,
+      cardsByColumn: nextCardsByColumn,
+    };
+
+    createBoardCopyFromConversion(nextBoard);
   }
 
   function requestDeleteBoard(boardId = activeBoardId) {
@@ -6075,14 +6196,12 @@ function copyCardToDraft(card: CardEntry) {
                                   className={clsx(
                                     "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                     isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                    activeBoardLayout === "tier-list" && "cursor-default opacity-50",
                                   )}
-                                  disabled={activeBoardLayout === "tier-list"}
-                                  onClick={convertActiveBoardToTierList}
+                                  onClick={openTierListConversionModal}
                                   type="button"
                                 >
                                   <ListOrdered className="h-4 w-4" />
-                                  {activeBoardLayout === "tier-list" ? "Tier List Enabled" : "Convert to Tier List"}
+                                  {activeBoardLayout === "tier-list" ? "Convert to Kanban Board" : "Convert to Tier List"}
                                 </button>
                                 <button
                                   className={clsx(
@@ -6931,14 +7050,12 @@ function copyCardToDraft(card: CardEntry) {
                                   className={clsx(
                                     "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
                                     isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                    activeBoardLayout === "tier-list" && "cursor-default opacity-50",
                                   )}
-                                  disabled={activeBoardLayout === "tier-list"}
-                                  onClick={convertActiveBoardToTierList}
+                                  onClick={openTierListConversionModal}
                                   type="button"
                                 >
                                   <ListOrdered className="h-4 w-4" />
-                                  {activeBoardLayout === "tier-list" ? "Tier List Enabled" : "Convert to Tier List"}
+                                  {activeBoardLayout === "tier-list" ? "Convert to Kanban Board" : "Convert to Tier List"}
                                 </button>
                               </div>
                             ) : null}
@@ -7110,9 +7227,16 @@ function copyCardToDraft(card: CardEntry) {
                         column={column}
                         frontFieldDefinitions={activeBoardFieldDefinitions}
                         isDarkMode={isDarkMode}
+                        isEditingColumn={editingColumnId === column.id}
+                        editingColumnDraft={editingColumnDraft}
+                        onColumnDraftChange={setEditingColumnDraft}
+                        onEditColumn={() => startEditingColumn(column)}
+                        onCancelColumnEdit={cancelEditingColumn}
+                        onSaveColumnEdit={() => saveEditingColumn(column.id)}
                         onAddCard={openAddGameModal}
                         onDragScrollActivity={suppressDragGapsTemporarily}
                         onEditCard={startEditingCard}
+                        isAnyCardDragging={isCardDragging}
                         showArtworkOnCards={shouldShowArtworkOnCards}
                         showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
                       />
@@ -7270,7 +7394,12 @@ function copyCardToDraft(card: CardEntry) {
               )}
               <DragOverlay dropAnimation={null}>
                 {activeDragCard ? (
-                  <div className="pointer-events-none w-[224px] rotate-[1deg] opacity-75 shadow-[0_20px_38px_rgba(15,23,42,0.22)]">
+                  <div
+                    className={clsx(
+                      "pointer-events-none rotate-[1deg] opacity-75 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
+                      activeBoardLayout === "tier-list" ? "w-[176px]" : "w-[224px]",
+                    )}
+                  >
                     <CardTile
                       card={activeDragCard}
                       collapseCards={activeBoardSettings.collapseCards}
@@ -7279,6 +7408,7 @@ function copyCardToDraft(card: CardEntry) {
                       showTierHighlights={activeBoardSettings.showTierHighlights}
                       frontFieldDefinitions={activeBoardFieldDefinitions}
                       rankBadge={activeDragRankBadge}
+                      forceSquare={activeBoardLayout === "tier-list" && activeDragColumn?.title.trim().toLowerCase() !== "unsorted"}
                     />
                   </div>
                 ) : null}
@@ -9323,6 +9453,133 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {tierListConversionState ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setTierListConversionState(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                Board Maintenance
+              </p>
+              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                {tierListConversionState.mode === "to-tier-list" ? "Convert to Tier List" : "Convert to Kanban Board"}
+              </h2>
+              <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                {tierListConversionState.mode === "to-tier-list"
+                  ? "This creates a new tier-list copy of the current board and leaves your existing board untouched."
+                  : "This creates a new kanban-board copy of the current tier list and leaves your existing tier list untouched."}
+              </p>
+
+              {tierListConversionState.mode === "to-tier-list" ? (
+                <div className="mt-6">
+                  <p className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                    Copy cards from these columns
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => {
+                      const enabled = tierListConversionState.selectedColumnIds.includes(column.id);
+                      return (
+                        <button
+                          key={column.id}
+                          className={clsx(
+                            "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                            enabled
+                              ? isDarkMode
+                                ? "border-white/30 bg-white/10 text-white"
+                                : "border-slate-950 bg-slate-950 text-white"
+                              : isDarkMode
+                                ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                          )}
+                          onClick={() =>
+                            setTierListConversionState((current) =>
+                              current && current.mode === "to-tier-list"
+                                ? {
+                                    ...current,
+                                    selectedColumnIds: current.selectedColumnIds.includes(column.id)
+                                      ? current.selectedColumnIds.filter((id) => id !== column.id)
+                                      : [...current.selectedColumnIds, column.id],
+                                  }
+                                : current,
+                            )
+                          }
+                          type="button"
+                        >
+                          <span>{column.title}</span>
+                          <ToggleSwitch
+                            ariaLabel={`Toggle ${column.title}`}
+                            enabled={enabled}
+                            isDarkMode={isDarkMode}
+                            onClick={() =>
+                              setTierListConversionState((current) =>
+                                current && current.mode === "to-tier-list"
+                                  ? {
+                                      ...current,
+                                      selectedColumnIds: current.selectedColumnIds.includes(column.id)
+                                        ? current.selectedColumnIds.filter((id) => id !== column.id)
+                                        : [...current.selectedColumnIds, column.id],
+                                    }
+                                  : current,
+                              )
+                            }
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  disabled={
+                    tierListConversionState.mode === "to-tier-list" &&
+                    tierListConversionState.selectedColumnIds.length === 0
+                  }
+                  onClick={() => {
+                    if (tierListConversionState.mode === "to-tier-list") {
+                      convertActiveBoardToTierList();
+                    } else {
+                      convertActiveBoardToKanbanBoard();
+                    }
+                  }}
+                  type="button"
+                >
+                  <ListOrdered className="h-4 w-4" />
+                  {tierListConversionState.mode === "to-tier-list" ? "Create Tier List Copy" : "Create Kanban Copy"}
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setTierListConversionState(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {moveCardState ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -10515,9 +10772,16 @@ function TierListRow({
   showArtworkOnCards,
   isDarkMode,
   frontFieldDefinitions,
+  isEditingColumn,
+  editingColumnDraft,
+  onColumnDraftChange,
+  onEditColumn,
+  onCancelColumnEdit,
+  onSaveColumnEdit,
   onEditCard,
   onAddCard,
   onDragScrollActivity,
+  isAnyCardDragging,
 }: {
   column: ColumnDefinition;
   cards: CardEntry[];
@@ -10527,13 +10791,22 @@ function TierListRow({
   showArtworkOnCards: boolean;
   isDarkMode: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
+  isEditingColumn: boolean;
+  editingColumnDraft: ColumnEditorDraft | null;
+  onColumnDraftChange: React.Dispatch<React.SetStateAction<ColumnEditorDraft | null>>;
+  onEditColumn: () => void;
+  onCancelColumnEdit: () => void;
+  onSaveColumnEdit: () => void;
   onEditCard: (card: CardEntry) => void;
   onAddCard: (columnId: string, insertIndex: number) => void;
   onDragScrollActivity: () => void;
+  isAnyCardDragging: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
+  const isUnsortedRow = column.title.trim().toLowerCase() === "unsorted";
+  const useVerticalLabel = !/\s/.test(column.title.trim());
 
   return (
     <div className="grid grid-cols-[88px_minmax(0,1fr)] items-stretch gap-3">
@@ -10545,23 +10818,96 @@ function TierListRow({
           )}
         >
           <div className="flex flex-1 items-center justify-center">
-            <span className="text-2xl font-black tracking-tight">{column.title}</span>
+            {isEditingColumn && editingColumnDraft ? (
+              <div className="flex w-full flex-col items-center gap-2">
+                <input
+                  className={clsx(
+                    "w-full rounded-2xl border px-3 py-2 text-center text-sm outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                  )}
+                  value={editingColumnDraft.title}
+                  onChange={(event) =>
+                    onColumnDraftChange((current) =>
+                      current ? { ...current, title: event.target.value } : current,
+                    )
+                  }
+                />
+                <div className="flex gap-2">
+                  <button
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      isDarkMode ? "bg-white text-slate-950" : "bg-slate-950 text-white",
+                    )}
+                    onClick={onSaveColumnEdit}
+                    type="button"
+                  >
+                    Save
+                  </button>
+                  <button
+                    className={clsx(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      isDarkMode ? "bg-white/10 text-white" : "bg-slate-100 text-slate-700",
+                    )}
+                    onClick={onCancelColumnEdit}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <span
+                className={clsx(
+                  "font-black tracking-tight",
+                  useVerticalLabel ? "text-xl" : "text-base leading-tight",
+                )}
+                style={
+                  useVerticalLabel
+                    ? { writingMode: "vertical-rl", transform: "rotate(180deg)" }
+                    : undefined
+                }
+              >
+                {column.title}
+              </span>
+            )}
           </div>
-          <div className="group relative">
-            <button
-              aria-label={`Add ${addLabel} to ${column.title}`}
-              className={clsx(
-                "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
-                isDarkMode
-                  ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
-                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
-              )}
-              onClick={() => onAddCard(column.id, cards.length)}
-              type="button"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
-            <HoverTooltip isDarkMode={isDarkMode} label={`Add ${addLabel}`} />
+          <div className="flex items-center gap-2">
+            {!isEditingColumn ? (
+              <div className="group relative">
+                <button
+                  aria-label={`Rename ${column.title}`}
+                  className={clsx(
+                    "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+                    isDarkMode
+                      ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
+                      : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
+                  )}
+                  onClick={onEditColumn}
+                  type="button"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </button>
+                <HoverTooltip isDarkMode={isDarkMode} label="Rename Row" />
+              </div>
+            ) : null}
+            <div className="group relative">
+              <button
+                aria-label={`Add ${addLabel} to ${column.title}`}
+                className={clsx(
+                  "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+                  isDarkMode
+                    ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
+                )}
+                onClick={() => onAddCard(column.id, cards.length)}
+                type="button"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+              <HoverTooltip isDarkMode={isDarkMode} label={`Add ${addLabel}`} />
+            </div>
           </div>
         </div>
       </div>
@@ -10575,16 +10921,22 @@ function TierListRow({
           isOver && (isDarkMode ? "border-white/80" : "border-slate-950"),
         )}
       >
-        <SortableContext items={cards.map((card) => card.entryId)} strategy={horizontalListSortingStrategy}>
+        <SortableContext
+          items={cards.map((card) => card.entryId)}
+          strategy={isUnsortedRow ? horizontalListSortingStrategy : rectSortingStrategy}
+        >
           <div
-            className="flex min-h-[176px] items-start gap-3 overflow-x-auto pb-1"
+            className={clsx(
+              "min-h-[176px] items-start gap-3 pb-1",
+              isUnsortedRow ? "flex overflow-x-auto" : "flex flex-wrap overflow-visible",
+            )}
             data-column-scroll-id={column.id}
             onScroll={onDragScrollActivity}
           >
             {cards.length === 0 ? (
               <button
                 className={clsx(
-                  "flex min-h-[176px] w-full min-w-[260px] items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6 transition",
+                  "flex min-h-[176px] w-full items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6 transition",
                   isDarkMode
                     ? "border-white/15 bg-white/[0.03] text-slate-400 hover:border-white/30 hover:bg-white/[0.05]"
                     : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white",
@@ -10599,7 +10951,7 @@ function TierListRow({
               </button>
             ) : (
               cards.map((card) => (
-                <div key={card.entryId} className="w-[280px] shrink-0">
+                <div key={card.entryId} className={clsx(isUnsortedRow ? "w-[220px] shrink-0" : "w-[176px] shrink-0")}>
                   <SortableCard
                     card={card}
                     collapseCards={collapseCards}
@@ -10607,6 +10959,8 @@ function TierListRow({
                     showArtwork={showArtworkOnCards}
                     showTierHighlights={false}
                     frontFieldDefinitions={frontFieldDefinitions}
+                    forceSquare={!isUnsortedRow}
+                    isAnyCardDragging={isAnyCardDragging}
                     rankBadge={null}
                     onEdit={() => onEditCard(card)}
                   />
@@ -10757,6 +11111,7 @@ function SortableCard({
   secondaryRankBadge,
   onEdit,
   isAnyCardDragging = false,
+  forceSquare = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -10768,6 +11123,7 @@ function SortableCard({
   secondaryRankBadge?: RankBadge | null;
   onEdit: () => void;
   isAnyCardDragging?: boolean;
+  forceSquare?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -10810,6 +11166,7 @@ function SortableCard({
         rankBadge={rankBadge}
         secondaryRankBadge={secondaryRankBadge}
         isDragging={isDragging}
+        forceSquare={forceSquare}
         dragProps={{ ...attributes, ...listeners }}
         onEdit={onEdit}
       />
@@ -10830,6 +11187,7 @@ function CardTile({
   isDragging = false,
   onEdit,
   clickToEdit = false,
+  forceSquare = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -10843,6 +11201,7 @@ function CardTile({
   isDragging?: boolean;
   onEdit?: () => void;
   clickToEdit?: boolean;
+  forceSquare?: boolean;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
@@ -10931,12 +11290,12 @@ function CardTile({
         touchAction: "pan-y",
       }}
     >
-      <div
-        className={clsx(
-          "relative overflow-hidden rounded-[28px] bg-center",
-          collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
-          collapseCards ? "min-h-[82px]" : "aspect-video",
-        )}
+        <div
+          className={clsx(
+            "relative overflow-hidden rounded-[28px] bg-center",
+            collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
+            collapseCards ? "min-h-[82px]" : forceSquare ? "aspect-square" : "aspect-video",
+          )}
         style={
           collapseCards
             ? undefined

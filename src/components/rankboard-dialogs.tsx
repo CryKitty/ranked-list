@@ -1330,12 +1330,12 @@ export function BoardSetupDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "w-full max-w-[760px] rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:min-w-[680px]",
+          "flex max-h-[min(92vh,860px)] w-full max-w-[760px] flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:min-w-[680px]",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
             <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
               Board Setup
@@ -1359,89 +1359,91 @@ export function BoardSetupDialog({
           </button>
         </div>
 
-        <label className="mt-6 grid gap-2">
-          <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Board title</span>
-          <input
-            className={clsx(
-              "rounded-2xl border px-4 py-3 outline-none transition",
-              isDarkMode
-                ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-            )}
-            placeholder="Favorites, Waifus, Horror Games..."
-            value={newBoardTitle}
-            onChange={(event) => onTitleChange(event.target.value)}
-          />
-        </label>
-
-        <div className="mt-5 grid gap-2">
-          <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Layout</span>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { id: "board", label: "Board" },
-              { id: "tier-list", label: "Tier List" },
-            ].map((option) => {
-              const enabled = boardLayout === option.id;
-              return (
-                <button
-                  key={option.id}
-                  className={clsx(
-                    "rounded-full border px-3 py-2 text-sm font-semibold transition",
-                    enabled
-                      ? isDarkMode
-                        ? "border-white/35 bg-white text-slate-950"
-                        : "border-slate-950 bg-slate-950 text-white"
-                      : isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
-                  )}
-                  onClick={() => onBoardLayoutChange(option.id as BoardLayout)}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <FieldDefinitionManager
-            defaultDateFieldFormat={(defaultDateFieldFormat ?? "mm/dd/yyyy") as "mm/dd/yyyy" | "dd/mm/yyyy" | "yyyy"}
-            fieldDefinitions={fieldDefinitions}
-            isDarkMode={isDarkMode}
-            onAddField={onAddField}
-            onRemoveField={onRemoveField}
-            onToggleVisibility={onToggleVisibility}
-            onUpdateField={onUpdateField}
-          />
-        </div>
-
-        {showLoginHint ? (
-          <div
-            className={clsx(
-              "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm",
-              isDarkMode ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700",
-            )}
-          >
-            <p className="leading-6">
-              Log in to save this board to your account and sync it across devices.
-            </p>
-            <button
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+          <label className="mt-6 grid gap-2">
+            <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Board title</span>
+            <input
               className={clsx(
-                "inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition",
-                isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200 disabled:bg-white/60" : "bg-slate-950 text-white hover:bg-slate-800 disabled:bg-slate-400",
+                "rounded-2xl border px-4 py-3 outline-none transition",
+                isDarkMode
+                  ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                  : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
               )}
-              disabled={isLoginDisabled}
-              onClick={onLogin}
-              type="button"
-            >
-              Log In
-            </button>
-          </div>
-        ) : null}
+              placeholder="Favorites, Waifus, Horror Games..."
+              value={newBoardTitle}
+              onChange={(event) => onTitleChange(event.target.value)}
+            />
+          </label>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-5 grid gap-2">
+            <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Layout</span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: "board", label: "Kanban Board" },
+                { id: "tier-list", label: "Tier List" },
+              ].map((option) => {
+                const enabled = boardLayout === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    className={clsx(
+                      "rounded-full border px-3 py-2 text-sm font-semibold transition",
+                      enabled
+                        ? isDarkMode
+                          ? "border-white/35 bg-white text-slate-950"
+                          : "border-slate-950 bg-slate-950 text-white"
+                        : isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                    )}
+                    onClick={() => onBoardLayoutChange(option.id as BoardLayout)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <FieldDefinitionManager
+              defaultDateFieldFormat={(defaultDateFieldFormat ?? "mm/dd/yyyy") as "mm/dd/yyyy" | "dd/mm/yyyy" | "yyyy"}
+              fieldDefinitions={fieldDefinitions}
+              isDarkMode={isDarkMode}
+              onAddField={onAddField}
+              onRemoveField={onRemoveField}
+              onToggleVisibility={onToggleVisibility}
+              onUpdateField={onUpdateField}
+            />
+          </div>
+
+          {showLoginHint ? (
+            <div
+              className={clsx(
+                "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm",
+                isDarkMode ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-slate-50 text-slate-700",
+              )}
+            >
+              <p className="leading-6">
+                Log in to save this board to your account and sync it across devices.
+              </p>
+              <button
+                className={clsx(
+                  "inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition",
+                  isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200 disabled:bg-white/60" : "bg-slate-950 text-white hover:bg-slate-800 disabled:bg-slate-400",
+                )}
+                disabled={isLoginDisabled}
+                onClick={onLogin}
+                type="button"
+              >
+                Log In
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-3 border-t px-6 py-4">
           <button className={clsx("inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition", isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800")} onClick={onCreateBoard} type="button">
             <Plus className="h-4 w-4" />
             Create Board

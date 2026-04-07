@@ -2,16 +2,25 @@
 
 ## 2026-04-06
 
+- Tier List conversion is now copy-based in both directions instead of mutating the current board in place.
+- Converting a board to Tier List now opens a confirmation modal that lets you choose which source columns to copy over.
+- Converting a Tier List back to a kanban board now creates a new board copy and preserves the tier ranking order in a ranked column, while keeping the old `Unsorted` cards in a backlog column.
+- Tier List rows now support row-label renaming directly from the row rail, and single-word labels render sideways to fit the narrow label space more cleanly.
+- Tier List ranked rows now wrap cards instead of forcing horizontal scrolling, while the `Unsorted` row stays horizontally scrollable.
+- Tier List cards now use a square face in ranked rows to make better use of the horizontal tier layout.
+- New boards now default to just `Series` and `Artwork` enabled; `Release Year` and `Notes` are still available but start off disabled.
+- The board setup modal now scrolls within the viewport on mobile and keeps its action buttons visible instead of letting them get cropped off-screen.
 - Shared links now load their published board data directly instead of round-tripping through the owner-wide board loader, which fixes cases where the shared columns rendered but their cards were missing.
 - Shared `Copy Board` now writes the cloned board snapshot into local cache immediately before the main app boots, which fixes the “board appears for a second, then goes blank” regression.
-- Board maintenance now always shows the tier-list action explicitly, switching the label to `Tier List Enabled` once a board has already been converted.
+- Board maintenance now always shows the board-layout conversion action explicitly, switching between `Convert to Tier List` and `Convert to Kanban Board` based on the current layout.
 - Inline add-card affordances are now globally suppressed while settings/column menus are open so the `+` buttons no longer bleed through active submenus.
-- Pairwise `Rank by Quiz` progress now saves durably to Supabase in a dedicated `pairwise_quiz_progress` table, with local storage kept as a fallback instead of the only save location.
+- Pairwise `Rank by Quiz` progress now saves durably to Supabase in a dedicated `pairwise_quiz_progress` table, with local storage kept only as a fallback/recovery layer.
 - `Save & Continue Later` now closes the quiz only after a real save attempt and shows a temporary success/failure notice; signed-in sessions also fall back to local quiz progress if the remote row is missing.
 - Shared `Copy Board` now clones a fresh editable board snapshot and persists it immediately instead of briefly appearing and then collapsing back into a blank board.
-- Added a second board layout type, `Tier List`, including board creation support and a `Convert to Tier List` maintenance action that moves the current board’s non-mirrored cards into an `Unsorted` row.
-- Tier List boards now render as horizontal tier rows with the same card styling/editing flow and cross-row drag-and-drop, while quick-add defaults into the `Unsorted` row.
-- Board-maintenance `Convert to Tier List` is intentionally one-way for now; it preserves cards and strips mirror-only copies when building the new tier-list rows.
+- Added a second board layout type, `Tier List`, including board creation support in the setup modal and maintenance actions to create copied conversions in either direction.
+- Converting a board to Tier List now creates a new copied board, lets you choose which source columns to bring over, and moves the selected cards into an `Unsorted` row for manual tiering.
+- Converting a Tier List back to a kanban board now creates a new copied board with ranked cards preserved in order and `Unsorted` cards placed into a backlog column.
+- Tier List boards now render ranked rows as wrapping horizontal lanes with square cards, while `Unsorted` stays horizontally scrollable for large backlogs.
 - Edit-card modal action buttons now keep a fixed size and show their labels in small hover/focus tooltips instead of widening and shifting around.
 - Series filter dropdowns now display labels without leading `The` / `A` prefixes, which keeps long series names easier to scan in the narrow filter menus.
 - Confirming `Move Card` from the edit flow now closes both the move-card modal and the edit-card modal, while `Cancel` still closes only the move-card modal.

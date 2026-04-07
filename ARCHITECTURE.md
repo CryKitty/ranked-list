@@ -84,9 +84,15 @@
   - `C`
   - `D`
   - `Unsorted`
-- `Convert to Tier List` is exposed under board maintenance and rebuilds the active board into those rows, preserving only the unique non-mirror cards and placing them in `Unsorted`.
-- The maintenance UI always shows the tier-list option so the current board layout is explicit even after conversion.
+- Board maintenance always exposes a layout-conversion action:
+  - `Convert to Tier List` for kanban boards
+  - `Convert to Kanban Board` for tier lists
+- Both conversion directions are copy-based. The current board stays untouched and the converted layout is created as a new board, then made active.
+- Converting to Tier List opens a confirmation modal that lets the user choose which non-mirror source columns to include before moving those cards into `Unsorted`.
+- Converting back to kanban creates a `Ranked` column from the tier rows in display order and a `Backlog` column from `Unsorted`.
 - Tier List quick-add defaults to the `Unsorted` row.
+- Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
+- Tier List row labels can be renamed inline; single-word labels render sideways in the narrow label rail to avoid overlap.
 
 ## Media
 
@@ -104,8 +110,7 @@
   - search / filter / undo / settings controls
 - Cards expose action affordances for edit, move, copy, and settings-driven delete.
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
-- Hover-label icon buttons should render with centered icons in their collapsed state and only widen when the label is revealed.
-- Edit-card modal icon buttons now use anchored tooltip labels instead of widening on hover, so their hit targets stay fixed.
+- Icon-only controls should prefer anchored tooltip labels instead of width-expanding labels, so their hit targets stay fixed.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Those between-column add affordances should render above nearby cards/columns, and on mobile they now require a first tap to reveal the plus before a second tap creates the column.
 - The same tap-to-reveal pattern now applies to between-card add affordances on mobile, and any revealed inline add control should collapse again if the user scrolls or taps elsewhere.
@@ -195,7 +200,9 @@
 - The shared header is now intentionally compact: `Rankr Share:` label, active filter chips, board title, and a `Join` CTA on the same line when space allows.
 - The `Join` CTA links to `/?new=1`, and the main app consumes that query by opening the new-board modal once and then clearing the query string.
 - The new-board modal should encourage signed-out users to log in if they want board creation to persist across devices.
+- The board-setup modal now supports both `Kanban Board` and `Tier List` creation up front, and on mobile its body scrolls within the viewport while the action buttons remain visible.
 - New-board defaults now derive the initial card label from the board title when the title looks like a collection name, so first-run copy can match the board theme without the user opening customization first.
+- New-board defaults now enable only `Series` and `Artwork`; `Release Year` and `Notes` are available but start disabled.
 
 ## Series Scraping
 
@@ -255,7 +262,7 @@
 - The public `/share/[slug]` route now renders through a tiny server page plus a client `SharedBoardView` component so the shared page can keep server-loaded data while still offering viewer-only UI state like the Nox/Lumos toggle.
 - Post-drop card placement no longer performs any automatic column scroll correction; the board now leaves the lane where the user dropped it instead of trying to re-center the moved card afterward.
 - Icon-only controls are gradually standardizing on hover/focus tooltips instead of width-expanding labels. The board switcher and add-card / add-column affordances now use the same tooltip language as the edit-dialog action buttons.
-- Pairwise quiz progress is now stored in local browser storage per board/column instead of synced board settings, which keeps temporary quiz state out of the remote persistence path and makes resume/start-over safer.
+- Pairwise quiz progress is now stored in `pairwise_quiz_progress` per owner/board/column when possible, with local browser storage used only as a fallback so save-and-resume can survive across devices.
 - Card-front artwork gradients are intentionally shorter now on both the main board and shared boards so the lower text overlay reads clearly without consuming as much of the image.
 - Shared boards now expose a `Copy Board` action that serializes the shared snapshot into local storage and hands it off to the main app, where a fresh board copy is created with regenerated board/column/card IDs.
 - Column action menus intentionally sit above the inline add affordances in stacking order, so hovered `+` controls never cover an active submenu.
