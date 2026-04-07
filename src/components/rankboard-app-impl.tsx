@@ -11504,7 +11504,7 @@ function CardTile({
       data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
-        "group relative shrink-0 border",
+        "group relative shrink-0 overflow-visible border",
         showDragCursor && "cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
