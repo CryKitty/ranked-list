@@ -213,6 +213,11 @@ type PendingColumnDelete = {
   title: string;
 };
 
+type TierRowOptionsState = {
+  rowId: string;
+  anchorRect: DOMRect;
+};
+
 type MoveAllCardsState = {
   sourceColumnId: string;
   sourceColumnTitle: string;
@@ -345,7 +350,7 @@ function createTierListBoardSnapshot(): BoardSnapshot {
     { title: "B", accent: "from-cyan-300 via-sky-400 to-blue-500" },
     { title: "C", accent: "from-emerald-300 via-green-400 to-teal-500" },
     { title: "D", accent: "from-violet-300 via-indigo-400 to-purple-500" },
-    { title: "Unsorted", accent: "from-slate-300 via-slate-400 to-slate-500" },
+    { title: "Pool", accent: "from-slate-300 via-slate-400 to-slate-500" },
   ].map((row) => ({
     id: makeId("column"),
     title: row.title,
@@ -364,7 +369,7 @@ function createTierListBoardSnapshot(): BoardSnapshot {
 
 function getTierListUnsortedColumnId(columns: ColumnDefinition[]) {
   return (
-    columns.find((column) => column.title.trim().toLowerCase() === "unsorted")?.id ??
+    columns.find((column) => ["unsorted", "pool"].includes(column.title.trim().toLowerCase()))?.id ??
     columns[columns.length - 1]?.id ??
     ""
   );
@@ -1643,14 +1648,19 @@ function SaveStatusIcon({
 function HoverTooltip({
   label,
   isDarkMode,
+  scope,
 }: {
   label: string;
   isDarkMode: boolean;
+  scope?: string;
 }) {
   return (
     <span
       className={clsx(
-        "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition group-hover:opacity-100 group-focus-within:opacity-100",
+        "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
+        scope
+          ? [`group-hover/${scope}:opacity-100`, `group-focus-within/${scope}:opacity-100`]
+          : "group-hover:opacity-100 group-focus-within:opacity-100",
         isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
       )}
     >
@@ -1748,6 +1758,7 @@ export function RankboardApp() {
     title: string;
   } | null>(null);
   const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
+  const [tierRowOptionsState, setTierRowOptionsState] = useState<TierRowOptionsState | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [pendingPairwiseQuizResume, setPendingPairwiseQuizResume] = useState<PendingPairwiseQuizResume | null>(null);
@@ -2356,6 +2367,23 @@ export function RankboardApp() {
     setRevealedMobileAddColumnIndex(null);
     setRevealedMobileAddCardTarget(null);
   }, [activeBoardId, columns.length]);
+
+  useEffect(() => {
+    if (!tierRowOptionsState) {
+      return;
+    }
+
+    function closeTierRowOptions(event: PointerEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-tier-row-options-root='true']")) {
+        return;
+      }
+      setTierRowOptionsState(null);
+    }
+
+    window.addEventListener("pointerdown", closeTierRowOptions);
+    return () => window.removeEventListener("pointerdown", closeTierRowOptions);
+  }, [tierRowOptionsState]);
 
   useEffect(() => {
     if (!revealedMobileAddColumnIndex && !revealedMobileAddCardTarget) {
@@ -5591,6 +5619,46 @@ function copyCardToDraft(card: CardEntry) {
     };
   }
 
+  function addTierListRowAt(insertIndex: number) {
+    const nextIndex = columns.length + 1;
+    const nextRow: ColumnDefinition = {
+      ...createColumnDefinition(nextIndex, `New Row ${nextIndex}`),
+      dontRank: true,
+      sortMode: "manual",
+    };
+
+    const nextColumns = [...columns];
+    nextColumns.splice(insertIndex, 0, nextRow);
+    const nextCardsByColumn = {
+      ...cardsByColumn,
+      [nextRow.id]: [],
+    };
+
+    latestColumnsRef.current = nextColumns;
+    latestCardsByColumnRef.current = nextCardsByColumn;
+    setColumns(nextColumns);
+    setCardsByColumn(nextCardsByColumn);
+    setTierRowOptionsState(null);
+    queuePersistBoardState({
+      columns: nextColumns,
+      cardsByColumn: nextCardsByColumn,
+    });
+  }
+
+  function openTierRowOptions(columnId: string, anchorRect: DOMRect) {
+    setTierRowOptionsState({ rowId: columnId, anchorRect });
+  }
+
+  function requestDeleteTierRow(columnId: string) {
+    const column = columns.find((item) => item.id === columnId);
+    if (!column) {
+      return;
+    }
+
+    setPendingColumnDelete({ id: column.id, title: column.title });
+    setTierRowOptionsState(null);
+  }
+
   function openDuplicateCleanupModal(scopeColumnId?: string) {
     const suggestions: DuplicateCleanupSuggestion[] = [];
     const scopedColumns = scopeColumnId ? columns.filter((column) => column.id === scopeColumnId) : columns;
@@ -6752,7 +6820,7 @@ function copyCardToDraft(card: CardEntry) {
               ) : (
                 <div className="group flex min-w-0 items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="group relative shrink-0" data-board-switcher-root="true">
+                    <div className="group/boards relative shrink-0" data-board-switcher-root="true">
                       <button
                         aria-label="Switch board"
                         className={clsx(
@@ -6774,7 +6842,7 @@ function copyCardToDraft(card: CardEntry) {
                           "h-5 w-5",
                         )}
                       </button>
-                      <HoverTooltip isDarkMode={isDarkMode} label="Boards" />
+                      <HoverTooltip isDarkMode={isDarkMode} label="Boards" scope="boards" />
                       {isBoardsMenuOpen ? (
                         <div
                           className={clsx(
@@ -6863,7 +6931,7 @@ function copyCardToDraft(card: CardEntry) {
                               : "Pending"}
                       </span>
                     </div>
-                    <div className="group relative shrink-0">
+                    <div className="group/rename relative shrink-0">
                       <button
                         className={clsx(
                           "shrink-0 rounded-full p-2 transition opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
@@ -6877,7 +6945,7 @@ function copyCardToDraft(card: CardEntry) {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <HoverTooltip isDarkMode={isDarkMode} label="Rename" />
+                      <HoverTooltip isDarkMode={isDarkMode} label="Rename" scope="rename" />
                     </div>
                   </div>
                   <div className="hidden shrink-0 items-center gap-2 xl:flex">
@@ -7218,30 +7286,39 @@ function copyCardToDraft(card: CardEntry) {
                       searchTerm,
                       seriesFilter,
                     );
+                    const unsortedColumnId = getTierListUnsortedColumnId(columns);
 
                     return (
-                      <TierListRow
-                        key={column.id}
-                        addLabel={boardVocabulary.singular}
-                        cards={visibleCards}
-                        collapseCards={activeBoardSettings.collapseCards}
-                        column={column}
-                        frontFieldDefinitions={activeBoardFieldDefinitions}
-                        isDarkMode={isDarkMode}
-                        isEditingColumn={editingColumnId === column.id}
-                        editingColumnDraft={editingColumnDraft}
-                        onColumnDraftChange={setEditingColumnDraft}
-                        onEditColumn={() => startEditingColumn(column)}
-                        onCancelColumnEdit={cancelEditingColumn}
-                        onSaveColumnEdit={() => saveEditingColumn(column.id)}
-                        onAddCard={openAddGameModal}
-                        onDragScrollActivity={suppressDragGapsTemporarily}
-                        onEditCard={startEditingCard}
-                        isAnyCardDragging={isCardDragging}
-                        isDragGapSuppressed={isDragGapSuppressed}
-                        showArtworkOnCards={shouldShowArtworkOnCards}
-                        showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
-                      />
+                      <Fragment key={column.id}>
+                        <TierListRow
+                          addLabel={boardVocabulary.singular}
+                          cards={visibleCards}
+                          collapseCards={activeBoardSettings.collapseCards}
+                          column={column}
+                          frontFieldDefinitions={activeBoardFieldDefinitions}
+                          isDarkMode={isDarkMode}
+                          isEditingColumn={editingColumnId === column.id}
+                          editingColumnDraft={editingColumnDraft}
+                          isUnsortedRow={column.id === unsortedColumnId}
+                          onColumnDraftChange={setEditingColumnDraft}
+                          onCancelColumnEdit={cancelEditingColumn}
+                          onSaveColumnEdit={() => saveEditingColumn(column.id)}
+                          onOpenRowOptions={(anchorRect) => openTierRowOptions(column.id, anchorRect)}
+                          onAddCard={openAddGameModal}
+                          onDragScrollActivity={suppressDragGapsTemporarily}
+                          onEditCard={startEditingCard}
+                          isAnyCardDragging={isCardDragging}
+                          isDragGapSuppressed={isDragGapSuppressed}
+                          showArtworkOnCards={shouldShowArtworkOnCards}
+                          showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                        />
+                        {column.id !== unsortedColumnId ? (
+                          <TierListAddRowDivider
+                            isDarkMode={isDarkMode}
+                            onClick={() => addTierListRowAt(columns.findIndex((item) => item.id === column.id) + 1)}
+                          />
+                        ) : null}
+                      </Fragment>
                     );
                   })}
                 </div>
@@ -9255,6 +9332,52 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {tierRowOptionsState && typeof document !== "undefined"
+          ? createPortal(
+              <div
+                className={clsx(
+                  "fixed z-[320] flex min-w-[180px] flex-col rounded-2xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)]",
+                  isDarkMode ? "border-white/10 bg-slate-950 text-slate-100" : "border-slate-200 bg-white text-slate-700",
+                )}
+                data-tier-row-options-root="true"
+                style={{
+                  top: tierRowOptionsState.anchorRect.bottom + 8,
+                  left: Math.max(16, tierRowOptionsState.anchorRect.left - 72),
+                }}
+              >
+                <button
+                  className={clsx(
+                    "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                    isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+                  )}
+                  onClick={() => {
+                    const row = columns.find((column) => column.id === tierRowOptionsState.rowId);
+                    if (row) {
+                      startEditingColumn(row);
+                    }
+                    setTierRowOptionsState(null);
+                  }}
+                  type="button"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Rename Row
+                </button>
+                <button
+                  className={clsx(
+                    "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                    isDarkMode ? "text-rose-300 hover:bg-white/10" : "text-rose-600 hover:bg-slate-100",
+                  )}
+                  onClick={() => requestDeleteTierRow(tierRowOptionsState.rowId)}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Row
+                </button>
+              </div>,
+              document.body,
+            )
+          : null}
+
         {pendingBoardDelete ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -9342,13 +9465,13 @@ function copyCardToDraft(card: CardEntry) {
               onClick={(event) => event.stopPropagation()}
             >
               <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Column Settings
+                {activeBoardLayout === "tier-list" ? "Tier Row" : "Column Settings"}
               </p>
               <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                Delete column?
+                {activeBoardLayout === "tier-list" ? "Delete row?" : "Delete column?"}
               </h2>
               <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                <strong>{pendingColumnDelete.title}</strong> and all cards inside it will be removed.
+                <strong>{pendingColumnDelete.title}</strong> and all cards inside {activeBoardLayout === "tier-list" ? "this row" : "it"} will be removed.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
@@ -9362,7 +9485,7 @@ function copyCardToDraft(card: CardEntry) {
                   type="button"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Delete Column
+                  {activeBoardLayout === "tier-list" ? "Delete Row" : "Delete Column"}
                 </button>
                 <button
                   className={clsx(
@@ -10787,10 +10910,11 @@ function TierListRow({
   frontFieldDefinitions,
   isEditingColumn,
   editingColumnDraft,
+  isUnsortedRow,
   onColumnDraftChange,
-  onEditColumn,
   onCancelColumnEdit,
   onSaveColumnEdit,
+  onOpenRowOptions,
   onEditCard,
   onAddCard,
   onDragScrollActivity,
@@ -10807,10 +10931,11 @@ function TierListRow({
   frontFieldDefinitions: BoardFieldDefinition[];
   isEditingColumn: boolean;
   editingColumnDraft: ColumnEditorDraft | null;
+  isUnsortedRow: boolean;
   onColumnDraftChange: React.Dispatch<React.SetStateAction<ColumnEditorDraft | null>>;
-  onEditColumn: () => void;
   onCancelColumnEdit: () => void;
   onSaveColumnEdit: () => void;
+  onOpenRowOptions: (anchorRect: DOMRect) => void;
   onEditCard: (card: CardEntry) => void;
   onAddCard: (columnId: string, insertIndex: number) => void;
   onDragScrollActivity: () => void;
@@ -10820,7 +10945,6 @@ function TierListRow({
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
-  const isUnsortedRow = column.title.trim().toLowerCase() === "unsorted";
   const trimmedColumnTitle = column.title.trim();
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
 
@@ -10829,11 +10953,11 @@ function TierListRow({
       <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
         <div
           className={clsx(
-            "group/rowrail flex h-full min-h-[176px] flex-col items-center justify-between rounded-[27px] px-3 py-4 text-center",
+            "group/rowrail relative flex h-full min-h-[176px] items-center justify-center rounded-[27px] px-3 py-4 text-center",
             isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
           )}
         >
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex h-full w-full items-center justify-center">
             {isEditingColumn && editingColumnDraft ? (
               <div className="flex w-full flex-col items-center gap-2">
                 <input
@@ -10877,7 +11001,7 @@ function TierListRow({
               <span
                 className={clsx(
                   "font-black tracking-tight",
-                  useVerticalLabel ? "text-xl" : "text-base leading-tight",
+                  useVerticalLabel ? "text-xl" : trimmedColumnTitle.length === 1 ? "text-2xl leading-none" : "text-base leading-tight",
                 )}
                 style={
                   useVerticalLabel
@@ -10889,23 +11013,23 @@ function TierListRow({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5">
             {!isEditingColumn ? (
               <div className="group relative">
                 <button
-                  aria-label={`Rename ${column.title}`}
+                  aria-label={`Row options for ${column.title}`}
                   className={clsx(
                     "inline-flex h-8 w-8 items-center justify-center rounded-full border transition lg:pointer-events-none lg:opacity-0 lg:group-hover/rowrail:pointer-events-auto lg:group-hover/rowrail:opacity-100 lg:group-focus-within/rowrail:pointer-events-auto lg:group-focus-within/rowrail:opacity-100",
                     isDarkMode
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
                   )}
-                  onClick={onEditColumn}
+                  onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
                   type="button"
                 >
-                  <Edit3 className="h-4 w-4" />
+                  <MoreHorizontal className="h-4 w-4" />
                 </button>
-                <HoverTooltip isDarkMode={isDarkMode} label="Rename Row" />
+                <HoverTooltip isDarkMode={isDarkMode} label="Row Options" />
               </div>
             ) : null}
             <div className="group relative">
@@ -10975,9 +11099,9 @@ function TierListRow({
                       isDarkMode={isDarkMode}
                       isDragging={isAnyCardDragging}
                       isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
-                      isSquare={!isUnsortedRow}
+                      isSquare
                     />
-                    <div className={clsx(isUnsortedRow ? "w-[220px] shrink-0" : "w-[176px] shrink-0")}>
+                    <div className="w-[176px] shrink-0">
                       <SortableCard
                         card={card}
                         collapseCards={collapseCards}
@@ -10985,7 +11109,7 @@ function TierListRow({
                         showArtwork={showArtworkOnCards}
                         showTierHighlights={false}
                         frontFieldDefinitions={frontFieldDefinitions}
-                        forceSquare={!isUnsortedRow}
+                        forceSquare
                         isAnyCardDragging={isAnyCardDragging}
                         rankBadge={null}
                         onEdit={() => onEditCard(card)}
@@ -10999,13 +11123,45 @@ function TierListRow({
                   isDarkMode={isDarkMode}
                   isDragging={isAnyCardDragging}
                   isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
-                  isSquare={!isUnsortedRow}
+                  isSquare
                 />
               </>
             )}
           </div>
         </SortableContext>
       </div>
+    </div>
+  );
+}
+
+function TierListAddRowDivider({
+  isDarkMode,
+  onClick,
+}: {
+  isDarkMode: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3">
+      <div className="flex items-center justify-center">
+        <div className="group relative">
+          <button
+            aria-label="Add row"
+            className={clsx(
+              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
+              isDarkMode
+                ? "border-white/15 bg-slate-950/90 text-white hover:border-white/35 hover:bg-slate-900"
+                : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
+            )}
+            onClick={onClick}
+            type="button"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <HoverTooltip isDarkMode={isDarkMode} label="Add Row" />
+        </div>
+      </div>
+      <div />
     </div>
   );
 }
@@ -11036,7 +11192,11 @@ function TierListInsertSlot({
       ref={setNodeRef}
       className={clsx(
         "shrink-0 transition-all duration-200 ease-out",
-        expanded ? (isSquare ? "w-[148px]" : "w-[184px]") : "w-0",
+        isDragging && !isGapSuppressed
+          ? expanded
+            ? (isSquare ? "mx-0 w-[148px]" : "mx-0 w-[184px]")
+            : "-mx-3 w-6"
+          : "mx-0 w-0",
         isSquare ? "h-[176px]" : "h-[124px]",
       )}
     >
@@ -11409,7 +11569,7 @@ function CardTile({
           </>
         ) : null}
         {!collapseCards ? (
-          <div className="absolute inset-x-0 bottom-0 h-[56%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
         ) : null}
 
         {!collapseCards ? (

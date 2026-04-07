@@ -2,6 +2,14 @@
 
 ## 2026-04-06
 
+- Tier List setup defaults now use `Pool` as the backlog row instead of `Unsorted`, and that row also uses square cards like the ranked rows.
+- Tier List row rails now support inline `+ Add Row` controls between rows plus a hover-only row-options menu for rename/delete.
+- Deleting a Tier List row now reuses the existing confirmation modal with row-specific wording that warns all cards in the row will be removed.
+- Tier List row labels are now visually centered independent of their hover actions, and single-letter labels stay upright with a larger type treatment.
+- Tier List insert targets now use wider horizontal hit zones so neighboring cards can split apart to reveal the drop space more like the kanban board behavior.
+- Shared `Copy Board` now freezes mirror columns into a static snapshot so their published order survives and hidden source-board content cannot leak back in after copy.
+- Restored a taller card-front artwork gradient after the earlier reduction turned out too aggressive.
+- Header tooltips for `Boards` and `Rename` are now scoped to their own buttons instead of appearing when hovering unrelated parts of the title bar.
 - Tier List conversion now uses a constrained scrollable modal like Share, so large boards with many source columns no longer push the confirm buttons out of view.
 - In Lumos, selected source-column pills in the Tier List conversion modal now use a light selected state instead of falling back to a dark pill style.
 - Shared `Copy Board` now only copies the board content that was actually published through the share link, so hidden columns/cards/filters stay hidden in the copied board too.

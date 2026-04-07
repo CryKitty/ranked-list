@@ -143,10 +143,27 @@ function buildSharedBoardCopy(board: SavedBoard) {
     }),
   ) as SavedBoard["cardsByColumn"];
 
+  const nextColumns = selectedColumns.map((column) => ({
+    ...column,
+    mirrorsEntireBoard: false,
+    autoMirrorToColumnId: undefined,
+    excludedMirrorItemIds: [],
+    excludeFromBoardMirrors: false,
+    confirmMirrorClones: false,
+  }));
+
   return {
     ...board,
-    columns: selectedColumns,
-    cardsByColumn: nextCardsByColumn,
+    columns: nextColumns,
+    cardsByColumn: Object.fromEntries(
+      Object.entries(nextCardsByColumn).map(([columnId, cards]) => [
+        columnId,
+        cards.map((card) => ({
+          ...card,
+          mirroredFromEntryId: undefined,
+        })),
+      ]),
+    ) as SavedBoard["cardsByColumn"],
   } satisfies SavedBoard;
 }
 
@@ -324,7 +341,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img alt="" className="absolute inset-0 h-full w-full object-cover" src={card.imageUrl} />
                           ) : null}
-                          <div className="absolute inset-x-0 bottom-0 h-[56%] bg-gradient-to-t from-slate-950 via-slate-950/32 to-transparent" />
+                          <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/32 to-transparent" />
                           {!column.dontRank && (column.sortMode ?? "manual") === "manual" ? (
                             <div
                               className={clsx(

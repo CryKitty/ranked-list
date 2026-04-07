@@ -83,19 +83,20 @@
   - `B`
   - `C`
   - `D`
-  - `Unsorted`
+  - `Pool`
 - Board maintenance always exposes a layout-conversion action:
   - `Convert to Tier List` for kanban boards
   - `Convert to Kanban Board` for tier lists
 - Both conversion directions are copy-based. The current board stays untouched and the converted layout is created as a new board, then made active.
-- Converting to Tier List opens a confirmation modal that lets the user choose which non-mirror source columns to include before moving those cards into `Unsorted`.
+- Converting to Tier List opens a confirmation modal that lets the user choose which non-mirror source columns to include before moving those cards into the backlog row.
 - That conversion modal now uses the same constrained, scrollable dialog pattern as Share so very large column lists remain usable on smaller viewports.
-- Converting back to kanban creates a `Ranked` column from the tier rows in display order and a `Backlog` column from `Unsorted`.
-- Tier List quick-add defaults to the `Unsorted` row.
+- Converting back to kanban creates a `Ranked` column from the tier rows in display order and a `Backlog` column from the tier list's final intake row.
+- Tier List quick-add defaults to the backlog row.
 - Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
-- Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright.
+- Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright and slightly larger.
 - Tier List row rails now hide their small action buttons until hover/focus on desktop to keep the label rail visually cleaner.
-- Tier List rows now use horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap.
+- Tier List rows now expose `+ Add Row` affordances between rows, and row-specific options are handled through a small in-UI menu anchored from the row rail.
+- Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap.
 
 ## Media
 
@@ -266,7 +267,8 @@
 - Post-drop card placement no longer performs any automatic column scroll correction; the board now leaves the lane where the user dropped it instead of trying to re-center the moved card afterward.
 - Icon-only controls are gradually standardizing on hover/focus tooltips instead of width-expanding labels. The board switcher and add-card / add-column affordances now use the same tooltip language as the edit-dialog action buttons.
 - Pairwise quiz progress is now stored in `pairwise_quiz_progress` per owner/board/column when possible, with local browser storage used only as a fallback so save-and-resume can survive across devices.
-- Card-front artwork gradients are intentionally shorter now on both the main board and shared boards so the lower text overlay reads clearly without consuming as much of the image.
+- Card-front artwork gradients remain slightly shortened from the original design, but were later increased again after the first reduction proved too shallow in practice.
 - Shared boards now expose a `Copy Board` action that serializes the shared snapshot into local storage and hands it off to the main app, where a fresh board copy is created with regenerated board/column/card IDs.
 - Shared-board copying now serializes only the published share view (selected columns plus applied tier/series/search filters), so a copied board never reveals cards or columns that were not part of the shared link.
+- Shared-board copies also strip live mirror behavior and `mirroredFromEntryId` links, turning the published result into a static editable snapshot so mirror-column order stays exactly as shared.
 - Column action menus intentionally sit above the inline add affordances in stacking order, so hovered `+` controls never cover an active submenu.
