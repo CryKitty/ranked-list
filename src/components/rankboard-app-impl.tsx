@@ -11213,6 +11213,7 @@ function SortableCard({
   compactImageOnly = false,
   containerClassName,
   collapseSizeWhenDragging = false,
+  preserveSpaceWhenDragging = true,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -11228,6 +11229,7 @@ function SortableCard({
   compactImageOnly?: boolean;
   containerClassName?: string;
   collapseSizeWhenDragging?: boolean;
+  preserveSpaceWhenDragging?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -11250,7 +11252,9 @@ function SortableCard({
         isDragging &&
           (collapseSizeWhenDragging
             ? "z-20 h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
-            : "z-20 h-0 overflow-hidden opacity-0 pointer-events-none"),
+            : preserveSpaceWhenDragging
+              ? "z-20 opacity-0 pointer-events-none"
+              : "z-20 h-0 overflow-hidden opacity-0 pointer-events-none"),
       )}
       style={{
         transform:
