@@ -11105,6 +11105,7 @@ function AddCardRow({
   const { setNodeRef, isOver } = useDroppable({
     id: makeInsertDropId(columnId, insertIndex),
   });
+  const restingHeightClass = alwaysVisible ? "h-8" : "h-4";
   const dragHitAreaClass = isDragMode
     ? isOver
       ? "my-0 py-0"
@@ -11148,12 +11149,10 @@ function AddCardRow({
           dragHitAreaClass,
           isDragMode
             ? isGapSuppressed
-              ? "h-3 opacity-0"
+              ? clsx(restingHeightClass, "opacity-0")
               : isOver
                 ? "h-[172px] opacity-100"
-                : insertIndex === 0
-                  ? "h-8 opacity-100"
-                  : "h-3 opacity-100"
+                : clsx(restingHeightClass, "opacity-100")
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
@@ -11175,12 +11174,10 @@ function AddCardRow({
         dragHitAreaClass,
         isDragMode
           ? isGapSuppressed
-            ? "pointer-events-none h-3 opacity-0"
+            ? clsx("pointer-events-none", restingHeightClass, "opacity-0")
             : isOver
               ? "h-[172px] opacity-100"
-              : insertIndex === 0
-                ? "h-8 opacity-100"
-                : "h-3 opacity-100"
+              : clsx(restingHeightClass, "opacity-100")
           : alwaysVisible
             ? "h-8 opacity-100"
             : isMobileViewport
