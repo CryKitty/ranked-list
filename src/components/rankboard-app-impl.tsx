@@ -11127,8 +11127,8 @@ function BoardColumn({
                         : null
                     }
                     onEdit={() => onEditCard(card)}
-                    preserveSpaceWhenDragging={isDragGapSuppressed}
-                    freezeLayoutWhileDragging={isDragGapSuppressed}
+                    preserveSpaceWhenDragging={false}
+                    freezeLayoutWhileDragging={isCardDragging}
                   />
                   <AddCardRow
                     columnId={column.id}
