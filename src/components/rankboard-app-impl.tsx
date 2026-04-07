@@ -2306,6 +2306,10 @@ export function RankboardApp() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
+    document.documentElement.style.backgroundColor = isDarkMode ? "#020617" : "#fff8ef";
+    document.body.style.backgroundColor = isDarkMode ? "#020617" : "#fff8ef";
+    const themeColorMeta = document.querySelector("meta[name='theme-color']");
+    themeColorMeta?.setAttribute("content", isDarkMode ? "#020617" : "#fff8ef");
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
@@ -6120,7 +6124,7 @@ function copyCardToDraft(card: CardEntry) {
           : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffe3cf_18%,#fff0e2_38%,#fff4ea_62%,#fff6ef_100%)] text-slate-950",
       )}
     >
-      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-6 sm:px-6 lg:px-8">
         <datalist id="series-suggestions">
           {allSeries.map((series) => (
             <option key={series} value={series} />
@@ -6421,10 +6425,10 @@ function copyCardToDraft(card: CardEntry) {
             <button
               aria-label="Open actions"
               className={clsx(
-                "fixed bottom-7 right-4 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full shadow-[0_18px_40px_rgba(15,23,42,0.24)] lg:hidden",
+                "fixed bottom-7 right-4 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full lg:hidden",
                 isDarkMode
                   ? "bg-slate-950 text-white"
-                  : "bg-white text-slate-950",
+                  : "bg-white text-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.14)]",
               )}
               onClick={() => {
                 setIsBoardsMenuOpen(false);
@@ -7358,7 +7362,7 @@ function copyCardToDraft(card: CardEntry) {
                   })}
                 </div>
               ) : (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:snap-none">
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:snap-none">
                   {columns.map((column, columnIndex) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
@@ -9876,8 +9880,8 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[20] flex min-h-[min(58dvh,600px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
-          : "group relative z-[20] flex min-h-[min(58dvh,600px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
+          ? "group relative z-[20] flex min-h-[min(62dvh,660px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
+          : "group relative z-[20] flex min-h-[min(62dvh,660px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -10212,8 +10216,9 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex h-[min(58dvh,680px)] min-h-[min(58dvh,600px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        "relative z-10 flex h-[min(62dvh,760px)] min-h-[min(62dvh,660px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
+        !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
           ? isOver
