@@ -1416,11 +1416,13 @@ function HoverTooltip({
   isDarkMode,
   scope,
   disabled = false,
+  align = "center",
 }: {
   label: string;
   isDarkMode: boolean;
   scope?: string;
   disabled?: boolean;
+  align?: "center" | "right";
 }) {
   if (disabled) {
     return null;
@@ -1435,13 +1437,21 @@ function HoverTooltip({
           ? "group-hover/column:opacity-100 group-focus-within/column:opacity-100"
           : scope === "edit"
             ? "group-hover/edit:opacity-100 group-focus-within/edit:opacity-100"
+            : scope === "save"
+              ? "group-hover/save:opacity-100 group-focus-within/save:opacity-100"
           : "group-hover:opacity-100 group-focus-within:opacity-100";
+
+  const alignClass =
+    align === "right"
+      ? "right-0 left-auto translate-x-0"
+      : "left-1/2 -translate-x-1/2";
 
   return (
     <span
       className={clsx(
-        "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
+        "pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[280] whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
         "z-[500]",
+        alignClass,
         scopeClass,
         isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
       )}
@@ -1471,11 +1481,11 @@ function SaveStatusButton({
     : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
 
   return (
-    <div className={clsx("group relative shrink-0", className)}>
+    <div className={clsx("relative shrink-0", className)}>
       <button
         aria-label={tooltipLabel}
         className={clsx(
-          "inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
+          "group/save inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
           isDarkMode
             ? "bg-white/10 text-slate-200 hover:bg-white/15"
             : "bg-white text-slate-700 hover:bg-slate-100",
@@ -1484,8 +1494,8 @@ function SaveStatusButton({
         type="button"
       >
         <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
+        <HoverTooltip align="right" isDarkMode={isDarkMode} label={tooltipLabel} scope="save" />
       </button>
-      <HoverTooltip isDarkMode={isDarkMode} label={tooltipLabel} />
     </div>
   );
 }
