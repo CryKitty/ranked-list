@@ -11265,14 +11265,11 @@ function SortableCard({
               : "z-20 h-0 overflow-hidden opacity-0 pointer-events-none"),
       )}
       style={{
-        transform:
-          isAnyCardDragging && !isDragging ? undefined : CSS.Transform.toString(transform),
+        transform: CSS.Transform.toString(transform),
         transition:
-          isAnyCardDragging && !isDragging
-            ? "none"
-            : isDragging
-              ? undefined
-              : (transition ?? "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)"),
+          isDragging
+            ? undefined
+            : (transition ?? "transform 110ms cubic-bezier(0.22, 1, 0.36, 1)"),
         willChange: "transform",
       }}
     >
@@ -11388,6 +11385,37 @@ function CardTile({
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [collapseCards, showCollapsedActions]);
 
+  useEffect(() => {
+    if (!imageSource) {
+      setLoadedImageSource("");
+      return;
+    }
+
+    if (loadedImageSource === imageSource) {
+      return;
+    }
+
+    const preloader = new Image();
+    preloader.decoding = "async";
+    preloader.src = imageSource;
+
+    if (preloader.complete) {
+      setLoadedImageSource(imageSource);
+      return;
+    }
+
+    const handleLoad = () => setLoadedImageSource(imageSource);
+    const handleError = () => setLoadedImageSource(imageSource);
+
+    preloader.addEventListener("load", handleLoad);
+    preloader.addEventListener("error", handleError);
+
+    return () => {
+      preloader.removeEventListener("load", handleLoad);
+      preloader.removeEventListener("error", handleError);
+    };
+  }, [imageSource, loadedImageSource]);
+
   return (
     <article
       ref={cardRef}
@@ -11440,15 +11468,16 @@ function CardTile({
             <img
               alt=""
               className={clsx(
-                "absolute inset-0 h-full w-full object-cover transition duration-300",
-                loadedImageSource === imageSource ? "scale-100 blur-0 opacity-100" : "scale-105 blur-md opacity-60",
+                "absolute inset-0 h-full w-full object-cover transition duration-150",
+                loadedImageSource === imageSource ? "scale-100 blur-0 opacity-100" : "scale-[1.02] blur-sm opacity-75",
               )}
               onLoad={() => setLoadedImageSource(imageSource)}
+              onError={() => setLoadedImageSource(imageSource)}
               src={imageSource}
             />
             <div
               className={clsx(
-                "absolute inset-0 bg-slate-900/40 transition duration-300",
+                "absolute inset-0 bg-slate-900/40 transition duration-150",
                 loadedImageSource === imageSource ? "opacity-0" : "opacity-100",
               )}
             />
