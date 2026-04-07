@@ -10401,7 +10401,7 @@ function BoardColumn({
       className={clsx(
         "relative z-10 flex shrink-0 flex-col rounded-[28px] border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
         isMobileViewport
-          ? "h-[min(calc(var(--app-height)-11rem),860px)] min-h-[min(calc(var(--app-height)-11rem),800px)]"
+          ? "h-[min(calc(var(--app-height)-10.15rem),880px)] min-h-[min(calc(var(--app-height)-10.15rem),820px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(88vw,348px)] snap-center" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
@@ -11594,7 +11594,6 @@ function AddCardRow({
   const { setNodeRef, isOver } = useDroppable({
     id: makeInsertDropId(columnId, insertIndex),
   });
-  const restingHeightClass = alwaysVisible ? "h-8" : "h-4";
   const dragHitAreaClass = isDragMode
     ? isOver
       ? "inset-y-0"
@@ -11639,15 +11638,15 @@ function AddCardRow({
     return (
       <div
         data-mobile-inline-add-root="true"
-        className={clsx(
-          "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out",
-          isDarkMode ? "text-slate-300" : "text-slate-400",
-          isDragMode
-            ? isGapSuppressed
-              ? clsx(restingHeightClass, "opacity-0")
+      className={clsx(
+        "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out",
+        isDarkMode ? "text-slate-300" : "text-slate-400",
+        isDragMode
+          ? isGapSuppressed
+              ? "pointer-events-none h-0 opacity-0"
               : isOver
                 ? "h-[172px] opacity-100"
-                : clsx(restingHeightClass, "opacity-100")
+                : "h-0 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
@@ -11668,10 +11667,10 @@ function AddCardRow({
         isDarkMode ? "text-slate-300" : "text-slate-400",
         isDragMode
           ? isGapSuppressed
-            ? clsx("pointer-events-none", restingHeightClass, "opacity-0")
+            ? "pointer-events-none h-0 opacity-0"
             : isOver
               ? "h-[172px] opacity-100"
-              : clsx(restingHeightClass, "opacity-100")
+              : "h-0 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
             : isMobileViewport
