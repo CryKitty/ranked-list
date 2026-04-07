@@ -6444,10 +6444,10 @@ function copyCardToDraft(card: CardEntry) {
             <button
               aria-label="Open actions"
               className={clsx(
-                "fixed bottom-7 right-4 z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full lg:hidden",
+                "fixed bottom-[calc(env(safe-area-inset-bottom)+1.1rem)] right-[1.1rem] z-[70] inline-flex h-11 w-11 items-center justify-center rounded-2xl transition lg:hidden",
                 isDarkMode
-                  ? "bg-slate-950 text-white"
-                  : "bg-white text-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.14)]",
+                  ? "bg-white/10 text-white hover:bg-white/15"
+                  : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
               )}
               onClick={() => {
                 setIsBoardsMenuOpen(false);
@@ -6455,7 +6455,7 @@ function copyCardToDraft(card: CardEntry) {
               }}
               type="button"
             >
-              <Plus className="h-6 w-6" />
+              <Plus className="h-5 w-5" />
             </button>
 
             {isMobileActionsOpen ? (
@@ -9958,15 +9958,6 @@ function AddColumnButton({
   onArm?: () => void;
   onClick: () => void;
 }) {
-  const handleClick = () => {
-    if (inline && isMobileViewport && !mobileArmed) {
-      onArm?.();
-      return;
-    }
-
-    onClick();
-  };
-
   return (
     <div
       data-mobile-inline-add-root="true"
@@ -10015,18 +10006,21 @@ function AddColumnButton({
             )}
           > 
             <button
-              className="group/edit absolute inset-0 flex items-center justify-center rounded-full"
+              className={clsx(
+                "group/edit absolute inset-0 flex items-center justify-center rounded-full",
+                isMobileViewport && !mobileArmed && "pointer-events-none",
+              )}
               onClick={(event) => {
                 event.stopPropagation();
-                handleClick();
+                onClick();
               }}
               type="button"
-              aria-label={inline && isMobileViewport && !mobileArmed ? "Reveal add column button" : "Add column"}
+              aria-label="Add column"
             >
               <Plus className="h-5 w-5" />
               <HoverTooltip
                 isDarkMode={isDarkMode}
-                label={inline && isMobileViewport && !mobileArmed ? "Show Add Column" : "Add Column"}
+                label="Add Column"
                 scope="edit"
               />
             </button>
@@ -10047,7 +10041,7 @@ function AddColumnButton({
         >
           <button
             className="group/edit flex h-full w-full items-center justify-center rounded-full"
-            onClick={handleClick}
+            onClick={onClick}
             type="button"
             aria-label="Add column"
           >
