@@ -3651,6 +3651,11 @@ export function RankboardApp() {
       return;
     }
 
+    const getColumnScrollElement = (columnId: string) =>
+      Array.from(document.querySelectorAll<HTMLElement>("[data-column-scroll-id]")).find(
+        (element) => element.dataset.columnScrollId === columnId,
+      ) ?? null;
+
     const movedCard = sourceCards[sourceIndex];
     let destinationIndex = destinationCards.length;
 
@@ -3682,6 +3687,7 @@ export function RankboardApp() {
       const reorderedCards = [...sourceCards];
       const [removedCard] = reorderedCards.splice(sourceIndex, 1);
       reorderedCards.splice(adjustedDestinationIndex, 0, removedCard);
+      const sourceScrollTop = getColumnScrollElement(sourceColumnId)?.scrollTop ?? null;
 
       const nextState = {
         ...latestCardsByColumnRef.current,
@@ -3696,12 +3702,21 @@ export function RankboardApp() {
         cardsByColumn: nextState,
         debounceMs: 900,
       });
+      if (sourceScrollTop !== null) {
+        window.requestAnimationFrame(() => {
+          const nextElement = getColumnScrollElement(sourceColumnId);
+          if (nextElement) {
+            nextElement.scrollTop = sourceScrollTop;
+          }
+        });
+      }
 
       return;
     }
 
     const nextSourceCards = sourceCards.filter((card) => card.entryId !== activeId);
     const nextDestinationCards = [...destinationCards];
+    const destinationScrollTop = getColumnScrollElement(overColumnId)?.scrollTop ?? null;
 
     nextDestinationCards.splice(destinationIndex, 0, movedCard);
     const normalizedDestinationCards =
@@ -3724,6 +3739,14 @@ export function RankboardApp() {
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
+    if (destinationScrollTop !== null) {
+      window.requestAnimationFrame(() => {
+        const nextElement = getColumnScrollElement(overColumnId);
+        if (nextElement) {
+          nextElement.scrollTop = destinationScrollTop;
+        }
+      });
+    }
   }
 
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -4210,6 +4233,7 @@ function copyCardToDraft(card: CardEntry) {
 
     setIsUploadingArtwork(true);
     setSaveErrorMessage(null);
+    let uploadSucceeded = false;
 
     try {
       const optimized = await optimizeImageFile(file);
@@ -4246,19 +4270,22 @@ function copyCardToDraft(card: CardEntry) {
             : current,
         );
       }
+
+      uploadSucceeded = true;
     } catch (error) {
       console.error(error);
       setSaveState("error");
       setSaveErrorMessage(error instanceof Error ? error.message : "Artwork could not be uploaded.");
     } finally {
       setIsUploadingArtwork(false);
-      if (target === "draft") {
-        setIsAddFieldSettingsOpen(false);
-      } else {
-        setIsEditFieldSettingsOpen(false);
+      if (uploadSucceeded) {
+        if (target === "draft") {
+          setIsAddFieldSettingsOpen(false);
+        } else {
+          setIsEditFieldSettingsOpen(false);
+        }
+        setArtworkPicker(null);
       }
-      setArtworkPicker(null);
-      setSaveState("saved");
     }
   }
 
@@ -7365,7 +7392,7 @@ function copyCardToDraft(card: CardEntry) {
               onDragEnd={handleDragEnd}
             >
               {activeBoardLayout === "tier-list" ? (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-2 pb-3">
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-1 pb-3">
                   {columns.map((column) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
@@ -11052,7 +11079,7 @@ function TierListRow({
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
 
   return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2 items-stretch sm:grid-cols-[72px_minmax(0,1fr)]">
+    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-1 items-stretch sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-2">
       <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
         <div
           tabIndex={0}
@@ -11171,7 +11198,7 @@ function TierListRow({
         >
           <div
             className={clsx(
-              "min-h-[152px] items-start gap-2 pb-1 sm:min-h-[176px] sm:gap-3",
+              "min-h-[152px] items-start gap-1.5 pb-1 sm:min-h-[176px] sm:gap-3",
               isUnsortedRow ? "flex overflow-x-auto" : "flex flex-wrap overflow-visible",
             )}
             data-column-scroll-id={column.id}
@@ -11264,7 +11291,7 @@ function TierListAddRowDivider({
   };
 
   return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[72px_minmax(0,1fr)]">
+    <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-1 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-2">
       <div
         className="group flex items-center justify-center"
         data-mobile-inline-add-root="true"
@@ -11667,12 +11694,13 @@ function CardTile({
       data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
-        "group relative shrink-0 rounded-[28px] border cursor-grab active:cursor-grabbing",
+        "group relative shrink-0 border cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
         !collapseCards && "bg-slate-900",
         collapseCards ? "border-slate-950" : tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
+        compactImageOnly ? "rounded-[18px]" : "rounded-[28px]",
       )}
       onClick={() => {
         if (collapseCards) {
@@ -11689,9 +11717,10 @@ function CardTile({
     >
         <div
           className={clsx(
-            "relative overflow-hidden rounded-[28px] bg-center",
+            "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
             collapseCards ? "min-h-[82px]" : compactImageOnly ? "aspect-[2/3]" : forceSquare ? "aspect-square" : "aspect-video",
+            compactImageOnly ? "rounded-[18px]" : "rounded-[28px]",
           )}
         style={
           collapseCards
@@ -11771,9 +11800,9 @@ function CardTile({
               ) : null}
               <div className="mx-auto flex max-w-[calc(100%-4.75rem)] flex-col items-center justify-center px-1 text-center">
                 {displaySeries ? (
-                  <p className="mb-1 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700/80">
-                    {displaySeries}
-                  </p>
+              <p className="mb-1 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+                {displaySeries}
+              </p>
                 ) : null}
                 <h3
                   className={clsx(
@@ -11790,7 +11819,7 @@ function CardTile({
         ) : compactImageOnly ? null : hasArtwork ? (
           <div className="absolute left-0 right-0 bottom-0 p-3 sm:p-4">
             {displaySeries ? (
-              <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+              <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
                 {displaySeries}
               </p>
             ) : null}
@@ -11811,7 +11840,7 @@ function CardTile({
               <div className="mt-auto flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   {displaySeries ? (
-                    <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-white">
                       {displaySeries}
                     </p>
                   ) : null}

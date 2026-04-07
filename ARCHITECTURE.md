@@ -98,10 +98,12 @@
 - Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
 - On mobile, Tier List cards intentionally shrink further than desktop to keep wrapped rows practical on narrow screens.
 - On mobile, Tier List cards now use a portrait/image-first presentation with their text hidden to preserve row density.
+- On mobile, those Tier List cards now use slightly tighter corner radii than the desktop tier cards so the dense row packing feels less pill-like.
 - Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright and slightly larger.
 - Tier List row rails now hide their small action buttons until hover/focus to keep the label rail visually cleaner, and those controls stack vertically inside the narrower rail.
 - Tier List rows now expose `+ Add Row` affordances between rows, using hover/focus on desktop and tap-to-reveal on mobile, and row-specific options are handled through a small in-UI menu anchored from the row rail.
 - Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap, especially on desktop where the target previously felt too narrow.
+- Tier List row spacing was tightened again to increase vertical density without changing the basic row-rail layout.
 
 ## Media
 
@@ -110,6 +112,7 @@
 - Card media uses blurred loading transitions to reduce harsh pop-in.
 - On mobile, artwork helper buttons are intentionally stacked below the URL field so the URL input remains usable.
 - Artwork upload handlers should only update the active add/edit draft and cleanup picker UI; they should not implicitly close the surrounding card modal.
+- Successful upload cleanup should only run after a real upload success, so failed uploads do not leave the editor in a misleading saved/closed state.
 
 ## Key UI Conventions
 
@@ -144,6 +147,7 @@
 - Boards can override the noun used for cards with `settings.cardLabel`, and `Add ...` UI should prefer that over title heuristics.
 - Collapsed cards still use their own compact visual treatment, but they should now reuse the same series/title text derivation as full cards rather than dropping the series line entirely.
 - Tier logic now includes `Top 30` in both the main board and shared board rendering paths, with its own emerald accent treatment.
+- On artwork-backed cards, the series line now uses white text to match the title treatment more closely.
 
 ## Mirror Linking
 

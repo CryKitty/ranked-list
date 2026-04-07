@@ -364,7 +364,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                           ) : null}
                           <div className="absolute inset-x-0 bottom-0 p-4">
                             {displaySeries ? (
-                              <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                              <p className="mb-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-white">
                                 {displaySeries}
                               </p>
                             ) : null}

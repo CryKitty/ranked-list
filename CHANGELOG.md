@@ -2,6 +2,11 @@
 
 ## 2026-04-06
 
+- Tier List mobile cards are now a bit less rounded, while keeping their portrait, image-only treatment.
+- Tier List row spacing was reduced again so the rows sit more tightly together.
+- Kanban drag-drop now restores the source/destination column scroll position after a drop, which should stop the list from nudging away from the card you just placed.
+- Card series text on artwork cards is now white in both the main board and shared views.
+- Artwork upload cleanup now only closes field-settings chrome after a successful upload instead of always resetting UI/save state, which hardens the Tier List upload path further.
 - Fixed the malformed artwork-upload handler so Tier List card image uploads no longer fall through into unintended edit-modal teardown logic, which was a likely source of the recurring “This page couldn’t load” crash.
 - Desktop header tooltips now use explicit scoped hover classes, so `Boards` / `Rename` and similar action-bar button tooltips show reliably again.
 - The header series filter menu now closes when you click elsewhere instead of staying open until you re-toggle it or choose a filter.
