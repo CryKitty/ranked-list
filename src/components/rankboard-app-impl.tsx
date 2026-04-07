@@ -3066,6 +3066,78 @@ export function RankboardApp() {
     }, 1000);
   }
 
+  function getBoardInsertCollision(
+    pointerCoordinates: { x: number; y: number },
+    droppableContainers: Array<{ id: string | number }>,
+  ) {
+    if (typeof document === "undefined") {
+      return null;
+    }
+
+    const columnElement = document
+      .elementsFromPoint(pointerCoordinates.x, pointerCoordinates.y)
+      .map((element) => element.closest("[data-column-id]"))
+      .find(Boolean) as HTMLElement | null;
+
+    const columnId = columnElement?.dataset.columnId;
+
+    if (!columnId) {
+      return null;
+    }
+
+    const scrollContainer =
+      Array.from(document.querySelectorAll<HTMLElement>("[data-column-scroll-id]")).find(
+        (element) => element.dataset.columnScrollId === columnId,
+      ) ?? null;
+
+    if (!scrollContainer) {
+      return null;
+    }
+
+    const scrollRect = scrollContainer.getBoundingClientRect();
+    if (
+      pointerCoordinates.x < scrollRect.left ||
+      pointerCoordinates.x > scrollRect.right ||
+      pointerCoordinates.y < scrollRect.top - 20 ||
+      pointerCoordinates.y > scrollRect.bottom + 20
+    ) {
+      return null;
+    }
+
+    const cardElements = Array.from(
+      scrollContainer.querySelectorAll<HTMLElement>("[data-card-entry-id]"),
+    );
+
+    let insertIndex = cardElements.length;
+
+    for (const [index, element] of cardElements.entries()) {
+      const rect = element.getBoundingClientRect();
+      if (pointerCoordinates.y < rect.top + rect.height / 2) {
+        insertIndex = index;
+        break;
+      }
+    }
+
+    const targetId = makeInsertDropId(columnId, insertIndex);
+    const droppableContainer = droppableContainers.find(
+      (container) => String(container.id) === targetId,
+    );
+
+    if (!droppableContainer) {
+      return null;
+    }
+
+    return [
+      {
+        id: droppableContainer.id,
+        data: {
+          droppableContainer,
+          value: 1,
+        },
+      },
+    ];
+  }
+
   function removeMirroredCard(
     nextState: Record<string, CardEntry[]>,
     sourceEntryId: string,
@@ -7341,6 +7413,21 @@ function copyCardToDraft(card: CardEntry) {
               }}
               sensors={sensors}
               collisionDetection={(args) => {
+                if (
+                  activeBoardLayout === "board" &&
+                  args.pointerCoordinates &&
+                  !isDragGapSuppressed
+                ) {
+                  const boardInsertCollision = getBoardInsertCollision(
+                    args.pointerCoordinates,
+                    args.droppableContainers as Array<{ id: string | number }>,
+                  );
+
+                  if (boardInsertCollision) {
+                    return boardInsertCollision;
+                  }
+                }
+
                 const pointerHits = pointerWithin(args);
                 if (pointerHits.length > 0) {
                   if (isDragGapSuppressed) {
