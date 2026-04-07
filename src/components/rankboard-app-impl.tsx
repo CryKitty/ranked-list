@@ -69,7 +69,7 @@ import {
   MenuSectionButton,
   ToggleSwitch,
 } from "@/components/rankboard-fields";
-import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog } from "@/components/rankboard-dialogs";
+import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
@@ -1483,6 +1483,7 @@ export function RankboardApp() {
     title: "",
   });
   const [copiedShareUrl, setCopiedShareUrl] = useState<string | null>(null);
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
@@ -1551,6 +1552,7 @@ export function RankboardApp() {
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
+  const hasDismissedWelcomeRef = useRef(false);
   const hasHandledNewBoardQueryRef = useRef(false);
   const hasHandledSharedCopyQueryRef = useRef(false);
   const latestColumnsRef = useRef(columns);
@@ -2248,6 +2250,22 @@ export function RankboardApp() {
 
     resetToSignedOutBoard();
   }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading, resetToSignedOutBoard]);
+
+  useEffect(() => {
+    if (!authEnabled || isAuthLoading || !hasLoadedPersistedState) {
+      return;
+    }
+
+    if (currentUser) {
+      hasDismissedWelcomeRef.current = false;
+      setIsWelcomeModalOpen(false);
+      return;
+    }
+
+    if (!hasDismissedWelcomeRef.current) {
+      setIsWelcomeModalOpen(true);
+    }
+  }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading]);
 
   useEffect(() => {
     if (typeof window === "undefined" || hasHandledNewBoardQueryRef.current) {
@@ -5228,6 +5246,15 @@ function copyCardToDraft(card: CardEntry) {
     setIsMobileActionsOpen(false);
   }, []);
 
+  const dismissWelcomeToNewBoard = useCallback(() => {
+    hasDismissedWelcomeRef.current = true;
+    setIsWelcomeModalOpen(false);
+    setIsCreateBoardModalOpen(false);
+    setNewBoardTitle("");
+    setNewBoardSettings(getDefaultBoardSettings("New Board", "board"));
+    resetToSignedOutBoard();
+  }, [resetToSignedOutBoard]);
+
   function createBoardFromModal() {
     const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
     const boardLayout: BoardLayout = "board";
@@ -6675,6 +6702,21 @@ function copyCardToDraft(card: CardEntry) {
                 : "border-white/70 bg-white/60",
             )}
           >
+            {!isEditingBoardTitle ? (
+              <div
+                className={clsx(
+                  "absolute right-4 top-4 inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold xl:hidden",
+                  isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
+                )}
+                title={
+                  saveState === "error" || saveState === "offline"
+                    ? saveErrorMessage ?? "Changes could not be saved."
+                    : `Last saved ${formatLastSavedAt(lastSavedAt)}`
+                }
+              >
+                <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
+              </div>
+            ) : null}
             <div className="mb-4 min-w-0">
               {isEditingBoardTitle ? (
                 <div className="flex flex-wrap items-center gap-3">
@@ -6855,28 +6897,6 @@ function copyCardToDraft(card: CardEntry) {
                         </button>
                         <HoverTooltip isDarkMode={isDarkMode} label="Rename" scope="rename" />
                       </div>
-                    </div>
-                    <div
-                      className={clsx(
-                        "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold",
-                        isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
-                      )}
-                      title={
-                        saveState === "error" || saveState === "offline"
-                          ? saveErrorMessage ?? "Changes could not be saved."
-                          : `Last saved ${formatLastSavedAt(lastSavedAt)}`
-                      }
-                    >
-                      <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
-                      <span className="hidden min-[1100px]:inline">
-                        {saveState === "error" || saveState === "offline"
-                          ? "Needs attention"
-                          : saveState === "saved"
-                            ? "Saved"
-                            : saveState === "saving"
-                              ? "Saving"
-                              : "Pending"}
-                      </span>
                     </div>
                   </div>
                   <div className="hidden shrink-0 items-center gap-2 xl:flex">
@@ -7137,6 +7157,28 @@ function copyCardToDraft(card: CardEntry) {
                           ) : null}
                         </div>
                       ) : null}
+                    </div>
+                    <div
+                      className={clsx(
+                        "inline-flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold",
+                        isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700",
+                      )}
+                      title={
+                        saveState === "error" || saveState === "offline"
+                          ? saveErrorMessage ?? "Changes could not be saved."
+                          : `Last saved ${formatLastSavedAt(lastSavedAt)}`
+                      }
+                    >
+                      <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
+                      <span className="hidden min-[1100px]:inline">
+                        {saveState === "error" || saveState === "offline"
+                          ? "Needs attention"
+                          : saveState === "saved"
+                            ? "Saved"
+                            : saveState === "saving"
+                              ? "Saving"
+                              : "Pending"}
+                      </span>
                     </div>
                   </div>
                   <div className="hidden lg:block xl:hidden" data-actions-menu-root="true">
@@ -8599,6 +8641,16 @@ function copyCardToDraft(card: CardEntry) {
             </div>
           </div>
         ) : null}
+
+        <WelcomeDialog
+          isDarkMode={isDarkMode}
+          isLoginDisabled={isAuthLoading}
+          isOpen={isWelcomeModalOpen}
+          onGetStarted={dismissWelcomeToNewBoard}
+          onLogin={() => {
+            void handleOAuthLogin("google");
+          }}
+        />
 
         <BoardSetupDialog
           isDarkMode={isDarkMode}
