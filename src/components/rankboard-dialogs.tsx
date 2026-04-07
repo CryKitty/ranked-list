@@ -1050,6 +1050,7 @@ export function ShareBoardDialog({
   isOpen,
   isDarkMode,
   boardTitle,
+  sharedTitle,
   columns,
   allSeries,
   selectedColumnIds,
@@ -1062,12 +1063,14 @@ export function ShareBoardDialog({
   onTierChange,
   onSeriesChange,
   onSearchChange,
+  onSharedTitleChange,
   onSubmit,
   onCopyAgain,
 }: {
   isOpen: boolean;
   isDarkMode: boolean;
   boardTitle: string;
+  sharedTitle: string;
   columns: ShareColumnOption[];
   allSeries: string[];
   selectedColumnIds: string[];
@@ -1080,6 +1083,7 @@ export function ShareBoardDialog({
   onTierChange: (tier: ShareTierFilter) => void;
   onSeriesChange: (series: string) => void;
   onSearchChange: (value: string) => void;
+  onSharedTitleChange: (value: string) => void;
   onSubmit: () => void;
   onCopyAgain: () => void;
 }) {
@@ -1180,6 +1184,20 @@ export function ShareBoardDialog({
                 <Clock3 className={clsx("h-4 w-4", isDarkMode ? "text-slate-300" : "text-slate-600")} />
                 <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">Filters</h3>
               </div>
+              <label className="grid min-w-0 gap-2">
+                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Shared title</span>
+                <input
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 outline-none transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                  )}
+                  placeholder={boardTitle}
+                  value={sharedTitle}
+                  onChange={(event) => onSharedTitleChange(event.target.value)}
+                />
+              </label>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid min-w-0 gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Search</span>

@@ -142,6 +142,7 @@ type ShareDraft = {
   tierFilter: ShareTierFilter;
   seriesFilter: string;
   searchTerm: string;
+  title: string;
 };
 
 type DuplicateCleanupSuggestion = {
@@ -563,6 +564,7 @@ function normalizePublicShareSettings(settings?: Partial<BoardSettings>["publicS
     tierFilter: settings?.tierFilter ?? "all",
     seriesFilter: settings?.seriesFilter ?? "",
     searchTerm: settings?.searchTerm ?? "",
+    title: settings?.title ?? "",
     expiresAt: settings?.expiresAt ?? null,
   };
 }
@@ -1654,13 +1656,20 @@ function HoverTooltip({
   isDarkMode: boolean;
   scope?: string;
 }) {
+  const scopeClass =
+    scope === "boards"
+      ? "group-hover/boards:opacity-100 group-focus-within/boards:opacity-100"
+      : scope === "rename"
+        ? "group-hover/rename:opacity-100 group-focus-within/rename:opacity-100"
+        : scope === "column"
+          ? "group-hover/column:opacity-100 group-focus-within/column:opacity-100"
+          : "group-hover:opacity-100 group-focus-within:opacity-100";
+
   return (
     <span
       className={clsx(
         "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
-        scope
-          ? [`group-hover/${scope}:opacity-100`, `group-focus-within/${scope}:opacity-100`]
-          : "group-hover:opacity-100 group-focus-within:opacity-100",
+        scopeClass,
         isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
       )}
     >
@@ -1721,6 +1730,7 @@ export function RankboardApp() {
     tierFilter: "all",
     seriesFilter: "",
     searchTerm: "",
+    title: "",
   });
   const [copiedShareUrl, setCopiedShareUrl] = useState<string | null>(null);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
@@ -3004,6 +3014,23 @@ export function RankboardApp() {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
+  useEffect(() => {
+    if (!isHeaderSeriesMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null;
+
+      if (!target?.closest("[data-series-filter-root='true']")) {
+        setIsHeaderSeriesMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isHeaderSeriesMenuOpen]);
+
   async function handleOAuthLogin(provider: "google" | "apple") {
     if (!supabase) {
       return;
@@ -4225,10 +4252,15 @@ function copyCardToDraft(card: CardEntry) {
       setSaveErrorMessage(error instanceof Error ? error.message : "Artwork could not be uploaded.");
     } finally {
       setIsUploadingArtwork(false);
+      if (target === "draft") {
+        setIsAddFieldSettingsOpen(false);
+      } else {
+        setIsEditFieldSettingsOpen(false);
+      }
+      setArtworkPicker(null);
+      setSaveState("saved");
+    }
   }
-
-  cancelEditingCard();
-}
 
   function startEditingCard(card: CardEntry) {
     setEditingCardId(card.entryId);
@@ -5095,6 +5127,7 @@ function copyCardToDraft(card: CardEntry) {
       tierFilter: existingShare.tierFilter,
       seriesFilter: existingShare.seriesFilter || seriesFilter,
       searchTerm: existingShare.searchTerm || searchTerm,
+      title: existingShare.title || activeBoardTitle,
     });
     setCopiedShareUrl(null);
     setIsShareModalOpen(true);
@@ -5120,6 +5153,7 @@ function copyCardToDraft(card: CardEntry) {
       tierFilter: shareDraft.tierFilter,
       seriesFilter: shareDraft.seriesFilter,
       searchTerm: shareDraft.searchTerm.trim(),
+      title: shareDraft.title.trim() || activeBoardTitle,
       expiresAt,
     };
     const nextBoards = latestBoardsRef.current.map((board) =>
@@ -7888,6 +7922,7 @@ function copyCardToDraft(card: CardEntry) {
         <ShareBoardDialog
           allSeries={allSeries}
           boardTitle={activeBoardTitle}
+          sharedTitle={shareDraft.title}
           columns={columns}
           copiedShareUrl={copiedShareUrl}
           isDarkMode={isDarkMode}
@@ -7903,6 +7938,7 @@ function copyCardToDraft(card: CardEntry) {
             }
           }}
           onSearchChange={(value) => setShareDraft((current) => ({ ...current, searchTerm: value }))}
+          onSharedTitleChange={(value) => setShareDraft((current) => ({ ...current, title: value }))}
           onSeriesChange={(series) => setShareDraft((current) => ({ ...current, seriesFilter: series }))}
           onSubmit={() => {
             void shareActiveBoard();
@@ -9993,7 +10029,7 @@ function SeriesFilterButton({
   className?: string;
 }) {
   return (
-    <div className={clsx("relative", className)}>
+    <div className={clsx("relative", className)} data-series-filter-root="true">
       <button
         className={clsx(
           "flex w-full items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left outline-none transition",
@@ -11305,8 +11341,8 @@ function TierListInsertSlot({
                 : "mx-0 w-[120px] sm:w-[184px]")
             : isSquare
               ? isMobileViewport
-                ? "-mx-2 w-8"
-                : "-mx-4 w-10"
+                ? "-mx-3 w-10"
+                : "-mx-10 w-20"
               : "-mx-3 w-6"
           : "mx-0 w-0",
         isSquare

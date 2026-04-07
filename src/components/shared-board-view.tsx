@@ -154,6 +154,7 @@ function buildSharedBoardCopy(board: SavedBoard) {
 
   return {
     ...board,
+    title: shareSettings?.title?.trim() || board.title,
     columns: nextColumns,
     cardsByColumn: Object.fromEntries(
       Object.entries(nextCardsByColumn).map(([columnId, cards]) => [
@@ -202,6 +203,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   }
 
   const shareSettings = board.settings?.publicShare;
+  const sharedTitle = shareSettings?.title?.trim() || board.title;
   const selectedColumnIds =
     shareSettings?.columnIds && shareSettings.columnIds.length > 0
       ? shareSettings.columnIds
@@ -252,7 +254,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                 </span>
               ) : null}
               <h1 className={clsx("min-w-0 truncate text-3xl font-black sm:text-4xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                {board.title}
+                {sharedTitle}
               </h1>
             </div>
             <div className="flex shrink-0 items-center gap-2">

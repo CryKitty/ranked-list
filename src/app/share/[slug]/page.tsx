@@ -1,6 +1,30 @@
+import type { Metadata } from "next";
+
 import { SharedBoardView } from "@/components/shared-board-view";
 import { loadPublicBoardBySlug } from "@/lib/normalized-board-store";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await getSupabaseServerClient();
+
+  if (!supabase) {
+    return {
+      title: "Rankr Share",
+    };
+  }
+
+  const board = await loadPublicBoardBySlug(supabase, slug);
+  const title = board?.settings?.publicShare?.title?.trim() || board?.title || "Rankr Share";
+
+  return {
+    title,
+  };
+}
 
 export default async function SharedBoardPage({
   params,

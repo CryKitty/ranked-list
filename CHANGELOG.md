@@ -2,6 +2,11 @@
 
 ## 2026-04-06
 
+- Fixed the malformed artwork-upload handler so Tier List card image uploads no longer fall through into unintended edit-modal teardown logic, which was a likely source of the recurring “This page couldn’t load” crash.
+- Desktop header tooltips now use explicit scoped hover classes, so `Boards` / `Rename` and similar action-bar button tooltips show reliably again.
+- The header series filter menu now closes when you click elsewhere instead of staying open until you re-toggle it or choose a filter.
+- Share links can now carry a custom shared title, and the shared page/browser title uses that custom title when present.
+- Tier List desktop insert slots now keep a much wider hidden hit area, which should make the horizontal split-gap drop target easier to surface visually during drag.
 - Tier List mobile cards now use a tighter portrait-style, image-first treatment, while desktop Tier List cards keep their text but use a slightly smaller/lower title treatment.
 - Tier List row rails are narrower now, row gaps are tighter, and both the row options button and row add button stack vertically in the rail.
 - The between-row `+ Add Row` affordance now follows the same reveal pattern as the kanban add controls: hover/focus on desktop, tap-to-reveal on mobile.

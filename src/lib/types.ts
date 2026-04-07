@@ -13,6 +13,7 @@ export type BoardShareSettings = {
   tierFilter: ShareTierFilter;
   seriesFilter: string;
   searchTerm: string;
+  title?: string;
   expiresAt?: string | null;
 };
 

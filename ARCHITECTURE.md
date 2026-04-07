@@ -60,6 +60,7 @@
 - Active-board preference now also falls back across both user-scoped and generic last-board storage keys to reduce “refresh opened the wrong board” regressions.
 - During authenticated remote merge, a temporary signed-out `Rankr` starter board should be discarded once real saved boards are available so mobile auth handoff does not keep a stray blank board.
 - Shared-board reads now fetch the published board row plus its columns/items/entries directly, rather than loading all boards for the owner and then selecting one.
+- Shared boards can now override their display/browser title through `board.settings.publicShare.title` without renaming the source board.
 
 ## Column Modes
 
@@ -108,6 +109,7 @@
 - Uploads are optimized client-side where possible, then sent to the `board-artwork` Supabase Storage bucket.
 - Card media uses blurred loading transitions to reduce harsh pop-in.
 - On mobile, artwork helper buttons are intentionally stacked below the URL field so the URL input remains usable.
+- Artwork upload handlers should only update the active add/edit draft and cleanup picker UI; they should not implicitly close the surrounding card modal.
 
 ## Key UI Conventions
 
@@ -119,6 +121,7 @@
 - Cards expose action affordances for edit, move, copy, and settings-driven delete.
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
 - Icon-only controls should prefer anchored tooltip labels instead of width-expanding labels, so their hit targets stay fixed.
+- Scoped header/action-bar tooltips should use explicit named group variants so Tailwind emits the hover/focus classes reliably.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Those between-column add affordances should render above nearby cards/columns, and on mobile they now require a first tap to reveal the plus before a second tap creates the column.
 - The same tap-to-reveal pattern now applies to between-card add affordances on mobile, and any revealed inline add control should collapse again if the user scrolls or taps elsewhere.
@@ -131,6 +134,7 @@
 - Header/action series filters now use the same in-app menu model as column filters, rather than native `<select>` controls, and the share modal now uses that same treatment too. The share-modal series menu opens upward to avoid modal clipping.
 - Those filter menus also display series labels without leading sortable prefixes like `The` and `A`, while still keeping the stored full series value intact.
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
+- The shared header/action series filter menus should close when clicking elsewhere, matching the rest of the app’s in-UI menu behavior.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The mobile action-sheet Maintenance panel should expose the same board-layout conversion action as the desktop maintenance menu.
@@ -195,6 +199,7 @@
   - `tierFilter`
   - `seriesFilter`
   - `searchTerm`
+  - `title`
   - `expiresAt`
 - Shared links remain read-only, but they no longer have to expose the entire board. The share page now filters the board down to the chosen columns and any requested tier/series/search view.
 - Tier filtering in the shared page is applied after the selected series/search scope has narrowed the column, so `Top 15` means the top 15 cards of the published filtered view rather than the top 15 of the raw underlying column.
