@@ -1669,6 +1669,7 @@ function HoverTooltip({
     <span
       className={clsx(
         "pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-[280] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
+        "z-[500]",
         scopeClass,
         isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
       )}
@@ -11079,12 +11080,12 @@ function TierListRow({
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
 
   return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-1 items-stretch sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-2">
-      <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
+    <div className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch">
+      <div className={clsx("rounded-l-[28px] rounded-r-none bg-gradient-to-b p-[1px]", column.accent)}>
         <div
           tabIndex={0}
           className={clsx(
-            "group/rowrail relative flex h-full min-h-[152px] items-center justify-center rounded-[27px] px-2 py-3 text-center outline-none sm:min-h-[176px] sm:px-3 sm:py-4",
+            "group/rowrail relative flex h-full min-h-[152px] items-center justify-center rounded-l-[27px] rounded-r-none px-1.5 py-3 text-center outline-none sm:min-h-[176px] sm:px-2 sm:py-4",
             isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
           )}
         >
@@ -11144,8 +11145,8 @@ function TierListRow({
               </span>
             )}
           </div>
-          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1">
-            {!isEditingColumn ? (
+          {!isEditingColumn ? (
+            <div className="absolute left-1/2 top-2 -translate-x-1/2">
               <div className="group relative">
                 <button
                   aria-label={`Row options for ${column.title}`}
@@ -11162,7 +11163,9 @@ function TierListRow({
                 </button>
                 <HoverTooltip isDarkMode={isDarkMode} label="Row Options" />
               </div>
-            ) : null}
+            </div>
+          ) : null}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
             <div className="group relative">
               <button
                 aria-label={`Add ${addLabel} to ${column.title}`}
@@ -11187,7 +11190,7 @@ function TierListRow({
         ref={setNodeRef}
         data-column-id={column.id}
         className={clsx(
-          "min-w-0 rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.12)]",
+          "min-w-0 rounded-r-[28px] rounded-l-none border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.12)]",
           isDarkMode ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-[#fff7f0] text-slate-950",
           isOver && (isDarkMode ? "border-white/80" : "border-slate-950"),
         )}
@@ -11198,7 +11201,7 @@ function TierListRow({
         >
           <div
             className={clsx(
-              "min-h-[152px] items-start gap-1.5 pb-1 sm:min-h-[176px] sm:gap-3",
+              "min-h-[152px] items-start gap-1 pb-1 sm:min-h-[176px] sm:gap-2",
               isUnsortedRow ? "flex overflow-x-auto" : "flex flex-wrap overflow-visible",
             )}
             data-column-scroll-id={column.id}
@@ -11233,7 +11236,7 @@ function TierListRow({
                       isSquare
                       isMobileViewport={isMobileViewport}
                     />
-                    <div className="w-[72px] shrink-0 sm:w-[176px]">
+                    <div className="w-[78px] shrink-0 sm:w-[176px]">
                       <SortableCard
                         card={card}
                         collapseCards={collapseCards}
@@ -11291,7 +11294,7 @@ function TierListAddRowDivider({
   };
 
   return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-1 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-2">
+    <div className="-my-1 grid grid-cols-[44px_minmax(0,1fr)] items-center">
       <div
         className="group flex items-center justify-center"
         data-mobile-inline-add-root="true"
@@ -11358,36 +11361,33 @@ function TierListInsertSlot({
     <div
       ref={setNodeRef}
       className={clsx(
-        "shrink-0 transition-[width,height,margin,opacity] duration-200 ease-out",
+        "relative shrink-0 overflow-visible transition-[opacity] duration-200 ease-out",
         isDragging && !isGapSuppressed
-          ? expanded
-            ? (isSquare
-                ? isMobileViewport
-                  ? "mx-0 w-[72px]"
-                  : "mx-0 w-[176px]"
-                : "mx-0 w-[120px] sm:w-[184px]")
-            : isSquare
-              ? isMobileViewport
-                ? "-mx-3 w-10"
-                : "-mx-10 w-20"
-              : "-mx-3 w-6"
-          : "mx-0 w-0",
+          ? isSquare
+            ? isMobileViewport
+              ? "-mx-3 w-0 px-3"
+              : "-mx-8 w-0 px-8"
+            : "-mx-3 w-0 px-3"
+          : "mx-0 w-0 px-0",
         isSquare
           ? isMobileViewport
-            ? "h-[108px]"
+            ? "h-[116px]"
             : "h-[176px]"
           : "h-[84px] sm:h-[124px]",
       )}
     >
       <div
         className={clsx(
-          "h-full w-full rounded-[22px] border transition-all duration-200 ease-out",
+          "h-full rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
           expanded
             ? isDarkMode
               ? "border-white/45 bg-white/8"
               : "border-slate-500/45 bg-slate-100/80"
             : "border-transparent bg-transparent",
         )}
+        style={{
+          width: !isDragging || isGapSuppressed ? 0 : expanded ? (isSquare ? (isMobileViewport ? 78 : 176) : 184) : 0,
+        }}
       />
     </div>
   );
@@ -11877,8 +11877,8 @@ function CardTile({
 
       <div className={clsx(
         collapseCards
-          ? "absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
-          : "absolute right-3 z-10 flex flex-col items-end gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+          ? "absolute inset-x-0 top-1/2 z-[80] flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
+          : "absolute right-3 z-[80] flex flex-col items-end gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
         collapseCards
           ? showCollapsedActions && "opacity-100"
           : frontChips.length > 0 || card.mirroredFromEntryId

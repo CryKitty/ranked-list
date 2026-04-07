@@ -99,10 +99,11 @@
 - On mobile, Tier List cards intentionally shrink further than desktop to keep wrapped rows practical on narrow screens.
 - On mobile, Tier List cards now use a portrait/image-first presentation with their text hidden to preserve row density.
 - On mobile, those Tier List cards now use slightly tighter corner radii than the desktop tier cards so the dense row packing feels less pill-like.
+- On mobile, Tier List cards also sit slightly larger and a bit closer together now, so rows use the available width more efficiently.
 - Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright and slightly larger.
-- Tier List row rails now hide their small action buttons until hover/focus to keep the label rail visually cleaner, and those controls stack vertically inside the narrower rail.
+- Tier List row rails now hide their small action buttons until hover/focus to keep the label rail visually cleaner, and those controls stack vertically inside the narrower rail with row options at the top and add-card at the bottom.
 - Tier List rows now expose `+ Add Row` affordances between rows, using hover/focus on desktop and tap-to-reveal on mobile, and row-specific options are handled through a small in-UI menu anchored from the row rail.
-- Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap, especially on desktop where the target previously felt too narrow.
+- Tier List rows now use wider horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap, especially on desktop where the target previously felt too narrow. The label rail and row body also now meet with no gutter so the row reads as one connected surface.
 - Tier List row spacing was tightened again to increase vertical density without changing the basic row-rail layout.
 
 ## Media
@@ -125,6 +126,7 @@
 - Hover/tap action design now favors icon-only primary actions plus nested settings menus instead of exposing every destructive/movement action at once.
 - Icon-only controls should prefer anchored tooltip labels instead of width-expanding labels, so their hit targets stay fixed.
 - Scoped header/action-bar tooltips should use explicit named group variants so Tailwind emits the hover/focus classes reliably.
+- Hover tooltips for card actions should render above the local card/row stacking context so they do not get clipped by the card surface.
 - Between-column add affordances use a slim divider-plus pattern instead of a full-width placeholder column.
 - Those between-column add affordances should render above nearby cards/columns, and on mobile they now require a first tap to reveal the plus before a second tap creates the column.
 - The same tap-to-reveal pattern now applies to between-card add affordances on mobile, and any revealed inline add control should collapse again if the user scrolls or taps elsewhere.

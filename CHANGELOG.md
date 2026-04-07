@@ -2,6 +2,11 @@
 
 ## 2026-04-06
 
+- Tier List rows now use a seamless label/body treatment with a narrower 44px label rail, smaller row gaps, and a hover-only between-row add button that can overlap the tighter spacing.
+- Tier List row rail actions are now split vertically, with row options at the top and add-card at the bottom, which makes them easier to target.
+- Tier List desktop insert slots now widen from the actual gap between cards instead of only responding near card edges, so dropping directly between cards is more reliable.
+- Tier List mobile cards are slightly larger, slightly less rounded, and sit with a tighter gap between neighboring cards.
+- Card edit hover tooltips now render above the card/row stack instead of being clipped at card edges.
 - Tier List mobile cards are now a bit less rounded, while keeping their portrait, image-only treatment.
 - Tier List row spacing was reduced again so the rows sit more tightly together.
 - Kanban drag-drop now restores the source/destination column scroll position after a drop, which should stop the list from nudging away from the card you just placed.
