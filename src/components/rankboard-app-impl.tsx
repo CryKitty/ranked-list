@@ -11356,25 +11356,15 @@ function TierListInsertSlot({
   });
 
   const expanded = isDragging && !isGapSuppressed && isOver;
+  const cardWidth = isSquare ? (isMobileViewport ? 78 : 176) : 184;
+  const collapsedHitWidth = isSquare ? (isMobileViewport ? 24 : 56) : 32;
 
   return (
     <div
-      ref={setNodeRef}
       className={clsx(
-        "relative shrink-0 overflow-visible transition-[width,opacity] duration-200 ease-out",
-        isDragging && !isGapSuppressed
-          ? expanded
-            ? isSquare
-              ? isMobileViewport
-                ? "mx-0 w-[78px]"
-                : "mx-0 w-[176px]"
-              : "mx-0 w-[184px]"
-            : isSquare
-              ? isMobileViewport
-                ? "-mx-2 w-6"
-                : "-mx-4 w-12"
-              : "-mx-3 w-8"
-          : "mx-0 w-0",
+        "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
+        isDragging && !isGapSuppressed && expanded ? "w-[78px] sm:w-[176px]" : "w-0",
+        !isSquare && isDragging && !isGapSuppressed && expanded && "sm:w-[184px]",
         isSquare
           ? isMobileViewport
             ? "h-[116px]"
@@ -11383,8 +11373,9 @@ function TierListInsertSlot({
       )}
     >
       <div
+        ref={setNodeRef}
         className={clsx(
-          "h-full rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
+          "absolute left-1/2 top-0 h-full -translate-x-1/2 rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
           expanded
             ? isDarkMode
               ? "border-white/45 bg-white/8"
@@ -11392,20 +11383,7 @@ function TierListInsertSlot({
             : "border-transparent bg-transparent",
         )}
         style={{
-          width:
-            !isDragging || isGapSuppressed
-              ? 0
-              : expanded
-                ? isSquare
-                  ? isMobileViewport
-                    ? 78
-                    : 176
-                  : 184
-                : isSquare
-                  ? isMobileViewport
-                    ? 24
-                    : 48
-                  : 32,
+          width: !isDragging || isGapSuppressed ? 0 : expanded ? cardWidth : collapsedHitWidth,
         }}
       />
     </div>
