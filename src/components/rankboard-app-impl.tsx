@@ -44,6 +44,7 @@ import {
   ListOrdered,
   LoaderCircle,
   MoveVertical,
+  LogIn,
   LogOut,
   MoreHorizontal,
   Moon,
@@ -167,6 +168,9 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   fieldDefinitions: [],
   restoreShowSeriesOnExpand: false,
 };
+
+const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
+const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%)";
 
 function createStarterBoardSnapshot(): BoardSnapshot {
   const starterColumnId = makeId("column");
@@ -1439,7 +1443,7 @@ function HoverTooltip({
   return (
     <span
       className={clsx(
-        "pointer-events-none absolute z-[280] whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
+        "pointer-events-none absolute z-[280] whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
         "z-[500]",
         alignClass,
         placementClass,
@@ -1461,6 +1465,8 @@ function SaveStatusButton({
   saveErrorMessage,
   className,
   isMobileViewport = false,
+  requiresLogin = false,
+  onRequireLogin,
 }: {
   isDarkMode: boolean;
   isPersisting: boolean;
@@ -1469,12 +1475,16 @@ function SaveStatusButton({
   saveErrorMessage: string | null;
   className?: string;
   isMobileViewport?: boolean;
+  requiresLogin?: boolean;
+  onRequireLogin?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-  const tooltipLabel = saveState === "error" || saveState === "offline"
-    ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)
-    : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
+  const tooltipLabel = requiresLogin
+    ? "Log in to save this board"
+    : saveState === "error" || saveState === "offline"
+      ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)
+      : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
 
   useEffect(() => {
     if (!isMobileViewport || !isTooltipOpen) {
@@ -1502,6 +1512,10 @@ function SaveStatusButton({
             : "bg-white text-slate-700 hover:bg-slate-100",
         )}
         onClick={() => {
+          if (requiresLogin) {
+            onRequireLogin?.();
+            return;
+          }
           if (isMobileViewport) {
             setIsTooltipOpen((current) => !current);
           }
@@ -1585,6 +1599,7 @@ export function RankboardApp() {
   });
   const [copiedShareUrl, setCopiedShareUrl] = useState<string | null>(null);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [isSaveLoginModalOpen, setIsSaveLoginModalOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
@@ -2306,10 +2321,14 @@ export function RankboardApp() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
-    document.documentElement.style.backgroundColor = isDarkMode ? "#020617" : "#fff8ef";
-    document.body.style.backgroundColor = isDarkMode ? "#020617" : "#fff8ef";
+    const nextBackground = isDarkMode ? DARK_APP_BACKGROUND : LIGHT_APP_BACKGROUND;
+    const nextBackgroundColor = isDarkMode ? "#020617" : "#fff8ef";
+    document.documentElement.style.background = nextBackground;
+    document.documentElement.style.backgroundColor = nextBackgroundColor;
+    document.body.style.background = nextBackground;
+    document.body.style.backgroundColor = nextBackgroundColor;
     const themeColorMeta = document.querySelector("meta[name='theme-color']");
-    themeColorMeta?.setAttribute("content", isDarkMode ? "#020617" : "#fff8ef");
+    themeColorMeta?.setAttribute("content", isDarkMode ? "#1f2937" : "#fff4d6");
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
@@ -6124,7 +6143,7 @@ function copyCardToDraft(card: CardEntry) {
           : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffe3cf_18%,#fff0e2_38%,#fff4ea_62%,#fff6ef_100%)] text-slate-950",
       )}
     >
-      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-6 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[1700px] flex-col gap-6 px-4 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-6 sm:px-6 lg:px-8">
         <datalist id="series-suggestions">
           {allSeries.map((series) => (
             <option key={series} value={series} />
@@ -6995,6 +7014,8 @@ function copyCardToDraft(card: CardEntry) {
                 isPersisting={isPersisting}
                 isMobileViewport={isMobileViewport}
                 lastSavedAt={lastSavedAt}
+                onRequireLogin={() => setIsSaveLoginModalOpen(true)}
+                requiresLogin={authEnabled && !currentUser}
                 saveErrorMessage={saveErrorMessage}
                 saveState={saveState}
               />
@@ -7262,6 +7283,8 @@ function copyCardToDraft(card: CardEntry) {
                       isPersisting={isPersisting}
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={lastSavedAt}
+                      onRequireLogin={() => setIsSaveLoginModalOpen(true)}
+                      requiresLogin={authEnabled && !currentUser}
                       saveErrorMessage={saveErrorMessage}
                       saveState={saveState}
                     />
@@ -7362,7 +7385,7 @@ function copyCardToDraft(card: CardEntry) {
                   })}
                 </div>
               ) : (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:snap-none">
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 max-w-full items-start snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.1rem)] sm:snap-none">
                   {columns.map((column, columnIndex) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
@@ -8721,6 +8744,75 @@ function copyCardToDraft(card: CardEntry) {
           }}
         />
 
+        {isSaveLoginModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setIsSaveLoginModalOpen(false)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-[520px] rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    Save Board
+                  </p>
+                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Log in to save
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    To save this board to your account and sync it across devices, you&apos;ll need to log in first.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode ? "bg-white/10 text-slate-200 hover:bg-white/15" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setIsSaveLoginModalOpen(false)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200 disabled:bg-white/60" : "bg-slate-950 text-white hover:bg-slate-800 disabled:bg-slate-400",
+                  )}
+                  disabled={isAuthLoading}
+                  onClick={() => {
+                    setIsSaveLoginModalOpen(false);
+                    void handleOAuthLogin("google");
+                  }}
+                  type="button"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Log In
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40" : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setIsSaveLoginModalOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <BoardSetupDialog
           isDarkMode={isDarkMode}
           isOpen={isCreateBoardModalOpen}
@@ -9880,8 +9972,8 @@ function AddColumnButton({
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
-          ? "group relative z-[20] flex min-h-[min(62dvh,660px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
-          : "group relative z-[20] flex min-h-[min(62dvh,660px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
+          ? "group relative z-[20] flex min-h-[min(68dvh,760px)] w-4 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:snap-align-none"
+          : "group relative z-[20] flex min-h-[min(68dvh,760px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -10216,7 +10308,7 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex h-[min(62dvh,760px)] min-h-[min(62dvh,660px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
+        "relative z-10 flex h-[min(68dvh,840px)] min-h-[min(68dvh,760px)] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
