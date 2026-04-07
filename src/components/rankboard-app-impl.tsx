@@ -73,6 +73,7 @@ import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoar
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
+import { getArtworkDisplayUrl } from "@/lib/artwork-url";
 import {
   compareTitlesForDisplay,
   getDisplayCardText,
@@ -593,6 +594,8 @@ function MaintenanceCardPreview({
   subtitle?: string;
   isDarkMode: boolean;
 }) {
+  const resolvedImageUrl = imageUrl ? getArtworkDisplayUrl(imageUrl) : "";
+
   return (
     <div
       className={clsx(
@@ -600,7 +603,7 @@ function MaintenanceCardPreview({
         isDarkMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-slate-100",
       )}
       style={{
-        backgroundImage: `linear-gradient(to top, rgba(2,6,23,0.92), rgba(2,6,23,0.15)), url(${imageUrl || buildFallbackImage(title)})`,
+        backgroundImage: `linear-gradient(to top, rgba(2,6,23,0.92), rgba(2,6,23,0.15)), url(${resolvedImageUrl || buildFallbackImage(title)})`,
         backgroundPosition: "center",
         backgroundSize: "cover",
       }}
@@ -7075,9 +7078,9 @@ function copyCardToDraft(card: CardEntry) {
               }}
               onDragStart={({ active, activatorEvent }) => {
                 setIsCardDragging(true);
-                setIsDragGapSuppressed(false);
                 captureDragPointer(activatorEvent);
                 setActiveDragEntryId(String(active.id));
+                suppressDragGapsTemporarily();
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
@@ -10636,7 +10639,6 @@ function BoardColumn({
                     showArtwork={showArtworkOnCards}
                     showTierHighlights={showTierHighlights}
                     frontFieldDefinitions={frontFieldDefinitions}
-                    isAnyCardDragging={isCardDragging}
                     rankBadge={
                       isRankedColumn(column)
                         ? {
@@ -10929,7 +10931,6 @@ function TierListRow({
                       showTierHighlights={false}
                       frontFieldDefinitions={frontFieldDefinitions}
                       forceSquare
-                      isAnyCardDragging={isAnyCardDragging}
                       rankBadge={null}
                       onEdit={() => onEditCard(card)}
                       compactImageOnly={isMobileViewport}
@@ -11216,7 +11217,6 @@ function SortableCard({
   rankBadge,
   secondaryRankBadge,
   onEdit,
-  isAnyCardDragging = false,
   forceSquare = false,
   compactImageOnly = false,
   containerClassName,
@@ -11232,7 +11232,6 @@ function SortableCard({
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   onEdit: () => void;
-  isAnyCardDragging?: boolean;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
   containerClassName?: string;
@@ -11326,7 +11325,7 @@ function CardTile({
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
   const hasArtwork = showArtwork && Boolean(card.imageUrl?.trim());
-  const imageSource = hasArtwork ? card.imageUrl.trim() : "";
+  const imageSource = hasArtwork ? getArtworkDisplayUrl(card.imageUrl.trim()) : "";
   const frontChips = frontFieldDefinitions
     .filter((field) => field.showOnCardFront && field.visible && !field.builtInKey)
     .map((field) => ({
@@ -11387,7 +11386,6 @@ function CardTile({
 
   useEffect(() => {
     if (!imageSource) {
-      setLoadedImageSource("");
       return;
     }
 
@@ -11400,8 +11398,11 @@ function CardTile({
     preloader.src = imageSource;
 
     if (preloader.complete) {
-      setLoadedImageSource(imageSource);
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setLoadedImageSource(imageSource);
+      });
+
+      return () => window.cancelAnimationFrame(frame);
     }
 
     const handleLoad = () => setLoadedImageSource(imageSource);

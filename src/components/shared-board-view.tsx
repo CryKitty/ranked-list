@@ -5,6 +5,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import { Moon, Sun } from "lucide-react";
 
+import { getArtworkDisplayUrl } from "@/lib/artwork-url";
 import {
   getDisplayCardText,
   getTierKey,
@@ -243,7 +244,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                         <div className="relative aspect-video bg-slate-900">
                           {card.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img alt="" className="absolute inset-0 h-full w-full object-cover" src={card.imageUrl} />
+                            <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(card.imageUrl)} />
                           ) : null}
                           <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/32 to-transparent" />
                           {!column.dontRank && (column.sortMode ?? "manual") === "manual" ? (
