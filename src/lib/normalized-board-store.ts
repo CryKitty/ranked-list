@@ -509,12 +509,79 @@ export async function loadPublicBoardBySlug(
     }
   }
 
-  const boards = await loadNormalizedBoards(supabase, (boardRow as NormalizedBoardRow).owner_id);
-  const board = boards.find((candidate) => candidate.id === (boardRow as NormalizedBoardRow).client_id) ?? null;
+  const boardId = (boardRow as NormalizedBoardRow).id;
+  const { data: columnRows, error: columnsError } = await supabase
+    .from("columns")
+    .select("*")
+    .eq("board_id", boardId)
+    .order("position", { ascending: true });
 
-  if (!board) {
-    return null;
+  if (columnsError) {
+    throw columnsError;
   }
+
+  const { data: itemRows, error: itemsError } = await supabase
+    .from("items")
+    .select("*")
+    .eq("board_id", boardId)
+    .order("created_at", { ascending: true });
+
+  if (itemsError) {
+    throw itemsError;
+  }
+
+  const normalizedColumnRows = (columnRows ?? []) as NormalizedColumnRow[];
+  const normalizedItemRows = (itemRows ?? []) as NormalizedItemRow[];
+  const columnIds = normalizedColumnRows.map((column) => column.id);
+
+  const { data: entryRows, error: entriesError } = columnIds.length
+    ? await supabase
+        .from("column_entries")
+        .select("*")
+        .in("column_id", columnIds)
+        .order("position", { ascending: true })
+    : { data: [], error: null };
+
+  if (entriesError) {
+    throw entriesError;
+  }
+
+  const normalizedEntryRows = (entryRows ?? []) as NormalizedEntryRow[];
+  const itemsByDbId = new Map(normalizedItemRows.map((item) => [item.id, item]));
+  const entriesByColumnId = new Map<string, NormalizedEntryRow[]>();
+
+  for (const row of normalizedEntryRows) {
+    const current = entriesByColumnId.get(row.column_id) ?? [];
+    current.push(row);
+    entriesByColumnId.set(row.column_id, current);
+  }
+
+  const board: SavedBoard = {
+    id: (boardRow as NormalizedBoardRow).client_id,
+    title: (boardRow as NormalizedBoardRow).title,
+    settings: ((boardRow as NormalizedBoardRow).settings as BoardSettings | null) ?? ({} as BoardSettings),
+    columns: normalizedColumnRows.map(extractColumnFromRow),
+    cardsByColumn: Object.fromEntries(
+      normalizedColumnRows.map((columnRow) => [
+        columnRow.client_id,
+        (entriesByColumnId.get(columnRow.id) ?? [])
+          .sort((a, b) => a.position - b.position)
+          .map((entry) => {
+            const item = itemsByDbId.get(entry.item_id);
+            if (!item) {
+              return null;
+            }
+            return extractCardFromRows(item, entry);
+          })
+          .filter(Boolean) as CardEntry[],
+      ]),
+    ),
+    isPublic: Boolean((boardRow as NormalizedBoardRow).is_public),
+    publicSlug: (boardRow as NormalizedBoardRow).public_slug ?? null,
+    lastPublishedAt: (boardRow as NormalizedBoardRow).last_published_at ?? null,
+    createdAt: (boardRow as NormalizedBoardRow).created_at,
+    updatedAt: (boardRow as NormalizedBoardRow).updated_at,
+  };
 
   const explicitExpiry = board.settings?.publicShare?.expiresAt;
   if (explicitExpiry) {

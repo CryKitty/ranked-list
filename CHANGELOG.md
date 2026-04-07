@@ -2,6 +2,10 @@
 
 ## 2026-04-06
 
+- Shared links now load their published board data directly instead of round-tripping through the owner-wide board loader, which fixes cases where the shared columns rendered but their cards were missing.
+- Shared `Copy Board` now writes the cloned board snapshot into local cache immediately before the main app boots, which fixes the “board appears for a second, then goes blank” regression.
+- Board maintenance now always shows the tier-list action explicitly, switching the label to `Tier List Enabled` once a board has already been converted.
+- Inline add-card affordances are now globally suppressed while settings/column menus are open so the `+` buttons no longer bleed through active submenus.
 - Pairwise `Rank by Quiz` progress now saves durably to Supabase in a dedicated `pairwise_quiz_progress` table, with local storage kept as a fallback instead of the only save location.
 - `Save & Continue Later` now closes the quiz only after a real save attempt and shows a temporary success/failure notice; signed-in sessions also fall back to local quiz progress if the remote row is missing.
 - Shared `Copy Board` now clones a fresh editable board snapshot and persists it immediately instead of briefly appearing and then collapsing back into a blank board.

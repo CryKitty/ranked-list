@@ -59,6 +59,7 @@
 - Remote hydration is also compared against the current in-memory session snapshot so a non-empty local board is less likely to be replaced by a thinner remote payload during an active editing session.
 - Active-board preference now also falls back across both user-scoped and generic last-board storage keys to reduce “refresh opened the wrong board” regressions.
 - During authenticated remote merge, a temporary signed-out `Rankr` starter board should be discarded once real saved boards are available so mobile auth handoff does not keep a stray blank board.
+- Shared-board reads now fetch the published board row plus its columns/items/entries directly, rather than loading all boards for the owner and then selecting one.
 
 ## Column Modes
 
@@ -84,6 +85,7 @@
   - `D`
   - `Unsorted`
 - `Convert to Tier List` is exposed under board maintenance and rebuilds the active board into those rows, preserving only the unique non-mirror cards and placing them in `Unsorted`.
+- The maintenance UI always shows the tier-list option so the current board layout is explicit even after conversion.
 - Tier List quick-add defaults to the `Unsorted` row.
 
 ## Media

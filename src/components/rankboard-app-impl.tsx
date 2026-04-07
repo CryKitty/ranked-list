@@ -1795,6 +1795,18 @@ export function RankboardApp() {
   const activeBoardLayout = activeBoardSettings.boardLayout ?? "board";
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
+  const hasBlockingMenuOpen =
+    isBoardsMenuOpen ||
+    isActionsMenuOpen ||
+    isMobileActionsOpen ||
+    isCustomizationMenuOpen ||
+    isMaintenanceMenuOpen ||
+    isTransferMenuOpen ||
+    openColumnMenuId !== null ||
+    openColumnSortMenuId !== null ||
+    openColumnFilterMenuId !== null ||
+    openColumnMirrorMenuId !== null ||
+    openColumnMaintenanceMenuId !== null;
   const activeBoardFieldDefinitions = normalizeFieldDefinitions(
     activeBoardSettings.fieldDefinitions,
     activeBoardTitle,
@@ -2480,6 +2492,19 @@ export function RankboardApp() {
         setIsBoardsMenuOpen(false);
         setIsActionsMenuOpen(false);
         setIsMobileActionsOpen(false);
+        try {
+          const serializedState = JSON.stringify({
+            version: 2,
+            activeBoardId: nextBoard.id,
+            boards: nextBoardsSnapshot,
+          });
+          window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
+          if (currentUser) {
+            window.localStorage.setItem(getUserBoardCacheKey(currentUser.id), serializedState);
+          }
+        } catch {
+          // Ignore local cache failures; the in-memory board has still been created.
+        }
         void persistBoardState({
           boards: nextBoardsSnapshot,
           activeBoardId: nextBoard.id,
@@ -2495,7 +2520,7 @@ export function RankboardApp() {
       const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", nextUrl);
     }
-  }, [hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, persistBoardState]);
+  }, [currentUser, hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, persistBoardState]);
 
   useEffect(() => {
     if (!isCardDragging) {
@@ -6046,16 +6071,19 @@ function copyCardToDraft(card: CardEntry) {
                                   <WandSparkles className="h-4 w-4" />
                                   Series Scraper
                                 </button>
-                                {activeBoardLayout !== "tier-list" ? (
-                                  <button
-                                    className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={convertActiveBoardToTierList}
-                                    type="button"
-                                  >
-                                    <ListOrdered className="h-4 w-4" />
-                                    Convert to Tier List
-                                  </button>
-                                ) : null}
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                    activeBoardLayout === "tier-list" && "cursor-default opacity-50",
+                                  )}
+                                  disabled={activeBoardLayout === "tier-list"}
+                                  onClick={convertActiveBoardToTierList}
+                                  type="button"
+                                >
+                                  <ListOrdered className="h-4 w-4" />
+                                  {activeBoardLayout === "tier-list" ? "Tier List Enabled" : "Convert to Tier List"}
+                                </button>
                                 <button
                                   className={clsx(
                                     "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
@@ -6899,16 +6927,19 @@ function copyCardToDraft(card: CardEntry) {
                                   <WandSparkles className="h-4 w-4" />
                                   Series Scraper
                                 </button>
-                                {activeBoardLayout !== "tier-list" ? (
-                                  <button
-                                    className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={convertActiveBoardToTierList}
-                                    type="button"
-                                  >
-                                    <ListOrdered className="h-4 w-4" />
-                                    Convert to Tier List
-                                  </button>
-                                ) : null}
+                                <button
+                                  className={clsx(
+                                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                    isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                    activeBoardLayout === "tier-list" && "cursor-default opacity-50",
+                                  )}
+                                  disabled={activeBoardLayout === "tier-list"}
+                                  onClick={convertActiveBoardToTierList}
+                                  type="button"
+                                >
+                                  <ListOrdered className="h-4 w-4" />
+                                  {activeBoardLayout === "tier-list" ? "Tier List Enabled" : "Convert to Tier List"}
+                                </button>
                               </div>
                             ) : null}
                           </div>
@@ -7110,7 +7141,7 @@ function copyCardToDraft(card: CardEntry) {
                           isDarkMode={isDarkMode}
                           isMobileViewport={isMobileViewport}
                           frontFieldDefinitions={activeBoardFieldDefinitions}
-                          disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard)}
+                          disableAddAffordances={isCardDragging || Boolean(column.mirrorsEntireBoard) || hasBlockingMenuOpen}
                           isCardDragging={isCardDragging}
                           isDragGapSuppressed={isDragGapSuppressed}
                           cards={visibleCards}
