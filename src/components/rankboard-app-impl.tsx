@@ -2289,7 +2289,6 @@ export function RankboardApp() {
     }
 
     function clearOnScroll() {
-      setRevealedMobileAddColumnIndex(null);
       setRevealedMobileAddCardTarget(null);
       setRevealedMobileAddTierRowIndex(null);
     }
@@ -2304,6 +2303,37 @@ export function RankboardApp() {
       window.removeEventListener("scroll", clearOnScroll, true);
     };
   }, [revealedMobileAddCardTarget, revealedMobileAddColumnIndex, revealedMobileAddTierRowIndex]);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      return;
+    }
+
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      // Safari on iOS exposes this non-standard flag for home screen apps.
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isSafari = userAgent.includes("safari") && !/crios|fxios|edgios/.test(userAgent);
+
+    if (isStandalone || !isSafari) {
+      return;
+    }
+
+    const collapseBrowserChrome = () => {
+      if (window.scrollY <= 0) {
+        window.scrollTo(0, 1);
+      }
+    };
+
+    const firstPass = window.setTimeout(collapseBrowserChrome, 80);
+    const secondPass = window.setTimeout(collapseBrowserChrome, 320);
+
+    return () => {
+      window.clearTimeout(firstPass);
+      window.clearTimeout(secondPass);
+    };
+  }, [isMobileViewport]);
 
   useEffect(() => {
     try {
@@ -6444,7 +6474,7 @@ function copyCardToDraft(card: CardEntry) {
             <button
               aria-label="Open actions"
               className={clsx(
-                "fixed bottom-[calc(env(safe-area-inset-bottom)+1.1rem)] right-[1.1rem] z-[70] inline-flex h-11 w-11 items-center justify-center rounded-2xl transition lg:hidden",
+                "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
                 isDarkMode
                   ? "bg-white/10 text-white hover:bg-white/15"
                   : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
@@ -6455,7 +6485,7 @@ function copyCardToDraft(card: CardEntry) {
               }}
               type="button"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="h-6 w-6" />
             </button>
 
             {isMobileActionsOpen ? (
