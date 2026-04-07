@@ -329,30 +329,12 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       builtInKey: "series",
     },
     {
-      id: "release-year",
-      label: "Release Year",
-      type: "date",
-      visible: false,
-      showOnCardFront: false,
-      showLabelOnCardFront: true,
-      dateFormat: "yyyy",
-      builtInKey: "releaseYear",
-    },
-    {
       id: "artwork",
       label: "Artwork",
       type: "short_text",
       visible: true,
       showOnCardFront: true,
       builtInKey: "imageUrl",
-    },
-    {
-      id: "notes",
-      label: "Notes",
-      type: "long_text",
-      visible: false,
-      showOnCardFront: false,
-      builtInKey: "notes",
     },
   ];
 }
@@ -1317,9 +1299,9 @@ function getDefaultBoardSettings(boardTitle: string, _boardLayout: BoardLayout =
     collapseCards: false,
     showTierHighlights: true,
     includeSeriesField: boardKind !== "show",
-    includeReleaseYearField: true,
+    includeReleaseYearField: false,
     includeImageField: true,
-    includeNotesField: true,
+    includeNotesField: false,
     fieldDefinitions: getDefaultFieldDefinitions(boardTitle),
   };
 }
@@ -1417,12 +1399,16 @@ function HoverTooltip({
   scope,
   disabled = false,
   align = "center",
+  placement = "top",
+  forceVisible = false,
 }: {
   label: string;
   isDarkMode: boolean;
   scope?: string;
   disabled?: boolean;
   align?: "center" | "right";
+  placement?: "top" | "bottom";
+  forceVisible?: boolean;
 }) {
   if (disabled) {
     return null;
@@ -1445,13 +1431,19 @@ function HoverTooltip({
     align === "right"
       ? "right-0 left-auto translate-x-0"
       : "left-1/2 -translate-x-1/2";
+  const placementClass =
+    placement === "bottom"
+      ? "top-[calc(100%+0.5rem)]"
+      : "bottom-[calc(100%+0.5rem)]";
 
   return (
     <span
       className={clsx(
-        "pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[280] whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
+        "pointer-events-none absolute z-[280] whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold shadow-[0_12px_28px_rgba(15,23,42,0.18)] transition",
         "z-[500]",
         alignClass,
+        placementClass,
+        forceVisible ? "opacity-100" : "opacity-0",
         scopeClass,
         isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
       )}
@@ -1468,6 +1460,7 @@ function SaveStatusButton({
   lastSavedAt,
   saveErrorMessage,
   className,
+  isMobileViewport = false,
 }: {
   isDarkMode: boolean;
   isPersisting: boolean;
@@ -1475,13 +1468,31 @@ function SaveStatusButton({
   lastSavedAt: string | null;
   saveErrorMessage: string | null;
   className?: string;
+  isMobileViewport?: boolean;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipLabel = saveState === "error" || saveState === "offline"
     ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)
     : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
 
+  useEffect(() => {
+    if (!isMobileViewport || !isTooltipOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsTooltipOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isMobileViewport, isTooltipOpen]);
+
   return (
-    <div className={clsx("relative shrink-0", className)}>
+    <div ref={rootRef} className={clsx("relative shrink-0", className)}>
       <button
         aria-label={tooltipLabel}
         className={clsx(
@@ -1490,11 +1501,28 @@ function SaveStatusButton({
             ? "bg-white/10 text-slate-200 hover:bg-white/15"
             : "bg-white text-slate-700 hover:bg-slate-100",
         )}
-        title={getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)}
+        onClick={() => {
+          if (isMobileViewport) {
+            setIsTooltipOpen((current) => !current);
+          }
+        }}
+        onBlur={() => {
+          if (isMobileViewport) {
+            setIsTooltipOpen(false);
+          }
+        }}
+        title={isMobileViewport ? undefined : getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)}
         type="button"
       >
         <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
-        <HoverTooltip align="right" isDarkMode={isDarkMode} label={tooltipLabel} scope="save" />
+        <HoverTooltip
+          align="right"
+          forceVisible={isMobileViewport && isTooltipOpen}
+          isDarkMode={isDarkMode}
+          label={tooltipLabel}
+          placement={isMobileViewport ? "bottom" : "top"}
+          scope="save"
+        />
       </button>
     </div>
   );
@@ -6957,14 +6985,15 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
                     </div>
                   </div>
-                  <SaveStatusButton
-                    className="lg:hidden"
-                    isDarkMode={isDarkMode}
-                    isPersisting={isPersisting}
-                    lastSavedAt={lastSavedAt}
-                    saveErrorMessage={saveErrorMessage}
-                    saveState={saveState}
-                  />
+              <SaveStatusButton
+                className="lg:hidden"
+                isDarkMode={isDarkMode}
+                isPersisting={isPersisting}
+                isMobileViewport={isMobileViewport}
+                lastSavedAt={lastSavedAt}
+                saveErrorMessage={saveErrorMessage}
+                saveState={saveState}
+              />
                   <div className="hidden shrink-0 items-center gap-2 lg:flex">
                     <input
                       name="title"
@@ -7227,6 +7256,7 @@ function copyCardToDraft(card: CardEntry) {
                     <SaveStatusButton
                       isDarkMode={isDarkMode}
                       isPersisting={isPersisting}
+                      isMobileViewport={isMobileViewport}
                       lastSavedAt={lastSavedAt}
                       saveErrorMessage={saveErrorMessage}
                       saveState={saveState}
