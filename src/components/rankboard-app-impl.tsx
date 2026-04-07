@@ -11128,6 +11128,7 @@ function BoardColumn({
                     }
                     onEdit={() => onEditCard(card)}
                     preserveSpaceWhenDragging={isDragGapSuppressed}
+                    freezeLayoutWhileDragging={isDragGapSuppressed}
                   />
                   <AddCardRow
                     columnId={column.id}
@@ -11702,6 +11703,7 @@ function SortableCard({
   containerClassName,
   collapseSizeWhenDragging = false,
   preserveSpaceWhenDragging = true,
+  freezeLayoutWhileDragging = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -11717,6 +11719,7 @@ function SortableCard({
   containerClassName?: string;
   collapseSizeWhenDragging?: boolean;
   preserveSpaceWhenDragging?: boolean;
+  freezeLayoutWhileDragging?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -11744,9 +11747,14 @@ function SortableCard({
               : "z-20 h-0 overflow-hidden opacity-0 pointer-events-none"),
       )}
       style={{
-        transform: CSS.Transform.toString(transform),
+        transform:
+          freezeLayoutWhileDragging && !isDragging
+            ? undefined
+            : CSS.Transform.toString(transform),
         transition:
-          isDragging
+          freezeLayoutWhileDragging && !isDragging
+            ? undefined
+            : isDragging
             ? undefined
             : (transition ?? "transform 110ms cubic-bezier(0.22, 1, 0.36, 1)"),
         willChange: "transform",
