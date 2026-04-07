@@ -2635,7 +2635,6 @@ export function RankboardApp() {
 
           if (deltaY !== 0) {
             scrollContainer.scrollTop += deltaY;
-            suppressDragGapsTemporarily();
           }
         }
       }
@@ -3057,7 +3056,7 @@ export function RankboardApp() {
   }
 
   function suppressDragGapsTemporarily() {
-    setIsDragGapSuppressed(true);
+    setIsDragGapSuppressed((current) => (current ? current : true));
     if (dragGapSuppressTimeoutRef.current) {
       window.clearTimeout(dragGapSuppressTimeoutRef.current);
     }
@@ -10401,7 +10400,7 @@ function BoardColumn({
       className={clsx(
         "relative z-10 flex shrink-0 flex-col rounded-[28px] border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
         isMobileViewport
-          ? "h-[min(calc(var(--app-height)-10.15rem),880px)] min-h-[min(calc(var(--app-height)-10.15rem),820px)]"
+          ? "h-[min(calc(var(--app-height)-9.5rem),892px)] min-h-[min(calc(var(--app-height)-9.5rem),832px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(88vw,348px)] snap-center" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
@@ -11128,7 +11127,7 @@ function BoardColumn({
                         : null
                     }
                     onEdit={() => onEditCard(card)}
-                    preserveSpaceWhenDragging={false}
+                    preserveSpaceWhenDragging={isDragGapSuppressed}
                   />
                   <AddCardRow
                     columnId={column.id}
