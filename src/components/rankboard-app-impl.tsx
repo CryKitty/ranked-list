@@ -1409,6 +1409,8 @@ function HoverTooltip({
         ? "group-hover/rename:opacity-100 group-focus-within/rename:opacity-100"
         : scope === "column"
           ? "group-hover/column:opacity-100 group-focus-within/column:opacity-100"
+          : scope === "edit"
+            ? "group-hover/edit:opacity-100 group-focus-within/edit:opacity-100"
           : "group-hover:opacity-100 group-focus-within:opacity-100";
 
   return (
@@ -8332,28 +8334,25 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "overflow-hidden rounded-[24px] border text-left shadow-[0_20px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5",
+                        "overflow-visible rounded-[24px] text-left transition hover:-translate-y-0.5",
                         isDarkMode
-                          ? "border-white/10 bg-slate-950/70"
-                          : "border-slate-200 bg-slate-50",
+                          ? "text-white"
+                          : "text-slate-950",
                       )}
                       onClick={() => resolvePairwiseChoice(index === 0 ? "candidate" : "comparison")}
                       type="button"
                     >
-                      <div
-                        className="aspect-[16/8.5] w-full bg-cover bg-center sm:aspect-video"
-                        style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
+                      <CardTile
+                        card={card}
+                        collapseCards={activeBoardSettings.collapseCards}
+                        showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                        showArtwork={shouldShowArtworkOnCards}
+                        showTierHighlights={activeBoardSettings.showTierHighlights}
+                        frontFieldDefinitions={activeBoardFieldDefinitions}
+                        rankBadge={null}
+                        compactImageOnly={false}
+                        showDragCursor={false}
                       />
-                      <div className="p-4 sm:p-5">
-                        <h3 className={clsx("text-xl font-black leading-tight sm:text-2xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                          {card.title}
-                        </h3>
-                        {card.series ? (
-                          <p className={clsx("mt-2 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                            {card.series}
-                          </p>
-                        ) : null}
-                      </div>
                     </button>
                   ) : null,
                 )}
@@ -9718,7 +9717,7 @@ function AddColumnButton({
   };
 
   return (
-    <button
+    <div
       data-mobile-inline-add-root="true"
       className={clsx(
         inline
@@ -9732,14 +9731,7 @@ function AddColumnButton({
             ? "text-slate-700"
             : "border-slate-300/70 bg-white/50 text-slate-700 hover:border-slate-950 hover:bg-white",
       )}
-      onClick={handleClick}
-      type="button"
-      aria-label={inline && isMobileViewport && !mobileArmed ? "Reveal add column button" : "Add column"}
     >
-      <HoverTooltip
-        isDarkMode={isDarkMode}
-        label={inline && isMobileViewport && !mobileArmed ? "Show Add Column" : "Add Column"}
-      />
       {inline ? (
         <span
           className={clsx(
@@ -9759,14 +9751,26 @@ function AddColumnButton({
           />
           <span
             className={clsx(
-              "flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
+              "relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
               isMobileViewport && !mobileArmed && "scale-75 opacity-0",
               isDarkMode
                 ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800"
                 : "border-white bg-white text-slate-950 ring-white/70 group-hover:border-slate-300",
             )}
-          >
-            <Plus className="h-5 w-5" />
+          > 
+            <button
+              className="group/edit absolute inset-0 flex items-center justify-center rounded-full"
+              onClick={handleClick}
+              type="button"
+              aria-label={inline && isMobileViewport && !mobileArmed ? "Reveal add column button" : "Add column"}
+            >
+              <Plus className="h-5 w-5" />
+              <HoverTooltip
+                isDarkMode={isDarkMode}
+                label={inline && isMobileViewport && !mobileArmed ? "Show Add Column" : "Add Column"}
+                scope="edit"
+              />
+            </button>
           </span>
           <span
             className={clsx(
@@ -9782,10 +9786,18 @@ function AddColumnButton({
             isDarkMode ? "bg-slate-950 text-white" : "bg-white text-slate-950",
           )}
         >
-          <Plus className="h-6 w-6" />
+          <button
+            className="group/edit flex h-full w-full items-center justify-center rounded-full"
+            onClick={handleClick}
+            type="button"
+            aria-label="Add column"
+          >
+            <Plus className="h-6 w-6" />
+            <HoverTooltip isDarkMode={isDarkMode} label="Add Column" scope="edit" />
+          </button>
         </span>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -11373,6 +11385,7 @@ function CardTile({
   clickToEdit = false,
   forceSquare = false,
   compactImageOnly = false,
+  showDragCursor = true,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -11388,6 +11401,7 @@ function CardTile({
   clickToEdit?: boolean;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
+  showDragCursor?: boolean;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
@@ -11490,7 +11504,8 @@ function CardTile({
       data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
-        "group relative shrink-0 border cursor-grab active:cursor-grabbing",
+        "group relative shrink-0 border",
+        showDragCursor && "cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
         !collapseCards && "bg-slate-900",
@@ -11674,8 +11689,8 @@ function CardTile({
 
       <div className={clsx(
         collapseCards
-          ? "absolute inset-x-0 top-1/2 z-[80] flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
-          : "absolute right-3 z-[80] flex flex-col items-end gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+          ? "absolute inset-x-0 top-1/2 z-[650] flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
+          : "absolute right-3 z-[650] flex flex-col items-end gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
         collapseCards
           ? showCollapsedActions && "opacity-100"
           : frontChips.length > 0 || card.mirroredFromEntryId
@@ -11683,7 +11698,7 @@ function CardTile({
             : "top-3",
       )}>
         {onEdit ? (
-          <div className="group relative">
+          <div className="group/edit relative z-[700]">
             <button
               className="rounded-full bg-slate-950/85 p-2 text-white backdrop-blur transition hover:bg-slate-950"
               onClick={(event) => {
@@ -11696,7 +11711,7 @@ function CardTile({
             >
               <Edit3 className="h-4 w-4" />
             </button>
-            <HoverTooltip isDarkMode={true} label="Edit" />
+            <HoverTooltip isDarkMode={true} label="Edit" scope="edit" />
           </div>
         ) : null}
       </div>
