@@ -89,10 +89,13 @@
   - `Convert to Kanban Board` for tier lists
 - Both conversion directions are copy-based. The current board stays untouched and the converted layout is created as a new board, then made active.
 - Converting to Tier List opens a confirmation modal that lets the user choose which non-mirror source columns to include before moving those cards into `Unsorted`.
+- That conversion modal now uses the same constrained, scrollable dialog pattern as Share so very large column lists remain usable on smaller viewports.
 - Converting back to kanban creates a `Ranked` column from the tier rows in display order and a `Backlog` column from `Unsorted`.
 - Tier List quick-add defaults to the `Unsorted` row.
 - Tier List ranked rows wrap cards instead of horizontal-scrolling, and those ranked-row cards use a square face for denser tier layouts.
-- Tier List row labels can be renamed inline; single-word labels render sideways in the narrow label rail to avoid overlap.
+- Tier List row labels can be renamed inline; multi-character single-word labels render sideways in the narrow label rail to avoid overlap, while single-character labels stay upright.
+- Tier List row rails now hide their small action buttons until hover/focus on desktop to keep the label rail visually cleaner.
+- Tier List rows now use horizontal insert-gap droppables between cards so drag placement remains visible even after rows wrap.
 
 ## Media
 
@@ -265,4 +268,5 @@
 - Pairwise quiz progress is now stored in `pairwise_quiz_progress` per owner/board/column when possible, with local browser storage used only as a fallback so save-and-resume can survive across devices.
 - Card-front artwork gradients are intentionally shorter now on both the main board and shared boards so the lower text overlay reads clearly without consuming as much of the image.
 - Shared boards now expose a `Copy Board` action that serializes the shared snapshot into local storage and hands it off to the main app, where a fresh board copy is created with regenerated board/column/card IDs.
+- Shared-board copying now serializes only the published share view (selected columns plus applied tier/series/search filters), so a copied board never reveals cards or columns that were not part of the shared link.
 - Column action menus intentionally sit above the inline add affordances in stacking order, so hovered `+` controls never cover an active submenu.

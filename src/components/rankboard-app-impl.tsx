@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AutoScrollActivator,
   DndContext,
@@ -7237,6 +7238,7 @@ function copyCardToDraft(card: CardEntry) {
                         onDragScrollActivity={suppressDragGapsTemporarily}
                         onEditCard={startEditingCard}
                         isAnyCardDragging={isCardDragging}
+                        isDragGapSuppressed={isDragGapSuppressed}
                         showArtworkOnCards={shouldShowArtworkOnCards}
                         showSeriesOnCards={Boolean(seriesFieldDefinition?.showOnCardFront)}
                       />
@@ -7392,27 +7394,32 @@ function copyCardToDraft(card: CardEntry) {
                   ) : null}
                 </div>
               )}
-              <DragOverlay dropAnimation={null}>
-                {activeDragCard ? (
-                  <div
-                    className={clsx(
-                      "pointer-events-none rotate-[1deg] opacity-75 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
-                      activeBoardLayout === "tier-list" ? "w-[176px]" : "w-[224px]",
-                    )}
-                  >
-                    <CardTile
-                      card={activeDragCard}
-                      collapseCards={activeBoardSettings.collapseCards}
-                      showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
-                      showArtwork={shouldShowArtworkOnCards}
-                      showTierHighlights={activeBoardSettings.showTierHighlights}
-                      frontFieldDefinitions={activeBoardFieldDefinitions}
-                      rankBadge={activeDragRankBadge}
-                      forceSquare={activeBoardLayout === "tier-list" && activeDragColumn?.title.trim().toLowerCase() !== "unsorted"}
-                    />
-                  </div>
-                ) : null}
-              </DragOverlay>
+              {typeof document !== "undefined"
+                ? createPortal(
+                    <DragOverlay dropAnimation={null}>
+                      {activeDragCard ? (
+                        <div
+                          className={clsx(
+                            "pointer-events-none rotate-[1deg] opacity-70 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
+                            activeBoardLayout === "tier-list" ? "w-[156px]" : "w-[224px]",
+                          )}
+                        >
+                          <CardTile
+                            card={activeDragCard}
+                            collapseCards={activeBoardSettings.collapseCards}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
+                            rankBadge={activeDragRankBadge}
+                            forceSquare={activeBoardLayout === "tier-list" && activeDragColumn?.title.trim().toLowerCase() !== "unsorted"}
+                          />
+                        </div>
+                      ) : null}
+                    </DragOverlay>,
+                    document.body,
+                  )
+                : null}
             </DndContext>
           </section>
         </section>
@@ -9460,65 +9467,49 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Board Maintenance
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                {tierListConversionState.mode === "to-tier-list" ? "Convert to Tier List" : "Convert to Kanban Board"}
-              </h2>
-              <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                {tierListConversionState.mode === "to-tier-list"
-                  ? "This creates a new tier-list copy of the current board and leaves your existing board untouched."
-                  : "This creates a new kanban-board copy of the current tier list and leaves your existing tier list untouched."}
-              </p>
+              <div className="border-b px-6 pt-6 pb-4">
+                <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                  Board Maintenance
+                </p>
+                <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  {tierListConversionState.mode === "to-tier-list" ? "Convert to Tier List" : "Convert to Kanban Board"}
+                </h2>
+                <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                  {tierListConversionState.mode === "to-tier-list"
+                    ? "This creates a new tier-list copy of the current board and leaves your existing board untouched."
+                    : "This creates a new kanban-board copy of the current tier list and leaves your existing tier list untouched."}
+                </p>
+              </div>
 
-              {tierListConversionState.mode === "to-tier-list" ? (
-                <div className="mt-6">
-                  <p className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                    Copy cards from these columns
-                  </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => {
-                      const enabled = tierListConversionState.selectedColumnIds.includes(column.id);
-                      return (
-                        <button
-                          key={column.id}
-                          className={clsx(
-                            "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
-                            enabled
-                              ? isDarkMode
-                                ? "border-white/30 bg-white/10 text-white"
-                                : "border-slate-950 bg-slate-950 text-white"
-                              : isDarkMode
-                                ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
-                          )}
-                          onClick={() =>
-                            setTierListConversionState((current) =>
-                              current && current.mode === "to-tier-list"
-                                ? {
-                                    ...current,
-                                    selectedColumnIds: current.selectedColumnIds.includes(column.id)
-                                      ? current.selectedColumnIds.filter((id) => id !== column.id)
-                                      : [...current.selectedColumnIds, column.id],
-                                  }
-                                : current,
-                            )
-                          }
-                          type="button"
-                        >
-                          <span>{column.title}</span>
-                          <ToggleSwitch
-                            ariaLabel={`Toggle ${column.title}`}
-                            enabled={enabled}
-                            isDarkMode={isDarkMode}
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                {tierListConversionState.mode === "to-tier-list" ? (
+                  <div>
+                    <p className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                      Copy cards from these columns
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => {
+                        const enabled = tierListConversionState.selectedColumnIds.includes(column.id);
+                        return (
+                          <button
+                            key={column.id}
+                            className={clsx(
+                              "flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                              enabled
+                                ? isDarkMode
+                                  ? "border-white/30 bg-white/10 text-white"
+                                  : "border-amber-300 bg-amber-50 text-slate-950"
+                                : isDarkMode
+                                  ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                            )}
                             onClick={() =>
                               setTierListConversionState((current) =>
                                 current && current.mode === "to-tier-list"
@@ -9531,15 +9522,36 @@ function copyCardToDraft(card: CardEntry) {
                                   : current,
                               )
                             }
-                          />
-                        </button>
-                      );
-                    })}
+                            type="button"
+                          >
+                            <span>{column.title}</span>
+                            <ToggleSwitch
+                              ariaLabel={`Toggle ${column.title}`}
+                              enabled={enabled}
+                              isDarkMode={isDarkMode}
+                              onClick={() =>
+                                setTierListConversionState((current) =>
+                                  current && current.mode === "to-tier-list"
+                                    ? {
+                                        ...current,
+                                        selectedColumnIds: current.selectedColumnIds.includes(column.id)
+                                          ? current.selectedColumnIds.filter((id) => id !== column.id)
+                                          : [...current.selectedColumnIds, column.id],
+                                      }
+                                    : current,
+                                )
+                              }
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="border-t px-6 py-4">
+                <div className="flex flex-wrap gap-3">
                 <button
                   className={clsx(
                     "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
@@ -9575,6 +9587,7 @@ function copyCardToDraft(card: CardEntry) {
                 >
                   Cancel
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -10782,6 +10795,7 @@ function TierListRow({
   onAddCard,
   onDragScrollActivity,
   isAnyCardDragging,
+  isDragGapSuppressed,
 }: {
   column: ColumnDefinition;
   cards: CardEntry[];
@@ -10801,19 +10815,21 @@ function TierListRow({
   onAddCard: (columnId: string, insertIndex: number) => void;
   onDragScrollActivity: () => void;
   isAnyCardDragging: boolean;
+  isDragGapSuppressed: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
   const isUnsortedRow = column.title.trim().toLowerCase() === "unsorted";
-  const useVerticalLabel = !/\s/.test(column.title.trim());
+  const trimmedColumnTitle = column.title.trim();
+  const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
 
   return (
     <div className="grid grid-cols-[88px_minmax(0,1fr)] items-stretch gap-3">
       <div className={clsx("rounded-[28px] bg-gradient-to-b p-[1px]", column.accent)}>
         <div
           className={clsx(
-            "flex h-full min-h-[176px] flex-col items-center justify-between rounded-[27px] px-3 py-4 text-center",
+            "group/rowrail flex h-full min-h-[176px] flex-col items-center justify-between rounded-[27px] px-3 py-4 text-center",
             isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
           )}
         >
@@ -10873,13 +10889,13 @@ function TierListRow({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {!isEditingColumn ? (
               <div className="group relative">
                 <button
                   aria-label={`Rename ${column.title}`}
                   className={clsx(
-                    "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+                    "inline-flex h-8 w-8 items-center justify-center rounded-full border transition lg:pointer-events-none lg:opacity-0 lg:group-hover/rowrail:pointer-events-auto lg:group-hover/rowrail:opacity-100 lg:group-focus-within/rowrail:pointer-events-auto lg:group-focus-within/rowrail:opacity-100",
                     isDarkMode
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -10896,7 +10912,7 @@ function TierListRow({
               <button
                 aria-label={`Add ${addLabel} to ${column.title}`}
                 className={clsx(
-                  "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+                  "inline-flex h-8 w-8 items-center justify-center rounded-full border transition lg:pointer-events-none lg:opacity-0 lg:group-hover/rowrail:pointer-events-auto lg:group-hover/rowrail:opacity-100 lg:group-focus-within/rowrail:pointer-events-auto lg:group-focus-within/rowrail:opacity-100",
                   isDarkMode
                     ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                     : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -10950,26 +10966,90 @@ function TierListRow({
                 </span>
               </button>
             ) : (
-              cards.map((card) => (
-                <div key={card.entryId} className={clsx(isUnsortedRow ? "w-[220px] shrink-0" : "w-[176px] shrink-0")}>
-                  <SortableCard
-                    card={card}
-                    collapseCards={collapseCards}
-                    showSeries={showSeriesOnCards}
-                    showArtwork={showArtworkOnCards}
-                    showTierHighlights={false}
-                    frontFieldDefinitions={frontFieldDefinitions}
-                    forceSquare={!isUnsortedRow}
-                    isAnyCardDragging={isAnyCardDragging}
-                    rankBadge={null}
-                    onEdit={() => onEditCard(card)}
-                  />
-                </div>
-              ))
+              <>
+                {cards.map((card, index) => (
+                  <Fragment key={card.entryId}>
+                    <TierListInsertSlot
+                      columnId={column.id}
+                      insertIndex={index}
+                      isDarkMode={isDarkMode}
+                      isDragging={isAnyCardDragging}
+                      isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
+                      isSquare={!isUnsortedRow}
+                    />
+                    <div className={clsx(isUnsortedRow ? "w-[220px] shrink-0" : "w-[176px] shrink-0")}>
+                      <SortableCard
+                        card={card}
+                        collapseCards={collapseCards}
+                        showSeries={showSeriesOnCards}
+                        showArtwork={showArtworkOnCards}
+                        showTierHighlights={false}
+                        frontFieldDefinitions={frontFieldDefinitions}
+                        forceSquare={!isUnsortedRow}
+                        isAnyCardDragging={isAnyCardDragging}
+                        rankBadge={null}
+                        onEdit={() => onEditCard(card)}
+                      />
+                    </div>
+                  </Fragment>
+                ))}
+                <TierListInsertSlot
+                  columnId={column.id}
+                  insertIndex={cards.length}
+                  isDarkMode={isDarkMode}
+                  isDragging={isAnyCardDragging}
+                  isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
+                  isSquare={!isUnsortedRow}
+                />
+              </>
             )}
           </div>
         </SortableContext>
       </div>
+    </div>
+  );
+}
+
+function TierListInsertSlot({
+  columnId,
+  insertIndex,
+  isDarkMode,
+  isDragging,
+  isGapSuppressed,
+  isSquare,
+}: {
+  columnId: string;
+  insertIndex: number;
+  isDarkMode: boolean;
+  isDragging: boolean;
+  isGapSuppressed: boolean;
+  isSquare: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: makeInsertDropId(columnId, insertIndex),
+  });
+
+  const expanded = isDragging && !isGapSuppressed && isOver;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={clsx(
+        "shrink-0 transition-all duration-200 ease-out",
+        expanded ? (isSquare ? "w-[148px]" : "w-[184px]") : "w-0",
+        isSquare ? "h-[176px]" : "h-[124px]",
+      )}
+    >
+      <div
+        className={clsx(
+          "h-full w-full rounded-[22px] border transition-all duration-200 ease-out",
+          expanded
+            ? isDarkMode
+              ? "border-white/45 bg-white/8"
+              : "border-slate-500/45 bg-slate-100/80"
+            : "border-transparent bg-transparent",
+        )}
+      />
     </div>
   );
 }

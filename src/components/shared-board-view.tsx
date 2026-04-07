@@ -115,6 +115,41 @@ function getDisplayCardText(title: string, series: string, showSeries: boolean) 
   };
 }
 
+function buildSharedBoardCopy(board: SavedBoard) {
+  const shareSettings = board.settings?.publicShare;
+  const selectedColumnIds =
+    shareSettings?.columnIds && shareSettings.columnIds.length > 0
+      ? shareSettings.columnIds
+      : board.columns.map((column) => column.id);
+  const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
+  const tierFilter = shareSettings?.tierFilter ?? "all";
+  const selectedSeries = shareSettings?.seriesFilter?.trim() ?? "";
+  const selectedSearchTerm = shareSettings?.searchTerm?.trim() ?? "";
+
+  const nextCardsByColumn = Object.fromEntries(
+    selectedColumns.map((column) => {
+      const scopedCards = (board.cardsByColumn[column.id] ?? []).filter((card) => {
+        if (selectedSeries && card.series !== selectedSeries) {
+          return false;
+        }
+
+        return matchesSearchFilter(card, selectedSearchTerm);
+      });
+
+      return [
+        column.id,
+        scopedCards.filter((_, index) => matchesTierFilter(index, tierFilter)),
+      ] as const;
+    }),
+  ) as SavedBoard["cardsByColumn"];
+
+  return {
+    ...board,
+    columns: selectedColumns,
+    cardsByColumn: nextCardsByColumn,
+  } satisfies SavedBoard;
+}
+
 export function SharedBoardView({ board }: { board: SavedBoard }) {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window === "undefined") {
@@ -138,8 +173,10 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   }, [isDarkMode]);
 
   function copyBoardTemplate() {
+    const sharedBoardCopy = buildSharedBoardCopy(board);
+
     try {
-      window.localStorage.setItem(SHARED_BOARD_TEMPLATE_STORAGE_KEY, JSON.stringify(board));
+      window.localStorage.setItem(SHARED_BOARD_TEMPLATE_STORAGE_KEY, JSON.stringify(sharedBoardCopy));
     } catch {
       return;
     }

@@ -2,6 +2,13 @@
 
 ## 2026-04-06
 
+- Tier List conversion now uses a constrained scrollable modal like Share, so large boards with many source columns no longer push the confirm buttons out of view.
+- In Lumos, selected source-column pills in the Tier List conversion modal now use a light selected state instead of falling back to a dark pill style.
+- Shared `Copy Board` now only copies the board content that was actually published through the share link, so hidden columns/cards/filters stay hidden in the copied board too.
+- Tier List dragging now renders its drag overlay through `document.body`, which keeps the dragged card visually attached to the pointer instead of jumping to the top of the viewport.
+- Tier List row labels now stay upright for single-character labels, while longer single-word labels still rotate sideways to fit the rail.
+- Tier List row-rail action buttons were reduced in size and now stay hidden until hover/focus on desktop.
+- Tier List rows now get horizontal between-card drop gaps so drag targets behave more like the polished kanban insert gaps, even in wrapped tier rows.
 - Tier List conversion is now copy-based in both directions instead of mutating the current board in place.
 - Converting a board to Tier List now opens a confirmation modal that lets you choose which source columns to copy over.
 - Converting a Tier List back to a kanban board now creates a new board copy and preserves the tier ranking order in a ranked column, while keeping the old `Unsorted` cards in a backlog column.
