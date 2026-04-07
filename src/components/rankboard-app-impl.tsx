@@ -6775,16 +6775,6 @@ function copyCardToDraft(card: CardEntry) {
                 : "border-white/70 bg-white/60",
             )}
           >
-            {!isEditingBoardTitle ? (
-              <SaveStatusButton
-                className="absolute right-4 top-4 lg:hidden"
-                isDarkMode={isDarkMode}
-                isPersisting={isPersisting}
-                lastSavedAt={lastSavedAt}
-                saveErrorMessage={saveErrorMessage}
-                saveState={saveState}
-              />
-            ) : null}
             <div className="mb-4 min-w-0">
               {isEditingBoardTitle ? (
                 <div className="flex flex-wrap items-center gap-3">
@@ -6967,6 +6957,14 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
                     </div>
                   </div>
+                  <SaveStatusButton
+                    className="lg:hidden"
+                    isDarkMode={isDarkMode}
+                    isPersisting={isPersisting}
+                    lastSavedAt={lastSavedAt}
+                    saveErrorMessage={saveErrorMessage}
+                    saveState={saveState}
+                  />
                   <div className="hidden shrink-0 items-center gap-2 lg:flex">
                     <input
                       name="title"
