@@ -1,8 +1,16 @@
 # Changelog
 
+## 2026-04-07
+
+- Removed obsolete tracked backup/reference files from the runtime source tree, including [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx) and the old [`/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup) reference copies, so `src/components` now reflects the live app more directly.
+- Extracted shared Rankr display helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts), covering tier filtering, search matching, sortable series labels, and shared card title/series presentation logic used across the main app and share page.
+- Extracted browser-storage keys and small storage helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts), reducing repeated local-storage wiring inside the main app implementation.
+- Extracted large local app-only state/type definitions into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts) so [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx) is easier to scan.
+- Updated [`/Users/avarycooney/Documents/Rankr/ARCHITECTURE.md`](/Users/avarycooney/Documents/Rankr/ARCHITECTURE.md) so the project map now points at the live shared modules and no longer references deleted backup files as if they were part of the app structure.
+
 ## 2026-04-06
 
-- Tier List is now quarantined out of the live app flow. The active app is back to Kanban-only while the experimental Tier List code is preserved under [`/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup) for future redesign/reference.
+- Tier List is now quarantined out of the live app flow. The active app is back to Kanban-only while the experimental Tier List code is preserved under [`/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup) for future redesign/reference.
 - Tier List desktop insert targets now use a zero-width layout slot with a much larger hidden droppable surface that spans into neighboring cards, so the visible between-card gap can actually activate and widen like the Kanban board.
 - Tier List desktop rows now take their horizontal spacing from the insert slots themselves instead of the flex gap, so the visible space between cards matches the real drop target.
 - Tier List desktop drag/drop now mirrors the Kanban model more closely: the dragged card’s old slot collapses away, while insert targets live in a hidden horizontal hit zone that only expands into a real gap when hovered.
@@ -152,15 +160,15 @@
 - Added a real drag overlay for cards so the dragged card stays attached to the cursor/finger while the list keeps a steadier placeholder underneath.
 - Tightened card-sort animation timing and fades the original dragged card out during drag, which should make same-column reordering feel less jittery.
 - Split the huge board component entrypoint into a tiny wrapper and a dedicated implementation file so the main import surface is much lighter.
-- Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx).
-- Moved the live board implementation to [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx) as the stable public entrypoint.
+- Created a literal safety backup of the pre-refactor board component at [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx).
+- Moved the live board implementation to [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx) and kept [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.tsx) as the stable public entrypoint.
 - Widened the board-creation modal so field controls no longer overlap in normal desktop sizing.
 - Simplified card hover actions so cards now show only `Edit` on hover.
 - Kept `Move`, `Copy`, `Delete`, and `Fields` inside the card edit modal, where they are easier to understand and less fragile than the old card settings flyout.
 - Made card copy-from-edit close the edit modal and open the add-card draft flow immediately.
-- Extracted the shared field/settings UI into [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx).
-- Extracted the board setup, add-card, and edit-card dialogs into [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx).
-- Reduced [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) further by moving form-heavy UI out into dedicated component files.
+- Extracted the shared field/settings UI into [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-fields.tsx).
+- Extracted the board setup, add-card, and edit-card dialogs into [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx).
+- Reduced [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx) further by moving form-heavy UI out into dedicated component files.
 - Strengthened active-board restoration again so refresh prefers the last stored board ID from both signed-in and fallback local storage keys.
 - Fixed same-column drag/drop so dropping a card lower in a list no longer tends to snap it back into place.
 - Moved mobile artwork helper buttons below the artwork URL field so the URL input stays easy to tap.

@@ -5,115 +5,17 @@ import clsx from "clsx";
 import Link from "next/link";
 import { Moon, Sun } from "lucide-react";
 
-import type { BoardFieldDefinition, CardEntry, SavedBoard, ShareTierFilter } from "@/lib/types";
-
-const SHARED_THEME_STORAGE_KEY = "rankr-shared-theme";
-const SHARED_BOARD_TEMPLATE_STORAGE_KEY = "rankboard-shared-template-v1";
-
-function normalizeTitleForShare(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchesTierFilter(index: number, tierFilter: ShareTierFilter) {
-  if (tierFilter === "all") {
-    return true;
-  }
-
-  const rank = index + 1;
-  if (tierFilter === "top10") {
-    return rank <= 10;
-  }
-
-  if (tierFilter === "top15") {
-    return rank <= 15;
-  }
-
-  if (tierFilter === "top20") {
-    return rank <= 20;
-  }
-
-  if (tierFilter === "top30") {
-    return rank <= 30;
-  }
-
-  return false;
-}
-
-function matchesSearchFilter(card: CardEntry, searchTerm: string) {
-  const normalizedSearch = normalizeTitleForShare(searchTerm);
-  if (!normalizedSearch) {
-    return true;
-  }
-
-  return [card.title, card.series].some((value) =>
-    normalizeTitleForShare(value).includes(normalizedSearch),
-  );
-}
-
-function getTierKey(rank: number | null): Exclude<ShareTierFilter, "all"> | null {
-  if (!rank) {
-    return null;
-  }
-
-  if (rank <= 10) {
-    return "top10";
-  }
-
-  if (rank <= 15) {
-    return "top15";
-  }
-
-  if (rank <= 20) {
-    return "top20";
-  }
-
-  if (rank <= 30) {
-    return "top30";
-  }
-
-  return null;
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function getDisplayCardText(title: string, series: string, showSeries: boolean) {
-  const trimmedTitle = title.trim();
-  const trimmedSeries = series.trim();
-
-  if (!showSeries || !trimmedSeries) {
-    return {
-      displayTitle: trimmedTitle,
-      displaySeries: "",
-    };
-  }
-
-  const normalizedTitle = normalizeTitleForShare(trimmedTitle);
-  const normalizedSeries = normalizeTitleForShare(trimmedSeries);
-
-  if (normalizedTitle === normalizedSeries) {
-    return {
-      displayTitle: trimmedTitle,
-      displaySeries: "",
-    };
-  }
-
-  const prefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}(?:\\s*[:\\-–—]\\s*|\\s+)`, "i");
-  const strippedTitle = trimmedTitle.replace(prefixPattern, "").trim();
-
-  if (strippedTitle && strippedTitle.length < trimmedTitle.length) {
-    return {
-      displayTitle: strippedTitle,
-      displaySeries: trimmedSeries,
-    };
-  }
-
-  return {
-    displayTitle: trimmedTitle,
-    displaySeries: trimmedSeries,
-  };
-}
+import {
+  getDisplayCardText,
+  getTierKey,
+  matchesCardSearch,
+  matchesTierFilterByIndex,
+} from "@/lib/rankboard-display";
+import {
+  SHARED_BOARD_TEMPLATE_STORAGE_KEY,
+  SHARED_THEME_STORAGE_KEY,
+} from "@/lib/rankboard-storage";
+import type { BoardFieldDefinition, SavedBoard } from "@/lib/types";
 
 function buildSharedBoardCopy(board: SavedBoard) {
   const shareSettings = board.settings?.publicShare;
@@ -133,12 +35,12 @@ function buildSharedBoardCopy(board: SavedBoard) {
           return false;
         }
 
-        return matchesSearchFilter(card, selectedSearchTerm);
+        return matchesCardSearch(card, selectedSearchTerm);
       });
 
       return [
         column.id,
-        scopedCards.filter((_, index) => matchesTierFilter(index, tierFilter)),
+        scopedCards.filter((_, index) => matchesTierFilterByIndex(index, tierFilter)),
       ] as const;
     }),
   ) as SavedBoard["cardsByColumn"];
@@ -298,9 +200,9 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
               if (selectedSeries && card.series !== selectedSeries) {
                 return false;
               }
-              return matchesSearchFilter(card, selectedSearchTerm);
+              return matchesCardSearch(card, selectedSearchTerm);
             });
-            const cards = scopedCards.filter((_, index) => matchesTierFilter(index, tierFilter));
+            const cards = scopedCards.filter((_, index) => matchesTierFilterByIndex(index, tierFilter));
 
             return (
               <div

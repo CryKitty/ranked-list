@@ -2,19 +2,22 @@
 
 ## App Shape
 
-- Main UI entrypoint: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.tsx)
-- Main UI implementation: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx)
-- Safety backup from before the split: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app.backup-2026-04-04.tsx)
-- Extracted field/settings UI: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx)
-- Extracted dialogs: [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx)
-- Types: [`/Users/avarycooney/Documents/Playground/src/lib/types.ts`](/Users/avarycooney/Documents/Playground/src/lib/types.ts)
-- Trello import: [`/Users/avarycooney/Documents/Playground/src/lib/trello-import.ts`](/Users/avarycooney/Documents/Playground/src/lib/trello-import.ts)
+- Main UI entrypoint: [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.tsx)
+- Main UI implementation: [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx)
+- Extracted field/settings UI: [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-fields.tsx)
+- Extracted dialogs: [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx)
+- Shared published-board renderer: [`/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx`](/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx)
+- Types: [`/Users/avarycooney/Documents/Rankr/src/lib/types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/types.ts)
+- Rankr-only UI/state types extracted from the app implementation: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts)
+- Shared display/filter/title helpers used by the main app and share view: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts)
+- Local-storage keys and storage helpers: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts)
+- Trello import: [`/Users/avarycooney/Documents/Rankr/src/lib/trello-import.ts`](/Users/avarycooney/Documents/Rankr/src/lib/trello-import.ts)
 - Supabase browser/server clients:
-  - [`/Users/avarycooney/Documents/Playground/src/lib/supabase/client.ts`](/Users/avarycooney/Documents/Playground/src/lib/supabase/client.ts)
-  - [`/Users/avarycooney/Documents/Playground/src/lib/supabase/server.ts`](/Users/avarycooney/Documents/Playground/src/lib/supabase/server.ts)
-- Normalized board persistence: [`/Users/avarycooney/Documents/Playground/src/lib/normalized-board-store.ts`](/Users/avarycooney/Documents/Playground/src/lib/normalized-board-store.ts)
-- Image optimization: [`/Users/avarycooney/Documents/Playground/src/lib/image-processing.ts`](/Users/avarycooney/Documents/Playground/src/lib/image-processing.ts)
-- Schema: [`/Users/avarycooney/Documents/Playground/supabase/schema.sql`](/Users/avarycooney/Documents/Playground/supabase/schema.sql)
+  - [`/Users/avarycooney/Documents/Rankr/src/lib/supabase/client.ts`](/Users/avarycooney/Documents/Rankr/src/lib/supabase/client.ts)
+  - [`/Users/avarycooney/Documents/Rankr/src/lib/supabase/server.ts`](/Users/avarycooney/Documents/Rankr/src/lib/supabase/server.ts)
+- Normalized board persistence: [`/Users/avarycooney/Documents/Rankr/src/lib/normalized-board-store.ts`](/Users/avarycooney/Documents/Rankr/src/lib/normalized-board-store.ts)
+- Image optimization: [`/Users/avarycooney/Documents/Rankr/src/lib/image-processing.ts`](/Users/avarycooney/Documents/Rankr/src/lib/image-processing.ts)
+- Schema: [`/Users/avarycooney/Documents/Rankr/supabase/schema.sql`](/Users/avarycooney/Documents/Rankr/supabase/schema.sql)
 
 ## Persistence Model
 
@@ -80,10 +83,11 @@
 
 ## Board Layouts
 
-- The live app is currently Kanban-only:
+- The app currently supports two board layouts in the live codepath:
   - `board`: the default kanban/ranked column layout
-- The experimental Tier List implementation has been quarantined out of the runtime and copied to [`/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Playground/src/components/_tier-list-backup) for future redesign/reference.
-- `boardLayout` is still present in board settings for compatibility with older saved data, but normalized boards are coerced back to `board` in the live app so unstable Tier List runtime paths do not remain active.
+  - `tier-list`: row-based tier ranking layout
+- `boardLayout` remains part of normalized board settings and drives creation, conversion, and rendering behavior in the main app implementation.
+- Old in-repo backup/reference copies of prior Tier List code were removed during the 2026-04-07 debloat pass, so the architecture source of truth is now the live runtime files rather than shadow copies under `src/components`.
 
 ## Media
 
@@ -158,16 +162,36 @@
 
 ## Component Split Status
 
-- [`/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-fields.tsx) owns reusable field-management UI:
+- [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-fields.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-fields.tsx) owns reusable field-management UI:
   - field definition manager
   - field settings panel
   - hover-label icon button
   - shared toggle/menu button primitives
-- [`/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-dialogs.tsx) now owns the form-heavy modal flows:
+- [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx) now owns the form-heavy modal flows:
   - board setup
   - add card
   - edit card
-- [`/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Playground/src/components/rankboard-app-impl.tsx) still contains most application state, board lane rendering, settings, maintenance flows, and synchronization logic.
+- share configuration
+- [`/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx`](/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx) owns read-only published board rendering, including share-scoped filtering, theme persistence for the share page, and the `Copy Board` bootstrap flow back into the main app.
+- [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts) now centralizes display-oriented pure helpers that are intentionally shared across the main app, dialogs, and share page:
+  - series label normalization for filters
+  - title comparison helpers
+  - shared card title/series presentation rules
+  - shared tier-filter helpers
+  - shared search matching helpers
+- [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts) owns browser-storage key names plus small helpers for user-scoped cache keys and preferred-board restoration.
+- [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts) owns large local app-only state shapes that were previously declared inline in the monolithic app component:
+  - card/edit drafts
+  - maintenance-review state
+  - move/delete modal state
+  - pairwise quiz state
+  - backup snapshot shapes
+- [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx) still contains most application state, board lane rendering, board/tier-list layout rendering, maintenance flows, and synchronization logic, but it now leans on the extracted lib modules for shared pure helpers and non-UI type definitions.
+
+## Debloat Notes
+
+- The 2026-04-07 cleanup removed tracked backup/reference artifacts from `src/components` so the runtime source tree reflects only live app code.
+- Architecture and changelog updates are part of that cleanup policy: when internal ownership moves between files, these docs should be updated in the same pass so future sessions do not inherit stale mental models.
 
 ## Toggle Language
 
@@ -177,7 +201,7 @@
 ## Public Sharing v1
 
 - Boards can now be marked public and assigned a read-only share slug.
-- Public links render through [`/Users/avarycooney/Documents/Playground/src/app/share/[slug]/page.tsx`](/Users/avarycooney/Documents/Playground/src/app/share/[slug]/page.tsx).
+- Public links render through [`/Users/avarycooney/Documents/Rankr/src/app/share/[slug]/page.tsx`](/Users/avarycooney/Documents/Rankr/src/app/share/[slug]/page.tsx).
 - Share publication is now driven through a configuration modal instead of a bare button.
 - The chosen share configuration is stored in `board.settings.publicShare`:
   - `columnIds`

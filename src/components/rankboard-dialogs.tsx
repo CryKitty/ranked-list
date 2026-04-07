@@ -25,6 +25,7 @@ import {
   FieldSettingsPanel,
   HoverLabelIconButton,
 } from "@/components/rankboard-fields";
+import { getSeriesFilterDisplayLabel } from "@/lib/rankboard-display";
 import type { BoardFieldDefinition, BoardLayout, ColumnDefinition, ShareTierFilter } from "@/lib/types";
 
 type CardEditorDraftLike = {
@@ -56,11 +57,6 @@ type ColumnOption = {
 };
 
 type ShareColumnOption = Pick<ColumnDefinition, "id" | "title" | "accent">;
-
-function formatSeriesFilterDisplayLabel(value: string) {
-  const stripped = value.trim().replace(/^(the|a)\s+/i, "");
-  return stripped || value.trim();
-}
 
 export function SeriesInput({
   isDarkMode,
@@ -211,7 +207,7 @@ function SeriesFilterInput({
           onClick={() => setIsOpen((current) => !current)}
           type="button"
         >
-          <span className="truncate">{value ? formatSeriesFilterDisplayLabel(value) : "All series"}</span>
+          <span className="truncate">{value ? getSeriesFilterDisplayLabel(value) : "All series"}</span>
           <span className="flex items-center gap-2">
             {value ? (
               <span
@@ -280,7 +276,7 @@ function SeriesFilterInput({
                 type="button"
               >
                 <span className="flex items-center justify-between gap-3">
-                  <span className="truncate">{formatSeriesFilterDisplayLabel(series)}</span>
+                  <span className="truncate">{getSeriesFilterDisplayLabel(series)}</span>
                   {value === series ? <Check className="h-4 w-4 shrink-0" /> : null}
                 </span>
               </button>

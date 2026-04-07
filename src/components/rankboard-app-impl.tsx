@@ -74,6 +74,51 @@ import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
 import {
+  compareTitlesForDisplay,
+  getDisplayCardText,
+  getSeriesFilterDisplayLabel,
+  getTierKey,
+  matchesTierFilter,
+  normalizeTitleForComparison,
+} from "@/lib/rankboard-display";
+import {
+  AddCardTarget,
+  ArtworkPickerState,
+  ArtworkSearchMode,
+  BoardBackupSnapshot,
+  CardDraft,
+  CardEditorDraft,
+  ColumnEditorDraft,
+  DuplicateCleanupSuggestion,
+  MobileAddCardTarget,
+  MoveAllCardsState,
+  MoveCardState,
+  PairwiseQuizReview,
+  PairwiseQuizState,
+  PendingColumnDelete,
+  PendingDuplicateAction,
+  PendingMirrorDelete,
+  PendingMirrorLinkSuggestion,
+  PendingPairwiseQuizResume,
+  RankBadge,
+  SeriesScrapeSuggestion,
+  ShareDraft,
+  TierFilter,
+  TierListConversionState,
+  TierRowOptionsState,
+  TitleTidySuggestion,
+} from "@/lib/rankboard-app-types";
+import {
+  getLastActiveBoardStorageKey,
+  getPairwiseQuizProgressStorageKey,
+  getUserBoardCacheKey,
+  LOCAL_BACKUP_STORAGE_KEY,
+  LOCAL_STORAGE_KEY,
+  readStoredPreferredBoardId,
+  SHARED_BOARD_TEMPLATE_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+} from "@/lib/rankboard-storage";
+import {
   deletePairwiseQuizProgress,
   ensureNormalizedProfile,
   loadPairwiseQuizProgress,
@@ -82,211 +127,7 @@ import {
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, ShareTierFilter } from "@/lib/types";
-
-type CardDraft = {
-  title: string;
-  imageUrl: string;
-  imageStoragePath?: string;
-  series: string;
-  releaseYear: string;
-  notes: string;
-  customFields: Record<string, string>;
-  columnId: string;
-  newColumnTitle: string;
-};
-
-type AddCardTarget = {
-  columnId: string;
-  insertIndex: number;
-};
-
-type CardEditorDraft = {
-  title: string;
-  imageUrl: string;
-  imageStoragePath?: string;
-  series: string;
-  releaseYear: string;
-  notes: string;
-  customFields: Record<string, string>;
-};
-
-type ColumnEditorDraft = {
-  title: string;
-};
-
-type DuplicateMatch = {
-  column: ColumnDefinition;
-  card: CardEntry;
-};
-
-type PendingDuplicateAction = {
-  match: DuplicateMatch;
-  title: string;
-  imageUrl: string;
-  series: string;
-  releaseYear?: string;
-  notes?: string;
-  customFields?: Record<string, string>;
-};
-
-type RankBadge = {
-  label?: string;
-  value: number;
-};
-
-type TierFilter = ShareTierFilter;
-
-type ShareDraft = {
-  columnIds: string[];
-  tierFilter: ShareTierFilter;
-  seriesFilter: string;
-  searchTerm: string;
-  title: string;
-};
-
-type DuplicateCleanupSuggestion = {
-  id: string;
-  columnId: string;
-  columnTitle: string;
-  keepColumnTitle?: string;
-  normalizedTitle: string;
-  keepCard: CardEntry;
-  removeCard: CardEntry;
-};
-
-type TitleTidySuggestion = {
-  id: string;
-  columnId: string;
-  columnTitle: string;
-  entryId: string;
-  itemId: string;
-  originalTitle: string;
-  proposedTitle: string;
-};
-
-type SeriesScrapeSuggestion = {
-  id: string;
-  columnId: string;
-  columnTitle: string;
-  entryId: string;
-  itemId: string;
-  title: string;
-  imageUrl: string;
-  proposedSeries: string;
-};
-
-type PendingMirrorLinkSuggestion = {
-  id: string;
-  kind: "link" | "create";
-  mirrorColumnId: string;
-  mirrorEntryId?: string;
-  mirrorTitle: string;
-  sourceEntryId: string;
-  sourceItemId: string;
-  sourceCardTitle: string;
-  sourceSeries: string;
-  sourceImageUrl: string;
-  sourceImageStoragePath?: string;
-  sourceReleaseYear?: string;
-  sourceNotes?: string;
-  sourceCustomFieldValues?: Record<string, string>;
-  sourceColumnTitle: string;
-  enabled: boolean;
-  rank: number;
-};
-
-type ArtworkPickerState = {
-  target: "draft" | "editing";
-  options: string[];
-};
-
-type PendingMirrorDelete = {
-  columnId: string;
-  entryId: string;
-  itemId: string;
-  title: string;
-  columnTitle: string;
-};
-
-type PendingColumnDelete = {
-  id: string;
-  title: string;
-};
-
-type TierRowOptionsState = {
-  rowId: string;
-  anchorRect: DOMRect;
-};
-
-type MoveAllCardsState = {
-  sourceColumnId: string;
-  sourceColumnTitle: string;
-  targetColumnId: string;
-  cardCount: number;
-};
-
-type MoveCardState = {
-  entryId: string;
-  itemId: string;
-  title: string;
-  sourceColumnId: string;
-  targetColumnId: string;
-  targetRank: string;
-};
-
-type TierListConversionState = {
-  mode: "to-tier-list" | "to-board";
-  sourceBoardId: string;
-  selectedColumnIds: string[];
-};
-
-type PairwiseQuizState = {
-  columnId: string;
-  columnTitle: string;
-  sortedCards: CardEntry[];
-  remainingCards: CardEntry[];
-  candidateCard: CardEntry | null;
-  low: number;
-  high: number;
-  compareIndex: number;
-  comparisons: number;
-  history: Array<{
-    sortedCards: CardEntry[];
-    remainingCards: CardEntry[];
-    candidateCard: CardEntry | null;
-    low: number;
-    high: number;
-    compareIndex: number;
-    comparisons: number;
-  }>;
-};
-
-type PairwiseQuizReview = {
-  columnId: string;
-  columnTitle: string;
-  rankedCards: CardEntry[];
-  comparisons: number;
-};
-
-type PendingPairwiseQuizResume = {
-  columnId: string;
-  columnTitle: string;
-  progress: PairwiseQuizProgress;
-};
-
-type ArtworkSearchMode = "image" | "gif";
-
-type BoardBackupSnapshot = {
-  savedAt: string;
-  activeBoardId: string;
-  boards: SavedBoard[];
-};
-
-type MobileAddCardTarget = {
-  columnId: string;
-  insertIndex: number;
-};
+import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard } from "@/lib/types";
 
 const initialDraft: CardDraft = {
   title: "",
@@ -410,12 +251,6 @@ function createEmptyBoard(title = "New Board", _layout: BoardLayout = "board"): 
   };
 }
 
-const LOCAL_STORAGE_KEY = "rankboard-state-v1";
-const LOCAL_BACKUP_STORAGE_KEY = "rankboard-backups-v1";
-const PAIRWISE_QUIZ_PROGRESS_STORAGE_KEY = "rankboard-pairwise-progress-v1";
-const SHARED_BOARD_TEMPLATE_STORAGE_KEY = "rankboard-shared-template-v1";
-const THEME_STORAGE_KEY = "rankboard-theme-v1";
-const LAST_ACTIVE_BOARD_KEY = "rankboard-last-active-board-v1";
 const COLUMN_ACCENTS = [
   "from-amber-300 via-orange-400 to-rose-500",
   "from-sky-300 via-cyan-400 to-teal-500",
@@ -618,35 +453,6 @@ function makeId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
-function getUserBoardCacheKey(userId: string) {
-  return `rankboard-user-${userId}-v1`;
-}
-
-function getLastActiveBoardStorageKey(userId?: string | null) {
-  return userId ? `${LAST_ACTIVE_BOARD_KEY}-${userId}` : LAST_ACTIVE_BOARD_KEY;
-}
-
-function getPairwiseQuizProgressStorageKey(userId?: string | null) {
-  return userId
-    ? `${PAIRWISE_QUIZ_PROGRESS_STORAGE_KEY}-${userId}`
-    : PAIRWISE_QUIZ_PROGRESS_STORAGE_KEY;
-}
-
-function readStoredPreferredBoardId(userId?: string | null) {
-  try {
-    if (userId) {
-      return (
-        window.localStorage.getItem(getLastActiveBoardStorageKey(userId)) ??
-        window.localStorage.getItem(getLastActiveBoardStorageKey())
-      );
-    }
-
-    return window.localStorage.getItem(getLastActiveBoardStorageKey());
-  } catch {
-    return null;
-  }
-}
-
 function isRankedColumn(column: ColumnDefinition) {
   return column.type === "ranked" && !column.dontRank && (column.sortMode ?? "manual") === "manual";
 }
@@ -718,38 +524,6 @@ function filterCards(
 
     return matchesSearch && matchesSeries;
   });
-}
-
-function getTierKey(rank: number | null): Exclude<TierFilter, "all"> | null {
-  if (!rank) {
-    return null;
-  }
-
-  if (rank <= 10) {
-    return "top10";
-  }
-
-  if (rank <= 15) {
-    return "top15";
-  }
-
-  if (rank <= 20) {
-    return "top20";
-  }
-
-  if (rank <= 30) {
-    return "top30";
-  }
-
-  return null;
-}
-
-function matchesTierFilter(rank: number | null, tierFilter: TierFilter) {
-  if (tierFilter === "all") {
-    return true;
-  }
-
-  return getTierKey(rank) === tierFilter;
 }
 
 function slugify(value: string) {
@@ -1342,23 +1116,6 @@ function renderBoardIcon(iconKey: BoardIconKey, iconUrl: string | undefined, cla
 }
 
 
-function normalizeTitleForComparison(title: string) {
-  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
-}
-
-function stripSortablePrefix(value: string) {
-  return value.trim().replace(/^(the|a)\s+/i, "");
-}
-
-function getSeriesFilterDisplayLabel(value: string) {
-  const stripped = stripSortablePrefix(value);
-  return stripped || value.trim();
-}
-
-function compareTitlesForDisplay(left: string, right: string) {
-  return stripSortablePrefix(left).localeCompare(stripSortablePrefix(right));
-}
-
 function getCardContentScore(card: CardEntry) {
   let score = 0;
 
@@ -1451,47 +1208,6 @@ function getSuggestedSeriesFromTitle(title: string, existingSeries: string[] = [
   }
 
   return candidates[0] ?? null;
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function getDisplayCardText(title: string, series: string, showSeries: boolean) {
-  const trimmedTitle = title.trim();
-  const trimmedSeries = series.trim();
-
-  if (!showSeries || !trimmedSeries) {
-    return {
-      displayTitle: trimmedTitle,
-      displaySeries: "",
-    };
-  }
-
-  const normalizedTitle = normalizeTitleForComparison(trimmedTitle);
-  const normalizedSeries = normalizeTitleForComparison(trimmedSeries);
-
-  if (normalizedTitle === normalizedSeries) {
-    return {
-      displayTitle: trimmedTitle,
-      displaySeries: "",
-    };
-  }
-
-  const prefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}(?:\\s*[:\\-–—]\\s*|\\s+)`, "i");
-  const strippedTitle = trimmedTitle.replace(prefixPattern, "").trim();
-
-  if (strippedTitle && strippedTitle.length < trimmedTitle.length) {
-    return {
-      displayTitle: strippedTitle,
-      displaySeries: trimmedSeries,
-    };
-  }
-
-  return {
-    displayTitle: trimmedTitle,
-    displaySeries: trimmedSeries,
-  };
 }
 
 function getBoardVocabulary(boardTitle: string) {
