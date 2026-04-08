@@ -7519,7 +7519,7 @@ function copyCardToDraft(card: CardEntry) {
                 <div
                   ref={boardLaneRef}
                   className={clsx(
-                    "relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
+                    "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
                     isMobileViewport
                       ? "snap-x snap-mandatory gap-4 px-0"
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
@@ -10480,6 +10480,8 @@ function BoardColumn({
     id: column.id,
   });
   const [showMirrorEnableConfirm, setShowMirrorEnableConfirm] = useState(false);
+  const columnScrollRef = useRef<HTMLDivElement | null>(null);
+  const [columnCanScroll, setColumnCanScroll] = useState(true);
   const isTierFiltering = activeTierFilter !== "all";
   const columnSeries = Array.from(new Set(fullCards.map((card) => card.series.trim()).filter(Boolean))).sort(compareTitlesForDisplay);
   const tierFilteredCards = cards.filter((card) => {
@@ -10488,6 +10490,30 @@ function BoardColumn({
       : null;
     return matchesTierFilter(originalRank, activeTierFilter);
   });
+
+  useEffect(() => {
+    const node = columnScrollRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateScrollability = () => {
+      setColumnCanScroll(node.scrollHeight > node.clientHeight + 2);
+    };
+
+    updateScrollability();
+    const frameId = window.requestAnimationFrame(updateScrollability);
+    const resizeObserver = new ResizeObserver(updateScrollability);
+    resizeObserver.observe(node);
+    Array.from(node.children).forEach((child) => {
+      resizeObserver.observe(child);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [tierFilteredCards.length, isMobileViewport, filtering, activeTierFilter, currentSeriesFilter, collapseCards, showArtworkOnCards, showSeriesOnCards]);
 
   return (
     <div
@@ -11140,12 +11166,25 @@ function BoardColumn({
       </div>
 
       <div
-        className="mt-2 flex flex-1 flex-col gap-1.5 overflow-y-auto pr-1 sm:mt-3 sm:gap-3"
+        ref={columnScrollRef}
+        className={clsx(
+          "scrollbar-hidden mt-2 flex flex-1 flex-col gap-1.5 pr-1 sm:mt-3 sm:gap-3",
+          isMobileViewport && !columnCanScroll ? "overflow-y-hidden" : "overflow-y-auto",
+        )}
         data-column-scroll-id={column.id}
         onScroll={() => {
           if (isCardDragging) {
             onDragScrollActivity();
           }
+        }}
+        onTouchMove={(event) => {
+          if (isMobileViewport && !columnCanScroll && !isCardDragging) {
+            event.preventDefault();
+          }
+        }}
+        style={{
+          overscrollBehaviorY: "contain",
+          WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
         }}
       >
         {filtering || isTierFiltering ? (
@@ -11463,7 +11502,7 @@ function TierListRow({
             className={clsx(
               "min-h-[152px] content-start justify-start pb-1 sm:min-h-[176px]",
               isUnsortedRow
-                ? "flex items-center gap-0 overflow-x-auto"
+                ? "scrollbar-hidden flex items-center gap-0 overflow-x-auto"
                 : isMobileViewport
                   ? "flex flex-wrap items-center gap-x-0 gap-y-1 overflow-visible"
                   : "flex flex-wrap items-start gap-x-0 gap-y-1 overflow-visible sm:gap-y-2",
@@ -11741,19 +11780,28 @@ function AddCardRow({
           isDragMode
             ? isGapSuppressed
               ? "pointer-events-none h-0 opacity-0"
-              : showExpandedDropTarget
-                ? "h-[172px] opacity-100"
-                : "h-0 opacity-100"
+              : "h-0 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
         )}
-        style={{
-          transitionDelay: showExpandedDropTarget ? "220ms" : "0ms",
-        }}
         aria-hidden="true"
       >
         <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+        {showExpandedDropTarget ? (
+          <div
+            aria-hidden="true"
+            className={clsx(
+              "pointer-events-none absolute inset-x-4 top-1/2 h-0 -translate-y-1/2 border-t-2 border-dashed",
+              isDarkMode
+                ? "border-slate-400/65"
+                : "border-slate-400/70",
+            )}
+          />
+        ) : null}
+        {/*
+        Keeping the old widened drop-target placeholder commented for easy restoration if we decide
+        the divider-only cue is not the right tradeoff after more testing.
         {showExpandedDropTarget ? (
           <div
             aria-hidden="true"
@@ -11765,6 +11813,7 @@ function AddCardRow({
             )}
           />
         ) : null}
+        */}
         {rowContent}
       </div>
     );
@@ -11779,9 +11828,7 @@ function AddCardRow({
         isDragMode
           ? isGapSuppressed
             ? "pointer-events-none h-0 opacity-0"
-            : showExpandedDropTarget
-              ? "h-[172px] opacity-100"
-              : "h-0 opacity-100"
+            : "h-0 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
             : isMobileViewport
@@ -11789,14 +11836,25 @@ function AddCardRow({
               : "h-4 opacity-0",
         isOver && "opacity-100",
       )}
-      style={{
-        transitionDelay: showExpandedDropTarget ? "220ms" : "0ms",
-      }}
       onClick={handleClick}
       type="button"
       aria-label="Add game here"
     >
       <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+      {showExpandedDropTarget ? (
+        <div
+          aria-hidden="true"
+          className={clsx(
+            "pointer-events-none absolute inset-x-4 top-1/2 h-0 -translate-y-1/2 border-t-2 border-dashed",
+            isDarkMode
+              ? "border-slate-400/65"
+              : "border-slate-400/70",
+          )}
+        />
+      ) : null}
+      {/*
+      Keeping the old widened drop-target placeholder commented for easy restoration if we decide
+      the divider-only cue is not the right tradeoff after more testing.
       {showExpandedDropTarget ? (
         <div
           aria-hidden="true"
@@ -11808,6 +11866,7 @@ function AddCardRow({
           )}
         />
       ) : null}
+      */}
       {rowContent}
     </button>
   );
