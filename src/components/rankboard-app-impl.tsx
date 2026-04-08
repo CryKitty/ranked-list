@@ -6923,8 +6923,8 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
                       </div>
 
-                      <div className="col-span-2 grid grid-cols-2 gap-3 sm:col-span-2">
-                        <div className="relative space-y-2" data-mobile-actions-submenu-root="true">
+                      <div className="col-span-2 grid grid-cols-2 gap-3 overflow-visible sm:col-span-2">
+                        <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
@@ -6984,7 +6984,7 @@ function copyCardToDraft(card: CardEntry) {
                           ) : null}
                         </div>
 
-                        <div className="relative space-y-2" data-mobile-actions-submenu-root="true">
+                        <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
@@ -11428,6 +11428,7 @@ function BoardColumn({
                 isDarkMode={isDarkMode}
                 isDragMode={isCardDragging}
                 isGapSuppressed={isDragGapSuppressed}
+                collapseCards={collapseCards}
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 hideAction={
@@ -11451,7 +11452,7 @@ function BoardColumn({
                   key={card.entryId}
                   className={clsx(
                     "flex flex-col",
-                    collapseCards ? "gap-px sm:gap-0.5" : "gap-1.5 sm:gap-3",
+                    collapseCards ? "gap-[5px]" : "gap-1.5 sm:gap-3",
                   )}
                 >
                   <SortableCard
@@ -11477,6 +11478,7 @@ function BoardColumn({
                     isDarkMode={isDarkMode}
                     isDragMode={isCardDragging}
                     isGapSuppressed={isDragGapSuppressed}
+                    collapseCards={collapseCards}
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
                     hideAction={
@@ -11920,6 +11922,7 @@ function AddCardRow({
   isDarkMode,
   isDragMode = false,
   isGapSuppressed = false,
+  collapseCards = false,
   insertIndex,
   alwaysVisible = false,
   hideAction = false,
@@ -11933,6 +11936,7 @@ function AddCardRow({
   isDarkMode: boolean;
   isDragMode?: boolean;
   isGapSuppressed?: boolean;
+  collapseCards?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   hideAction?: boolean;
@@ -11963,6 +11967,8 @@ function AddCardRow({
   };
   const showExpandedDropTarget = isDragMode && !isGapSuppressed && isOver;
   const showTrelloStylePlaceholder = showExpandedDropTarget;
+  const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
+  const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
 
   const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
   const rowContent = (
@@ -11998,7 +12004,7 @@ function AddCardRow({
             ? isGapSuppressed
               ? "pointer-events-none h-0 opacity-0"
               : showTrelloStylePlaceholder
-                ? "h-[172px] opacity-100"
+                ? `${placeholderHeightClass} opacity-100`
                 : "h-0 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
@@ -12011,7 +12017,8 @@ function AddCardRow({
           <div
             aria-hidden="true"
             className={clsx(
-              "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[24px] border",
+              "pointer-events-none absolute inset-x-2 border",
+              placeholderInsetClass,
               isDarkMode
                 ? "border-white/10 bg-white/[0.03]"
                 : "border-slate-300/80 bg-slate-100/80",
@@ -12048,7 +12055,7 @@ function AddCardRow({
           ? isGapSuppressed
             ? "pointer-events-none h-0 opacity-0"
             : showTrelloStylePlaceholder
-              ? "h-[172px] opacity-100"
+              ? `${placeholderHeightClass} opacity-100`
               : "h-0 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
@@ -12066,7 +12073,8 @@ function AddCardRow({
         <div
           aria-hidden="true"
           className={clsx(
-            "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[24px] border",
+            "pointer-events-none absolute inset-x-2 border",
+            placeholderInsetClass,
             isDarkMode
               ? "border-white/10 bg-white/[0.03]"
               : "border-slate-300/80 bg-slate-100/80",
