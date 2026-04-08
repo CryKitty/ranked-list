@@ -7414,6 +7414,10 @@ function copyCardToDraft(card: CardEntry) {
               }}
               sensors={sensors}
               collisionDetection={(args) => {
+                if (activeBoardLayout === "board" && isDragGapSuppressed) {
+                  return [];
+                }
+
                 if (
                   activeBoardLayout === "board" &&
                   args.pointerCoordinates &&
@@ -10499,10 +10503,10 @@ function BoardColumn({
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
-          ? isOver
+          ? isOver && !(isCardDragging && isDragGapSuppressed)
             ? "border-white/80"
             : "border-slate-800"
-          : isOver
+          : isOver && !(isCardDragging && isDragGapSuppressed)
             ? "border-slate-950"
             : "border-slate-200",
       )}
