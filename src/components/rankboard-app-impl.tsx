@@ -7525,6 +7525,10 @@ function copyCardToDraft(card: CardEntry) {
                       ? {
                           paddingInline: mobileBoardLaneInset,
                           scrollPaddingInline: mobileBoardLaneInset,
+                          touchAction: "pan-x",
+                          overscrollBehaviorX: "contain",
+                          overscrollBehaviorY: "none",
+                          WebkitOverflowScrolling: "touch",
                         }
                       : undefined
                   }
