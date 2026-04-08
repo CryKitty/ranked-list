@@ -146,6 +146,10 @@ const initialDraft: CardDraft = {
 
 const NEW_COLUMN_OPTION = "__new_column__";
 const DEFAULT_DATE_FIELD_FORMAT: DateFieldFormat = "mm/dd/yyyy";
+type BoardHistoryEntry = {
+  label: string;
+  snapshot: BoardSnapshot;
+};
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   cardLabel: "",
   boardIconKey: "",
@@ -1603,7 +1607,8 @@ export function RankboardApp() {
   const [isBoardIconModalOpen, setIsBoardIconModalOpen] = useState(false);
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
-  const [history, setHistory] = useState<BoardSnapshot[]>([]);
+  const [history, setHistory] = useState<BoardHistoryEntry[]>([]);
+  const [mobileUndoNotice, setMobileUndoNotice] = useState<string | null>(null);
   const [draftDuplicateAction, setDraftDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
   const [editingDuplicateAction, setEditingDuplicateAction] =
@@ -1665,6 +1670,8 @@ export function RankboardApp() {
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
+  const pendingHistoryLabelRef = useRef<string | null>(null);
+  const mobileUndoNoticeTimeoutRef = useRef<number | null>(null);
   const hasDismissedWelcomeRef = useRef(false);
   const hasHandledNewBoardQueryRef = useRef(false);
   const hasHandledSharedCopyQueryRef = useRef(false);
@@ -1680,7 +1687,7 @@ export function RankboardApp() {
   const hasAutoOpenedBoardSetupRef = useRef(false);
 
   const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
-  const mobileBoardLaneInset = "max(0.75rem, calc((100vw - min(90vw, 360px)) / 2))";
+  const mobileBoardLaneInset = "1rem";
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -1728,6 +1735,33 @@ export function RankboardApp() {
     openColumnMirrorMenuId !== null ||
     openColumnColumnsMenuId !== null ||
     openColumnMaintenanceMenuId !== null;
+  const hasOpenModal =
+    Boolean(addCardTarget) ||
+    Boolean(editingCardId && editingCardDraft) ||
+    isImportModalOpen ||
+    isShareModalOpen ||
+    isWelcomeModalOpen ||
+    isSaveLoginModalOpen ||
+    isCreateBoardModalOpen ||
+    isBoardIconModalOpen ||
+    isDuplicateCleanupModalOpen ||
+    isTitleTidyModalOpen ||
+    isSeriesScrapeModalOpen ||
+    Boolean(artworkPicker) ||
+    Boolean(pendingMirrorDelete) ||
+    Boolean(pendingMirrorUnlink) ||
+    Boolean(pendingMirrorLinkSuggestions) ||
+    Boolean(pendingCardDelete) ||
+    Boolean(pendingColumnDelete) ||
+    Boolean(tierRowOptionsState) ||
+    Boolean(pairwiseQuizState) ||
+    Boolean(pairwiseQuizReview) ||
+    Boolean(pendingPairwiseQuizResume) ||
+    Boolean(pendingBoardDelete) ||
+    Boolean(moveAllCardsState) ||
+    Boolean(moveCardState) ||
+    Boolean(tierListConversionState) ||
+    isBoardFieldSettingsModalOpen;
   const activeBoardFieldDefinitions = normalizeFieldDefinitions(
     activeBoardSettings.fieldDefinitions,
     activeBoardTitle,
@@ -2209,7 +2243,14 @@ export function RankboardApp() {
       const nextSerialized = JSON.stringify(nextSnapshot);
 
       if (previousSerialized !== nextSerialized) {
-        setHistory((current) => [...current.slice(-19), previousSnapshot]);
+        setHistory((current) => [
+          ...current.slice(-19),
+          {
+            label: pendingHistoryLabelRef.current ?? "latest change",
+            snapshot: previousSnapshot,
+          },
+        ]);
+        pendingHistoryLabelRef.current = null;
       }
     }
 
@@ -2596,6 +2637,20 @@ export function RankboardApp() {
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isMobileBoardRenameArmed]);
+
+  useEffect(() => {
+    return () => {
+      if (mobileUndoNoticeTimeoutRef.current) {
+        window.clearTimeout(mobileUndoNoticeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasOpenModal && isMobileActionsOpen) {
+      setIsMobileActionsOpen(false);
+    }
+  }, [hasOpenModal, isMobileActionsOpen]);
 
   useEffect(() => {
     if (!isCardDragging) {
@@ -3174,7 +3229,11 @@ export function RankboardApp() {
     }
   }
 
-  function pushBoardHistorySnapshot(snapshot?: BoardSnapshot | null) {
+  function setPendingHistoryLabel(label: string) {
+    pendingHistoryLabelRef.current = label;
+  }
+
+  function pushBoardHistorySnapshot(snapshot?: BoardSnapshot | null, label = "latest change") {
     const currentSnapshot =
       snapshot ??
       previousSnapshotRef.current ?? {
@@ -3182,8 +3241,15 @@ export function RankboardApp() {
         cardsByColumn: latestCardsByColumnRef.current,
       };
 
-    setHistory((current) => [...current.slice(-19), currentSnapshot]);
+    setHistory((current) => [
+      ...current.slice(-19),
+      {
+        label,
+        snapshot: currentSnapshot,
+      },
+    ]);
     previousSnapshotRef.current = currentSnapshot;
+    pendingHistoryLabelRef.current = null;
   }
 
   function suppressDragGapsTemporarily() {
@@ -3918,7 +3984,7 @@ export function RankboardApp() {
         return;
       }
 
-      pushBoardHistorySnapshot();
+      pushBoardHistorySnapshot(null, "moved card");
       skipNextHistoryRef.current = true;
       const reorderedCards = [...sourceCards];
       const [removedCard] = reorderedCards.splice(sourceIndex, 1);
@@ -3954,7 +4020,11 @@ export function RankboardApp() {
     const nextDestinationCards = [...destinationCards];
     const destinationScrollTop = getColumnScrollElement(overColumnId)?.scrollTop ?? null;
 
-    pushBoardHistorySnapshot();
+    if (destinationColumn?.mirrorsEntireBoard && !movedCard.mirroredFromEntryId) {
+      return;
+    }
+
+    pushBoardHistorySnapshot(null, "moved card");
     skipNextHistoryRef.current = true;
     nextDestinationCards.splice(destinationIndex, 0, movedCard);
     const normalizedDestinationCards =
@@ -4046,6 +4116,8 @@ export function RankboardApp() {
     if (!addCardTarget) {
       return;
     }
+
+    setPendingHistoryLabel(`added ${boardVocabulary.singular.toLowerCase()}`);
 
     let nextColumns = columns;
     const selectedColumnId = selectedColumnIdOverride ?? draft.columnId;
@@ -4188,6 +4260,7 @@ export function RankboardApp() {
     }
 
     if (card.mirroredFromEntryId || column?.mirrorsEntireBoard) {
+      setPendingHistoryLabel("deleted linked card");
       let nextStateSnapshot: Record<string, CardEntry[]> | null = null;
 
       setCardsByColumn((current) => {
@@ -4220,6 +4293,8 @@ export function RankboardApp() {
         (item) => item.entryId !== entryId,
       ),
     };
+
+    setPendingHistoryLabel("deleted card");
 
     if (column?.autoMirrorToColumnId) {
       nextState = removeMirroredCard(nextState, entryId, column.autoMirrorToColumnId);
@@ -4300,6 +4375,8 @@ function copyCardToDraft(card: CardEntry) {
     if (!moveCardState) {
       return;
     }
+
+    setPendingHistoryLabel("moved card");
 
     const sourceCards = cardsByColumn[moveCardState.sourceColumnId] ?? [];
     const sourceIndex = sourceCards.findIndex((card) => card.entryId === moveCardState.entryId);
@@ -5470,10 +5547,18 @@ function copyCardToDraft(card: CardEntry) {
     }
 
     skipNextHistoryRef.current = true;
-    setColumns(previous.columns);
+    setColumns(previous.snapshot.columns);
     skipNextHistoryRef.current = true;
-    setCardsByColumn(previous.cardsByColumn);
+    setCardsByColumn(previous.snapshot.cardsByColumn);
     setHistory((current) => current.slice(0, -1));
+    setMobileUndoNotice(`Undid ${previous.label}`);
+    if (mobileUndoNoticeTimeoutRef.current) {
+      window.clearTimeout(mobileUndoNoticeTimeoutRef.current);
+    }
+    mobileUndoNoticeTimeoutRef.current = window.setTimeout(() => {
+      setMobileUndoNotice(null);
+      mobileUndoNoticeTimeoutRef.current = null;
+    }, 1800);
     queuePersistBoardState();
   }
 
@@ -6789,22 +6874,24 @@ function copyCardToDraft(card: CardEntry) {
           </div>
 
           <div>
-            <button
-              aria-label="Open actions"
-              className={clsx(
-                "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
-                isDarkMode
-                  ? "bg-slate-800 text-white shadow-[0_12px_24px_rgba(2,6,23,0.35)] hover:bg-slate-700"
-                  : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
-              )}
-              onClick={() => {
-                setIsBoardsMenuOpen(false);
-                setIsMobileActionsOpen(true);
-              }}
-              type="button"
-            >
-              <Plus className="h-6 w-6" />
-            </button>
+            {!hasOpenModal ? (
+              <button
+                aria-label="Open actions"
+                className={clsx(
+                  "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
+                  isDarkMode
+                    ? "bg-slate-800 text-white shadow-[0_12px_24px_rgba(2,6,23,0.35)] hover:bg-slate-700"
+                    : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
+                )}
+                onClick={() => {
+                  setIsBoardsMenuOpen(false);
+                  setIsMobileActionsOpen(true);
+                }}
+                type="button"
+              >
+                <Plus className="h-6 w-6" />
+              </button>
+            ) : null}
 
             {isMobileActionsOpen ? (
               <div
@@ -7380,20 +7467,29 @@ function copyCardToDraft(card: CardEntry) {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 lg:hidden">
-                    <button
-                      className={clsx(
-                        "inline-flex h-[44px] items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
-                      )}
-                      disabled={history.length === 0}
-                      onClick={handleUndo}
-                      type="button"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      <span>Undo</span>
-                    </button>
+                    <div className="relative shrink-0">
+                      <button
+                        aria-label={history.length === 0 ? "Nothing to undo" : "Undo"}
+                        className={clsx(
+                          "group/undo inline-flex h-[44px] w-[44px] items-center justify-center rounded-2xl border transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
+                        )}
+                        disabled={history.length === 0}
+                        onClick={handleUndo}
+                        type="button"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        <HoverTooltip
+                          forceVisible={Boolean(mobileUndoNotice)}
+                          isDarkMode={isDarkMode}
+                          label={mobileUndoNotice ?? "Undo"}
+                          placement="bottom"
+                          scope="mobile-undo"
+                        />
+                      </button>
+                    </div>
                     <SaveStatusButton
                       className="lg:hidden"
                       isDarkMode={isDarkMode}
@@ -7665,6 +7761,17 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                       ) : null}
                     </div>
+                    <SaveStatusButton
+                      className="hidden lg:block"
+                      isDarkMode={isDarkMode}
+                      isPersisting={isPersisting}
+                      isMobileViewport={isMobileViewport}
+                      lastSavedAt={lastSavedAt}
+                      onRequireLogin={() => setIsSaveLoginModalOpen(true)}
+                      requiresLogin={authEnabled && !currentUser}
+                      saveErrorMessage={saveErrorMessage}
+                      saveState={saveState}
+                    />
                   </div>
                 </div>
               )}
@@ -7796,7 +7903,7 @@ function copyCardToDraft(card: CardEntry) {
                   className={clsx(
                     "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
                     isMobileViewport
-                      ? clsx("gap-4 px-0", isCardDragging ? "snap-none" : "snap-x snap-proximity")
+                      ? clsx("gap-4 px-0", isCardDragging ? "snap-none" : "snap-x snap-mandatory")
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
                   )}
                   style={
@@ -10953,7 +11060,7 @@ function BoardColumn({
         isMobileViewport
           ? "h-[min(calc(var(--app-height)-7.65rem),922px)] min-h-[min(calc(var(--app-height)-7.65rem),862px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
-        isMobileViewport ? "w-[min(88vw,348px)] snap-center" : "w-[320px] snap-start",
+        isMobileViewport ? "w-[min(calc(100vw-2rem),348px)] snap-start" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
@@ -11654,7 +11761,7 @@ function BoardColumn({
           columnTouchYRef.current = null;
         }}
         style={{
-          touchAction: isCardDragging ? "none" : columnCanScroll ? "pan-y" : "auto",
+          touchAction: isCardDragging ? "none" : "auto",
           overscrollBehaviorY: "contain",
           WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
         }}
