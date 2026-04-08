@@ -2606,8 +2606,19 @@ export function RankboardApp() {
       return;
     }
 
-    const edgeThreshold = activeBoardLayout === "tier-list" ? 170 : 140;
-    const maxScrollStep = activeBoardLayout === "tier-list" ? 12 : 10;
+    const isTouchDrag = dragPointerKind === "touch";
+    const edgeThreshold =
+      activeBoardLayout === "tier-list"
+        ? 170
+        : isMobileViewport && isTouchDrag
+          ? 88
+          : 140;
+    const maxScrollStep =
+      activeBoardLayout === "tier-list"
+        ? 12
+        : isMobileViewport && isTouchDrag
+          ? 4.5
+          : 10;
 
     const tick = () => {
       const coords = dragPointerCoordsRef.current;
@@ -2632,18 +2643,23 @@ export function RankboardApp() {
 
         if (activeBoardLayout === "board" && boardLaneRef.current) {
           const laneRect = boardLaneRef.current.getBoundingClientRect();
-          const horizontalEdgeThreshold = Math.max(72, Math.min(132, laneRect.width * 0.18));
+          const horizontalEdgeThreshold =
+            isMobileViewport && isTouchDrag
+              ? Math.max(34, Math.min(56, laneRect.width * 0.08))
+              : Math.max(72, Math.min(132, laneRect.width * 0.18));
           let deltaX = 0;
 
           if (coords.x <= laneRect.left + horizontalEdgeThreshold) {
             deltaX = -Math.max(
-              3,
-              ((laneRect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) * 14,
+              isMobileViewport && isTouchDrag ? 1.2 : 3,
+              ((laneRect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) *
+                (isMobileViewport && isTouchDrag ? 5 : 14),
             );
           } else if (coords.x >= laneRect.right - horizontalEdgeThreshold) {
             deltaX = Math.max(
-              3,
-              ((coords.x - (laneRect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) * 14,
+              isMobileViewport && isTouchDrag ? 1.2 : 3,
+              ((coords.x - (laneRect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) *
+                (isMobileViewport && isTouchDrag ? 5 : 14),
             );
           }
 
@@ -2691,7 +2707,7 @@ export function RankboardApp() {
         dragAutoScrollFrameRef.current = null;
       }
     };
-  }, [activeBoardLayout, isCardDragging]);
+  }, [activeBoardLayout, dragPointerKind, isCardDragging, isMobileViewport]);
 
   useEffect(() => {
     if (activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
@@ -3156,6 +3172,18 @@ export function RankboardApp() {
       }
       setDragPointerKind("touch");
     }
+  }
+
+  function pushBoardHistorySnapshot(snapshot?: BoardSnapshot | null) {
+    const currentSnapshot =
+      snapshot ??
+      previousSnapshotRef.current ?? {
+        columns: latestColumnsRef.current,
+        cardsByColumn: latestCardsByColumnRef.current,
+      };
+
+    setHistory((current) => [...current.slice(-19), currentSnapshot]);
+    previousSnapshotRef.current = currentSnapshot;
   }
 
   function suppressDragGapsTemporarily() {
@@ -3890,6 +3918,8 @@ export function RankboardApp() {
         return;
       }
 
+      pushBoardHistorySnapshot();
+      skipNextHistoryRef.current = true;
       const reorderedCards = [...sourceCards];
       const [removedCard] = reorderedCards.splice(sourceIndex, 1);
       reorderedCards.splice(adjustedDestinationIndex, 0, removedCard);
@@ -3924,6 +3954,8 @@ export function RankboardApp() {
     const nextDestinationCards = [...destinationCards];
     const destinationScrollTop = getColumnScrollElement(overColumnId)?.scrollTop ?? null;
 
+    pushBoardHistorySnapshot();
+    skipNextHistoryRef.current = true;
     nextDestinationCards.splice(destinationIndex, 0, movedCard);
     const normalizedDestinationCards =
       destinationColumn ? applyColumnSortMode(destinationColumn, nextDestinationCards) : nextDestinationCards;
@@ -7347,17 +7379,33 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
                     </div>
                   </div>
-              <SaveStatusButton
-                className="lg:hidden"
-                isDarkMode={isDarkMode}
-                isPersisting={isPersisting}
-                isMobileViewport={isMobileViewport}
-                lastSavedAt={lastSavedAt}
-                onRequireLogin={() => setIsSaveLoginModalOpen(true)}
-                requiresLogin={authEnabled && !currentUser}
-                saveErrorMessage={saveErrorMessage}
-                saveState={saveState}
-              />
+                  <div className="flex shrink-0 items-center gap-2 lg:hidden">
+                    <button
+                      className={clsx(
+                        "inline-flex h-[44px] items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
+                      )}
+                      disabled={history.length === 0}
+                      onClick={handleUndo}
+                      type="button"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      <span>Undo</span>
+                    </button>
+                    <SaveStatusButton
+                      className="lg:hidden"
+                      isDarkMode={isDarkMode}
+                      isPersisting={isPersisting}
+                      isMobileViewport={isMobileViewport}
+                      lastSavedAt={lastSavedAt}
+                      onRequireLogin={() => setIsSaveLoginModalOpen(true)}
+                      requiresLogin={authEnabled && !currentUser}
+                      saveErrorMessage={saveErrorMessage}
+                      saveState={saveState}
+                    />
+                  </div>
                   <div className="hidden shrink-0 items-center gap-2 lg:flex">
                     <input
                       name="title"
@@ -7617,23 +7665,13 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                       ) : null}
                     </div>
-                    <SaveStatusButton
-                      isDarkMode={isDarkMode}
-                      isPersisting={isPersisting}
-                      isMobileViewport={isMobileViewport}
-                      lastSavedAt={lastSavedAt}
-                      onRequireLogin={() => setIsSaveLoginModalOpen(true)}
-                      requiresLogin={authEnabled && !currentUser}
-                      saveErrorMessage={saveErrorMessage}
-                      saveState={saveState}
-                    />
                   </div>
                 </div>
               )}
             </div>
             <DndContext
               autoScroll={{
-                enabled: dragPointerKind !== "mouse",
+                enabled: false,
                 activator: AutoScrollActivator.Pointer,
                 acceleration: 10,
                 interval: 4,
@@ -7758,7 +7796,7 @@ function copyCardToDraft(card: CardEntry) {
                   className={clsx(
                     "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
                     isMobileViewport
-                      ? "snap-x snap-mandatory gap-4 px-0"
+                      ? clsx("gap-4 px-0", isCardDragging ? "snap-none" : "snap-x snap-proximity")
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
                   )}
                   style={
@@ -7766,7 +7804,7 @@ function copyCardToDraft(card: CardEntry) {
                       ? {
                           paddingInline: mobileBoardLaneInset,
                           scrollPaddingInline: mobileBoardLaneInset,
-                          touchAction: isCardDragging ? "none" : "pan-x",
+                          touchAction: isCardDragging ? "none" : "pan-x pinch-zoom",
                           overscrollBehaviorX: "contain",
                           overscrollBehaviorY: "none",
                           overscrollBehavior: "contain",
@@ -10870,6 +10908,7 @@ function BoardColumn({
   });
   const [showMirrorEnableConfirm, setShowMirrorEnableConfirm] = useState(false);
   const columnScrollRef = useRef<HTMLDivElement | null>(null);
+  const columnTouchXRef = useRef<number | null>(null);
   const columnTouchYRef = useRef<number | null>(null);
   const [columnCanScroll, setColumnCanScroll] = useState(true);
   const isTierFiltering = activeTierFilter !== "all";
@@ -11581,30 +11620,37 @@ function BoardColumn({
             return;
           }
 
+          const previousX = columnTouchXRef.current ?? touch.clientX;
           const previousY = columnTouchYRef.current ?? touch.clientY;
+          const deltaX = touch.clientX - previousX;
           const deltaY = touch.clientY - previousY;
+          columnTouchXRef.current = touch.clientX;
           columnTouchYRef.current = touch.clientY;
 
           const atTop = node.scrollTop <= 1;
           const atBottom =
             node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+          const isMostlyVerticalGesture = Math.abs(deltaY) > Math.abs(deltaX) + 2;
 
           if (
-            !columnCanScroll ||
-            (atTop && deltaY > 0) ||
-            (atBottom && deltaY < 0)
+            (isMostlyVerticalGesture && !columnCanScroll) ||
+            (isMostlyVerticalGesture && atTop && deltaY > 0) ||
+            (isMostlyVerticalGesture && atBottom && deltaY < 0)
           ) {
             event.preventDefault();
           }
         }}
         onTouchStart={(event) => {
           const touch = event.touches[0] ?? event.changedTouches[0];
+          columnTouchXRef.current = touch?.clientX ?? null;
           columnTouchYRef.current = touch?.clientY ?? null;
         }}
         onTouchEnd={() => {
+          columnTouchXRef.current = null;
           columnTouchYRef.current = null;
         }}
         onTouchCancel={() => {
+          columnTouchXRef.current = null;
           columnTouchYRef.current = null;
         }}
         style={{
@@ -12608,7 +12654,7 @@ function CardTile({
       style={{
         contentVisibility: "auto",
         containIntrinsicSize: collapseCards ? "54px" : "180px",
-        touchAction: "pan-y",
+        touchAction: isDragging ? "none" : "manipulation",
       }}
     >
         <div
