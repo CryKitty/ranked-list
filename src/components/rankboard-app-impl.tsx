@@ -2607,14 +2607,10 @@ export function RankboardApp() {
           }
         }
 
-        const scrollCandidates = Array.from(
-          document.querySelectorAll<HTMLElement>("[data-column-scroll-id]"),
-        );
-        const scrollContainer =
-          scrollCandidates.find((element) => {
-            const rect = element.getBoundingClientRect();
-            return coords.x >= rect.left && coords.x <= rect.right;
-          }) ?? null;
+        const scrollContainer = document
+          .elementsFromPoint(coords.x, coords.y)
+          .map((element) => element.closest("[data-column-scroll-id]"))
+          .find(Boolean) as HTMLElement | null;
 
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
@@ -3086,10 +3082,14 @@ export function RankboardApp() {
       return null;
     }
 
-    const scrollContainer =
-      Array.from(document.querySelectorAll<HTMLElement>("[data-column-scroll-id]")).find(
-        (element) => element.dataset.columnScrollId === columnId,
-      ) ?? null;
+    const scrollContainer = document
+      .elementsFromPoint(pointerCoordinates.x, pointerCoordinates.y)
+      .map((element) => element.closest("[data-column-scroll-id]"))
+      .find(
+        (element) =>
+          element instanceof HTMLElement &&
+          element.dataset.columnScrollId === columnId,
+      ) as HTMLElement | null;
 
     if (!scrollContainer) {
       return null;
@@ -3099,8 +3099,8 @@ export function RankboardApp() {
     if (
       pointerCoordinates.x < scrollRect.left ||
       pointerCoordinates.x > scrollRect.right ||
-      pointerCoordinates.y < scrollRect.top - 20 ||
-      pointerCoordinates.y > scrollRect.bottom + 20
+      pointerCoordinates.y < scrollRect.top - 48 ||
+      pointerCoordinates.y > scrollRect.bottom + 140
     ) {
       return null;
     }
@@ -11223,7 +11223,7 @@ function BoardColumn({
                         : null
                     }
                     onEdit={() => onEditCard(card)}
-                    preserveSpaceWhenDragging={false}
+                    preserveSpaceWhenDragging={true}
                     freezeLayoutWhileDragging={isCardDragging}
                   />
                   <AddCardRow
