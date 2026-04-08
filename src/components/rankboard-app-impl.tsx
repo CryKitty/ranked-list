@@ -6494,7 +6494,7 @@ function copyCardToDraft(card: CardEntry) {
                               onClick={toggleCollapseCardsSetting}
                               type="button"
                             >
-                              <span>Collapse Cards</span>
+                              <span>Compact View</span>
                               <span className="text-xs opacity-70">{activeBoardSettings.collapseCards ? "On" : "Off"}</span>
                             </button>
                             <button
@@ -7015,9 +7015,9 @@ function copyCardToDraft(card: CardEntry) {
                               )}
                             >
                               <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                                <span>Collapse Cards</span>
+                                <span>Compact View</span>
                                 <ToggleSwitch
-                                  ariaLabel="Toggle Collapse Cards"
+                                  ariaLabel="Toggle Compact View"
                                   enabled={activeBoardSettings.collapseCards}
                                   isDarkMode={isDarkMode}
                                   onClick={toggleCollapseCardsSetting}
@@ -7367,9 +7367,9 @@ function copyCardToDraft(card: CardEntry) {
                             {isCustomizationMenuOpen ? (
                               <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
                                 <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                                  <span>Collapse Cards</span>
+                                  <span>Compact View</span>
                                   <ToggleSwitch
-                                    ariaLabel="Toggle Collapse Cards"
+                                    ariaLabel="Toggle Compact View"
                                     enabled={activeBoardSettings.collapseCards}
                                     isDarkMode={isDarkMode}
                                     onClick={toggleCollapseCardsSetting}
@@ -11451,7 +11451,7 @@ function BoardColumn({
                   key={card.entryId}
                   className={clsx(
                     "flex flex-col",
-                    collapseCards ? "gap-0.5 sm:gap-1" : "gap-1.5 sm:gap-3",
+                    collapseCards ? "gap-px sm:gap-0.5" : "gap-1.5 sm:gap-3",
                   )}
                 >
                   <SortableCard
