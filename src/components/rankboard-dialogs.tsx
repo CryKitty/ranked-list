@@ -293,6 +293,7 @@ function SeriesFilterInput({
 export function EditCardDialog({
   isOpen,
   isDarkMode,
+  boardSingular,
   editingCardId,
   editingCardDraft,
   currentCardIsMirrored,
@@ -335,6 +336,7 @@ export function EditCardDialog({
 }: {
   isOpen: boolean;
   isDarkMode: boolean;
+  boardSingular: string;
   editingCardId: string | null;
   editingCardDraft: CardEditorDraftLike | null;
   currentCardIsMirrored: boolean;
@@ -396,7 +398,7 @@ export function EditCardDialog({
         <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
             <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-              Update card details
+              {`Edit ${boardSingular}`}
             </h2>
             {currentCardIsMirrored ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">

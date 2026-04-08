@@ -7936,6 +7936,7 @@ function copyCardToDraft(card: CardEntry) {
 
         <EditCardDialog
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
+          boardSingular={boardVocabulary.singular}
           currentCardIsMirrored={getCardLinkedSiblings(cardsByColumn, editingCardId).length > 0}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           editArtworkInputRef={editArtworkInputRef}
