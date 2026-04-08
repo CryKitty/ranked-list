@@ -14,12 +14,12 @@ export async function generateMetadata({
 
   if (!supabase) {
     return {
-      title: "Rankr Share",
+      title: "Sorta Share",
     };
   }
 
   const board = await loadPublicBoardBySlug(supabase, slug);
-  const title = board?.settings?.publicShare?.title?.trim() || board?.title || "Rankr Share";
+  const title = board?.settings?.publicShare?.title?.trim() || board?.title || "Sorta Share";
 
   return {
     title,

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     upstream = await fetch(parsed, {
       headers: {
         Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "User-Agent": "Rankr Artwork Proxy",
+        "User-Agent": "Sorta Artwork Proxy",
       },
       next: {
         revalidate: 60 * 60 * 24 * 30,

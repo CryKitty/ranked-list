@@ -2,9 +2,9 @@
 
 ## 2026-04-07
 
-- Added a signed-out welcome modal that introduces Rankr in three steps, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board before editing.
+- Added a signed-out welcome modal that introduces Sorta in three steps, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board before editing.
 - Removed obsolete tracked backup/reference files from the runtime source tree, including [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app.backup-2026-04-04.tsx) and the old [`/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup`](/Users/avarycooney/Documents/Rankr/src/components/_tier-list-backup) reference copies, so `src/components` now reflects the live app more directly.
-- Extracted shared Rankr display helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts), covering tier filtering, search matching, sortable series labels, and shared card title/series presentation logic used across the main app and share page.
+- Extracted shared Sorta display helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts), covering tier filtering, search matching, sortable series labels, and shared card title/series presentation logic used across the main app and share page.
 - Extracted browser-storage keys and small storage helpers into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts), reducing repeated local-storage wiring inside the main app implementation.
 - Extracted large local app-only state/type definitions into [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts) so [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-app-impl.tsx) is easier to scan.
 - Updated [`/Users/avarycooney/Documents/Rankr/ARCHITECTURE.md`](/Users/avarycooney/Documents/Rankr/ARCHITECTURE.md) so the project map now points at the live shared modules and no longer references deleted backup files as if they were part of the app structure.
@@ -84,7 +84,7 @@
 - Post-drop card focus correction no longer nudges the column scroll position, which should remove the small “jump upward” after dropping a card.
 - Added a `Top 30` tier with its own emerald color across filtering, card highlighting, and shared views.
 - Collapsed cards now keep the same series/title display logic as full cards, so series can still appear above the title in compact mode and repeated series prefixes are still stripped from titles.
-- The share modal now keeps its search and series filters on the same row at matching widths, and the share-specific series filter now uses the same in-app dropdown style as the rest of Rankr.
+- The share modal now keeps its search and series filters on the same row at matching widths, and the share-specific series filter now uses the same in-app dropdown style as the rest of Sorta.
 - Between-card and between-column add affordances now render above surrounding UI instead of getting clipped behind nearby cards or columns.
 - On mobile, the between-column divider no longer shows the add-column `+` by default; one tap reveals the plus and the second tap creates the column.
 - The mobile action sheet now puts `Maintenance` on the left and `Customization` on the right, keeps them full-width within the row, and removes the little side-caret icons from those buttons.
@@ -101,12 +101,12 @@
 - Narrowed the share-modal series control so the search and series fields fit more naturally on desktop.
 - Refreshing a share link now republishes to a fresh share slug and resets the 24-hour expiration window.
 - Fixed shared tier filtering so the tier limit is applied after the chosen series/search scope instead of against the full unfiltered column.
-- Compactened the shared-board header by removing the extra read-only line, dropping the column-count chip, and moving the active share chips up beside the `Rankr Share` label.
+- Compactened the shared-board header by removing the extra read-only line, dropping the column-count chip, and moving the active share chips up beside the `Sorta Share` label.
 - Shared cards now retain the main-board tier colors on both the card border and rank badge.
 - Shared cards now use the same series/title display logic as the main board, including stripping repeated series prefixes from titles and hiding the series line when title and series match exactly.
 - Shared columns now snap into place horizontally like the main board.
 - Because refreshed shares now get a brand-new slug, the previous share URL stops resolving once the new link is published.
-- The shared-board header is now a tighter one-line `Rankr Share:` layout with the active filter chips and board title inline, plus a `Join` button that opens the app into new-board creation.
+- The shared-board header is now a tighter one-line `Sorta Share:` layout with the active filter chips and board title inline, plus a `Join` button that opens the app into new-board creation.
 - The new-board modal now reminds signed-out users to log in if they want their board saved/synced, and includes a direct login button.
 - Removed the leftover between-card divider lines from the add/drop affordance so only the plus button remains when the row is visible.
 - After dropping a card, the column now keeps that moved card in view instead of jumping a few cards away from it.
@@ -274,4 +274,4 @@
 - Pairwise ranking quizzes can now be saved mid-run and resumed later from local device storage, with an explicit option to start over from scratch.
 - Fixed the add-card Fields button to use the same tooltip treatment as the other icon-only dialog actions.
 - Raised column action menus above the inline add affordances so `+` buttons no longer bleed over open submenus.
-- Shared boards now include a `Copy Board` action that opens Rankr with a personal editable copy of the shared board content.
+- Shared boards now include a `Copy Board` action that opens Sorta with a personal editable copy of the shared board content.

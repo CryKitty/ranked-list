@@ -1,4 +1,4 @@
-# Rankr Architecture
+# Sorta Architecture
 
 ## App Shape
 
@@ -8,7 +8,7 @@
 - Extracted dialogs: [`/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx`](/Users/avarycooney/Documents/Rankr/src/components/rankboard-dialogs.tsx)
 - Shared published-board renderer: [`/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx`](/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx)
 - Types: [`/Users/avarycooney/Documents/Rankr/src/lib/types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/types.ts)
-- Rankr-only UI/state types extracted from the app implementation: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts)
+- Sorta-only UI/state types extracted from the app implementation: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-app-types.ts)
 - Shared display/filter/title helpers used by the main app and share view: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts)
 - Local-storage keys and storage helpers: [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-storage.ts)
 - Trello import: [`/Users/avarycooney/Documents/Rankr/src/lib/trello-import.ts`](/Users/avarycooney/Documents/Rankr/src/lib/trello-import.ts)
@@ -67,7 +67,7 @@
 - Recovery is evaluated per board, not just per account-wide snapshot, so one empty or partially saved board is less likely to override the rest.
 - Remote hydration is also compared against the current in-memory session snapshot so a non-empty local board is less likely to be replaced by a thinner remote payload during an active editing session.
 - Active-board preference now also falls back across both user-scoped and generic last-board storage keys to reduce “refresh opened the wrong board” regressions.
-- During authenticated remote merge, a temporary signed-out `Rankr` starter board should be discarded once real saved boards are available so mobile auth handoff does not keep a stray blank board.
+- During authenticated remote merge, a temporary signed-out `Sorta` starter board should be discarded once real saved boards are available so mobile auth handoff does not keep a stray blank board.
 - Shared-board reads now fetch the published board row plus its columns/items/entries directly, rather than loading all boards for the owner and then selecting one.
 - Shared boards can now override their display/browser title through `board.settings.publicShare.title` without renaming the source board.
 
@@ -222,7 +222,7 @@
   - same series/title reduction logic
   - same horizontal snap scrolling across columns
 - Since refreshed shares now generate a new slug, old share links effectively self-terminate as soon as the replacement link is published.
-- The shared header is now intentionally compact: `Rankr Share:` label, active filter chips, board title, and a `Join` CTA on the same line when space allows.
+- The shared header is now intentionally compact: `Sorta Share:` label, active filter chips, board title, and a `Join` CTA on the same line when space allows.
 - The `Join` CTA links to `/?new=1`, and the main app consumes that query by opening the new-board modal once and then clearing the query string.
 - The new-board modal should encourage signed-out users to log in if they want board creation to persist across devices.
 - The board-setup modal now supports both `Kanban Board` and `Tier List` creation up front, and on mobile its body scrolls within the viewport while the action buttons remain visible.

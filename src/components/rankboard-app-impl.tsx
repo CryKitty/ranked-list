@@ -693,7 +693,7 @@ function readBoardsFromBackupRow(data: {
 
   if (legacyColumns && legacyCards) {
     const migratedBoard: SavedBoard = {
-      ...createEmptyBoard("Rankr"),
+      ...createEmptyBoard("Sorta"),
       columns: legacyColumns,
       cardsByColumn: legacyCards,
       updatedAt: typeof data.updated_at === "string" ? data.updated_at : new Date().toISOString(),
@@ -793,7 +793,7 @@ function isStarterBoard(
 }
 
 function isEphemeralStarterBoard(board: SavedBoard) {
-  return board.title === "Rankr" && isStarterBoard(board.columns, board.cardsByColumn);
+  return board.title === "Sorta" && isStarterBoard(board.columns, board.cardsByColumn);
 }
 
 function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> & { settings?: Partial<BoardSettings> })) {
@@ -1545,7 +1545,7 @@ function SaveStatusButton({
 export function RankboardApp() {
   const supabase = getSupabaseBrowserClient();
   const authEnabled = Boolean(supabase);
-  const defaultBoard = createEmptyBoard("Rankr");
+  const defaultBoard = createEmptyBoard("Sorta");
   const [boards, setBoards] = useState<SavedBoard[]>([defaultBoard]);
   const [activeBoardId, setActiveBoardId] = useState(defaultBoard.id);
   const [columns, setColumns] = useState<ColumnDefinition[]>(defaultBoard.columns);
@@ -1714,7 +1714,7 @@ export function RankboardApp() {
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) ?? normalizeSavedBoard(defaultBoard);
   const activeBoardTitle =
-    activeBoard.title ?? "Rankr";
+    activeBoard.title ?? "Sorta";
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const activeBoardLayout = "board" as BoardLayout;
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
@@ -1781,7 +1781,7 @@ export function RankboardApp() {
   }
 
   const resetToSignedOutBoard = useCallback(() => {
-    const signedOutBoard = createEmptyBoard("Rankr");
+    const signedOutBoard = createEmptyBoard("Sorta");
 
     skipNextHistoryRef.current = true;
     previousSnapshotRef.current = {
@@ -2083,7 +2083,7 @@ export function RankboardApp() {
         const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
         const starterSnapshot = createStarterBoardSnapshot();
         const migratedBoard: SavedBoard = {
-          ...createEmptyBoard("Rankr"),
+          ...createEmptyBoard("Sorta"),
           columns: legacyColumns ?? starterSnapshot.columns,
           cardsByColumn: legacyCards ?? starterSnapshot.cardsByColumn,
         };
@@ -2681,7 +2681,7 @@ export function RankboardApp() {
       return;
     }
 
-    if (boards.length === 1 && activeBoardTitle === "Rankr" && isStarterBoard(columns, cardsByColumn)) {
+    if (boards.length === 1 && activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
       hasAutoOpenedBoardSetupRef.current = true;
       setNewBoardTitle("");
       setNewBoardSettings(getDefaultBoardSettings("New Board"));

@@ -13,7 +13,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Rankr",
+  title: "Sorta",
   description: "A Trello-style ranking board for games, movies, shows, and more.",
 };
 
