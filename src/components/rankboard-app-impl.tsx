@@ -329,7 +329,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: boardKind === "show" ? "Franchise" : "Series",
       type: "short_text",
       visible: true,
-      showOnCardFront: false,
+      showOnCardFront: true,
       builtInKey: "series",
     },
     {
@@ -1036,35 +1036,39 @@ function getBoardKind(boardTitle: string) {
   return "game";
 }
 
-type BoardIconKey = "character" | "movie" | "show" | "anime" | "game" | "music" | "book";
-const BOARD_ICON_OPTIONS: BoardIconKey[] = ["game", "movie", "show", "anime", "music", "book", "character"];
+type BoardIconKey = "rank" | "character" | "movie" | "show" | "anime" | "game" | "music" | "book";
+const BOARD_ICON_OPTIONS: BoardIconKey[] = ["rank", "game", "movie", "show", "anime", "music", "book", "character"];
 
 function getBoardIconCandidates(boardTitle: string): BoardIconKey[] {
   const normalizedTitle = boardTitle.toLowerCase();
 
+  if (normalizedTitle.trim() === "sorta" || normalizedTitle.trim() === "new board") {
+    return ["rank", "game", "movie", "show", "anime", "music", "book", "character"];
+  }
+
   if (normalizedTitle.includes("music") || normalizedTitle.includes("album") || normalizedTitle.includes("song")) {
-    return ["music", "movie", "show", "anime", "book", "character", "game"];
+    return ["music", "movie", "show", "anime", "book", "character", "game", "rank"];
   }
 
   if (normalizedTitle.includes("manga") || normalizedTitle.includes("book") || normalizedTitle.includes("novel")) {
-    return ["book", "anime", "movie", "show", "music", "character", "game"];
+    return ["book", "anime", "movie", "show", "music", "character", "game", "rank"];
   }
 
   if (normalizedTitle.includes("media")) {
-    return ["movie", "show", "anime", "music", "book", "character", "game"];
+    return ["movie", "show", "anime", "music", "book", "character", "game", "rank"];
   }
 
   switch (getBoardKind(boardTitle)) {
     case "character":
-      return ["character", "movie", "show", "anime", "music", "book", "game"];
+      return ["character", "movie", "show", "anime", "music", "book", "game", "rank"];
     case "movie":
-      return ["movie", "show", "anime", "music", "book", "character", "game"];
+      return ["movie", "show", "anime", "music", "book", "character", "game", "rank"];
     case "show":
-      return ["show", "movie", "anime", "music", "book", "character", "game"];
+      return ["show", "movie", "anime", "music", "book", "character", "game", "rank"];
     case "anime":
-      return ["anime", "show", "movie", "book", "music", "character", "game"];
+      return ["anime", "show", "movie", "book", "music", "character", "game", "rank"];
     default:
-      return ["game", "movie", "show", "anime", "music", "book", "character"];
+      return ["game", "movie", "show", "anime", "music", "book", "character", "rank"];
   }
 }
 
@@ -1078,6 +1082,8 @@ function resolveBoardIconKey(boardTitle: string, usedIcons?: Set<BoardIconKey>) 
 
 function renderBoardKindIcon(iconKey: BoardIconKey, className?: string) {
   switch (iconKey) {
+    case "rank":
+      return <span className={clsx("inline-flex items-center justify-center font-black leading-none", className)}>#1</span>;
     case "character":
       return <Heart className={className} />;
     case "movie":
@@ -1591,6 +1597,7 @@ export function RankboardApp() {
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
     getDefaultBoardSettings("New Board"),
   );
+  const [starterBoardDisplayTitle, setStarterBoardDisplayTitle] = useState(defaultBoard.title);
   const [isBoardIconModalOpen, setIsBoardIconModalOpen] = useState(false);
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
@@ -1698,6 +1705,10 @@ export function RankboardApp() {
     boards.find((board) => board.id === activeBoardId) ?? normalizeSavedBoard(defaultBoard);
   const activeBoardTitle =
     activeBoard.title ?? "Sorta";
+  const displayActiveBoardTitle =
+    activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)
+      ? starterBoardDisplayTitle
+      : activeBoardTitle;
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const activeBoardLayout = "board" as BoardLayout;
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
@@ -2679,6 +2690,19 @@ export function RankboardApp() {
       }
     };
   }, [activeBoardLayout, isCardDragging]);
+
+  useEffect(() => {
+    if (activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
+      setStarterBoardDisplayTitle("Sorta");
+      const timer = window.setTimeout(() => {
+        setStarterBoardDisplayTitle("New Board");
+      }, 5000);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    setStarterBoardDisplayTitle(activeBoardTitle);
+  }, [activeBoardId, activeBoardTitle, cardsByColumn, columns]);
 
   useEffect(() => {
     if (
@@ -7257,7 +7281,7 @@ function copyCardToDraft(card: CardEntry) {
                         aria-label={isMobileViewport ? `Show rename control for ${activeBoardTitle}` : undefined}
                       >
                         <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                          {activeBoardTitle}
+                          {displayActiveBoardTitle}
                         </h1>
                       </button>
                       <div className="relative shrink-0">
@@ -7278,7 +7302,7 @@ function copyCardToDraft(card: CardEntry) {
                             startEditingBoardTitle();
                           }}
                           type="button"
-                          aria-label={`Rename ${activeBoardTitle}`}
+                          aria-label={`Rename ${displayActiveBoardTitle}`}
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -8952,13 +8976,13 @@ function copyCardToDraft(card: CardEntry) {
                 </button>
               </div>
 
-              <div className="mt-4 grid flex-1 gap-3 overflow-y-auto pr-1 md:mt-6 md:grid-cols-2 md:gap-4">
+              <div className="mt-4 grid flex-1 content-start justify-items-center gap-2 overflow-y-auto px-2 pt-2 pr-1 md:mt-6 md:grid-cols-2 md:gap-2">
                 {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
                   card ? (
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[240px] overflow-visible rounded-[24px] text-left transition hover:-translate-y-0.5 sm:max-w-[280px] md:max-w-[320px]",
+                        "mx-auto w-full max-w-[180px] overflow-visible rounded-[24px] py-2 text-left transition hover:-translate-y-0.5 sm:max-w-[200px] md:max-w-[220px]",
                         isDarkMode
                           ? "text-white"
                           : "text-slate-950",
@@ -10970,7 +10994,7 @@ function BoardColumn({
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
-                  <HoverTooltip isDarkMode={isDarkMode} label="Column Settings" />
+                  <HoverTooltip isDarkMode={isDarkMode} label="Column Settings" placement="bottom" />
                   {isMenuOpen ? (
                     <div
                       className={clsx(
@@ -12756,7 +12780,7 @@ function CardTile({
             >
               <Edit3 className="h-4 w-4" />
             </button>
-            <HoverTooltip isDarkMode={true} label="Edit" scope="edit" />
+            <HoverTooltip isDarkMode={true} label="Edit" scope="edit" placement="bottom" />
           </div>
         ) : null}
       </div>
