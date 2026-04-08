@@ -8958,7 +8958,7 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "overflow-visible rounded-[24px] text-left transition hover:-translate-y-0.5",
+                        "mx-auto w-full max-w-[240px] overflow-visible rounded-[24px] text-left transition hover:-translate-y-0.5 sm:max-w-[280px] md:max-w-[320px]",
                         isDarkMode
                           ? "text-white"
                           : "text-slate-950",
@@ -12680,20 +12680,30 @@ function CardTile({
           </div>
         ) : (
           <div className="absolute inset-0 p-4">
-            <div className="relative flex min-h-full flex-col">
-              <div className={clsx("flex flex-1 items-center justify-center text-center", (displaySeries || card.notes) && "pb-12")}>
-                <h3 className={clsx("line-clamp-3 text-2xl font-bold", isDarkMode ? "text-white" : "text-slate-950")}>{displayTitle}</h3>
+            <div className="relative min-h-full">
+              <div className="absolute inset-0 flex items-center justify-center text-center">
+                <div className="max-w-full px-2">
+                  <h3 className={clsx("line-clamp-3 text-2xl font-bold", isDarkMode ? "text-white" : "text-slate-950")}>
+                    {displayTitle}
+                  </h3>
+                </div>
               </div>
-              <div className="mt-auto flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  {displaySeries ? (
-                    <p className={clsx("truncate text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-white" : "text-slate-700")}>
-                      {displaySeries}
+              {displaySeries || card.notes ? (
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    {displaySeries ? (
+                      <p className={clsx("truncate text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-white" : "text-slate-700")}>
+                        {displaySeries}
+                      </p>
+                    ) : null}
+                  </div>
+                  {card.notes ? (
+                    <p className={clsx("line-clamp-2 max-w-[45%] text-right text-sm leading-5", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                      {card.notes}
                     </p>
                   ) : null}
                 </div>
-                {card.notes ? <p className={clsx("line-clamp-2 max-w-[45%] text-right text-sm leading-5", isDarkMode ? "text-slate-300" : "text-slate-600")}>{card.notes}</p> : null}
-              </div>
+              ) : null}
             </div>
           </div>
         )}
