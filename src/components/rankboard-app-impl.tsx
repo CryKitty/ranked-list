@@ -2701,8 +2701,21 @@ export function RankboardApp() {
         setStarterBoardTitlePhase("exit");
       }, 5000);
       const swapTimer = window.setTimeout(() => {
+        const renamedBoards = latestBoardsRef.current.map((board) =>
+          board.id === activeBoardId && board.title === "Sorta" && isStarterBoard(board.columns, board.cardsByColumn)
+            ? {
+                ...board,
+                title: "New Board",
+                updatedAt: new Date().toISOString(),
+              }
+            : board,
+        );
+
+        latestBoardsRef.current = renamedBoards;
+        setBoards(renamedBoards);
         setStarterBoardDisplayTitle("New Board");
         setStarterBoardTitlePhase("enter");
+        queuePersistBoardState({ boards: renamedBoards, activeBoardId });
       }, 5180);
       const settleTimer = window.setTimeout(() => {
         setStarterBoardTitlePhase("idle");
@@ -2717,7 +2730,7 @@ export function RankboardApp() {
 
     setStarterBoardDisplayTitle(activeBoardTitle);
     setStarterBoardTitlePhase("idle");
-  }, [activeBoardId, activeBoardTitle, cardsByColumn, columns]);
+  }, [activeBoardId, activeBoardTitle, cardsByColumn, columns, queuePersistBoardState]);
 
   useEffect(() => {
     if (
@@ -12488,24 +12501,14 @@ function CardTile({
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
     tierKey === "top10"
-      ? "border-transparent"
+      ? "border-amber-300/80"
       : tierKey === "top15"
-        ? "border-transparent"
+        ? "border-cyan-300/80"
         : tierKey === "top20"
-          ? "border-transparent"
+          ? "border-fuchsia-300/80"
           : tierKey === "top30"
-            ? "border-transparent"
+            ? "border-emerald-300/80"
             : "border-white/10";
-  const tierFrameClass =
-    tierKey === "top10"
-      ? "ring-1 ring-inset ring-amber-300/80"
-      : tierKey === "top15"
-        ? "ring-1 ring-inset ring-cyan-300/80"
-        : tierKey === "top20"
-          ? "ring-1 ring-inset ring-fuchsia-300/80"
-          : tierKey === "top30"
-            ? "ring-1 ring-inset ring-emerald-300/80"
-            : "";
   const collapsedTierSurfaceClass =
     tierKey === "top10"
       ? "bg-amber-300 text-amber-950"
@@ -12612,7 +12615,6 @@ function CardTile({
           className={clsx(
             "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
-            !collapseCards && tierFrameClass,
             collapseCards
               ? "min-h-[52px]"
               : compactImageOnly
