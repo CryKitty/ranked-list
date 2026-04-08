@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { Moon, Sun } from "lucide-react";
@@ -72,6 +72,7 @@ function buildSharedBoardCopy(board: SavedBoard) {
 }
 
 export function SharedBoardView({ board }: { board: SavedBoard }) {
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window === "undefined") {
       return true;
@@ -92,6 +93,55 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   useEffect(() => {
     window.localStorage.setItem(SHARED_THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => mediaQuery.removeEventListener("change", syncViewport);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const root = document.documentElement;
+    const visualViewport = window.visualViewport;
+
+    const syncAppHeight = () => {
+      const nextHeight = visualViewport?.height ?? window.innerHeight;
+      root.style.setProperty("--app-height", `${Math.round(nextHeight)}px`);
+    };
+
+    syncAppHeight();
+
+    if (!isMobileViewport) {
+      return () => {
+        root.style.setProperty("--app-height", "100dvh");
+      };
+    }
+
+    visualViewport?.addEventListener("resize", syncAppHeight);
+    visualViewport?.addEventListener("scroll", syncAppHeight);
+    window.addEventListener("resize", syncAppHeight);
+    window.addEventListener("orientationchange", syncAppHeight);
+
+    return () => {
+      visualViewport?.removeEventListener("resize", syncAppHeight);
+      visualViewport?.removeEventListener("scroll", syncAppHeight);
+      window.removeEventListener("resize", syncAppHeight);
+      window.removeEventListener("orientationchange", syncAppHeight);
+      root.style.setProperty("--app-height", "100dvh");
+    };
+  }, [isMobileViewport]);
 
   function copyBoardTemplate() {
     const sharedBoardCopy = buildSharedBoardCopy(board);
@@ -131,18 +181,41 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   const columnShellClass = isDarkMode
     ? "border-slate-800 bg-slate-950 text-white"
     : "border-slate-200 bg-[#fff7f0] text-slate-950";
+  const mobileBoardLaneInset = "clamp(0.25rem, 4vw, 1rem)";
+  const scopedColumns = useMemo(
+    () =>
+      selectedColumns.map((column) => {
+        const scopedCards = (board.cardsByColumn[column.id] ?? []).filter((card) => {
+          if (selectedSeries && card.series !== selectedSeries) {
+            return false;
+          }
+          return matchesCardSearch(card, selectedSearchTerm);
+        });
+
+        return {
+          column,
+          cards: scopedCards.filter((_, index) => matchesTierFilterByIndex(index, tierFilter)),
+        };
+      }),
+    [board.cardsByColumn, selectedColumns, selectedSearchTerm, selectedSeries, tierFilter],
+  );
 
   return (
-    <main className={clsx("min-h-screen px-4 pb-6 pt-3 sm:px-6 sm:pb-8 sm:pt-6 lg:px-8", boardBackgroundClass)}>
-      <div className="mx-auto flex max-w-[1700px] flex-col gap-3 sm:gap-6">
+    <div
+      className={clsx(
+        "h-[var(--app-height)] overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-[var(--app-height)] sm:overflow-visible",
+        boardBackgroundClass,
+      )}
+    >
+      <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-3 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
         <header className={clsx("rounded-[28px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+          <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:text-left">
+            <div className="flex min-w-0 items-center justify-center gap-3">
               <h1 className={clsx("min-w-0 truncate text-3xl font-black sm:text-4xl", isDarkMode ? "text-white" : "text-slate-950")}>
                 {sharedTitle}
               </h1>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
               <button
                 className={clsx(
                   "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
@@ -177,21 +250,36 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
           </div>
         </header>
 
-        <section className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-4">
-          {selectedColumns.map((column) => {
-            const scopedCards = (board.cardsByColumn[column.id] ?? []).filter((card) => {
-              if (selectedSeries && card.series !== selectedSeries) {
-                return false;
-              }
-              return matchesCardSearch(card, selectedSearchTerm);
-            });
-            const cards = scopedCards.filter((_, index) => matchesTierFilterByIndex(index, tierFilter));
-
+        <section
+          className={clsx(
+            "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full flex-1 items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
+            isMobileViewport
+              ? "snap-x snap-mandatory gap-4 px-0"
+              : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
+          )}
+          style={
+            isMobileViewport
+              ? {
+                  paddingInline: mobileBoardLaneInset,
+                  scrollPaddingInline: mobileBoardLaneInset,
+                  touchAction: "pan-x",
+                  overscrollBehaviorX: "contain",
+                  overscrollBehaviorY: "none",
+                  overscrollBehavior: "contain",
+                  WebkitOverflowScrolling: "touch",
+                }
+              : undefined
+          }
+        >
+          {scopedColumns.map(({ column, cards }) => {
             return (
               <div
                 key={column.id}
                 className={clsx(
-                  "flex h-[min(78vh,920px)] min-h-[720px] w-[320px] shrink-0 snap-start flex-col rounded-[28px] border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.18)]",
+                  "flex shrink-0 snap-start flex-col rounded-[28px] border p-2.5 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:p-3",
+                  isMobileViewport
+                    ? "h-[min(calc(var(--app-height)-8.85rem),892px)] min-h-[min(calc(var(--app-height)-8.85rem),832px)] w-[min(88vw,348px)] snap-center"
+                    : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] w-[320px]",
                   columnShellClass,
                 )}
               >
@@ -200,7 +288,13 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                     <h2 className="truncate text-lg font-bold">{column.title}</h2>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-1 flex-col gap-3 overflow-y-auto pr-1">
+                <div
+                  className="scrollbar-hidden mt-2 flex flex-1 flex-col gap-1.5 overflow-y-auto pr-1 sm:mt-3 sm:gap-3"
+                  style={{
+                    overscrollBehaviorY: "contain",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                >
                   {cards.map((card, index) => {
                     const rank = index + 1;
                     const tierKey = column.dontRank || (column.sortMode ?? "manual") !== "manual" ? null : getTierKey(rank);
@@ -276,7 +370,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
             );
           })}
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
