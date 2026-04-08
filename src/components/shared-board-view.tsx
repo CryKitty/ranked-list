@@ -133,14 +133,11 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
     : "border-slate-200 bg-[#fff7f0] text-slate-950";
 
   return (
-    <main className={clsx("min-h-screen px-4 py-8 sm:px-6 lg:px-8", boardBackgroundClass)}>
-      <div className="mx-auto flex max-w-[1700px] flex-col gap-6">
-        <header className={clsx("rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur", headerClass)}>
+    <main className={clsx("min-h-screen px-4 pb-6 pt-3 sm:px-6 sm:pb-8 sm:pt-6 lg:px-8", boardBackgroundClass)}>
+      <div className="mx-auto flex max-w-[1700px] flex-col gap-3 sm:gap-6">
+        <header className={clsx("rounded-[28px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-3">
-              <p className={clsx("shrink-0 text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Rankr Share:
-              </p>
               {tierFilter !== "all" ? (
                 <span className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700")}>
                   {tierFilter.replace("top", "Top ")}
