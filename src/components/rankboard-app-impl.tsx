@@ -1665,6 +1665,7 @@ export function RankboardApp() {
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
+  const lastBoardInsertTargetRef = useRef<{ columnId: string; insertIndex: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
@@ -3079,17 +3080,62 @@ export function RankboardApp() {
     const columnId = columnElement?.dataset.columnId;
 
     if (!columnId) {
+      const fallbackTarget = lastBoardInsertTargetRef.current;
+
+      if (!fallbackTarget) {
+        return null;
+      }
+
+      const fallbackScrollContainer = document.querySelector<HTMLElement>(
+        `[data-column-scroll-id="${fallbackTarget.columnId}"]`,
+      );
+
+      if (!fallbackScrollContainer) {
+        lastBoardInsertTargetRef.current = null;
+        return null;
+      }
+
+      const fallbackRect = fallbackScrollContainer.getBoundingClientRect();
+      if (
+        pointerCoordinates.x >= fallbackRect.left &&
+        pointerCoordinates.x <= fallbackRect.right &&
+        pointerCoordinates.y >= fallbackRect.top - 64 &&
+        pointerCoordinates.y <= fallbackRect.bottom + 220
+      ) {
+        const fallbackId = makeInsertDropId(
+          fallbackTarget.columnId,
+          fallbackTarget.insertIndex,
+        );
+        const fallbackContainer = droppableContainers.find(
+          (container) => String(container.id) === fallbackId,
+        );
+
+        if (fallbackContainer) {
+          return [
+            {
+              id: fallbackContainer.id,
+              data: {
+                droppableContainer: fallbackContainer,
+                value: 0,
+              },
+            },
+          ];
+        }
+      }
+
       return null;
     }
 
-    const scrollContainer = document
+    const scrollContainer =
+      ((document
       .elementsFromPoint(pointerCoordinates.x, pointerCoordinates.y)
       .map((element) => element.closest("[data-column-scroll-id]"))
       .find(
         (element) =>
           element instanceof HTMLElement &&
           element.dataset.columnScrollId === columnId,
-      ) as HTMLElement | null;
+      ) as HTMLElement | null) ??
+        document.querySelector<HTMLElement>(`[data-column-scroll-id="${columnId}"]`));
 
     if (!scrollContainer) {
       return null;
@@ -3099,8 +3145,8 @@ export function RankboardApp() {
     if (
       pointerCoordinates.x < scrollRect.left ||
       pointerCoordinates.x > scrollRect.right ||
-      pointerCoordinates.y < scrollRect.top - 48 ||
-      pointerCoordinates.y > scrollRect.bottom + 140
+      pointerCoordinates.y < scrollRect.top - 64 ||
+      pointerCoordinates.y > scrollRect.bottom + 220
     ) {
       return null;
     }
@@ -3127,6 +3173,8 @@ export function RankboardApp() {
     if (!droppableContainer) {
       return null;
     }
+
+    lastBoardInsertTargetRef.current = { columnId, insertIndex };
 
     return [
       {
@@ -3641,6 +3689,7 @@ export function RankboardApp() {
     setIsDragGapSuppressed(false);
     setDragPointerKind(null);
     dragPointerCoordsRef.current = null;
+    lastBoardInsertTargetRef.current = null;
     setActiveDragEntryId(null);
 
     if (filtering || !event.over) {
@@ -7418,13 +7467,16 @@ function copyCardToDraft(card: CardEntry) {
                   return [];
                 }
 
+                const boardPointerCoordinates =
+                  args.pointerCoordinates ?? dragPointerCoordsRef.current;
+
                 if (
                   activeBoardLayout === "board" &&
-                  args.pointerCoordinates &&
+                  boardPointerCoordinates &&
                   !isDragGapSuppressed
                 ) {
                   const boardInsertCollision = getBoardInsertCollision(
-                    args.pointerCoordinates,
+                    boardPointerCoordinates,
                     args.droppableContainers as Array<{ id: string | number }>,
                   );
 
@@ -7451,6 +7503,7 @@ function copyCardToDraft(card: CardEntry) {
               onDragStart={({ active, activatorEvent }) => {
                 setIsCardDragging(true);
                 captureDragPointer(activatorEvent);
+                lastBoardInsertTargetRef.current = null;
                 setActiveDragEntryId(String(active.id));
                 suppressDragGapsTemporarily();
               }}
@@ -7459,6 +7512,7 @@ function copyCardToDraft(card: CardEntry) {
                 setIsDragGapSuppressed(false);
                 setDragPointerKind(null);
                 dragPointerCoordsRef.current = null;
+                lastBoardInsertTargetRef.current = null;
                 setActiveDragEntryId(null);
               }}
               onDragEnd={handleDragEnd}
