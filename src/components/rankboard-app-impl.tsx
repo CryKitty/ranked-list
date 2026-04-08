@@ -2932,6 +2932,29 @@ export function RankboardApp() {
   }, [isActionsMenuOpen]);
 
   useEffect(() => {
+    if (
+      !isMobileActionsOpen ||
+      (!isCustomizationMenuOpen && !isMaintenanceMenuOpen && !isTransferMenuOpen)
+    ) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null;
+
+      if (!target?.closest("[data-mobile-actions-submenu-root='true']")) {
+        setIsCustomizationMenuOpen(false);
+        setIsMaintenanceMenuOpen(false);
+        setIsTransferMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isCustomizationMenuOpen, isMaintenanceMenuOpen, isMobileActionsOpen, isTransferMenuOpen]);
+
+  useEffect(() => {
     if (!isBoardsMenuOpen) {
       return;
     }
@@ -6901,7 +6924,7 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div className="col-span-2 grid grid-cols-2 gap-3 sm:col-span-2">
-                        <div className="space-y-2">
+                        <div className="relative space-y-2" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
@@ -6924,7 +6947,14 @@ function copyCardToDraft(card: CardEntry) {
                             </span>
                           </button>
                           {isMaintenanceMenuOpen ? (
-                            <div className={clsx("space-y-1 rounded-2xl px-2 pb-2 pt-1", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <div
+                              className={clsx(
+                                "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900/95"
+                                  : "border-slate-200 bg-white/95",
+                              )}
+                            >
                               <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
                                 <Trash2 className="h-4 w-4" />
                                 Delete Duplicates
@@ -6954,7 +6984,7 @@ function copyCardToDraft(card: CardEntry) {
                           ) : null}
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="relative space-y-2" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
@@ -6976,7 +7006,14 @@ function copyCardToDraft(card: CardEntry) {
                             </span>
                           </button>
                           {isCustomizationMenuOpen ? (
-                            <div className={clsx("space-y-1 rounded-2xl px-2 pb-2 pt-1", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                            <div
+                              className={clsx(
+                                "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900/95"
+                                  : "border-slate-200 bg-white/95",
+                              )}
+                            >
                               <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                 <span>Collapse Cards</span>
                                 <ToggleSwitch
@@ -11410,7 +11447,13 @@ function BoardColumn({
                 onClick={() => onAddCard(column.id, 0)}
               />
               {tierFilteredCards.map((card, index) => (
-                <div key={card.entryId} className="flex flex-col gap-1.5 sm:gap-3">
+                <div
+                  key={card.entryId}
+                  className={clsx(
+                    "flex flex-col",
+                    collapseCards ? "gap-1 sm:gap-2" : "gap-1.5 sm:gap-3",
+                  )}
+                >
                   <SortableCard
                     card={card}
                     collapseCards={collapseCards}
@@ -12219,7 +12262,17 @@ function CardTile({
   const collapsedRankClass =
     "bg-white text-slate-950";
   const collapsedTitleClass = "text-slate-950";
-  const collapsedSeriesClass = "text-slate-950";
+  const collapsedSeriesClass = "text-slate-700";
+  const collapsedAccentClass =
+    tierKey === "top10"
+      ? "bg-amber-600/70"
+      : tierKey === "top15"
+        ? "bg-cyan-600/70"
+        : tierKey === "top20"
+          ? "bg-fuchsia-600/70"
+          : tierKey === "top30"
+            ? "bg-emerald-600/70"
+            : "bg-teal-600/70";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -12282,7 +12335,7 @@ function CardTile({
         !collapseCards && "bg-slate-900",
         collapseCards ? "border-slate-950" : tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
-        compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
+        collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
       )}
       onClick={() => {
         if (collapseCards) {
@@ -12293,7 +12346,7 @@ function CardTile({
       }}
       style={{
         contentVisibility: "auto",
-        containIntrinsicSize: collapseCards ? "82px" : "180px",
+        containIntrinsicSize: collapseCards ? "60px" : "180px",
         touchAction: "pan-y",
       }}
     >
@@ -12302,13 +12355,13 @@ function CardTile({
             "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
             collapseCards
-              ? "min-h-[82px]"
+              ? "min-h-[58px]"
               : compactImageOnly
                 ? "aspect-[2/3]"
                 : forceSquare
                   ? "aspect-square"
                   : "aspect-[1.9/1] sm:aspect-video",
-            compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
+            collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
           )}
         style={
           collapseCards
@@ -12378,31 +12431,33 @@ function CardTile({
         ) : null}
 
         {collapseCards ? (
-          <div className="absolute inset-x-0 bottom-0 top-0 p-4">
-            <div className="relative flex min-h-full items-center justify-center">
-              {rankBadge ? (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2">
-                  <div className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-black", collapsedRankClass)}>
-                    {rankBadge.label ? `${rankBadge.label} ${rankBadge.value}` : `${rankBadge.value}`}
+          <div className="absolute inset-0 px-3 py-2.5">
+            <div className="flex h-full items-start gap-2.5 pr-11">
+              <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                {rankBadge ? (
+                  <div className="flex shrink-0 flex-col items-start gap-1 pt-0.5">
+                    <div className={clsx("rounded-full px-2 py-0.5 text-[10px] font-black leading-none", collapsedRankClass)}>
+                      {rankBadge.label ? `${rankBadge.label}${rankBadge.value}` : `#${rankBadge.value}`}
+                    </div>
+                    <div className={clsx("h-1.5 w-6 rounded-full", collapsedAccentClass)} />
                   </div>
-                </div>
-              ) : null}
-              <div className="mx-auto flex max-w-[calc(100%-4.75rem)] flex-col items-center justify-center px-1 text-center">
-                {displaySeries ? (
-              <p className={clsx("mb-1 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.18em]", collapsedSeriesClass)}>
-                {displaySeries}
-              </p>
                 ) : null}
-                <h3
-                  className={clsx(
-                    "line-clamp-2 text-sm font-bold leading-tight",
-                    collapsedTitleClass,
-                  )}
-                >
-                  {displayTitle}
-                </h3>
+                <div className="min-w-0 flex-1">
+                  <h3
+                    className={clsx(
+                      "line-clamp-2 text-[13px] font-bold leading-[1.15]",
+                      collapsedTitleClass,
+                    )}
+                  >
+                    {displayTitle}
+                  </h3>
+                  {displaySeries ? (
+                    <p className={clsx("mt-1 line-clamp-1 text-[10px] font-semibold leading-none", collapsedSeriesClass)}>
+                      {displaySeries}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              {rankBadge ? <div className="pointer-events-none invisible absolute right-0 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-black">00</div> : null}
             </div>
           </div>
         ) : compactImageOnly ? null : hasArtwork ? (
