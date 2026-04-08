@@ -1560,6 +1560,7 @@ export function RankboardApp() {
   const [editingCardDraft, setEditingCardDraft] =
     useState<CardEditorDraft | null>(null);
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [freshColumnEditId, setFreshColumnEditId] = useState<string | null>(null);
   const [editingColumnDraft, setEditingColumnDraft] =
     useState<ColumnEditorDraft | null>(null);
   const [openColumnMenuId, setOpenColumnMenuId] = useState<string | null>(null);
@@ -4522,6 +4523,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function startEditingColumn(column: ColumnDefinition) {
+    setFreshColumnEditId(null);
     setEditingColumnId(column.id);
     setEditingColumnDraft({
       title: column.title,
@@ -4530,6 +4532,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function cancelEditingColumn() {
+    setFreshColumnEditId(null);
     setEditingColumnId(null);
     setEditingColumnDraft(null);
   }
@@ -4550,6 +4553,7 @@ function copyCardToDraft(card: CardEntry) {
       ),
     );
 
+    setFreshColumnEditId(null);
     cancelEditingColumn();
     queuePersistBoardState();
   }
@@ -4678,6 +4682,7 @@ function copyCardToDraft(card: CardEntry) {
       ...current,
       [newColumn.id]: [],
     }));
+    setFreshColumnEditId(newColumn.id);
     setEditingColumnId(newColumn.id);
     setEditingColumnDraft({
       title: newColumn.title,
@@ -7582,6 +7587,7 @@ function copyCardToDraft(card: CardEntry) {
                           isDarkMode={isDarkMode}
                           isMobileViewport={isMobileViewport}
                           isEditingColumn={editingColumnId === column.id}
+                          isFreshColumnEdit={freshColumnEditId === column.id}
                           editingColumnDraft={editingColumnDraft}
                           isUnsortedRow={column.id === unsortedColumnId}
                           onColumnDraftChange={setEditingColumnDraft}
@@ -7665,6 +7671,7 @@ function copyCardToDraft(card: CardEntry) {
                           currentSeriesFilter={seriesFilter}
                           filtering={filtering}
                           isEditingColumn={editingColumnId === column.id}
+                          isFreshColumnEdit={freshColumnEditId === column.id}
                           editingColumnDraft={editingColumnDraft}
                           onColumnDraftChange={setEditingColumnDraft}
                           onEditColumn={() => startEditingColumn(column)}
@@ -10468,6 +10475,7 @@ function BoardColumn({
   currentSeriesFilter,
   filtering,
   isEditingColumn,
+  isFreshColumnEdit,
   editingColumnDraft,
   onColumnDraftChange,
   onEditColumn,
@@ -10530,6 +10538,7 @@ function BoardColumn({
   currentSeriesFilter: string;
   filtering: boolean;
   isEditingColumn: boolean;
+  isFreshColumnEdit: boolean;
   editingColumnDraft: ColumnEditorDraft | null;
   onColumnDraftChange: React.Dispatch<
     React.SetStateAction<ColumnEditorDraft | null>
@@ -10670,6 +10679,7 @@ function BoardColumn({
             {isEditingColumn && editingColumnDraft ? (
               <div className="col-span-2 w-full space-y-3">
                 <input
+                  autoFocus
                   className={clsx(
                     "w-full rounded-2xl border px-3 py-2 text-sm outline-none transition",
                     isDarkMode
@@ -10677,6 +10687,11 @@ function BoardColumn({
                       : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
                   )}
                   value={editingColumnDraft.title}
+                  onFocus={(event) => {
+                    if (isFreshColumnEdit) {
+                      event.currentTarget.select();
+                    }
+                  }}
                   onChange={(event) =>
                     onColumnDraftChange((current) =>
                       current
@@ -11475,6 +11490,7 @@ function TierListRow({
   isMobileViewport,
   frontFieldDefinitions,
   isEditingColumn,
+  isFreshColumnEdit,
   editingColumnDraft,
   isUnsortedRow,
   onColumnDraftChange,
@@ -11497,6 +11513,7 @@ function TierListRow({
   isMobileViewport: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   isEditingColumn: boolean;
+  isFreshColumnEdit: boolean;
   editingColumnDraft: ColumnEditorDraft | null;
   isUnsortedRow: boolean;
   onColumnDraftChange: React.Dispatch<React.SetStateAction<ColumnEditorDraft | null>>;
@@ -11529,6 +11546,7 @@ function TierListRow({
             {isEditingColumn && editingColumnDraft ? (
               <div className="flex w-full flex-col items-center gap-2">
                 <input
+                  autoFocus
                   className={clsx(
                     "w-full rounded-2xl border px-3 py-2 text-center text-sm outline-none transition",
                     isDarkMode
@@ -11536,6 +11554,11 @@ function TierListRow({
                       : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
                   )}
                   value={editingColumnDraft.title}
+                  onFocus={(event) => {
+                    if (isFreshColumnEdit) {
+                      event.currentTarget.select();
+                    }
+                  }}
                   onChange={(event) =>
                     onColumnDraftChange((current) =>
                       current ? { ...current, title: event.target.value } : current,

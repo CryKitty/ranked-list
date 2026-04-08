@@ -18,6 +18,9 @@ import {
 } from "@/lib/rankboard-storage";
 import type { BoardFieldDefinition, SavedBoard } from "@/lib/types";
 
+const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
+const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%)";
+
 function buildSharedBoardCopy(board: SavedBoard) {
   const shareSettings = board.settings?.publicShare;
   const selectedColumnIds =
@@ -91,6 +94,19 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   });
 
   useEffect(() => {
+    window.localStorage.setItem(SHARED_THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    const nextBackground = isDarkMode ? DARK_APP_BACKGROUND : LIGHT_APP_BACKGROUND;
+    const nextBackgroundColor = isDarkMode ? "#020617" : "#fff8ef";
+    document.documentElement.style.background = nextBackground;
+    document.documentElement.style.backgroundColor = nextBackgroundColor;
+    document.body.style.background = nextBackground;
+    document.body.style.backgroundColor = nextBackgroundColor;
+    const themeColorMeta = document.querySelector("meta[name='theme-color']");
+    themeColorMeta?.setAttribute("content", isDarkMode ? "#1f2937" : "#fff4d6");
     window.localStorage.setItem(SHARED_THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
