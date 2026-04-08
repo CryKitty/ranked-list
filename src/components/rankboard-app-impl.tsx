@@ -487,11 +487,11 @@ function sortCardsForColumn(cards: CardEntry[], column: ColumnDefinition) {
   const sortMode = getColumnSortMode(column);
 
   if (sortMode === "title-asc") {
-    return [...cards].sort((left, right) => left.title.localeCompare(right.title));
+    return [...cards].sort((left, right) => compareTitlesForDisplay(left.title, right.title));
   }
 
   if (sortMode === "title-desc") {
-    return [...cards].sort((left, right) => right.title.localeCompare(left.title));
+    return [...cards].sort((left, right) => compareTitlesForDisplay(right.title, left.title));
   }
 
   return cards;
@@ -1963,33 +1963,37 @@ export function RankboardApp() {
 
   function findDuplicateCard(
     title: string,
-    columnId: string,
+    preferredColumnId?: string,
     excludeItemId?: string,
   ) {
     const normalizedTitle = normalizeTitleForComparison(title);
 
-    if (!normalizedTitle || !columnId) {
+    if (!normalizedTitle) {
       return null;
     }
 
-    const column = columns.find((item) => item.id === columnId);
+    const searchableColumns = [
+      ...columns.filter((column) => column.id === preferredColumnId && !column.mirrorsEntireBoard),
+      ...columns.filter((column) => column.id !== preferredColumnId && !column.mirrorsEntireBoard),
+    ];
 
-    if (!column) {
-      return null;
-    }
+    for (const column of searchableColumns) {
+      const duplicate = (cardsByColumn[column.id] ?? []).find(
+        (card) =>
+          !card.mirroredFromEntryId &&
+          card.itemId !== excludeItemId &&
+          normalizeTitleForComparison(card.title) === normalizedTitle,
+      );
 
-    const duplicate = (cardsByColumn[column.id] ?? []).find(
-      (card) =>
-        card.itemId !== excludeItemId &&
-        normalizeTitleForComparison(card.title) === normalizedTitle,
-    );
-
-    return duplicate
-      ? {
+      if (duplicate) {
+        return {
           column,
           card: duplicate,
-        }
-      : null;
+        };
+      }
+    }
+
+    return null;
   }
 
   function updateColumnsAndPersist(
@@ -2598,7 +2602,7 @@ export function RankboardApp() {
   }, [isMobileBoardRenameArmed]);
 
   useEffect(() => {
-    if (!isCardDragging || dragPointerKind !== "mouse") {
+    if (!isCardDragging) {
       if (dragAutoScrollFrameRef.current) {
         window.cancelAnimationFrame(dragAutoScrollFrameRef.current);
         dragAutoScrollFrameRef.current = null;
@@ -2627,6 +2631,28 @@ export function RankboardApp() {
 
           if (windowDeltaY !== 0) {
             window.scrollBy(0, windowDeltaY);
+          }
+        }
+
+        if (activeBoardLayout === "board" && boardLaneRef.current) {
+          const laneRect = boardLaneRef.current.getBoundingClientRect();
+          const horizontalEdgeThreshold = Math.max(72, Math.min(132, laneRect.width * 0.18));
+          let deltaX = 0;
+
+          if (coords.x <= laneRect.left + horizontalEdgeThreshold) {
+            deltaX = -Math.max(
+              3,
+              ((laneRect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) * 14,
+            );
+          } else if (coords.x >= laneRect.right - horizontalEdgeThreshold) {
+            deltaX = Math.max(
+              3,
+              ((coords.x - (laneRect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) * 14,
+            );
+          }
+
+          if (deltaX !== 0) {
+            boardLaneRef.current.scrollLeft += deltaX;
           }
         }
 
@@ -2669,7 +2695,7 @@ export function RankboardApp() {
         dragAutoScrollFrameRef.current = null;
       }
     };
-  }, [activeBoardLayout, dragPointerKind, isCardDragging]);
+  }, [activeBoardLayout, isCardDragging]);
 
   useEffect(() => {
     if (
@@ -3288,14 +3314,24 @@ export function RankboardApp() {
     }
 
     const targetCards = nextState[targetColumnId] ?? [];
-    const alreadyMirrored = targetCards.some(
+    const existingMirrorIndex = targetCards.findIndex(
       (card) =>
         card.mirroredFromEntryId === sourceCard.entryId ||
         card.itemId === sourceCard.itemId,
     );
 
-    if (alreadyMirrored) {
-      return nextState;
+    if (existingMirrorIndex >= 0) {
+      const nextTargetCards = [...targetCards];
+      nextTargetCards[existingMirrorIndex] = {
+        ...sourceCard,
+        entryId: nextTargetCards[existingMirrorIndex].entryId,
+        mirroredFromEntryId: sourceCard.entryId,
+      };
+
+      return {
+        ...nextState,
+        [targetColumnId]: nextTargetCards,
+      };
     }
 
     const mirroredCard: CardEntry = {
@@ -3306,7 +3342,7 @@ export function RankboardApp() {
 
     return {
       ...nextState,
-      [targetColumnId]: [...targetCards, mirroredCard],
+      [targetColumnId]: [mirroredCard, ...targetCards],
     };
   }
 
@@ -3677,9 +3713,6 @@ export function RankboardApp() {
       }
 
       const sourceById = new Map(sourceCardsInOrder.map((card) => [card.entryId, card]));
-      const sourceByNormalizedTitle = new Map(
-        sourceCardsInOrder.map((card) => [normalizeTitleForComparison(card.title), card]),
-      );
       const excludedMirrorItemIds = new Set(mirrorColumn.excludedMirrorItemIds ?? []);
       const syncedCards: CardEntry[] = [];
       const newMirrorCards: CardEntry[] = [];
@@ -3687,11 +3720,7 @@ export function RankboardApp() {
       for (const existingMirror of existingMirrorCards) {
         const sourceId = existingMirror.mirroredFromEntryId;
         const linkedSource = sourceId ? sourceById.get(sourceId) : null;
-        const matchedSource =
-          linkedSource ??
-          (sourceId
-            ? sourceByNormalizedTitle.get(normalizeTitleForComparison(existingMirror.title))
-            : null);
+        const matchedSource = linkedSource;
 
         if (matchedSource) {
           if (excludedMirrorItemIds.has(matchedSource.itemId)) {
@@ -3702,7 +3731,6 @@ export function RankboardApp() {
               });
             }
             sourceById.delete(matchedSource.entryId);
-            sourceByNormalizedTitle.delete(normalizeTitleForComparison(matchedSource.title));
             continue;
           }
 
@@ -3712,7 +3740,6 @@ export function RankboardApp() {
             mirroredFromEntryId: matchedSource.entryId,
           });
           sourceById.delete(matchedSource.entryId);
-          sourceByNormalizedTitle.delete(normalizeTitleForComparison(matchedSource.title));
           continue;
         }
 
@@ -4801,7 +4828,7 @@ function copyCardToDraft(card: CardEntry) {
         title: draftDuplicateAction.title,
         imageUrl: draftDuplicateAction.imageUrl || card.imageUrl,
         series: draftDuplicateAction.series || card.series,
-        releaseYear: draft.releaseYear.trim() || card.releaseYear,
+        releaseYear: draftDuplicateAction.releaseYear || card.releaseYear,
         notes: draftDuplicateAction.notes || card.notes,
         customFieldValues: {
           ...(card.customFieldValues ?? {}),
@@ -7683,7 +7710,7 @@ function copyCardToDraft(card: CardEntry) {
                       ? {
                           paddingInline: mobileBoardLaneInset,
                           scrollPaddingInline: mobileBoardLaneInset,
-                          touchAction: "pan-x",
+                          touchAction: isCardDragging ? "none" : "pan-x",
                           overscrollBehaviorX: "contain",
                           overscrollBehaviorY: "none",
                           overscrollBehavior: "contain",
@@ -8123,10 +8150,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Artwork
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Choose artwork
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8179,19 +8203,16 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4 px-6 pt-6">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Customization
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Fields
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8211,7 +8232,7 @@ function copyCardToDraft(card: CardEntry) {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mt-6">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-6">
                 <FieldDefinitionManager
                   isDarkMode={isDarkMode}
                   fieldDefinitions={activeBoardFieldDefinitions}
@@ -8277,10 +8298,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Import
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Upload a JSON file
                   </h2>
                 </div>
@@ -8358,10 +8376,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Linked Card
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Sever clone link?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8434,10 +8449,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Mirror
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Link duplicates
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8643,10 +8655,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Delete Card
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Delete this card?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8739,10 +8748,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Pairwise Quiz
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Continue where you left off?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8964,10 +8970,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Pairwise Quiz
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Review results
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9099,10 +9102,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Save Board
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Log in to save
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9264,10 +9264,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Customization
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Board icon
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9374,10 +9371,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Cleanup
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Clean up duplicates
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9513,10 +9507,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Cleanup
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Tidy titles
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9657,10 +9648,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Maintenance
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Series Scraper
                   </h2>
                 </div>
@@ -9862,10 +9850,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Maintenance
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Delete board?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9932,10 +9917,7 @@ function copyCardToDraft(card: CardEntry) {
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                {activeBoardLayout === "tier-list" ? "Tier Row" : "Column Settings"}
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                 {activeBoardLayout === "tier-list" ? "Delete row?" : "Delete column?"}
               </h2>
               <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9986,10 +9968,7 @@ function copyCardToDraft(card: CardEntry) {
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Column Maintenance
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                 Move all cards
               </h2>
               <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -10066,10 +10045,7 @@ function copyCardToDraft(card: CardEntry) {
               onClick={(event) => event.stopPropagation()}
             >
               <div className="border-b px-6 pt-6 pb-4">
-                <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                  Board Maintenance
-                </p>
-                <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                   {tierListConversionState.mode === "to-tier-list" ? "Convert to Tier List" : "Convert to Kanban Board"}
                 </h2>
                 <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -10198,10 +10174,7 @@ function copyCardToDraft(card: CardEntry) {
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Card Actions
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                 Move {moveCardState.title}
               </h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -11383,6 +11356,7 @@ function BoardColumn({
           columnTouchYRef.current = null;
         }}
         style={{
+          touchAction: isCardDragging ? "none" : columnCanScroll ? "pan-y" : "auto",
           overscrollBehaviorY: "contain",
           WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
         }}

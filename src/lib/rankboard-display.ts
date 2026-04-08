@@ -14,7 +14,13 @@ export function getSeriesFilterDisplayLabel(value: string) {
 }
 
 export function compareTitlesForDisplay(left: string, right: string) {
-  return stripSortablePrefix(left).localeCompare(stripSortablePrefix(right));
+  const strippedComparison = stripSortablePrefix(left).localeCompare(stripSortablePrefix(right));
+
+  if (strippedComparison !== 0) {
+    return strippedComparison;
+  }
+
+  return left.localeCompare(right);
 }
 
 export function escapeRegExp(value: string) {

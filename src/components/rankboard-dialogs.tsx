@@ -388,17 +388,14 @@ export function EditCardDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "relative w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          "relative flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
-            <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-              Edit Game
-            </p>
-            <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+            <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
               Update card details
             </h2>
             {currentCardIsMirrored ? (
@@ -434,7 +431,7 @@ export function EditCardDialog({
           </button>
         </div>
 
-        <form className="mt-6" onSubmit={onSubmit}>
+        <form className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-6" onSubmit={onSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2">
               <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
@@ -731,12 +728,12 @@ export function AddCardDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
             <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>{`Add ${boardSingular}`}</h2>
           </div>
@@ -752,7 +749,8 @@ export function AddCardDialog({
           </button>
         </div>
 
-        <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+        <form className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-6" onSubmit={onSubmit}>
+          <div className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2">
               <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
@@ -1038,6 +1036,7 @@ export function AddCardDialog({
               ) : null}
             </div>
           </div>
+          </div>
         </form>
       </div>
     </div>
@@ -1108,10 +1107,7 @@ export function ShareBoardDialog({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-              Share
-            </p>
-            <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+            <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
               Share {boardTitle}
             </h2>
             <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -1476,10 +1472,7 @@ export function BoardSetupDialog({
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
-            <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-              Board Setup
-            </p>
-            <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+            <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
               What are you ranking?
             </h2>
             <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>

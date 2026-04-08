@@ -79,6 +79,7 @@
   - `confirmMirrorClones`
 - Ranked presentation is no longer derived only from `column.type`; a ranked column must also be in manual sort mode and not marked `dontRank`.
 - A-Z / Z-A are persistent modes rather than one-shot actions, and sorted columns auto-place cards by title.
+- A-Z / Z-A title sorting should ignore leading sortable articles like `The` and `A`, while still using the full title as a tie-breaker.
 - Column filter UI can drive both tier filters and the shared board-level series filter from inside the column menu.
 
 ## Board Layouts
@@ -138,6 +139,7 @@
 ## Mirror Linking
 
 - Mirror columns should only maintain explicit links, not infer new ones from title matches during normal sync.
+- Mirror resync should trust `mirroredFromEntryId` links only; moving a source card between columns should refresh the existing clone in place instead of re-matching by title and recreating it.
 - The manual `Link Duplicates` action remains the opt-in path for same-title relinking.
 - Mirrored cards can be unlinked in the edit dialog, which gives the clone its own `itemId` and excludes the original source item from automatic mirror recreation in that column.
 - The `Clone of:` chip in the edit dialog is now a sever-link entrypoint rather than a sibling-navigation shortcut.
@@ -217,6 +219,7 @@
 - Re-publishing a share now issues a fresh slug instead of silently reusing the old one, which makes `Refresh Link` visibly produce a new link and restart the expiry window.
 - The share page must keep cards `shrink-0` inside the shared column scrollers so large boards do not collapse into unreadable strips.
 - The share modal itself should behave like a constrained sheet: scrollable body inside the viewport, persistent action row, and tighter desktop filter widths so the controls stay inside the dialog.
+- Other tall form-heavy dialogs should follow that same constrained-sheet pattern on mobile so header/body content can scroll without pushing the action controls off-screen.
 - The shared board renderer should mirror the main-board display rules closely:
   - same tier badge/border coloring
   - same series/title reduction logic

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-08
+
+- Made the board `Customization > Fields` modal scroll within the viewport like the Share sheet, so phone-sized screens can still reach the close/action area.
+- Removed the small all-caps eyebrow label from the app's modal headers to reclaim vertical space and reduce redundant titles across the dialog set.
+- Broadened add/edit duplicate detection from single-column checks to board-wide checks across non-mirror columns, so existing cards in other columns now trigger the duplicate choice prompt.
+- Updated A-Z / Z-A column sorting to ignore leading `The` / `A` prefixes while keeping full-title tie-breaking stable.
+- Tightened board-mirror resync so it only trusts explicit source links during automatic sync, which should stop moved cards from being re-matched by title and recreated at the wrong end of the mirror column.
+- Legacy append-style mirror insertions now refresh existing clones in place and prepend genuinely new clones, so fresh mirror arrivals stay near the top.
+- Added custom horizontal auto-scroll support for touch dragging in the kanban lane and disabled native touch panning while a drag is active, which should make mobile cross-column moves much less jittery.
+
 ## 2026-04-07
 
 - Added a signed-out welcome modal that introduces Sorta in three steps, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board before editing.
