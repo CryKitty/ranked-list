@@ -520,44 +520,6 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-function buildFallbackImage(title: string) {
-  const safeTitle = title.trim() || "Untitled Game";
-  const palette = [
-    ["#fdba74", "#fb7185"],
-    ["#67e8f9", "#34d399"],
-    ["#a78bfa", "#60a5fa"],
-    ["#f9a8d4", "#f97316"],
-  ];
-  const seed = safeTitle
-    .split("")
-    .reduce((total, char) => total + char.charCodeAt(0), 0);
-  const [start, end] = palette[seed % palette.length];
-  const initials = safeTitle
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${start}" />
-          <stop offset="100%" stop-color="${end}" />
-        </linearGradient>
-      </defs>
-      <rect width="1600" height="900" fill="url(#bg)" />
-      <circle cx="1260" cy="160" r="240" fill="rgba(255,255,255,0.15)" />
-      <circle cx="260" cy="760" r="290" fill="rgba(255,255,255,0.12)" />
-      <text x="110" y="610" fill="white" font-family="Arial, sans-serif" font-size="220" font-weight="700">${initials || "RG"}</text>
-      <text x="110" y="735" fill="rgba(255,255,255,0.92)" font-family="Arial, sans-serif" font-size="64" font-weight="600">${safeTitle.replace(/&/g, "&amp;")}</text>
-    </svg>
-  `;
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 function getSeriesScrapeScopedColumns(
   columns: ColumnDefinition[],
   scopeColumnId?: string,
@@ -569,39 +531,60 @@ function getSeriesScrapeScopedColumns(
   return columns.filter((column) => !column.mirrorsEntireBoard);
 }
 
-function MaintenanceCardPreview({
-  title,
-  imageUrl,
-  subtitle,
-  isDarkMode,
-}: {
-  title: string;
-  imageUrl?: string;
-  subtitle?: string;
-  isDarkMode: boolean;
-}) {
-  const resolvedImageUrl = imageUrl ? getArtworkDisplayUrl(imageUrl) : "";
+function buildMaintenancePreviewCard(
+  card: Partial<CardEntry> & Pick<CardEntry, "entryId" | "itemId" | "title">,
+  overrides?: Partial<CardEntry>,
+): CardEntry {
+  return {
+    entryId: card.entryId,
+    itemId: card.itemId,
+    title: card.title,
+    imageUrl: card.imageUrl ?? "",
+    imageStoragePath: card.imageStoragePath,
+    series: card.series ?? "",
+    releaseYear: card.releaseYear ?? "",
+    notes: card.notes ?? "",
+    customFieldValues: card.customFieldValues ?? {},
+    mirroredFromEntryId: card.mirroredFromEntryId,
+    ...overrides,
+  };
+}
 
+function MaintenancePreviewCard({
+  card,
+  isDarkMode,
+  collapseCards,
+  showSeries,
+  showArtwork,
+  showTierHighlights,
+  frontFieldDefinitions,
+  rankBadge = null,
+  className,
+}: {
+  card: CardEntry;
+  isDarkMode: boolean;
+  collapseCards: boolean;
+  showSeries: boolean;
+  showArtwork: boolean;
+  showTierHighlights: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
+  rankBadge?: RankBadge | null;
+  className?: string;
+}) {
   return (
-    <div
-      className={clsx(
-        "relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[240px]",
-        isDarkMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-slate-100",
-      )}
-      style={{
-        backgroundImage: `linear-gradient(to top, rgba(2,6,23,0.92), rgba(2,6,23,0.15)), url(${resolvedImageUrl || buildFallbackImage(title)})`,
-        backgroundPosition: "center",
-        backgroundSize: "cover",
-      }}
-    >
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        {subtitle ? (
-          <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
-            {subtitle}
-          </p>
-        ) : null}
-        <p className="mt-1 line-clamp-2 text-lg font-black leading-tight text-white">{title}</p>
-      </div>
+    <div className={clsx("w-full shrink-0 sm:w-[240px]", className)}>
+      <CardTile
+        card={card}
+        collapseCards={collapseCards}
+        isDarkMode={isDarkMode}
+        showSeries={showSeries}
+        showArtwork={showArtwork}
+        showTierHighlights={showTierHighlights}
+        frontFieldDefinitions={frontFieldDefinitions}
+        rankBadge={rankBadge}
+        compactImageOnly={false}
+        showDragCursor={false}
+      />
     </div>
   );
 }
@@ -9121,16 +9104,22 @@ function copyCardToDraft(card: CardEntry) {
                   <div
                     key={card.entryId}
                     className={clsx(
-                      "flex items-center gap-3 rounded-3xl border p-4",
+                      "flex flex-col gap-3 rounded-3xl border p-4 sm:flex-row sm:items-center",
                       isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
                     )}
                   >
-                    <div className={clsx("w-10 text-center text-lg font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    <div className={clsx("w-10 shrink-0 text-center text-lg font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                       #{index + 1}
                     </div>
-                    <div
-                      className="h-16 w-28 shrink-0 rounded-2xl bg-cover bg-center"
-                      style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
+                    <MaintenancePreviewCard
+                      card={card}
+                      collapseCards={activeBoardSettings.collapseCards}
+                      frontFieldDefinitions={activeBoardFieldDefinitions}
+                      isDarkMode={isDarkMode}
+                      showArtwork={shouldShowArtworkOnCards}
+                      showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                      showTierHighlights={activeBoardSettings.showTierHighlights}
+                      className="sm:w-[220px]"
                     />
                     <div className="min-w-0 flex-1">
                       <h3 className={clsx("truncate text-lg font-bold", isDarkMode ? "text-white" : "text-slate-950")}>
@@ -9142,7 +9131,7 @@ function copyCardToDraft(card: CardEntry) {
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-2 sm:flex-col">
                       <button
                         className={clsx(
                           "rounded-full px-3 py-1.5 text-xs font-semibold transition",
@@ -9558,20 +9547,48 @@ function copyCardToDraft(card: CardEntry) {
                           Keep both
                         </button>
                       </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-emerald-400/20 bg-emerald-400/10" : "border-emerald-200 bg-emerald-50")}>
-                          <p className="font-semibold">Keep</p>
-                          <p className="mt-2">{suggestion.keepCard.title}</p>
-                          <p className="mt-2 opacity-70">{`Series: ${suggestion.keepCard.series || "None"}`}</p>
-                          <p className="opacity-70">{`Image: ${suggestion.keepCard.imageUrl ? "Yes" : "No"}`}</p>
-                          <p className="opacity-70">{`Notes: ${suggestion.keepCard.notes ? "Yes" : "No"}`}</p>
+                      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                        <div className={clsx("rounded-2xl border p-3", isDarkMode ? "border-emerald-400/20 bg-emerald-400/10" : "border-emerald-200 bg-emerald-50")}>
+                          <p className="mb-3 text-sm font-semibold">Keep</p>
+                          <div className="space-y-3">
+                            <MaintenancePreviewCard
+                              card={suggestion.keepCard}
+                              collapseCards={activeBoardSettings.collapseCards}
+                              frontFieldDefinitions={activeBoardFieldDefinitions}
+                              isDarkMode={isDarkMode}
+                              showArtwork={shouldShowArtworkOnCards}
+                              showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                              showTierHighlights={activeBoardSettings.showTierHighlights}
+                              className="sm:w-full"
+                            />
+                            <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-white/10 bg-slate-950/40 text-slate-200" : "border-white/80 bg-white/80 text-slate-700")}>
+                              <p>{suggestion.keepCard.title}</p>
+                              <p className="mt-2 opacity-70">{`Series: ${suggestion.keepCard.series || "None"}`}</p>
+                              <p className="opacity-70">{`Image: ${suggestion.keepCard.imageUrl ? "Yes" : "No"}`}</p>
+                              <p className="opacity-70">{`Notes: ${suggestion.keepCard.notes ? "Yes" : "No"}`}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-rose-400/20 bg-rose-400/10" : "border-rose-200 bg-rose-50")}>
-                          <p className="font-semibold">Remove</p>
-                          <p className="mt-2">{suggestion.removeCard.title}</p>
-                          <p className="mt-2 opacity-70">{`Series: ${suggestion.removeCard.series || "None"}`}</p>
-                          <p className="opacity-70">{`Image: ${suggestion.removeCard.imageUrl ? "Yes" : "No"}`}</p>
-                          <p className="opacity-70">{`Notes: ${suggestion.removeCard.notes ? "Yes" : "No"}`}</p>
+                        <div className={clsx("rounded-2xl border p-3", isDarkMode ? "border-rose-400/20 bg-rose-400/10" : "border-rose-200 bg-rose-50")}>
+                          <p className="mb-3 text-sm font-semibold">Remove</p>
+                          <div className="space-y-3">
+                            <MaintenancePreviewCard
+                              card={suggestion.removeCard}
+                              collapseCards={activeBoardSettings.collapseCards}
+                              frontFieldDefinitions={activeBoardFieldDefinitions}
+                              isDarkMode={isDarkMode}
+                              showArtwork={shouldShowArtworkOnCards}
+                              showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                              showTierHighlights={activeBoardSettings.showTierHighlights}
+                              className="sm:w-full"
+                            />
+                            <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-white/10 bg-slate-950/40 text-slate-200" : "border-white/80 bg-white/80 text-slate-700")}>
+                              <p>{suggestion.removeCard.title}</p>
+                              <p className="mt-2 opacity-70">{`Series: ${suggestion.removeCard.series || "None"}`}</p>
+                              <p className="opacity-70">{`Image: ${suggestion.removeCard.imageUrl ? "Yes" : "No"}`}</p>
+                              <p className="opacity-70">{`Notes: ${suggestion.removeCard.notes ? "Yes" : "No"}`}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -9667,55 +9684,85 @@ function copyCardToDraft(card: CardEntry) {
                     No title cleanup suggestions were found for the current board.
                   </div>
                 ) : (
-                  titleTidySuggestions.map((suggestion) => (
-                    <div
-                      key={suggestion.id}
-                      className={clsx(
-                        "rounded-3xl border p-4",
-                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
-                      )}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
-                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                            {suggestion.originalTitle}
-                          </p>
+                  titleTidySuggestions.map((suggestion) => {
+                    const sourceCard =
+                      Object.values(cardsByColumn)
+                        .flat()
+                        .find((card) => card.entryId === suggestion.entryId) ?? null;
+                    const previewCard = buildMaintenancePreviewCard(
+                      sourceCard ?? {
+                        entryId: suggestion.entryId,
+                        itemId: suggestion.itemId,
+                        title: suggestion.originalTitle,
+                      },
+                      {
+                        title: suggestion.proposedTitle,
+                      },
+                    );
+
+                    return (
+                      <div
+                        key={suggestion.id}
+                        className={clsx(
+                          "rounded-3xl border p-4",
+                          isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                        )}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
+                            <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                              {suggestion.originalTitle}
+                            </p>
+                          </div>
+                          <button
+                            className={clsx(
+                              "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                              isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                            )}
+                            onClick={() => removeTitleTidySuggestion(suggestion.id)}
+                            type="button"
+                          >
+                            Skip
+                          </button>
                         </div>
-                        <button
-                          className={clsx(
-                            "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                            isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
-                          )}
-                          onClick={() => removeTitleTidySuggestion(suggestion.id)}
-                          type="button"
-                        >
-                          Skip
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                        <div
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm",
-                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
-                          )}
-                        >
-                          {suggestion.originalTitle}
+                        <div className="mt-4 flex flex-col gap-4 sm:flex-row">
+                          <MaintenancePreviewCard
+                            card={previewCard}
+                            collapseCards={activeBoardSettings.collapseCards}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
+                            isDarkMode={isDarkMode}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                              <div
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm",
+                                  isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
+                                )}
+                              >
+                                {suggestion.originalTitle}
+                              </div>
+                              <div className="text-center text-sm font-semibold opacity-60">to</div>
+                              <input
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                                  isDarkMode
+                                    ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                )}
+                                value={suggestion.proposedTitle}
+                                onChange={(event) => updateTitleTidySuggestion(suggestion.id, event.target.value)}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-center text-sm font-semibold opacity-60">to</div>
-                        <input
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                          )}
-                          value={suggestion.proposedTitle}
-                          onChange={(event) => updateTitleTidySuggestion(suggestion.id, event.target.value)}
-                        />
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -9831,49 +9878,71 @@ function copyCardToDraft(card: CardEntry) {
                     </button>
                   </div>
                 ) : (
-                  seriesScrapeSuggestions.map((suggestion) => (
-                    <div
-                      key={suggestion.id}
-                      className={clsx(
-                        "rounded-3xl border p-4",
-                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
-                      )}
-                    >
-                      <div className="flex flex-col gap-4 sm:flex-row">
-                        <MaintenanceCardPreview
-                          imageUrl={suggestion.imageUrl}
-                          isDarkMode={isDarkMode}
-                          title={suggestion.title}
-                        />
-                        <div className="min-w-0 flex-1 space-y-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold">{suggestion.columnTitle}</p>
-                            </div>
-                            <button
-                              className={clsx(
-                                "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                                isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
-                              )}
-                              onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
-                              type="button"
-                            >
-                              Skip
-                            </button>
-                          </div>
-                          <SeriesInput
-                            allSeries={allSeries}
+                  seriesScrapeSuggestions.map((suggestion) => {
+                    const sourceCard =
+                      Object.values(cardsByColumn)
+                        .flat()
+                        .find((card) => card.entryId === suggestion.entryId) ?? null;
+                    const previewCard = buildMaintenancePreviewCard(
+                      sourceCard ?? {
+                        entryId: suggestion.entryId,
+                        itemId: suggestion.itemId,
+                        title: suggestion.title,
+                        imageUrl: suggestion.imageUrl,
+                      },
+                      {
+                        series: suggestion.proposedSeries,
+                      },
+                    );
+
+                    return (
+                      <div
+                        key={suggestion.id}
+                        className={clsx(
+                          "rounded-3xl border p-4",
+                          isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                        )}
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row">
+                          <MaintenancePreviewCard
+                            card={previewCard}
+                            collapseCards={activeBoardSettings.collapseCards}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
                             isDarkMode={isDarkMode}
-                            label="Series"
-                            name={`series-scrape-${suggestion.id}`}
-                            onChange={(value) => updateSeriesScrapeSuggestion(suggestion.id, value)}
-                            placeholder={boardVocabulary.seriesExamples}
-                            value={suggestion.proposedSeries}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
                           />
+                          <div className="min-w-0 flex-1 space-y-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">{suggestion.columnTitle}</p>
+                              </div>
+                              <button
+                                className={clsx(
+                                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                                )}
+                                onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
+                                type="button"
+                              >
+                                Skip
+                              </button>
+                            </div>
+                            <SeriesInput
+                              allSeries={allSeries}
+                              isDarkMode={isDarkMode}
+                              label="Series"
+                              name={`series-scrape-${suggestion.id}`}
+                              onChange={(value) => updateSeriesScrapeSuggestion(suggestion.id, value)}
+                              placeholder={boardVocabulary.seriesExamples}
+                              value={suggestion.proposedSeries}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -10847,6 +10916,17 @@ function BoardColumn({
                         : current,
                     )
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onSaveColumnEdit();
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelColumnEdit();
+                    }
+                  }}
                 />
                 <div className="flex gap-2">
                   <button
@@ -11723,6 +11803,17 @@ function TierListRow({
                       current ? { ...current, title: event.target.value } : current,
                     )
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onSaveColumnEdit();
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelColumnEdit();
+                    }
+                  }}
                 />
                 <div className="flex gap-2">
                   <button
