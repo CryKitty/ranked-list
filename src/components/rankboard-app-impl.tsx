@@ -7575,7 +7575,7 @@ function copyCardToDraft(card: CardEntry) {
                 <div
                   ref={boardLaneRef}
                   className={clsx(
-                    "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-visible pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
+                    "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
                     isMobileViewport
                       ? "snap-x snap-mandatory gap-4 px-0"
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
@@ -7588,6 +7588,7 @@ function copyCardToDraft(card: CardEntry) {
                           touchAction: "pan-x",
                           overscrollBehaviorX: "contain",
                           overscrollBehaviorY: "none",
+                          overscrollBehavior: "contain",
                           WebkitOverflowScrolling: "touch",
                         }
                       : undefined
@@ -10537,6 +10538,7 @@ function BoardColumn({
   });
   const [showMirrorEnableConfirm, setShowMirrorEnableConfirm] = useState(false);
   const columnScrollRef = useRef<HTMLDivElement | null>(null);
+  const columnTouchYRef = useRef<number | null>(null);
   const [columnCanScroll, setColumnCanScroll] = useState(true);
   const isTierFiltering = activeTierFilter !== "all";
   const columnSeries = Array.from(new Set(fullCards.map((card) => card.series.trim()).filter(Boolean))).sort(compareTitlesForDisplay);
@@ -10592,6 +10594,9 @@ function BoardColumn({
             ? "border-slate-950"
             : "border-slate-200",
       )}
+      style={{
+        overscrollBehaviorY: "contain",
+      }}
     >
       <div
         className="sticky top-0 z-30 w-full"
@@ -11234,9 +11239,38 @@ function BoardColumn({
           }
         }}
         onTouchMove={(event) => {
-          if (isMobileViewport && !columnCanScroll && !isCardDragging) {
+          const node = columnScrollRef.current;
+          const touch = event.touches[0] ?? event.changedTouches[0];
+
+          if (!isMobileViewport || isCardDragging || !node || !touch || !event.cancelable) {
+            return;
+          }
+
+          const previousY = columnTouchYRef.current ?? touch.clientY;
+          const deltaY = touch.clientY - previousY;
+          columnTouchYRef.current = touch.clientY;
+
+          const atTop = node.scrollTop <= 1;
+          const atBottom =
+            node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+
+          if (
+            !columnCanScroll ||
+            (atTop && deltaY > 0) ||
+            (atBottom && deltaY < 0)
+          ) {
             event.preventDefault();
           }
+        }}
+        onTouchStart={(event) => {
+          const touch = event.touches[0] ?? event.changedTouches[0];
+          columnTouchYRef.current = touch?.clientY ?? null;
+        }}
+        onTouchEnd={() => {
+          columnTouchYRef.current = null;
+        }}
+        onTouchCancel={() => {
+          columnTouchYRef.current = null;
         }}
         style={{
           overscrollBehaviorY: "contain",
