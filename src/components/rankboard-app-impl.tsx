@@ -1574,6 +1574,7 @@ export function RankboardApp() {
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [mobileFocusedColumnId, setMobileFocusedColumnId] = useState<string | null>(null);
   const [isCardDragging, setIsCardDragging] = useState(false);
+  const [isDesktopAddCardCooldownActive, setIsDesktopAddCardCooldownActive] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
   const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
   const [isDragGapSuppressed, setIsDragGapSuppressed] = useState(false);
@@ -1664,6 +1665,7 @@ export function RankboardApp() {
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
+  const desktopAddCardCooldownTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const lastBoardInsertTargetRef = useRef<{ columnId: string; insertIndex: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
@@ -2561,6 +2563,14 @@ export function RankboardApp() {
   }, [isCardDragging]);
 
   useEffect(() => {
+    return () => {
+      if (desktopAddCardCooldownTimeoutRef.current) {
+        window.clearTimeout(desktopAddCardCooldownTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isMobileBoardRenameArmed) {
       return;
     }
@@ -3062,6 +3072,35 @@ export function RankboardApp() {
       setIsDragGapSuppressed(false);
       dragGapSuppressTimeoutRef.current = null;
     }, 2000);
+  }
+
+  function beginDesktopAddCardCooldown() {
+    if (isMobileViewport) {
+      return;
+    }
+
+    if (desktopAddCardCooldownTimeoutRef.current) {
+      window.clearTimeout(desktopAddCardCooldownTimeoutRef.current);
+      desktopAddCardCooldownTimeoutRef.current = null;
+    }
+
+    setIsDesktopAddCardCooldownActive(true);
+  }
+
+  function endDesktopAddCardCooldownWithDelay() {
+    if (isMobileViewport) {
+      setIsDesktopAddCardCooldownActive(false);
+      return;
+    }
+
+    if (desktopAddCardCooldownTimeoutRef.current) {
+      window.clearTimeout(desktopAddCardCooldownTimeoutRef.current);
+    }
+
+    desktopAddCardCooldownTimeoutRef.current = window.setTimeout(() => {
+      setIsDesktopAddCardCooldownActive(false);
+      desktopAddCardCooldownTimeoutRef.current = null;
+    }, 1000);
   }
 
   function getBoardInsertCollision(
@@ -3687,6 +3726,7 @@ export function RankboardApp() {
   function handleDragEnd(event: DragEndEvent) {
     setIsCardDragging(false);
     setIsDragGapSuppressed(false);
+    endDesktopAddCardCooldownWithDelay();
     setDragPointerKind(null);
     dragPointerCoordsRef.current = null;
     lastBoardInsertTargetRef.current = null;
@@ -7502,6 +7542,7 @@ function copyCardToDraft(card: CardEntry) {
               }}
               onDragStart={({ active, activatorEvent }) => {
                 setIsCardDragging(true);
+                beginDesktopAddCardCooldown();
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
                 setActiveDragEntryId(String(active.id));
@@ -7512,6 +7553,7 @@ function copyCardToDraft(card: CardEntry) {
               onDragCancel={() => {
                 setIsCardDragging(false);
                 setIsDragGapSuppressed(false);
+                endDesktopAddCardCooldownWithDelay();
                 setDragPointerKind(null);
                 dragPointerCoordsRef.current = null;
                 lastBoardInsertTargetRef.current = null;
@@ -7615,6 +7657,7 @@ function copyCardToDraft(card: CardEntry) {
                           isMobileViewport={isMobileViewport}
                           frontFieldDefinitions={activeBoardFieldDefinitions}
                           disableAddAffordances={Boolean(column.mirrorsEntireBoard) || hasBlockingMenuOpen}
+                          suppressAddCardAffordances={isDesktopAddCardCooldownActive}
                           isCardDragging={isCardDragging}
                           isDragGapSuppressed={false}
                           cards={visibleCards}
@@ -10417,6 +10460,7 @@ function BoardColumn({
   isMobileViewport,
   frontFieldDefinitions,
   disableAddAffordances,
+  suppressAddCardAffordances,
   isCardDragging,
   isDragGapSuppressed,
   cards,
@@ -10478,6 +10522,7 @@ function BoardColumn({
   isMobileViewport: boolean;
   frontFieldDefinitions: BoardFieldDefinition[];
   disableAddAffordances: boolean;
+  suppressAddCardAffordances: boolean;
   isCardDragging: boolean;
   isDragGapSuppressed: boolean;
   cards: CardEntry[];
@@ -11321,17 +11366,18 @@ function BoardColumn({
                 insertIndex={0}
                 alwaysVisible={tierFilteredCards.length === 0}
                 hideAction={
-                  !isCardDragging &&
+                  suppressAddCardAffordances ||
+                  (!isCardDragging &&
                   (tierFilteredCards.length === 0 ||
                     isMenuOpen ||
                     isSortMenuOpen ||
                     isFilterMenuOpen ||
                     isMirrorMenuOpen ||
-                    isMaintenanceMenuOpen)
+                    isMaintenanceMenuOpen))
                 }
                 isMobileViewport={isMobileViewport}
                 mobileArmed={revealedMobileAddCardTarget?.columnId === column.id && revealedMobileAddCardTarget.insertIndex === 0}
-                interactive={!disableAddAffordances}
+                interactive={!disableAddAffordances && !suppressAddCardAffordances}
                 onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: 0 })}
                 onClick={() => onAddCard(column.id, 0)}
               />
@@ -11363,19 +11409,20 @@ function BoardColumn({
                     insertIndex={index + 1}
                     alwaysVisible={index === tierFilteredCards.length - 1}
                     hideAction={
-                      !isCardDragging &&
+                      suppressAddCardAffordances ||
+                      (!isCardDragging &&
                       (isMenuOpen ||
                         isSortMenuOpen ||
                         isFilterMenuOpen ||
                         isMirrorMenuOpen ||
-                        isMaintenanceMenuOpen)
+                        isMaintenanceMenuOpen))
                     }
                     isMobileViewport={isMobileViewport}
                     mobileArmed={
                       revealedMobileAddCardTarget?.columnId === column.id &&
                       revealedMobileAddCardTarget.insertIndex === index + 1
                     }
-                    interactive={!disableAddAffordances}
+                    interactive={!disableAddAffordances && !suppressAddCardAffordances}
                     onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: index + 1 })}
                     onClick={() => onAddCard(column.id, index + 1)}
                   />
