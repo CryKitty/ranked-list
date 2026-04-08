@@ -292,8 +292,8 @@ function deriveDefaultCardLabel(boardTitle: string) {
   const cleanedTitle = boardTitle.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
   const vocabularyFallback = getBoardVocabulary(boardTitle).singular;
 
-  if (!cleanedTitle || /^new board$/i.test(cleanedTitle)) {
-    return vocabularyFallback;
+  if (!cleanedTitle || /^new board$/i.test(cleanedTitle) || /^sorta$/i.test(cleanedTitle)) {
+    return "Card";
   }
 
   const words = cleanedTitle.split(" ");
@@ -1499,7 +1499,7 @@ function SaveStatusButton({
           "group/save inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
           isDarkMode
             ? "bg-white/10 text-slate-200 hover:bg-white/15"
-            : "bg-white text-slate-700 hover:bg-slate-100",
+            : "border border-slate-200 bg-white text-slate-700 hover:border-slate-950 hover:bg-slate-100",
         )}
         onClick={() => {
           if (requiresLogin) {
@@ -7205,7 +7205,7 @@ function copyCardToDraft(card: CardEntry) {
                           "inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
                           isDarkMode
                             ? "bg-white/10 text-white hover:bg-white/15"
-                            : "bg-white text-slate-950 hover:bg-slate-100",
+                            : "border border-slate-200 bg-white text-slate-950 hover:border-slate-950 hover:bg-slate-100",
                         )}
                         onClick={() => {
                           setIsBoardsMenuOpen((current) => !current);
@@ -7248,7 +7248,9 @@ function copyCardToDraft(card: CardEntry) {
                                     board.settings?.boardIconUrl,
                                     "h-4 w-4 shrink-0",
                                   )}
-                                  <span className="truncate">{board.title}</span>
+                                  <span className="truncate">
+                                    {board.id === activeBoardId ? displayActiveBoardTitle : board.title}
+                                  </span>
                                 </span>
                                 {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
                               </button>
@@ -11033,20 +11035,6 @@ function BoardColumn({
                             ? "text-white hover:bg-white/10"
                             : "text-slate-700 hover:bg-slate-100",
                         )}
-                        disabled={column.mirrorsEntireBoard}
-                        onClick={() => onAddCard(column.id, 0)}
-                        type="button"
-                      >
-                        <Plus className="h-4 w-4" />
-                        {`Add ${addLabel}`}
-                      </button>
-                      <button
-                        className={clsx(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
                         onClick={onEditColumn}
                         type="button"
                       >
@@ -11065,7 +11053,7 @@ function BoardColumn({
                           onClick={onOpenPairwiseQuiz}
                           type="button"
                         >
-                          <ArrowLeftRight className="h-4 w-4" />
+                          <span className="inline-flex h-4 w-4 items-center justify-center text-sm font-semibold leading-none">?</span>
                           Rank by Quiz
                         </button>
                       ) : null}
@@ -12500,14 +12488,24 @@ function CardTile({
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
     tierKey === "top10"
-      ? "border-amber-300/80"
+      ? "border-transparent"
       : tierKey === "top15"
-        ? "border-cyan-300/80"
+        ? "border-transparent"
         : tierKey === "top20"
-          ? "border-fuchsia-300/80"
+          ? "border-transparent"
           : tierKey === "top30"
-            ? "border-emerald-300/80"
-          : "border-white/10";
+            ? "border-transparent"
+            : "border-white/10";
+  const tierFrameClass =
+    tierKey === "top10"
+      ? "ring-1 ring-inset ring-amber-300/80"
+      : tierKey === "top15"
+        ? "ring-1 ring-inset ring-cyan-300/80"
+        : tierKey === "top20"
+          ? "ring-1 ring-inset ring-fuchsia-300/80"
+          : tierKey === "top30"
+            ? "ring-1 ring-inset ring-emerald-300/80"
+            : "";
   const collapsedTierSurfaceClass =
     tierKey === "top10"
       ? "bg-amber-300 text-amber-950"
@@ -12614,6 +12612,7 @@ function CardTile({
           className={clsx(
             "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
+            !collapseCards && tierFrameClass,
             collapseCards
               ? "min-h-[52px]"
               : compactImageOnly
