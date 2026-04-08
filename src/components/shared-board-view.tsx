@@ -137,22 +137,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
       <div className="mx-auto flex max-w-[1700px] flex-col gap-3 sm:gap-6">
         <header className={clsx("rounded-[28px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              {tierFilter !== "all" ? (
-                <span className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700")}>
-                  {tierFilter.replace("top", "Top ")}
-                </span>
-              ) : null}
-              {selectedSeries ? (
-                <span className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700")}>
-                  {selectedSeries}
-                </span>
-              ) : null}
-              {selectedSearchTerm ? (
-                <span className={clsx("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", isDarkMode ? "bg-white/10 text-slate-200" : "bg-white text-slate-700")}>
-                  Search: {selectedSearchTerm}
-                </span>
-              ) : null}
+            <div className="flex min-w-0 items-center gap-3">
               <h1 className={clsx("min-w-0 truncate text-3xl font-black sm:text-4xl", isDarkMode ? "text-white" : "text-slate-950")}>
                 {sharedTitle}
               </h1>
