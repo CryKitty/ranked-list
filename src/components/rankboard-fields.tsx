@@ -265,9 +265,9 @@ export function FieldDefinitionManager({
                     }
                     type="button"
                   >
-                    <span>Front</span>
+                    <span>Display</span>
                     <ToggleSwitch
-                      ariaLabel={`Toggle ${field.label} front`}
+                      ariaLabel={`Toggle ${field.label} display`}
                       enabled={Boolean(field.showOnCardFront)}
                       isDarkMode={isDarkMode}
                       onClick={() =>
@@ -312,9 +312,9 @@ export function FieldDefinitionManager({
                   }
                   type="button"
                 >
-                  <span>Front</span>
+                  <span>Display</span>
                   <ToggleSwitch
-                    ariaLabel={`Toggle ${field.label} front`}
+                    ariaLabel={`Toggle ${field.label} display`}
                     enabled={Boolean(field.showOnCardFront)}
                     isDarkMode={isDarkMode}
                     onClick={() =>

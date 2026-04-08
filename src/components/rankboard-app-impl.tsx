@@ -40,6 +40,7 @@ import {
   Edit3,
   Filter,
   Gamepad2,
+  Hash,
   Heart,
   ListOrdered,
   LoaderCircle,
@@ -291,8 +292,8 @@ function deriveDefaultCardLabel(boardTitle: string) {
   const cleanedTitle = boardTitle.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
   const vocabularyFallback = getBoardVocabulary(boardTitle).singular;
 
-  if (!cleanedTitle || /^new board$/i.test(cleanedTitle)) {
-    return vocabularyFallback;
+  if (!cleanedTitle || /^new board$/i.test(cleanedTitle) || /^sorta$/i.test(cleanedTitle)) {
+    return "Card";
   }
 
   const words = cleanedTitle.split(" ");
@@ -329,7 +330,7 @@ function getDefaultFieldDefinitions(boardTitle: string): BoardFieldDefinition[] 
       label: boardKind === "show" ? "Franchise" : "Series",
       type: "short_text",
       visible: true,
-      showOnCardFront: false,
+      showOnCardFront: true,
       builtInKey: "series",
     },
     {
@@ -487,11 +488,11 @@ function sortCardsForColumn(cards: CardEntry[], column: ColumnDefinition) {
   const sortMode = getColumnSortMode(column);
 
   if (sortMode === "title-asc") {
-    return [...cards].sort((left, right) => left.title.localeCompare(right.title));
+    return [...cards].sort((left, right) => compareTitlesForDisplay(left.title, right.title));
   }
 
   if (sortMode === "title-desc") {
-    return [...cards].sort((left, right) => right.title.localeCompare(left.title));
+    return [...cards].sort((left, right) => compareTitlesForDisplay(right.title, left.title));
   }
 
   return cards;
@@ -520,44 +521,6 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-function buildFallbackImage(title: string) {
-  const safeTitle = title.trim() || "Untitled Game";
-  const palette = [
-    ["#fdba74", "#fb7185"],
-    ["#67e8f9", "#34d399"],
-    ["#a78bfa", "#60a5fa"],
-    ["#f9a8d4", "#f97316"],
-  ];
-  const seed = safeTitle
-    .split("")
-    .reduce((total, char) => total + char.charCodeAt(0), 0);
-  const [start, end] = palette[seed % palette.length];
-  const initials = safeTitle
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${start}" />
-          <stop offset="100%" stop-color="${end}" />
-        </linearGradient>
-      </defs>
-      <rect width="1600" height="900" fill="url(#bg)" />
-      <circle cx="1260" cy="160" r="240" fill="rgba(255,255,255,0.15)" />
-      <circle cx="260" cy="760" r="290" fill="rgba(255,255,255,0.12)" />
-      <text x="110" y="610" fill="white" font-family="Arial, sans-serif" font-size="220" font-weight="700">${initials || "RG"}</text>
-      <text x="110" y="735" fill="rgba(255,255,255,0.92)" font-family="Arial, sans-serif" font-size="64" font-weight="600">${safeTitle.replace(/&/g, "&amp;")}</text>
-    </svg>
-  `;
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 function getSeriesScrapeScopedColumns(
   columns: ColumnDefinition[],
   scopeColumnId?: string,
@@ -569,39 +532,60 @@ function getSeriesScrapeScopedColumns(
   return columns.filter((column) => !column.mirrorsEntireBoard);
 }
 
-function MaintenanceCardPreview({
-  title,
-  imageUrl,
-  subtitle,
-  isDarkMode,
-}: {
-  title: string;
-  imageUrl?: string;
-  subtitle?: string;
-  isDarkMode: boolean;
-}) {
-  const resolvedImageUrl = imageUrl ? getArtworkDisplayUrl(imageUrl) : "";
+function buildMaintenancePreviewCard(
+  card: Partial<CardEntry> & Pick<CardEntry, "entryId" | "itemId" | "title">,
+  overrides?: Partial<CardEntry>,
+): CardEntry {
+  return {
+    entryId: card.entryId,
+    itemId: card.itemId,
+    title: card.title,
+    imageUrl: card.imageUrl ?? "",
+    imageStoragePath: card.imageStoragePath,
+    series: card.series ?? "",
+    releaseYear: card.releaseYear ?? "",
+    notes: card.notes ?? "",
+    customFieldValues: card.customFieldValues ?? {},
+    mirroredFromEntryId: card.mirroredFromEntryId,
+    ...overrides,
+  };
+}
 
+function MaintenancePreviewCard({
+  card,
+  isDarkMode,
+  collapseCards,
+  showSeries,
+  showArtwork,
+  showTierHighlights,
+  frontFieldDefinitions,
+  rankBadge = null,
+  className,
+}: {
+  card: CardEntry;
+  isDarkMode: boolean;
+  collapseCards: boolean;
+  showSeries: boolean;
+  showArtwork: boolean;
+  showTierHighlights: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
+  rankBadge?: RankBadge | null;
+  className?: string;
+}) {
   return (
-    <div
-      className={clsx(
-        "relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-[24px] border shadow-[0_16px_38px_rgba(15,23,42,0.2)] sm:w-[240px]",
-        isDarkMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-slate-100",
-      )}
-      style={{
-        backgroundImage: `linear-gradient(to top, rgba(2,6,23,0.92), rgba(2,6,23,0.15)), url(${resolvedImageUrl || buildFallbackImage(title)})`,
-        backgroundPosition: "center",
-        backgroundSize: "cover",
-      }}
-    >
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        {subtitle ? (
-          <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
-            {subtitle}
-          </p>
-        ) : null}
-        <p className="mt-1 line-clamp-2 text-lg font-black leading-tight text-white">{title}</p>
-      </div>
+    <div className={clsx("w-full shrink-0 sm:w-[240px]", className)}>
+      <CardTile
+        card={card}
+        collapseCards={collapseCards}
+        isDarkMode={isDarkMode}
+        showSeries={showSeries}
+        showArtwork={showArtwork}
+        showTierHighlights={showTierHighlights}
+        frontFieldDefinitions={frontFieldDefinitions}
+        rankBadge={rankBadge}
+        compactImageOnly={false}
+        showDragCursor={false}
+      />
     </div>
   );
 }
@@ -1053,35 +1037,39 @@ function getBoardKind(boardTitle: string) {
   return "game";
 }
 
-type BoardIconKey = "character" | "movie" | "show" | "anime" | "game" | "music" | "book";
-const BOARD_ICON_OPTIONS: BoardIconKey[] = ["game", "movie", "show", "anime", "music", "book", "character"];
+type BoardIconKey = "rank" | "character" | "movie" | "show" | "anime" | "game" | "music" | "book";
+const BOARD_ICON_OPTIONS: BoardIconKey[] = ["rank", "game", "movie", "show", "anime", "music", "book", "character"];
 
 function getBoardIconCandidates(boardTitle: string): BoardIconKey[] {
   const normalizedTitle = boardTitle.toLowerCase();
 
+  if (normalizedTitle.trim() === "sorta" || normalizedTitle.trim() === "new board") {
+    return ["rank", "game", "movie", "show", "anime", "music", "book", "character"];
+  }
+
   if (normalizedTitle.includes("music") || normalizedTitle.includes("album") || normalizedTitle.includes("song")) {
-    return ["music", "movie", "show", "anime", "book", "character", "game"];
+    return ["music", "movie", "show", "anime", "book", "character", "game", "rank"];
   }
 
   if (normalizedTitle.includes("manga") || normalizedTitle.includes("book") || normalizedTitle.includes("novel")) {
-    return ["book", "anime", "movie", "show", "music", "character", "game"];
+    return ["book", "anime", "movie", "show", "music", "character", "game", "rank"];
   }
 
   if (normalizedTitle.includes("media")) {
-    return ["movie", "show", "anime", "music", "book", "character", "game"];
+    return ["movie", "show", "anime", "music", "book", "character", "game", "rank"];
   }
 
   switch (getBoardKind(boardTitle)) {
     case "character":
-      return ["character", "movie", "show", "anime", "music", "book", "game"];
+      return ["character", "movie", "show", "anime", "music", "book", "game", "rank"];
     case "movie":
-      return ["movie", "show", "anime", "music", "book", "character", "game"];
+      return ["movie", "show", "anime", "music", "book", "character", "game", "rank"];
     case "show":
-      return ["show", "movie", "anime", "music", "book", "character", "game"];
+      return ["show", "movie", "anime", "music", "book", "character", "game", "rank"];
     case "anime":
-      return ["anime", "show", "movie", "book", "music", "character", "game"];
+      return ["anime", "show", "movie", "book", "music", "character", "game", "rank"];
     default:
-      return ["game", "movie", "show", "anime", "music", "book", "character"];
+      return ["game", "movie", "show", "anime", "music", "book", "character", "rank"];
   }
 }
 
@@ -1095,6 +1083,8 @@ function resolveBoardIconKey(boardTitle: string, usedIcons?: Set<BoardIconKey>) 
 
 function renderBoardKindIcon(iconKey: BoardIconKey, className?: string) {
   switch (iconKey) {
+    case "rank":
+      return <Hash className={className} strokeWidth={1.75} />;
     case "character":
       return <Heart className={className} />;
     case "movie":
@@ -1420,16 +1410,16 @@ function HoverTooltip({
 
   const scopeClass =
     scope === "boards"
-      ? "group-hover/boards:opacity-100 group-focus-within/boards:opacity-100"
+      ? "group-hover/boards:opacity-100"
       : scope === "rename"
-        ? "group-hover/rename:opacity-100 group-focus-within/rename:opacity-100"
+        ? "group-hover/rename:opacity-100"
         : scope === "column"
-          ? "group-hover/column:opacity-100 group-focus-within/column:opacity-100"
+          ? "group-hover/column:opacity-100"
           : scope === "edit"
-            ? "group-hover/edit:opacity-100 group-focus-within/edit:opacity-100"
+            ? "group-hover/edit:opacity-100"
             : scope === "save"
-              ? "group-hover/save:opacity-100 group-focus-within/save:opacity-100"
-          : "group-hover:opacity-100 group-focus-within:opacity-100";
+              ? "group-hover/save:opacity-100"
+          : "group-hover:opacity-100";
 
   const alignClass =
     align === "right"
@@ -1509,7 +1499,7 @@ function SaveStatusButton({
           "group/save inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
           isDarkMode
             ? "bg-white/10 text-slate-200 hover:bg-white/15"
-            : "bg-white text-slate-700 hover:bg-slate-100",
+            : "border border-slate-200 bg-white text-slate-700 hover:border-slate-950 hover:bg-slate-100",
         )}
         onClick={() => {
           if (requiresLogin) {
@@ -1608,6 +1598,8 @@ export function RankboardApp() {
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
     getDefaultBoardSettings("New Board"),
   );
+  const [starterBoardDisplayTitle, setStarterBoardDisplayTitle] = useState(defaultBoard.title);
+  const [starterBoardTitlePhase, setStarterBoardTitlePhase] = useState<"idle" | "exit" | "enter">("idle");
   const [isBoardIconModalOpen, setIsBoardIconModalOpen] = useState(false);
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
@@ -1715,6 +1707,10 @@ export function RankboardApp() {
     boards.find((board) => board.id === activeBoardId) ?? normalizeSavedBoard(defaultBoard);
   const activeBoardTitle =
     activeBoard.title ?? "Sorta";
+  const displayActiveBoardTitle =
+    activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)
+      ? starterBoardDisplayTitle
+      : activeBoardTitle;
   const activeBoardSettings = activeBoard.settings ?? DEFAULT_BOARD_SETTINGS;
   const activeBoardLayout = "board" as BoardLayout;
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
@@ -1963,33 +1959,37 @@ export function RankboardApp() {
 
   function findDuplicateCard(
     title: string,
-    columnId: string,
+    preferredColumnId?: string,
     excludeItemId?: string,
   ) {
     const normalizedTitle = normalizeTitleForComparison(title);
 
-    if (!normalizedTitle || !columnId) {
+    if (!normalizedTitle) {
       return null;
     }
 
-    const column = columns.find((item) => item.id === columnId);
+    const searchableColumns = [
+      ...columns.filter((column) => column.id === preferredColumnId && !column.mirrorsEntireBoard),
+      ...columns.filter((column) => column.id !== preferredColumnId && !column.mirrorsEntireBoard),
+    ];
 
-    if (!column) {
-      return null;
-    }
+    for (const column of searchableColumns) {
+      const duplicate = (cardsByColumn[column.id] ?? []).find(
+        (card) =>
+          !card.mirroredFromEntryId &&
+          card.itemId !== excludeItemId &&
+          normalizeTitleForComparison(card.title) === normalizedTitle,
+      );
 
-    const duplicate = (cardsByColumn[column.id] ?? []).find(
-      (card) =>
-        card.itemId !== excludeItemId &&
-        normalizeTitleForComparison(card.title) === normalizedTitle,
-    );
-
-    return duplicate
-      ? {
+      if (duplicate) {
+        return {
           column,
           card: duplicate,
-        }
-      : null;
+        };
+      }
+    }
+
+    return null;
   }
 
   function updateColumnsAndPersist(
@@ -2598,7 +2598,7 @@ export function RankboardApp() {
   }, [isMobileBoardRenameArmed]);
 
   useEffect(() => {
-    if (!isCardDragging || dragPointerKind !== "mouse") {
+    if (!isCardDragging) {
       if (dragAutoScrollFrameRef.current) {
         window.cancelAnimationFrame(dragAutoScrollFrameRef.current);
         dragAutoScrollFrameRef.current = null;
@@ -2627,6 +2627,28 @@ export function RankboardApp() {
 
           if (windowDeltaY !== 0) {
             window.scrollBy(0, windowDeltaY);
+          }
+        }
+
+        if (activeBoardLayout === "board" && boardLaneRef.current) {
+          const laneRect = boardLaneRef.current.getBoundingClientRect();
+          const horizontalEdgeThreshold = Math.max(72, Math.min(132, laneRect.width * 0.18));
+          let deltaX = 0;
+
+          if (coords.x <= laneRect.left + horizontalEdgeThreshold) {
+            deltaX = -Math.max(
+              3,
+              ((laneRect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) * 14,
+            );
+          } else if (coords.x >= laneRect.right - horizontalEdgeThreshold) {
+            deltaX = Math.max(
+              3,
+              ((coords.x - (laneRect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) * 14,
+            );
+          }
+
+          if (deltaX !== 0) {
+            boardLaneRef.current.scrollLeft += deltaX;
           }
         }
 
@@ -2669,7 +2691,46 @@ export function RankboardApp() {
         dragAutoScrollFrameRef.current = null;
       }
     };
-  }, [activeBoardLayout, dragPointerKind, isCardDragging]);
+  }, [activeBoardLayout, isCardDragging]);
+
+  useEffect(() => {
+    if (activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
+      setStarterBoardDisplayTitle("Sorta");
+      setStarterBoardTitlePhase("idle");
+      const exitTimer = window.setTimeout(() => {
+        setStarterBoardTitlePhase("exit");
+      }, 5000);
+      const swapTimer = window.setTimeout(() => {
+        const renamedBoards = latestBoardsRef.current.map((board) =>
+          board.id === activeBoardId && board.title === "Sorta" && isStarterBoard(board.columns, board.cardsByColumn)
+            ? {
+                ...board,
+                title: "New Board",
+                updatedAt: new Date().toISOString(),
+              }
+            : board,
+        );
+
+        latestBoardsRef.current = renamedBoards;
+        setBoards(renamedBoards);
+        setStarterBoardDisplayTitle("New Board");
+        setStarterBoardTitlePhase("enter");
+        queuePersistBoardState({ boards: renamedBoards, activeBoardId });
+      }, 5180);
+      const settleTimer = window.setTimeout(() => {
+        setStarterBoardTitlePhase("idle");
+      }, 5400);
+
+      return () => {
+        window.clearTimeout(exitTimer);
+        window.clearTimeout(swapTimer);
+        window.clearTimeout(settleTimer);
+      };
+    }
+
+    setStarterBoardDisplayTitle(activeBoardTitle);
+    setStarterBoardTitlePhase("idle");
+  }, [activeBoardId, activeBoardTitle, cardsByColumn, columns, queuePersistBoardState]);
 
   useEffect(() => {
     if (
@@ -3288,14 +3349,24 @@ export function RankboardApp() {
     }
 
     const targetCards = nextState[targetColumnId] ?? [];
-    const alreadyMirrored = targetCards.some(
+    const existingMirrorIndex = targetCards.findIndex(
       (card) =>
         card.mirroredFromEntryId === sourceCard.entryId ||
         card.itemId === sourceCard.itemId,
     );
 
-    if (alreadyMirrored) {
-      return nextState;
+    if (existingMirrorIndex >= 0) {
+      const nextTargetCards = [...targetCards];
+      nextTargetCards[existingMirrorIndex] = {
+        ...sourceCard,
+        entryId: nextTargetCards[existingMirrorIndex].entryId,
+        mirroredFromEntryId: sourceCard.entryId,
+      };
+
+      return {
+        ...nextState,
+        [targetColumnId]: nextTargetCards,
+      };
     }
 
     const mirroredCard: CardEntry = {
@@ -3306,7 +3377,7 @@ export function RankboardApp() {
 
     return {
       ...nextState,
-      [targetColumnId]: [...targetCards, mirroredCard],
+      [targetColumnId]: [mirroredCard, ...targetCards],
     };
   }
 
@@ -3677,9 +3748,6 @@ export function RankboardApp() {
       }
 
       const sourceById = new Map(sourceCardsInOrder.map((card) => [card.entryId, card]));
-      const sourceByNormalizedTitle = new Map(
-        sourceCardsInOrder.map((card) => [normalizeTitleForComparison(card.title), card]),
-      );
       const excludedMirrorItemIds = new Set(mirrorColumn.excludedMirrorItemIds ?? []);
       const syncedCards: CardEntry[] = [];
       const newMirrorCards: CardEntry[] = [];
@@ -3687,11 +3755,7 @@ export function RankboardApp() {
       for (const existingMirror of existingMirrorCards) {
         const sourceId = existingMirror.mirroredFromEntryId;
         const linkedSource = sourceId ? sourceById.get(sourceId) : null;
-        const matchedSource =
-          linkedSource ??
-          (sourceId
-            ? sourceByNormalizedTitle.get(normalizeTitleForComparison(existingMirror.title))
-            : null);
+        const matchedSource = linkedSource;
 
         if (matchedSource) {
           if (excludedMirrorItemIds.has(matchedSource.itemId)) {
@@ -3702,7 +3766,6 @@ export function RankboardApp() {
               });
             }
             sourceById.delete(matchedSource.entryId);
-            sourceByNormalizedTitle.delete(normalizeTitleForComparison(matchedSource.title));
             continue;
           }
 
@@ -3712,7 +3775,6 @@ export function RankboardApp() {
             mirroredFromEntryId: matchedSource.entryId,
           });
           sourceById.delete(matchedSource.entryId);
-          sourceByNormalizedTitle.delete(normalizeTitleForComparison(matchedSource.title));
           continue;
         }
 
@@ -4138,9 +4200,21 @@ export function RankboardApp() {
   }
 
   function requestDeleteCard(columnId: string, entryId: string) {
+    const column = columns.find((item) => item.id === columnId);
     const card = (cardsByColumn[columnId] ?? []).find((item) => item.entryId === entryId);
 
     if (!card) {
+      return;
+    }
+
+    if (column?.mirrorsEntireBoard && card.mirroredFromEntryId) {
+      setPendingMirrorDelete({
+        columnId,
+        entryId,
+        itemId: card.itemId,
+        title: card.title,
+        columnTitle: column.title,
+      });
       return;
     }
 
@@ -4801,7 +4875,7 @@ function copyCardToDraft(card: CardEntry) {
         title: draftDuplicateAction.title,
         imageUrl: draftDuplicateAction.imageUrl || card.imageUrl,
         series: draftDuplicateAction.series || card.series,
-        releaseYear: draft.releaseYear.trim() || card.releaseYear,
+        releaseYear: draftDuplicateAction.releaseYear || card.releaseYear,
         notes: draftDuplicateAction.notes || card.notes,
         customFieldValues: {
           ...(card.customFieldValues ?? {}),
@@ -7144,7 +7218,7 @@ function copyCardToDraft(card: CardEntry) {
                           "inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
                           isDarkMode
                             ? "bg-white/10 text-white hover:bg-white/15"
-                            : "bg-white text-slate-950 hover:bg-slate-100",
+                            : "border border-slate-200 bg-white text-slate-950 hover:border-slate-950 hover:bg-slate-100",
                         )}
                         onClick={() => {
                           setIsBoardsMenuOpen((current) => !current);
@@ -7187,7 +7261,9 @@ function copyCardToDraft(card: CardEntry) {
                                     board.settings?.boardIconUrl,
                                     "h-4 w-4 shrink-0",
                                   )}
-                                  <span className="truncate">{board.title}</span>
+                                  <span className="truncate">
+                                    {board.id === activeBoardId ? displayActiveBoardTitle : board.title}
+                                  </span>
                                 </span>
                                 {board.id === activeBoardId ? <span className="text-xs opacity-70">Active</span> : null}
                               </button>
@@ -7234,8 +7310,15 @@ function copyCardToDraft(card: CardEntry) {
                         type="button"
                         aria-label={isMobileViewport ? `Show rename control for ${activeBoardTitle}` : undefined}
                       >
-                        <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                          {activeBoardTitle}
+                        <h1
+                          className={clsx(
+                            "min-w-0 truncate text-2xl font-black transition-all duration-200 ease-out sm:text-3xl",
+                            starterBoardTitlePhase === "exit" && "-translate-x-3 opacity-0",
+                            starterBoardTitlePhase === "enter" && "translate-x-3 opacity-0",
+                            isDarkMode ? "text-white" : "text-slate-950",
+                          )}
+                        >
+                          {displayActiveBoardTitle}
                         </h1>
                       </button>
                       <div className="relative shrink-0">
@@ -7256,7 +7339,7 @@ function copyCardToDraft(card: CardEntry) {
                             startEditingBoardTitle();
                           }}
                           type="button"
-                          aria-label={`Rename ${activeBoardTitle}`}
+                          aria-label={`Rename ${displayActiveBoardTitle}`}
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -7683,7 +7766,7 @@ function copyCardToDraft(card: CardEntry) {
                       ? {
                           paddingInline: mobileBoardLaneInset,
                           scrollPaddingInline: mobileBoardLaneInset,
-                          touchAction: "pan-x",
+                          touchAction: isCardDragging ? "none" : "pan-x",
                           overscrollBehaviorX: "contain",
                           overscrollBehaviorY: "none",
                           overscrollBehavior: "contain",
@@ -7889,6 +7972,7 @@ function copyCardToDraft(card: CardEntry) {
                           <CardTile
                             card={activeDragCard}
                             collapseCards={activeBoardSettings.collapseCards}
+                            isDarkMode={isDarkMode}
                             showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
                             showArtwork={shouldShowArtworkOnCards}
                             showTierHighlights={activeBoardSettings.showTierHighlights}
@@ -7909,6 +7993,7 @@ function copyCardToDraft(card: CardEntry) {
 
         <EditCardDialog
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
+          boardSingular={boardVocabulary.singular}
           currentCardIsMirrored={getCardLinkedSiblings(cardsByColumn, editingCardId).length > 0}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           editArtworkInputRef={editArtworkInputRef}
@@ -8123,10 +8208,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Artwork
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Choose artwork
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8179,19 +8261,16 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4 px-6 pt-6">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Customization
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Fields
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8211,7 +8290,7 @@ function copyCardToDraft(card: CardEntry) {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mt-6">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-6">
                 <FieldDefinitionManager
                   isDarkMode={isDarkMode}
                   fieldDefinitions={activeBoardFieldDefinitions}
@@ -8277,10 +8356,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Import
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Upload a JSON file
                   </h2>
                 </div>
@@ -8358,10 +8434,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Linked Card
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Sever clone link?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8434,10 +8507,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Mirror
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Link duplicates
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8484,11 +8554,29 @@ function copyCardToDraft(card: CardEntry) {
                       )}
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                        <MaintenanceCardPreview
-                          imageUrl={suggestion.sourceImageUrl}
-                          isDarkMode={isDarkMode}
-                          title={suggestion.sourceCardTitle}
-                        />
+                        <div className="w-full shrink-0 sm:w-[240px]">
+                          <CardTile
+                            card={{
+                              entryId: suggestion.sourceEntryId,
+                              itemId: suggestion.sourceItemId,
+                              title: suggestion.sourceCardTitle,
+                              imageUrl: suggestion.sourceImageUrl,
+                              imageStoragePath: suggestion.sourceImageStoragePath,
+                              series: suggestion.sourceSeries,
+                              releaseYear: suggestion.sourceReleaseYear,
+                              notes: suggestion.sourceNotes,
+                              customFieldValues: suggestion.sourceCustomFieldValues,
+                            }}
+                            collapseCards={false}
+                            isDarkMode={isDarkMode}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
+                            rankBadge={null}
+                            showDragCursor={false}
+                          />
+                        </div>
                         <div className="min-w-0 flex-1 space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
@@ -8627,6 +8715,98 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {pendingMirrorDelete ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingMirrorDelete(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Delete mirror card?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    <strong>{pendingMirrorDelete.title}</strong> is linked to another copy. Choose whether to remove only this mirror copy or both linked cards.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingMirrorDelete(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={() =>
+                    deleteOnlyMirrorCopy(
+                      pendingMirrorDelete.columnId,
+                      pendingMirrorDelete.entryId,
+                      pendingMirrorDelete.itemId,
+                    )
+                  }
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete This Copy
+                </button>
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-rose-500 text-white hover:bg-rose-400"
+                      : "bg-rose-600 text-white hover:bg-rose-500",
+                  )}
+                  onClick={() =>
+                    deleteAllLinkedCopies(
+                      pendingMirrorDelete.itemId,
+                      pendingMirrorDelete.entryId,
+                    )
+                  }
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Both Copies
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingMirrorDelete(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {pendingCardDelete ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -8643,10 +8823,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Delete Card
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Delete this card?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8739,10 +8916,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Pairwise Quiz
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Continue where you left off?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8839,13 +9013,13 @@ function copyCardToDraft(card: CardEntry) {
                 </button>
               </div>
 
-              <div className="mt-4 grid flex-1 gap-3 overflow-y-auto pr-1 md:mt-6 md:grid-cols-2 md:gap-4">
+              <div className="mt-4 grid flex-1 content-start justify-items-center gap-2 overflow-y-auto px-2 pt-2 pr-1 md:mt-6 md:grid-cols-2 md:gap-2">
                 {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
                   card ? (
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "overflow-visible rounded-[24px] text-left transition hover:-translate-y-0.5",
+                        "mx-auto w-full max-w-[180px] overflow-visible rounded-[24px] py-2 text-left transition hover:-translate-y-0.5 sm:max-w-[200px] md:max-w-[220px]",
                         isDarkMode
                           ? "text-white"
                           : "text-slate-950",
@@ -8856,6 +9030,7 @@ function copyCardToDraft(card: CardEntry) {
                       <CardTile
                         card={card}
                         collapseCards={activeBoardSettings.collapseCards}
+                        isDarkMode={isDarkMode}
                         showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
                         showArtwork={shouldShowArtworkOnCards}
                         showTierHighlights={activeBoardSettings.showTierHighlights}
@@ -8964,10 +9139,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Pairwise Quiz
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Review results
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -8993,16 +9165,22 @@ function copyCardToDraft(card: CardEntry) {
                   <div
                     key={card.entryId}
                     className={clsx(
-                      "flex items-center gap-3 rounded-3xl border p-4",
+                      "flex flex-col gap-3 rounded-3xl border p-4 sm:flex-row sm:items-center",
                       isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
                     )}
                   >
-                    <div className={clsx("w-10 text-center text-lg font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    <div className={clsx("w-10 shrink-0 text-center text-lg font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                       #{index + 1}
                     </div>
-                    <div
-                      className="h-16 w-28 shrink-0 rounded-2xl bg-cover bg-center"
-                      style={{ backgroundImage: `url(${card.imageUrl || buildFallbackImage(card.title)})` }}
+                    <MaintenancePreviewCard
+                      card={card}
+                      collapseCards={activeBoardSettings.collapseCards}
+                      frontFieldDefinitions={activeBoardFieldDefinitions}
+                      isDarkMode={isDarkMode}
+                      showArtwork={shouldShowArtworkOnCards}
+                      showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                      showTierHighlights={activeBoardSettings.showTierHighlights}
+                      className="sm:w-[220px]"
                     />
                     <div className="min-w-0 flex-1">
                       <h3 className={clsx("truncate text-lg font-bold", isDarkMode ? "text-white" : "text-slate-950")}>
@@ -9014,7 +9192,7 @@ function copyCardToDraft(card: CardEntry) {
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-2 sm:flex-col">
                       <button
                         className={clsx(
                           "rounded-full px-3 py-1.5 text-xs font-semibold transition",
@@ -9099,10 +9277,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Save Board
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Log in to save
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9264,10 +9439,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Customization
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Board icon
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9374,10 +9546,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Cleanup
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Clean up duplicates
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9439,20 +9608,48 @@ function copyCardToDraft(card: CardEntry) {
                           Keep both
                         </button>
                       </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-emerald-400/20 bg-emerald-400/10" : "border-emerald-200 bg-emerald-50")}>
-                          <p className="font-semibold">Keep</p>
-                          <p className="mt-2">{suggestion.keepCard.title}</p>
-                          <p className="mt-2 opacity-70">{`Series: ${suggestion.keepCard.series || "None"}`}</p>
-                          <p className="opacity-70">{`Image: ${suggestion.keepCard.imageUrl ? "Yes" : "No"}`}</p>
-                          <p className="opacity-70">{`Notes: ${suggestion.keepCard.notes ? "Yes" : "No"}`}</p>
+                      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                        <div className={clsx("rounded-2xl border p-3", isDarkMode ? "border-emerald-400/20 bg-emerald-400/10" : "border-emerald-200 bg-emerald-50")}>
+                          <p className="mb-3 text-sm font-semibold">Keep</p>
+                          <div className="space-y-3">
+                            <MaintenancePreviewCard
+                              card={suggestion.keepCard}
+                              collapseCards={activeBoardSettings.collapseCards}
+                              frontFieldDefinitions={activeBoardFieldDefinitions}
+                              isDarkMode={isDarkMode}
+                              showArtwork={shouldShowArtworkOnCards}
+                              showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                              showTierHighlights={activeBoardSettings.showTierHighlights}
+                              className="sm:w-full"
+                            />
+                            <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-white/10 bg-slate-950/40 text-slate-200" : "border-white/80 bg-white/80 text-slate-700")}>
+                              <p>{suggestion.keepCard.title}</p>
+                              <p className="mt-2 opacity-70">{`Series: ${suggestion.keepCard.series || "None"}`}</p>
+                              <p className="opacity-70">{`Image: ${suggestion.keepCard.imageUrl ? "Yes" : "No"}`}</p>
+                              <p className="opacity-70">{`Notes: ${suggestion.keepCard.notes ? "Yes" : "No"}`}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-rose-400/20 bg-rose-400/10" : "border-rose-200 bg-rose-50")}>
-                          <p className="font-semibold">Remove</p>
-                          <p className="mt-2">{suggestion.removeCard.title}</p>
-                          <p className="mt-2 opacity-70">{`Series: ${suggestion.removeCard.series || "None"}`}</p>
-                          <p className="opacity-70">{`Image: ${suggestion.removeCard.imageUrl ? "Yes" : "No"}`}</p>
-                          <p className="opacity-70">{`Notes: ${suggestion.removeCard.notes ? "Yes" : "No"}`}</p>
+                        <div className={clsx("rounded-2xl border p-3", isDarkMode ? "border-rose-400/20 bg-rose-400/10" : "border-rose-200 bg-rose-50")}>
+                          <p className="mb-3 text-sm font-semibold">Remove</p>
+                          <div className="space-y-3">
+                            <MaintenancePreviewCard
+                              card={suggestion.removeCard}
+                              collapseCards={activeBoardSettings.collapseCards}
+                              frontFieldDefinitions={activeBoardFieldDefinitions}
+                              isDarkMode={isDarkMode}
+                              showArtwork={shouldShowArtworkOnCards}
+                              showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                              showTierHighlights={activeBoardSettings.showTierHighlights}
+                              className="sm:w-full"
+                            />
+                            <div className={clsx("rounded-2xl border p-3 text-sm", isDarkMode ? "border-white/10 bg-slate-950/40 text-slate-200" : "border-white/80 bg-white/80 text-slate-700")}>
+                              <p>{suggestion.removeCard.title}</p>
+                              <p className="mt-2 opacity-70">{`Series: ${suggestion.removeCard.series || "None"}`}</p>
+                              <p className="opacity-70">{`Image: ${suggestion.removeCard.imageUrl ? "Yes" : "No"}`}</p>
+                              <p className="opacity-70">{`Notes: ${suggestion.removeCard.notes ? "Yes" : "No"}`}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -9513,10 +9710,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Cleanup
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Tidy titles
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9551,55 +9745,85 @@ function copyCardToDraft(card: CardEntry) {
                     No title cleanup suggestions were found for the current board.
                   </div>
                 ) : (
-                  titleTidySuggestions.map((suggestion) => (
-                    <div
-                      key={suggestion.id}
-                      className={clsx(
-                        "rounded-3xl border p-4",
-                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
-                      )}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
-                          <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                            {suggestion.originalTitle}
-                          </p>
+                  titleTidySuggestions.map((suggestion) => {
+                    const sourceCard =
+                      Object.values(cardsByColumn)
+                        .flat()
+                        .find((card) => card.entryId === suggestion.entryId) ?? null;
+                    const previewCard = buildMaintenancePreviewCard(
+                      sourceCard ?? {
+                        entryId: suggestion.entryId,
+                        itemId: suggestion.itemId,
+                        title: suggestion.originalTitle,
+                      },
+                      {
+                        title: suggestion.proposedTitle,
+                      },
+                    );
+
+                    return (
+                      <div
+                        key={suggestion.id}
+                        className={clsx(
+                          "rounded-3xl border p-4",
+                          isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                        )}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold">{suggestion.columnTitle}</p>
+                            <p className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                              {suggestion.originalTitle}
+                            </p>
+                          </div>
+                          <button
+                            className={clsx(
+                              "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                              isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                            )}
+                            onClick={() => removeTitleTidySuggestion(suggestion.id)}
+                            type="button"
+                          >
+                            Skip
+                          </button>
                         </div>
-                        <button
-                          className={clsx(
-                            "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                            isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
-                          )}
-                          onClick={() => removeTitleTidySuggestion(suggestion.id)}
-                          type="button"
-                        >
-                          Skip
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                        <div
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm",
-                            isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
-                          )}
-                        >
-                          {suggestion.originalTitle}
+                        <div className="mt-4 flex flex-col gap-4 sm:flex-row">
+                          <MaintenancePreviewCard
+                            card={previewCard}
+                            collapseCards={activeBoardSettings.collapseCards}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
+                            isDarkMode={isDarkMode}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                              <div
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm",
+                                  isDarkMode ? "border-white/10 bg-slate-900/70" : "border-slate-200 bg-white",
+                                )}
+                              >
+                                {suggestion.originalTitle}
+                              </div>
+                              <div className="text-center text-sm font-semibold opacity-60">to</div>
+                              <input
+                                className={clsx(
+                                  "rounded-2xl border px-4 py-3 text-sm outline-none transition",
+                                  isDarkMode
+                                    ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                )}
+                                value={suggestion.proposedTitle}
+                                onChange={(event) => updateTitleTidySuggestion(suggestion.id, event.target.value)}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-center text-sm font-semibold opacity-60">to</div>
-                        <input
-                          className={clsx(
-                            "rounded-2xl border px-4 py-3 text-sm outline-none transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                          )}
-                          value={suggestion.proposedTitle}
-                          onChange={(event) => updateTitleTidySuggestion(suggestion.id, event.target.value)}
-                        />
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -9657,10 +9881,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Maintenance
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Series Scraper
                   </h2>
                 </div>
@@ -9718,49 +9939,71 @@ function copyCardToDraft(card: CardEntry) {
                     </button>
                   </div>
                 ) : (
-                  seriesScrapeSuggestions.map((suggestion) => (
-                    <div
-                      key={suggestion.id}
-                      className={clsx(
-                        "rounded-3xl border p-4",
-                        isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
-                      )}
-                    >
-                      <div className="flex flex-col gap-4 sm:flex-row">
-                        <MaintenanceCardPreview
-                          imageUrl={suggestion.imageUrl}
-                          isDarkMode={isDarkMode}
-                          title={suggestion.title}
-                        />
-                        <div className="min-w-0 flex-1 space-y-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold">{suggestion.columnTitle}</p>
-                            </div>
-                            <button
-                              className={clsx(
-                                "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                                isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
-                              )}
-                              onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
-                              type="button"
-                            >
-                              Skip
-                            </button>
-                          </div>
-                          <SeriesInput
-                            allSeries={allSeries}
+                  seriesScrapeSuggestions.map((suggestion) => {
+                    const sourceCard =
+                      Object.values(cardsByColumn)
+                        .flat()
+                        .find((card) => card.entryId === suggestion.entryId) ?? null;
+                    const previewCard = buildMaintenancePreviewCard(
+                      sourceCard ?? {
+                        entryId: suggestion.entryId,
+                        itemId: suggestion.itemId,
+                        title: suggestion.title,
+                        imageUrl: suggestion.imageUrl,
+                      },
+                      {
+                        series: suggestion.proposedSeries,
+                      },
+                    );
+
+                    return (
+                      <div
+                        key={suggestion.id}
+                        className={clsx(
+                          "rounded-3xl border p-4",
+                          isDarkMode ? "border-white/10 bg-slate-950/50" : "border-slate-200 bg-slate-50/70",
+                        )}
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row">
+                          <MaintenancePreviewCard
+                            card={previewCard}
+                            collapseCards={activeBoardSettings.collapseCards}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
                             isDarkMode={isDarkMode}
-                            label="Series"
-                            name={`series-scrape-${suggestion.id}`}
-                            onChange={(value) => updateSeriesScrapeSuggestion(suggestion.id, value)}
-                            placeholder={boardVocabulary.seriesExamples}
-                            value={suggestion.proposedSeries}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
                           />
+                          <div className="min-w-0 flex-1 space-y-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">{suggestion.columnTitle}</p>
+                              </div>
+                              <button
+                                className={clsx(
+                                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-slate-700 hover:bg-slate-100",
+                                )}
+                                onClick={() => removeSeriesScrapeSuggestion(suggestion.id)}
+                                type="button"
+                              >
+                                Skip
+                              </button>
+                            </div>
+                            <SeriesInput
+                              allSeries={allSeries}
+                              isDarkMode={isDarkMode}
+                              label="Series"
+                              name={`series-scrape-${suggestion.id}`}
+                              onChange={(value) => updateSeriesScrapeSuggestion(suggestion.id, value)}
+                              placeholder={boardVocabulary.seriesExamples}
+                              value={suggestion.proposedSeries}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -9862,10 +10105,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                    Maintenance
-                  </p>
-                  <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                     Delete board?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9932,10 +10172,7 @@ function copyCardToDraft(card: CardEntry) {
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                {activeBoardLayout === "tier-list" ? "Tier Row" : "Column Settings"}
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                 {activeBoardLayout === "tier-list" ? "Delete row?" : "Delete column?"}
               </h2>
               <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -9986,10 +10223,7 @@ function copyCardToDraft(card: CardEntry) {
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Column Maintenance
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                 Move all cards
               </h2>
               <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -10066,10 +10300,7 @@ function copyCardToDraft(card: CardEntry) {
               onClick={(event) => event.stopPropagation()}
             >
               <div className="border-b px-6 pt-6 pb-4">
-                <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                  Board Maintenance
-                </p>
-                <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                   {tierListConversionState.mode === "to-tier-list" ? "Convert to Tier List" : "Convert to Kanban Board"}
                 </h2>
                 <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
@@ -10198,10 +10429,7 @@ function copyCardToDraft(card: CardEntry) {
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <p className={clsx("text-sm font-semibold uppercase tracking-[0.24em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                Card Actions
-              </p>
-              <h2 className={clsx("mt-2 text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
                 Move {moveCardState.title}
               </h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -10749,6 +10977,17 @@ function BoardColumn({
                         : current,
                     )
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onSaveColumnEdit();
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelColumnEdit();
+                    }
+                  }}
                 />
                 <div className="flex gap-2">
                   <button
@@ -10792,7 +11031,7 @@ function BoardColumn({
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
-                  <HoverTooltip isDarkMode={isDarkMode} label="Column Settings" />
+                  <HoverTooltip isDarkMode={isDarkMode} label="Column Settings" placement="bottom" />
                   {isMenuOpen ? (
                     <div
                       className={clsx(
@@ -10802,20 +11041,6 @@ function BoardColumn({
                           : "border-slate-200 bg-white",
                       )}
                     >
-                      <button
-                        className={clsx(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                          isDarkMode
-                            ? "text-white hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                        disabled={column.mirrorsEntireBoard}
-                        onClick={() => onAddCard(column.id, 0)}
-                        type="button"
-                      >
-                        <Plus className="h-4 w-4" />
-                        {`Add ${addLabel}`}
-                      </button>
                       <button
                         className={clsx(
                           "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
@@ -10841,7 +11066,7 @@ function BoardColumn({
                           onClick={onOpenPairwiseQuiz}
                           type="button"
                         >
-                          <ArrowLeftRight className="h-4 w-4" />
+                          <span className="inline-flex h-4 w-4 items-center justify-center text-sm font-semibold leading-none">?</span>
                           Rank by Quiz
                         </button>
                       ) : null}
@@ -11383,6 +11608,7 @@ function BoardColumn({
           columnTouchYRef.current = null;
         }}
         style={{
+          touchAction: isCardDragging ? "none" : columnCanScroll ? "pan-y" : "auto",
           overscrollBehaviorY: "contain",
           WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
         }}
@@ -11393,6 +11619,7 @@ function BoardColumn({
               key={card.entryId}
               card={card}
               collapseCards={collapseCards}
+              isDarkMode={isDarkMode}
               showSeries={showSeriesOnCards}
               showArtwork={showArtworkOnCards}
               showTierHighlights={showTierHighlights}
@@ -11458,6 +11685,7 @@ function BoardColumn({
                   <SortableCard
                     card={card}
                     collapseCards={collapseCards}
+                    isDarkMode={isDarkMode}
                     showSeries={showSeriesOnCards}
                     showArtwork={showArtworkOnCards}
                     showTierHighlights={showTierHighlights}
@@ -11518,18 +11746,18 @@ function BoardColumn({
             type="button"
             aria-label={`Add ${addLabel}`}
           >
-            <span
-              className={clsx(
-                "flex h-12 w-12 items-center justify-center rounded-full border transition",
-                disableAddAffordances
-                  ? "border-transparent bg-transparent text-transparent"
-                  : isDarkMode
+            {!disableAddAffordances ? (
+              <span
+                className={clsx(
+                  "flex h-12 w-12 items-center justify-center rounded-full border transition",
+                  isDarkMode
                     ? "border-white/15 bg-slate-950 text-white group-hover:border-white/35 group-hover:bg-slate-900"
                     : "border-slate-300 bg-white text-slate-700 group-hover:border-slate-500 group-hover:bg-slate-50",
-              )}
-            >
-              <Plus className="h-6 w-6" />
-            </span>
+                )}
+              >
+                <Plus className="h-6 w-6" />
+              </span>
+            ) : null}
           </button>
         ) : null}
       </div>
@@ -11622,6 +11850,17 @@ function TierListRow({
                       current ? { ...current, title: event.target.value } : current,
                     )
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onSaveColumnEdit();
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelColumnEdit();
+                    }
+                  }}
                 />
                 <div className="flex gap-2">
                   <button
@@ -11760,6 +11999,7 @@ function TierListRow({
                     <SortableCard
                       card={card}
                       collapseCards={collapseCards}
+                      isDarkMode={isDarkMode}
                       showSeries={showSeriesOnCards}
                       showArtwork={showArtworkOnCards}
                       showTierHighlights={false}
@@ -11971,13 +12211,16 @@ function AddCardRow({
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
   const restingRowHeightClass = collapseCards ? "h-[5px]" : "h-4";
   const alwaysVisibleRowHeightClass = collapseCards ? "h-[5px]" : "h-8";
+  const desktopRestingClass = alwaysVisible
+    ? `${alwaysVisibleRowHeightClass} opacity-0`
+    : `${restingRowHeightClass} opacity-0`;
 
-  const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
-  const rowContent = (
+  const hideRowAction =
+    isDragMode || hideAction || !interactive || (isMobileViewport && !mobileArmed);
+  const rowContent = hideRowAction ? null : (
     <span
       className={clsx(
         "group/edit relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_12px_28px_rgba(15,23,42,0.22)] ring-4 transition",
-        hideRowAction && "invisible opacity-0",
         interactive
           ? isDarkMode
             ? "border-white/20 bg-slate-900 text-white ring-slate-950/80 group-hover:border-white/40 group-hover:bg-slate-800 group-focus:border-white/40 group-focus:bg-slate-800"
@@ -12060,10 +12303,12 @@ function AddCardRow({
               ? `${placeholderHeightClass} opacity-100`
               : "h-0 opacity-100"
           : alwaysVisible
-            ? `${alwaysVisibleRowHeightClass} opacity-100`
+            ? isMobileViewport
+              ? `${alwaysVisibleRowHeightClass} opacity-100`
+              : `${alwaysVisibleRowHeightClass} opacity-0`
             : isMobileViewport
               ? `${restingRowHeightClass} opacity-100`
-              : `${restingRowHeightClass} opacity-0`,
+              : desktopRestingClass,
         isOver && "opacity-100",
       )}
       onClick={handleClick}
@@ -12106,6 +12351,7 @@ function AddCardRow({
 function SortableCard({
   card,
   collapseCards,
+  isDarkMode,
   showSeries,
   showArtwork,
   showTierHighlights,
@@ -12122,6 +12368,7 @@ function SortableCard({
 }: {
   card: CardEntry;
   collapseCards: boolean;
+  isDarkMode: boolean;
   showSeries: boolean;
   showArtwork: boolean;
   showTierHighlights: boolean;
@@ -12178,6 +12425,7 @@ function SortableCard({
       <CardTile
         card={card}
         collapseCards={collapseCards}
+        isDarkMode={isDarkMode}
         showSeries={showSeries}
         showArtwork={showArtwork}
         showTierHighlights={showTierHighlights}
@@ -12197,6 +12445,7 @@ function SortableCard({
 function CardTile({
   card,
   collapseCards,
+  isDarkMode,
   showSeries,
   showArtwork,
   showTierHighlights,
@@ -12213,6 +12462,7 @@ function CardTile({
 }: {
   card: CardEntry;
   collapseCards: boolean;
+  isDarkMode: boolean;
   showSeries: boolean;
   showArtwork: boolean;
   showTierHighlights: boolean;
@@ -12258,7 +12508,7 @@ function CardTile({
           ? "border-fuchsia-300/80"
           : tierKey === "top30"
             ? "border-emerald-300/80"
-          : "border-white/10";
+            : "border-white/10";
   const collapsedTierSurfaceClass =
     tierKey === "top10"
       ? "bg-amber-300 text-amber-950"
@@ -12273,6 +12523,17 @@ function CardTile({
     "bg-white text-slate-950";
   const collapsedTitleClass = "text-slate-950";
   const collapsedSeriesClass = "text-slate-700";
+  const noArtworkSurfaceStyle = isDarkMode
+    ? {
+        backgroundColor: "#0f172a",
+        backgroundImage:
+          "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.08), transparent 34%), radial-gradient(circle at 78% 18%, rgba(255,255,255,0.05), transparent 28%), linear-gradient(135deg, rgba(148,163,184,0.12), rgba(15,23,42,0.02) 42%, rgba(148,163,184,0.09))",
+      }
+    : {
+        backgroundColor: "#fff7f0",
+        backgroundImage:
+          "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.9), transparent 32%), radial-gradient(circle at 82% 16%, rgba(251,191,36,0.18), transparent 26%), linear-gradient(135deg, rgba(255,255,255,0.96), rgba(255,247,240,0.98) 38%, rgba(254,215,170,0.34))",
+      };
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -12367,11 +12628,7 @@ function CardTile({
           collapseCards
             ? undefined
             : !hasArtwork
-            ? {
-                backgroundColor: "#0f172a",
-                backgroundImage:
-                  "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.08), transparent 34%), radial-gradient(circle at 78% 18%, rgba(255,255,255,0.05), transparent 28%), linear-gradient(135deg, rgba(148,163,184,0.12), rgba(15,23,42,0.02) 42%, rgba(148,163,184,0.09))",
-              }
+            ? noArtworkSurfaceStyle
             : { backgroundColor: "#0f172a" }
         }
       >
@@ -12396,7 +12653,7 @@ function CardTile({
             />
           </>
         ) : null}
-        {!collapseCards && !compactImageOnly ? (
+        {!collapseCards && !compactImageOnly && hasArtwork ? (
           <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
         ) : null}
 
@@ -12475,21 +12732,30 @@ function CardTile({
           </div>
         ) : (
           <div className="absolute inset-0 p-4">
-            <div className="flex min-h-full flex-col">
-              <div className="flex-1" />
-              <div className="flex flex-1 items-center justify-center text-center">
-                <h3 className="line-clamp-3 text-2xl font-bold text-white">{displayTitle}</h3>
+            <div className="relative min-h-full">
+              <div className="absolute inset-0 flex items-center justify-center text-center">
+                <div className="max-w-full px-2">
+                  <h3 className={clsx("line-clamp-3 text-2xl font-bold", isDarkMode ? "text-white" : "text-slate-950")}>
+                    {displayTitle}
+                  </h3>
+                </div>
               </div>
-              <div className="mt-auto flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  {displaySeries ? (
-                    <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                      {displaySeries}
+              {displaySeries || card.notes ? (
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    {displaySeries ? (
+                      <p className={clsx("truncate text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-white" : "text-slate-700")}>
+                        {displaySeries}
+                      </p>
+                    ) : null}
+                  </div>
+                  {card.notes ? (
+                    <p className={clsx("line-clamp-2 max-w-[45%] text-right text-sm leading-5", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                      {card.notes}
                     </p>
                   ) : null}
                 </div>
-                {card.notes ? <p className="line-clamp-2 max-w-[45%] text-right text-sm leading-5 text-slate-300">{card.notes}</p> : null}
-              </div>
+              ) : null}
             </div>
           </div>
         )}
@@ -12542,7 +12808,7 @@ function CardTile({
             >
               <Edit3 className="h-4 w-4" />
             </button>
-            <HoverTooltip isDarkMode={true} label="Edit" scope="edit" />
+            <HoverTooltip isDarkMode={true} label="Edit" scope="edit" placement="bottom" />
           </div>
         ) : null}
       </div>
