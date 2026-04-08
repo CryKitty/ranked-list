@@ -8986,7 +8986,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
+                "flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -9013,13 +9013,13 @@ function copyCardToDraft(card: CardEntry) {
                 </button>
               </div>
 
-              <div className="mt-4 grid flex-1 content-start justify-items-center gap-2 overflow-y-auto px-2 pt-2 pr-1 md:mt-6 md:grid-cols-2 md:gap-2">
+              <div className="mt-4 grid flex-1 content-start justify-items-center gap-3 overflow-y-auto px-2 pt-2 pr-1 md:mt-6 md:grid-cols-2 md:gap-4">
                 {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
                   card ? (
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[180px] overflow-visible rounded-[24px] py-2 text-left transition hover:-translate-y-0.5 sm:max-w-[200px] md:max-w-[220px]",
+                        "mx-auto w-full max-w-[230px] overflow-visible rounded-[24px] py-3 text-left transition hover:-translate-y-0.5 sm:max-w-[250px] md:max-w-[270px]",
                         isDarkMode
                           ? "text-white"
                           : "text-slate-950",
