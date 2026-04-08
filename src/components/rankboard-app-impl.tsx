@@ -7505,7 +7505,9 @@ function copyCardToDraft(card: CardEntry) {
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
                 setActiveDragEntryId(String(active.id));
-                suppressDragGapsTemporarily();
+                if (activeBoardLayout === "tier-list") {
+                  suppressDragGapsTemporarily();
+                }
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
@@ -7613,7 +7615,7 @@ function copyCardToDraft(card: CardEntry) {
                           frontFieldDefinitions={activeBoardFieldDefinitions}
                           disableAddAffordances={Boolean(column.mirrorsEntireBoard) || hasBlockingMenuOpen}
                           isCardDragging={isCardDragging}
-                          isDragGapSuppressed={isDragGapSuppressed}
+                          isDragGapSuppressed={false}
                           cards={visibleCards}
                           activeTierFilter={columnTierFilters[column.id] ?? "all"}
                           currentSeriesFilter={seriesFilter}
@@ -7723,7 +7725,7 @@ function copyCardToDraft(card: CardEntry) {
                             setSeriesFilter(nextSeries);
                             setOpenColumnMenuId(null);
                           }}
-                          onDragScrollActivity={suppressDragGapsTemporarily}
+                          onDragScrollActivity={() => {}}
                           onColumnDragStart={setDraggingColumnId}
                           onColumnDrop={moveColumnToTarget}
                           onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
@@ -11316,7 +11318,7 @@ function BoardColumn({
                         : null
                     }
                     onEdit={() => onEditCard(card)}
-                    preserveSpaceWhenDragging={true}
+                    preserveSpaceWhenDragging={false}
                     freezeLayoutWhileDragging={isCardDragging}
                   />
                   <AddCardRow
@@ -11800,6 +11802,7 @@ function AddCardRow({
     onClick();
   };
   const showExpandedDropTarget = isDragMode && !isGapSuppressed && isOver;
+  const showTrelloStylePlaceholder = showExpandedDropTarget;
 
   const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
   const rowContent = (
@@ -11834,7 +11837,9 @@ function AddCardRow({
           isDragMode
             ? isGapSuppressed
               ? "pointer-events-none h-0 opacity-0"
-              : "h-0 opacity-100"
+              : showTrelloStylePlaceholder
+                ? "h-[172px] opacity-100"
+                : "h-0 opacity-100"
             : alwaysVisible
               ? "h-8 opacity-100"
               : "h-4",
@@ -11842,6 +11847,20 @@ function AddCardRow({
         aria-hidden="true"
       >
         <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+        {showTrelloStylePlaceholder ? (
+          <div
+            aria-hidden="true"
+            className={clsx(
+              "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[24px] border",
+              isDarkMode
+                ? "border-white/10 bg-white/[0.03]"
+                : "border-slate-300/80 bg-slate-100/80",
+            )}
+          />
+        ) : null}
+        {/*
+        Divider-only drag cue kept here in comments in case we want to revert away from the
+        Trello-style placeholder slot again after testing this direction.
         {showExpandedDropTarget ? (
           <div
             aria-hidden="true"
@@ -11850,20 +11869,6 @@ function AddCardRow({
               isDarkMode
                 ? "border-slate-400/65"
                 : "border-slate-400/70",
-            )}
-          />
-        ) : null}
-        {/*
-        Keeping the old widened drop-target placeholder commented for easy restoration if we decide
-        the divider-only cue is not the right tradeoff after more testing.
-        {showExpandedDropTarget ? (
-          <div
-            aria-hidden="true"
-            className={clsx(
-              "pointer-events-none absolute inset-x-3 inset-y-0 rounded-[24px] border border-dashed",
-              isDarkMode
-                ? "border-slate-400/55 bg-slate-400/10"
-                : "border-slate-400/60 bg-slate-200/70",
             )}
           />
         ) : null}
@@ -11882,7 +11887,9 @@ function AddCardRow({
         isDragMode
           ? isGapSuppressed
             ? "pointer-events-none h-0 opacity-0"
-            : "h-0 opacity-100"
+            : showTrelloStylePlaceholder
+              ? "h-[172px] opacity-100"
+              : "h-0 opacity-100"
           : alwaysVisible
             ? "h-8 opacity-100"
             : isMobileViewport
@@ -11895,6 +11902,20 @@ function AddCardRow({
       aria-label="Add game here"
     >
       <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+      {showTrelloStylePlaceholder ? (
+        <div
+          aria-hidden="true"
+          className={clsx(
+            "pointer-events-none absolute inset-x-2 inset-y-1 rounded-[24px] border",
+            isDarkMode
+              ? "border-white/10 bg-white/[0.03]"
+              : "border-slate-300/80 bg-slate-100/80",
+          )}
+        />
+      ) : null}
+      {/*
+      Divider-only drag cue kept here in comments in case we want to revert away from the
+      Trello-style placeholder slot again after testing this direction.
       {showExpandedDropTarget ? (
         <div
           aria-hidden="true"
@@ -11903,20 +11924,6 @@ function AddCardRow({
             isDarkMode
               ? "border-slate-400/65"
               : "border-slate-400/70",
-          )}
-        />
-      ) : null}
-      {/*
-      Keeping the old widened drop-target placeholder commented for easy restoration if we decide
-      the divider-only cue is not the right tradeoff after more testing.
-      {showExpandedDropTarget ? (
-        <div
-          aria-hidden="true"
-          className={clsx(
-            "pointer-events-none absolute inset-x-3 inset-y-0 rounded-[24px] border border-dashed",
-            isDarkMode
-              ? "border-slate-400/55 bg-slate-400/10"
-              : "border-slate-400/60 bg-slate-200/70",
           )}
         />
       ) : null}
