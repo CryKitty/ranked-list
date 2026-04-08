@@ -2730,6 +2730,8 @@ export function RankboardApp() {
 
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
+          const columnAutoScrollBoost =
+            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.05 : 1;
           let deltaY = 0;
 
           if (coords.y <= rect.top + edgeThreshold) {
@@ -2746,7 +2748,7 @@ export function RankboardApp() {
           }
 
           if (deltaY !== 0) {
-            scrollContainer.scrollTop += deltaY;
+            scrollContainer.scrollTop += deltaY * columnAutoScrollBoost;
           }
         }
       }
@@ -6978,21 +6980,6 @@ function copyCardToDraft(card: CardEntry) {
                     <div className="grid grid-cols-2 gap-3 sm:col-span-2">
                       <button
                         className={clsx(
-                          "col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
-                        )}
-                        disabled={history.length === 0}
-                        onClick={handleUndo}
-                        type="button"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        <span>Undo</span>
-                      </button>
-
-                      <button
-                        className={clsx(
                           "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
@@ -9131,7 +9118,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
+                "flex max-h-[88vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -9164,10 +9151,10 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[230px] overflow-visible rounded-[24px] py-3 text-left transition hover:-translate-y-0.5 sm:max-w-[250px] md:max-w-[270px]",
+                        "mx-auto w-full max-w-[250px] overflow-visible rounded-[28px] border border-transparent p-2 text-left transition sm:max-w-[275px] md:max-w-[300px]",
                         isDarkMode
-                          ? "text-white"
-                          : "text-slate-950",
+                          ? "text-white hover:border-white/60"
+                          : "text-slate-950 hover:border-slate-300",
                       )}
                       onClick={() => resolvePairwiseChoice(index === 0 ? "candidate" : "comparison")}
                       type="button"
@@ -12390,6 +12377,13 @@ function AddCardRow({
       />
     </span>
   );
+  const desktopSpacingPlaceholder =
+    !isMobileViewport && (
+      <span
+        aria-hidden="true"
+        className="pointer-events-none h-10 w-10 rounded-full opacity-0"
+      />
+    );
 
   if (!interactive) {
     return (
@@ -12438,7 +12432,7 @@ function AddCardRow({
           />
         ) : null}
         */}
-        {rowContent}
+        {rowContent ?? desktopSpacingPlaceholder}
       </div>
     );
   }
