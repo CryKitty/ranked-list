@@ -19,7 +19,7 @@ import {
 import type { BoardFieldDefinition, SavedBoard } from "@/lib/types";
 
 const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
-const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%)";
+const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%)";
 
 function buildSharedBoardCopy(board: SavedBoard) {
   const shareSettings = board.settings?.publicShare;
@@ -329,7 +329,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                     return (
                       <article
                         key={card.entryId}
-                        className={clsx("shrink-0 overflow-hidden rounded-[28px] border bg-slate-900", tierBorderClass)}
+                        className={clsx("mx-1 shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 sm:mx-0", tierBorderClass)}
                       >
                         <div className="relative aspect-video bg-slate-900">
                           {card.imageUrl ? (

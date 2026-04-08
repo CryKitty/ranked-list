@@ -22,7 +22,7 @@ html {
   min-height: 100%;
   min-height: var(--app-height);
   background-color: #fff8ef;
-  background-image: radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%);
+  background-image: radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%);
   background-repeat: no-repeat;
   background-size: 100% 100%;
 }
@@ -37,7 +37,7 @@ html.dark {
 body {
   min-height: var(--app-height);
   background-color: #fff8ef;
-  background-image: radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%);
+  background-image: radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%);
   background-repeat: no-repeat;
   background-size: 100% 100%;
   color: var(--foreground);

@@ -170,7 +170,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
 };
 
 const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
-const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff4d6 0%, #ffe3cf 18%, #fff0e2 38%, #fff4ea 62%, #fff6ef 100%)";
+const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%)";
 
 function createStarterBoardSnapshot(): BoardSnapshot {
   const starterColumnId = makeId("column");
@@ -2412,6 +2412,17 @@ export function RankboardApp() {
   useEffect(() => {
     if (!authEnabled || isAuthLoading || !hasLoadedPersistedState || currentUser) {
       return;
+    }
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const hasPendingSharedCopy =
+        params.get("copyShared") === "1" &&
+        Boolean(window.localStorage.getItem(SHARED_BOARD_TEMPLATE_STORAGE_KEY));
+
+      if (hasPendingSharedCopy) {
+        return;
+      }
     }
 
     resetToSignedOutBoard();
@@ -5582,8 +5593,12 @@ function copyCardToDraft(card: CardEntry) {
     setIsCreateBoardModalOpen(false);
     setNewBoardTitle("");
     setNewBoardSettings(getDefaultBoardSettings("New Board", "board"));
-    resetToSignedOutBoard();
-  }, [resetToSignedOutBoard]);
+
+    const activeBoard = boards.find((board) => board.id === activeBoardId) ?? null;
+    if (!activeBoard || isEphemeralStarterBoard(activeBoard)) {
+      resetToSignedOutBoard();
+    }
+  }, [activeBoardId, boards, resetToSignedOutBoard]);
 
   function createBoardFromModal() {
     const title = newBoardTitle.trim() || `Board ${boards.length + 1}`;
