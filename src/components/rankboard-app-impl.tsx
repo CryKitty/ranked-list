@@ -2731,7 +2731,7 @@ export function RankboardApp() {
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
           const columnAutoScrollBoost =
-            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.05 : 1;
+            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.155 : 1;
           let deltaY = 0;
 
           if (coords.y <= rect.top + edgeThreshold) {
@@ -9118,7 +9118,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
+                "flex max-h-[88vh] w-full max-w-[656px] flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -9151,7 +9151,7 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[250px] overflow-visible rounded-[28px] border border-transparent p-2 text-left transition sm:max-w-[275px] md:max-w-[300px]",
+                        "mx-auto w-full max-w-[275px] overflow-visible rounded-[28px] border border-transparent p-2 text-left transition sm:max-w-[302px] md:max-w-[330px]",
                         isDarkMode
                           ? "text-white hover:border-white/60"
                           : "text-slate-950 hover:border-slate-300",
