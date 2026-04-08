@@ -186,9 +186,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   );
   const showSeriesOnCards = Boolean(seriesFieldDefinition?.showOnCardFront) && !board.settings?.collapseCards;
 
-  const boardBackgroundClass = isDarkMode
-    ? "bg-[radial-gradient(circle_at_top,#1f2937_0%,#111827_35%,#020617_100%)] text-slate-100"
-    : "bg-[radial-gradient(circle_at_top,#fff4d6_0%,#ffe3cf_18%,#fff0e2_38%,#fff4ea_62%,#fff6ef_100%)] text-slate-950";
+  const boardBackgroundClass = isDarkMode ? "bg-transparent text-slate-100" : "bg-transparent text-slate-950";
 
   const headerClass = isDarkMode
     ? "border-white/10 bg-slate-900/85"
@@ -294,7 +292,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                 className={clsx(
                   "flex shrink-0 snap-start flex-col rounded-[28px] border p-2.5 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:p-3",
                   isMobileViewport
-                    ? "h-[min(calc(var(--app-height)-8.85rem),892px)] min-h-[min(calc(var(--app-height)-8.85rem),832px)] w-[min(88vw,348px)] snap-center"
+                    ? "h-[min(calc(var(--app-height)-9.45rem),882px)] min-h-[min(calc(var(--app-height)-9.45rem),822px)] w-[min(88vw,348px)] snap-center"
                     : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] w-[320px]",
                   columnShellClass,
                 )}
