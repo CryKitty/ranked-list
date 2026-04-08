@@ -11969,6 +11969,8 @@ function AddCardRow({
   const showTrelloStylePlaceholder = showExpandedDropTarget;
   const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
+  const restingRowHeightClass = collapseCards ? "h-[5px]" : "h-4";
+  const alwaysVisibleRowHeightClass = collapseCards ? "h-[5px]" : "h-8";
 
   const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
   const rowContent = (
@@ -12007,8 +12009,8 @@ function AddCardRow({
                 ? `${placeholderHeightClass} opacity-100`
                 : "h-0 opacity-100"
             : alwaysVisible
-              ? "h-8 opacity-100"
-              : "h-4",
+              ? `${alwaysVisibleRowHeightClass} opacity-100`
+              : restingRowHeightClass,
         )}
         aria-hidden="true"
       >
@@ -12058,10 +12060,10 @@ function AddCardRow({
               ? `${placeholderHeightClass} opacity-100`
               : "h-0 opacity-100"
           : alwaysVisible
-            ? "h-8 opacity-100"
+            ? `${alwaysVisibleRowHeightClass} opacity-100`
             : isMobileViewport
-              ? "h-4 opacity-100"
-              : "h-4 opacity-0",
+              ? `${restingRowHeightClass} opacity-100`
+              : `${restingRowHeightClass} opacity-0`,
         isOver && "opacity-100",
       )}
       onClick={handleClick}
