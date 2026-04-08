@@ -40,6 +40,7 @@ import {
   Edit3,
   Filter,
   Gamepad2,
+  Hash,
   Heart,
   ListOrdered,
   LoaderCircle,
@@ -1083,7 +1084,7 @@ function resolveBoardIconKey(boardTitle: string, usedIcons?: Set<BoardIconKey>) 
 function renderBoardKindIcon(iconKey: BoardIconKey, className?: string) {
   switch (iconKey) {
     case "rank":
-      return <span className={clsx("inline-flex items-center justify-center font-black leading-none", className)}>#1</span>;
+      return <Hash className={className} strokeWidth={1.75} />;
     case "character":
       return <Heart className={className} />;
     case "movie":
@@ -1409,16 +1410,16 @@ function HoverTooltip({
 
   const scopeClass =
     scope === "boards"
-      ? "group-hover/boards:opacity-100 group-focus-within/boards:opacity-100"
+      ? "group-hover/boards:opacity-100"
       : scope === "rename"
-        ? "group-hover/rename:opacity-100 group-focus-within/rename:opacity-100"
+        ? "group-hover/rename:opacity-100"
         : scope === "column"
-          ? "group-hover/column:opacity-100 group-focus-within/column:opacity-100"
+          ? "group-hover/column:opacity-100"
           : scope === "edit"
-            ? "group-hover/edit:opacity-100 group-focus-within/edit:opacity-100"
+            ? "group-hover/edit:opacity-100"
             : scope === "save"
-              ? "group-hover/save:opacity-100 group-focus-within/save:opacity-100"
-          : "group-hover:opacity-100 group-focus-within:opacity-100";
+              ? "group-hover/save:opacity-100"
+          : "group-hover:opacity-100";
 
   const alignClass =
     align === "right"
@@ -1598,6 +1599,7 @@ export function RankboardApp() {
     getDefaultBoardSettings("New Board"),
   );
   const [starterBoardDisplayTitle, setStarterBoardDisplayTitle] = useState(defaultBoard.title);
+  const [starterBoardTitlePhase, setStarterBoardTitlePhase] = useState<"idle" | "exit" | "enter">("idle");
   const [isBoardIconModalOpen, setIsBoardIconModalOpen] = useState(false);
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
@@ -2694,14 +2696,27 @@ export function RankboardApp() {
   useEffect(() => {
     if (activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
       setStarterBoardDisplayTitle("Sorta");
-      const timer = window.setTimeout(() => {
-        setStarterBoardDisplayTitle("New Board");
+      setStarterBoardTitlePhase("idle");
+      const exitTimer = window.setTimeout(() => {
+        setStarterBoardTitlePhase("exit");
       }, 5000);
+      const swapTimer = window.setTimeout(() => {
+        setStarterBoardDisplayTitle("New Board");
+        setStarterBoardTitlePhase("enter");
+      }, 5180);
+      const settleTimer = window.setTimeout(() => {
+        setStarterBoardTitlePhase("idle");
+      }, 5400);
 
-      return () => window.clearTimeout(timer);
+      return () => {
+        window.clearTimeout(exitTimer);
+        window.clearTimeout(swapTimer);
+        window.clearTimeout(settleTimer);
+      };
     }
 
     setStarterBoardDisplayTitle(activeBoardTitle);
+    setStarterBoardTitlePhase("idle");
   }, [activeBoardId, activeBoardTitle, cardsByColumn, columns]);
 
   useEffect(() => {
@@ -7280,7 +7295,14 @@ function copyCardToDraft(card: CardEntry) {
                         type="button"
                         aria-label={isMobileViewport ? `Show rename control for ${activeBoardTitle}` : undefined}
                       >
-                        <h1 className={clsx("min-w-0 truncate text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
+                        <h1
+                          className={clsx(
+                            "min-w-0 truncate text-2xl font-black transition-all duration-200 ease-out sm:text-3xl",
+                            starterBoardTitlePhase === "exit" && "-translate-x-3 opacity-0",
+                            starterBoardTitlePhase === "enter" && "translate-x-3 opacity-0",
+                            isDarkMode ? "text-white" : "text-slate-950",
+                          )}
+                        >
                           {displayActiveBoardTitle}
                         </h1>
                       </button>
@@ -12188,6 +12210,9 @@ function AddCardRow({
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
   const restingRowHeightClass = collapseCards ? "h-[5px]" : "h-4";
   const alwaysVisibleRowHeightClass = collapseCards ? "h-[5px]" : "h-8";
+  const desktopRestingClass = alwaysVisible
+    ? `${alwaysVisibleRowHeightClass} opacity-0`
+    : `${restingRowHeightClass} opacity-0`;
 
   const hideRowAction =
     isDragMode || hideAction || !interactive || (isMobileViewport && !mobileArmed);
@@ -12277,10 +12302,12 @@ function AddCardRow({
               ? `${placeholderHeightClass} opacity-100`
               : "h-0 opacity-100"
           : alwaysVisible
-            ? `${alwaysVisibleRowHeightClass} opacity-100`
+            ? isMobileViewport
+              ? `${alwaysVisibleRowHeightClass} opacity-100`
+              : `${alwaysVisibleRowHeightClass} opacity-0`
             : isMobileViewport
               ? `${restingRowHeightClass} opacity-100`
-              : `${restingRowHeightClass} opacity-0`,
+              : desktopRestingClass,
         isOver && "opacity-100",
       )}
       onClick={handleClick}
