@@ -10647,7 +10647,7 @@ function BoardColumn({
       className={clsx(
         "relative z-10 flex shrink-0 flex-col rounded-[28px] border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
         isMobileViewport
-          ? "h-[min(calc(var(--app-height)-9.5rem),892px)] min-h-[min(calc(var(--app-height)-9.5rem),832px)]"
+          ? "h-[min(calc(var(--app-height)-7.65rem),922px)] min-h-[min(calc(var(--app-height)-7.65rem),862px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(88vw,348px)] snap-center" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
@@ -12301,7 +12301,13 @@ function CardTile({
           className={clsx(
             "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
-            collapseCards ? "min-h-[82px]" : compactImageOnly ? "aspect-[2/3]" : forceSquare ? "aspect-square" : "aspect-video",
+            collapseCards
+              ? "min-h-[82px]"
+              : compactImageOnly
+                ? "aspect-[2/3]"
+                : forceSquare
+                  ? "aspect-square"
+                  : "aspect-[1.9/1] sm:aspect-video",
             compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
           )}
         style={
@@ -12400,13 +12406,13 @@ function CardTile({
             </div>
           </div>
         ) : compactImageOnly ? null : hasArtwork ? (
-          <div className="absolute left-0 right-0 bottom-0 p-3 sm:p-4">
+          <div className="absolute left-0 right-0 bottom-0 p-2.5 sm:p-4">
             {displaySeries ? (
               <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
                 {displaySeries}
               </p>
             ) : null}
-            <h3 className={clsx("truncate font-bold text-white", forceSquare ? "mt-0.5 text-base sm:text-lg" : "text-xl")}>
+            <h3 className={clsx("truncate font-bold text-white", forceSquare ? "mt-0.5 text-base sm:text-lg" : "text-lg sm:text-xl")}>
               {displayTitle}
             </h3>
             {card.notes ? (
