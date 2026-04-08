@@ -8510,11 +8510,29 @@ function copyCardToDraft(card: CardEntry) {
                       )}
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                        <MaintenanceCardPreview
-                          imageUrl={suggestion.sourceImageUrl}
-                          isDarkMode={isDarkMode}
-                          title={suggestion.sourceCardTitle}
-                        />
+                        <div className="w-full shrink-0 sm:w-[240px]">
+                          <CardTile
+                            card={{
+                              entryId: suggestion.sourceEntryId,
+                              itemId: suggestion.sourceItemId,
+                              title: suggestion.sourceCardTitle,
+                              imageUrl: suggestion.sourceImageUrl,
+                              imageStoragePath: suggestion.sourceImageStoragePath,
+                              series: suggestion.sourceSeries,
+                              releaseYear: suggestion.sourceReleaseYear,
+                              notes: suggestion.sourceNotes,
+                              customFieldValues: suggestion.sourceCustomFieldValues,
+                            }}
+                            collapseCards={false}
+                            isDarkMode={isDarkMode}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
+                            rankBadge={null}
+                            showDragCursor={false}
+                          />
+                        </div>
                         <div className="min-w-0 flex-1 space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
@@ -12056,7 +12074,8 @@ function AddCardRow({
   const restingRowHeightClass = collapseCards ? "h-[5px]" : "h-4";
   const alwaysVisibleRowHeightClass = collapseCards ? "h-[5px]" : "h-8";
 
-  const hideRowAction = isDragMode || hideAction || (isMobileViewport && !mobileArmed);
+  const hideRowAction =
+    isDragMode || hideAction || !interactive || (isMobileViewport && !mobileArmed);
   const rowContent = hideRowAction ? null : (
     <span
       className={clsx(
@@ -12491,7 +12510,7 @@ function CardTile({
             />
           </>
         ) : null}
-        {!collapseCards && !compactImageOnly ? (
+        {!collapseCards && !compactImageOnly && hasArtwork ? (
           <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
         ) : null}
 
