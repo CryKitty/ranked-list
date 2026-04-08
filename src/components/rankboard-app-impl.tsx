@@ -11451,7 +11451,7 @@ function BoardColumn({
                   key={card.entryId}
                   className={clsx(
                     "flex flex-col",
-                    collapseCards ? "gap-1 sm:gap-2" : "gap-1.5 sm:gap-3",
+                    collapseCards ? "gap-0.5 sm:gap-1" : "gap-1.5 sm:gap-3",
                   )}
                 >
                   <SortableCard
@@ -12263,16 +12263,6 @@ function CardTile({
     "bg-white text-slate-950";
   const collapsedTitleClass = "text-slate-950";
   const collapsedSeriesClass = "text-slate-700";
-  const collapsedAccentClass =
-    tierKey === "top10"
-      ? "bg-amber-600/70"
-      : tierKey === "top15"
-        ? "bg-cyan-600/70"
-        : tierKey === "top20"
-          ? "bg-fuchsia-600/70"
-          : tierKey === "top30"
-            ? "bg-emerald-600/70"
-            : "bg-teal-600/70";
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
@@ -12346,7 +12336,7 @@ function CardTile({
       }}
       style={{
         contentVisibility: "auto",
-        containIntrinsicSize: collapseCards ? "60px" : "180px",
+        containIntrinsicSize: collapseCards ? "54px" : "180px",
         touchAction: "pan-y",
       }}
     >
@@ -12355,7 +12345,7 @@ function CardTile({
             "relative overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
             collapseCards
-              ? "min-h-[58px]"
+              ? "min-h-[52px]"
               : compactImageOnly
                 ? "aspect-[2/3]"
                 : forceSquare
@@ -12431,28 +12421,27 @@ function CardTile({
         ) : null}
 
         {collapseCards ? (
-          <div className="absolute inset-0 px-3 py-2.5">
-            <div className="flex h-full items-start gap-2.5 pr-11">
-              <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="absolute inset-0 px-3 py-2">
+            <div className="flex h-full items-center gap-2 pr-11">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 {rankBadge ? (
-                  <div className="flex shrink-0 flex-col items-start gap-1 pt-0.5">
-                    <div className={clsx("rounded-full px-2 py-0.5 text-[10px] font-black leading-none", collapsedRankClass)}>
-                      {rankBadge.label ? `${rankBadge.label}${rankBadge.value}` : `#${rankBadge.value}`}
+                  <div className="flex shrink-0 items-center justify-center">
+                    <div className={clsx("flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-black leading-none", collapsedRankClass)}>
+                      {rankBadge.value}
                     </div>
-                    <div className={clsx("h-1.5 w-6 rounded-full", collapsedAccentClass)} />
                   </div>
                 ) : null}
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 text-center">
                   <h3
                     className={clsx(
-                      "line-clamp-2 text-[13px] font-bold leading-[1.15]",
+                      "line-clamp-2 text-[13px] font-bold leading-[1.05]",
                       collapsedTitleClass,
                     )}
                   >
                     {displayTitle}
                   </h3>
                   {displaySeries ? (
-                    <p className={clsx("mt-1 line-clamp-1 text-[10px] font-semibold leading-none", collapsedSeriesClass)}>
+                    <p className={clsx("mt-0.5 line-clamp-1 text-[9px] font-semibold leading-none", collapsedSeriesClass)}>
                       {displaySeries}
                     </p>
                   ) : null}
