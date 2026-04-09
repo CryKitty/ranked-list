@@ -6972,7 +6972,7 @@ function copyCardToDraft(card: CardEntry) {
                   @keyframes mobile-action-button-travel {
                     0% {
                       opacity: 0.88;
-                      transform: translateY(var(--mobile-action-travel-offset, 0px)) scale(0.98);
+                      transform: translateY(calc(var(--mobile-action-travel-offset, 0px) * -1)) scale(0.98);
                     }
                     100% {
                       opacity: 1;
@@ -6983,11 +6983,11 @@ function copyCardToDraft(card: CardEntry) {
                   @keyframes mobile-action-panel-rise {
                     0% {
                       opacity: 0;
-                      transform: translate(-50%, 24px) scale(0.98);
+                      margin-bottom: -18px;
                     }
                     100% {
                       opacity: 1;
-                      transform: translate(-50%, 0) scale(1);
+                      margin-bottom: 0;
                     }
                   }
                 `}</style>
