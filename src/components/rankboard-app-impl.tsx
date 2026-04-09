@@ -6914,7 +6914,7 @@ function copyCardToDraft(card: CardEntry) {
                       <button
                         aria-label={`Add ${boardVocabulary.singular}`}
                         className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+11.85rem)] right-[4.95rem] inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+10.65rem)] right-[2.7rem] inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-900/96 text-slate-100"
                             : "border-white/80 bg-white/96 text-slate-900",
@@ -6931,7 +6931,7 @@ function copyCardToDraft(card: CardEntry) {
                       <button
                         aria-label="Share"
                         className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+8.9rem)] right-[8.45rem] inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+9.75rem)] right-[6.05rem] inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-900/96 text-slate-100"
                             : "border-white/80 bg-white/96 text-slate-900",
@@ -6946,7 +6946,7 @@ function copyCardToDraft(card: CardEntry) {
                       </button>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+5.15rem)] right-[10.05rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+7.75rem)] right-[8.35rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
@@ -7009,7 +7009,7 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.95rem)] right-[8.45rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+4.45rem)] right-[8.7rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
@@ -7110,7 +7110,7 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+0.2rem)] right-[4.95rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.65rem)] right-[6.95rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
@@ -7197,7 +7197,7 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.95rem)] right-[1.45rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+0.55rem)] right-[3.85rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
