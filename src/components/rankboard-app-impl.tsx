@@ -12482,7 +12482,7 @@ function BoardColumn({
                   key={card.entryId}
                   className={clsx(
                     "flex flex-col",
-                    collapseCards ? "gap-[5px]" : "gap-1.5 sm:gap-3",
+                    collapseCards ? "gap-0" : "gap-1.5 sm:gap-3",
                   )}
                 >
                   <SortableCard
@@ -13012,8 +13012,8 @@ function AddCardRow({
   const showTrelloStylePlaceholder = showExpandedDropTarget;
   const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
-  const restingRowHeightClass = collapseCards ? "h-[5px]" : "h-4";
-  const alwaysVisibleRowHeightClass = collapseCards ? "h-[5px]" : "h-8";
+  const restingRowHeightClass = collapseCards ? "h-0" : "h-4";
+  const alwaysVisibleRowHeightClass = collapseCards ? "h-0" : "h-8";
   const desktopRestingClass = alwaysVisible
     ? `${alwaysVisibleRowHeightClass} opacity-0`
     : `${restingRowHeightClass} opacity-0`;
