@@ -1720,8 +1720,7 @@ export function RankboardApp() {
           : isTransferMenuOpen
             ? "settings"
             : null;
-  const hasMobileActionsSubmenuOpen = activeMobileActionsSubmenu !== null;
-  const mobileActionPillWidth = "12rem";
+  const mobileActionPillWidth = "12.625rem";
   const hasBlockingMenuOpen =
     isBoardsMenuOpen ||
     isActionsMenuOpen ||
@@ -6927,34 +6926,32 @@ function copyCardToDraft(card: CardEntry) {
                     onClick={() => setIsMobileActionsOpen(false)}
                   >
                     <div className="pointer-events-none fixed inset-0 z-[90] lg:hidden">
-                      {!hasMobileActionsSubmenuOpen ? (
-                        <button
-                          aria-label={`Add ${boardVocabulary.singular}`}
-                          className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.475rem)] right-[7.75rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-900/96 text-slate-100"
-                              : "border-white/80 bg-white/96 text-slate-900",
-                          )}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setIsMobileSearchMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                            openQuickAddModal();
-                          }}
-                          type="button"
-                          style={{ width: mobileActionPillWidth }}
-                        >
-                          <Plus className="absolute left-4 h-4 w-4" />
-                          <span>{`Add ${boardVocabulary.singular}`}</span>
-                        </button>
-                      ) : null}
+                      <button
+                        aria-label={`Add ${boardVocabulary.singular}`}
+                        className={clsx(
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+2.85rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-900/96 text-slate-100"
+                            : "border-white/80 bg-white/96 text-slate-900",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setIsMobileSearchMenuOpen(false);
+                          setIsCustomizationMenuOpen(false);
+                          setIsMaintenanceMenuOpen(false);
+                          setIsTransferMenuOpen(false);
+                          openQuickAddModal();
+                        }}
+                        type="button"
+                        style={{ width: mobileActionPillWidth }}
+                      >
+                        <Plus className="absolute left-4 h-4 w-4" />
+                        <span>{`Add ${boardVocabulary.singular}`}</span>
+                      </button>
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "search" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.875rem)] right-[7.75rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -7022,7 +7019,7 @@ function copyCardToDraft(card: CardEntry) {
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "customization" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+10.275rem)] right-[7.75rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+9.65rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -7111,34 +7108,32 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                       ) : null}
 
-                      {!hasMobileActionsSubmenuOpen ? (
-                        <button
-                          aria-label="Share"
-                          className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.675rem)] right-[7.75rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-900/96 text-slate-100"
-                              : "border-white/80 bg-white/96 text-slate-900",
-                          )}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setIsMobileSearchMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                            openShareModal();
-                          }}
-                          type="button"
-                          style={{ width: mobileActionPillWidth }}
-                        >
-                          <Share2 className="absolute left-4 h-4 w-4" />
-                          <span>Share</span>
-                        </button>
-                      ) : null}
+                      <button
+                        aria-label="Share"
+                        className={clsx(
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.05rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-900/96 text-slate-100"
+                            : "border-white/80 bg-white/96 text-slate-900",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setIsMobileSearchMenuOpen(false);
+                          setIsCustomizationMenuOpen(false);
+                          setIsMaintenanceMenuOpen(false);
+                          setIsTransferMenuOpen(false);
+                          openShareModal();
+                        }}
+                        type="button"
+                        style={{ width: mobileActionPillWidth }}
+                      >
+                        <Share2 className="absolute left-4 h-4 w-4" />
+                        <span>Share</span>
+                      </button>
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "maintenance" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+17.075rem)] right-[7.75rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+16.45rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -7209,7 +7204,7 @@ function copyCardToDraft(card: CardEntry) {
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "settings" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+20.475rem)] right-[7.75rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+19.85rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
