@@ -54,6 +54,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Search,
   Settings2,
   Share2,
   Sparkles,
@@ -1569,6 +1570,7 @@ export function RankboardApp() {
   const [isBoardsMenuOpen, setIsBoardsMenuOpen] = useState(false);
   const [isMobileBoardRenameArmed, setIsMobileBoardRenameArmed] = useState(false);
   const [isHeaderSeriesMenuOpen, setIsHeaderSeriesMenuOpen] = useState(false);
+  const [isMobileSearchMenuOpen, setIsMobileSearchMenuOpen] = useState(false);
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false);
@@ -3054,7 +3056,10 @@ export function RankboardApp() {
   useEffect(() => {
     if (
       !isMobileActionsOpen ||
-      (!isCustomizationMenuOpen && !isMaintenanceMenuOpen && !isTransferMenuOpen)
+      (!isMobileSearchMenuOpen &&
+        !isCustomizationMenuOpen &&
+        !isMaintenanceMenuOpen &&
+        !isTransferMenuOpen)
     ) {
       return;
     }
@@ -3063,6 +3068,7 @@ export function RankboardApp() {
       const target = event.target as HTMLElement | null;
 
       if (!target?.closest("[data-mobile-actions-submenu-root='true']")) {
+        setIsMobileSearchMenuOpen(false);
         setIsCustomizationMenuOpen(false);
         setIsMaintenanceMenuOpen(false);
         setIsTransferMenuOpen(false);
@@ -3072,13 +3078,20 @@ export function RankboardApp() {
     window.addEventListener("pointerdown", handlePointerDown);
 
     return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [isCustomizationMenuOpen, isMaintenanceMenuOpen, isMobileActionsOpen, isTransferMenuOpen]);
+  }, [
+    isCustomizationMenuOpen,
+    isMaintenanceMenuOpen,
+    isMobileActionsOpen,
+    isMobileSearchMenuOpen,
+    isTransferMenuOpen,
+  ]);
 
   useEffect(() => {
     if (isMobileActionsOpen || isActionsMenuOpen) {
       return;
     }
 
+    setIsMobileSearchMenuOpen(false);
     setIsCustomizationMenuOpen(false);
     setIsMaintenanceMenuOpen(false);
     setIsTransferMenuOpen(false);
@@ -6873,191 +6886,245 @@ function copyCardToDraft(card: CardEntry) {
 
           <div>
             {!hasOpenModal ? (
-              <button
-                aria-label="Open actions"
-                className={clsx(
-                  "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
-                  isDarkMode
-                    ? "bg-slate-800 text-white shadow-[0_12px_24px_rgba(2,6,23,0.35)] hover:bg-slate-700"
-                    : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
-                )}
-                onClick={() => {
-                  setIsBoardsMenuOpen(false);
-                  setIsMobileActionsOpen(true);
-                }}
-                type="button"
-              >
-                <Plus className="h-6 w-6" />
-              </button>
-            ) : null}
-
-            {isMobileActionsOpen ? (
-              <div
-                className="fixed inset-0 z-[80] bg-slate-950/40 p-4 backdrop-blur-sm lg:hidden"
-                onClick={() => setIsMobileActionsOpen(false)}
-              >
-                <div
+              <>
+                <button
+                  aria-label={isMobileActionsOpen ? "Close actions" : "Open actions"}
                   className={clsx(
-                    "fixed bottom-[calc(env(safe-area-inset-bottom)+5.8rem)] right-3 z-[90] flex w-[min(calc(100vw-1.5rem),380px)] max-h-[min(72vh,640px)] flex-col overflow-hidden rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] sm:right-4 sm:w-[360px]",
+                    "fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[1.45rem] z-[95] inline-flex h-14 w-14 items-center justify-center rounded-full transition lg:hidden",
                     isDarkMode
-                      ? "border-white/10 bg-slate-900 text-slate-100"
-                      : "border-white/70 bg-white text-slate-950",
+                      ? "bg-slate-800 text-white shadow-[0_12px_24px_rgba(2,6,23,0.35)] hover:bg-slate-700"
+                      : "bg-white text-slate-950 shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-slate-100",
+                    isMobileActionsOpen && "rotate-45",
                   )}
-                  onClick={(event) => event.stopPropagation()}
+                  onClick={() => {
+                    setIsBoardsMenuOpen(false);
+                    setIsMobileActionsOpen((current) => !current);
+                  }}
+                  type="button"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">
-                        Actions
-                      </h2>
-                      <p className={clsx("mt-1 text-xs", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                        {isUploadingArtwork
-                          ? "Uploading artwork..."
-                          : saveState === "error" || saveState === "offline"
-                            ? saveErrorMessage ?? "Changes could not be saved."
-                            : isPersisting
-                              ? "Saving..."
-                              : `Last saved ${formatLastSavedAt(lastSavedAt)}`}
-                      </p>
-                    </div>
-                    <button
-                      className={clsx(
-                        "rounded-full p-2 transition",
-                        isDarkMode
-                          ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                      )}
-                      onClick={() => setIsMobileActionsOpen(false)}
-                      type="button"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <Plus className="h-6 w-6" />
+                </button>
 
-                  <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-                    <div className="grid gap-3">
-                      <input
-                        className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                        )}
-                        placeholder="Search title or series"
-                        value={searchTerm}
-                        onChange={(event) => setSearchTerm(event.target.value)}
-                      />
-
-                      <SeriesFilterButton
-                        allSeries={allSeries}
-                        currentSeriesFilter={seriesFilter}
-                        isDarkMode={isDarkMode}
-                        isOpen={isHeaderSeriesMenuOpen}
-                        onSelect={(series) => {
-                          setSeriesFilter(series);
-                          setIsHeaderSeriesMenuOpen(false);
-                        }}
-                        onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
-                      />
-                    </div>
-
-                    <button
-                      className={clsx(
-                        "inline-flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      onClick={openQuickAddModal}
-                      type="button"
-                    >
-                      <Plus className="h-4 w-4" />
-                      {`Add ${boardVocabulary.singular}`}
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-3">
+                {isMobileActionsOpen ? (
+                  <div
+                    className="fixed inset-0 z-[80] bg-slate-950/34 backdrop-blur-md lg:hidden"
+                    onClick={() => setIsMobileActionsOpen(false)}
+                  >
+                    <div className="pointer-events-none fixed inset-0 z-[90] lg:hidden">
                       <button
                         className={clsx(
-                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.35rem)] right-[1.35rem] flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold shadow-[0_20px_40px_rgba(15,23,42,0.18)] transition",
                           isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                            ? "border-white/10 bg-slate-900/96 text-slate-100"
+                            : "border-white/80 bg-white/96 text-slate-900",
                         )}
-                        onClick={openShareModal}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openQuickAddModal();
+                        }}
+                        type="button"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {`Add ${boardVocabulary.singular}`}
+                      </button>
+
+                      <button
+                        className={clsx(
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.45rem)] right-[5.8rem] inline-flex h-12 min-w-[7.25rem] items-center justify-center gap-2 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-900/96 text-slate-100"
+                            : "border-white/80 bg-white/96 text-slate-900",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openShareModal();
+                        }}
                         type="button"
                       >
                         <Share2 className="h-4 w-4" />
-                        <span>Share</span>
+                        Share
                       </button>
 
-                      <button
-                        className={clsx(
-                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                        )}
-                        onClick={() => {
-                          setIsImportModalOpen(true);
-                          setIsActionsMenuOpen(false);
-                          setIsMobileActionsOpen(false);
-                        }}
-                        type="button"
+                      <div
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+0.95rem)] right-[5.85rem]"
+                        data-mobile-actions-submenu-root="true"
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        <Upload className="h-4 w-4" />
-                        <span>Import</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        className={clsx(
-                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                        )}
-                        onClick={() => {
-                          exportActiveBoardAsJson();
-                          setIsActionsMenuOpen(false);
-                          setIsMobileActionsOpen(false);
-                        }}
-                        type="button"
-                      >
-                        <Save className="h-4 w-4" />
-                        <span>Export</span>
-                      </button>
-
-                      <button
-                        className={clsx(
-                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                        )}
-                        onClick={() => {
-                          void toggleThemePreference();
-                          setIsActionsMenuOpen(false);
-                          setIsMobileActionsOpen(false);
-                        }}
-                        type="button"
-                      >
-                        {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                        <span>{isDarkMode ? "Lumos" : "Nox"}</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 overflow-visible">
-                      <div className="relative" data-mobile-actions-submenu-root="true">
                         <button
                           className={clsx(
-                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                             isDarkMode
-                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                              ? "border-white/10 bg-slate-900/96 text-slate-100"
+                              : "border-white/80 bg-white/96 text-slate-900",
+                            isMobileSearchMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
+                          )}
+                          onClick={() => {
+                            setIsMobileSearchMenuOpen((current) => !current);
+                            setIsTransferMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <Search className="h-4 w-4" />
+                        </button>
+
+                        {isMobileSearchMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),320px)] space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                : "border-white/80 bg-white/95 text-slate-900",
+                            )}
+                          >
+                            <p className={clsx("px-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                              Search
+                            </p>
+                            <input
+                              className={clsx(
+                                "w-full rounded-2xl border px-4 py-3 outline-none transition",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                                  : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                              )}
+                              placeholder="Search title or series"
+                              value={searchTerm}
+                              onChange={(event) => setSearchTerm(event.target.value)}
+                            />
+                            <SeriesFilterButton
+                              allSeries={allSeries}
+                              currentSeriesFilter={seriesFilter}
+                              isDarkMode={isDarkMode}
+                              isOpen={isHeaderSeriesMenuOpen}
+                              onSelect={(series) => {
+                                setSeriesFilter(series);
+                                setIsHeaderSeriesMenuOpen(false);
+                              }}
+                              onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+5.2rem)] right-[5.05rem]"
+                        data-mobile-actions-submenu-root="true"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          className={clsx(
+                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-900/96 text-slate-100"
+                              : "border-white/80 bg-white/96 text-slate-900",
+                            isTransferMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
+                          )}
+                          onClick={() => {
+                            setIsTransferMenuOpen((current) => !current);
+                            setIsMobileSearchMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <Settings2 className="h-4 w-4" />
+                        </button>
+
+                        {isTransferMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),280px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                : "border-white/80 bg-white/95 text-slate-900",
+                            )}
+                          >
+                            <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                              Settings
+                            </p>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
+                                setIsImportModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <Upload className="h-4 w-4" />
+                              Import
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
+                                exportActiveBoardAsJson();
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <Save className="h-4 w-4" />
+                              Export
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
+                                void toggleThemePreference();
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                              {isDarkMode ? "Lumos" : "Nox"}
+                            </button>
+                            {currentUser ? (
+                              <button
+                                className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                                onClick={handleSignOut}
+                                type="button"
+                              >
+                                <LogOut className="h-4 w-4" />
+                                Log Out
+                              </button>
+                            ) : authEnabled ? (
+                              <button
+                                className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition disabled:opacity-50", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                                disabled={isAuthLoading}
+                                onClick={() => {
+                                  void handleOAuthLogin("google");
+                                  setIsActionsMenuOpen(false);
+                                  setIsMobileActionsOpen(false);
+                                }}
+                                type="button"
+                              >
+                                <LogIn className="h-4 w-4" />
+                                Log In
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+8.95rem)] right-[3.6rem]"
+                        data-mobile-actions-submenu-root="true"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          className={clsx(
+                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-900/96 text-slate-100"
+                              : "border-white/80 bg-white/96 text-slate-900",
+                            isCustomizationMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                           )}
                           onClick={() => {
                             setIsCustomizationMenuOpen((current) => !current);
+                            setIsMobileSearchMenuOpen(false);
                             setIsMaintenanceMenuOpen(false);
                             setIsTransferMenuOpen(false);
                             setIsActionsMenuOpen(false);
@@ -7065,18 +7132,21 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <Sparkles className="h-4 w-4" />
-                          <span>Customization</span>
                         </button>
+
                         {isCustomizationMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
+                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                               isDarkMode
-                                ? "border-white/10 bg-slate-900/95"
-                                : "border-slate-200 bg-white/95",
+                                ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                : "border-white/80 bg-white/95 text-slate-900",
                             )}
                           >
-                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                            <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                              Customization
+                            </p>
+                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                               <span>Compact View</span>
                               <ToggleSwitch
                                 ariaLabel="Toggle Compact View"
@@ -7085,7 +7155,7 @@ function copyCardToDraft(card: CardEntry) {
                                 onClick={toggleCollapseCardsSetting}
                               />
                             </div>
-                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                               <span>Tier Highlights</span>
                               <ToggleSwitch
                                 ariaLabel="Toggle Tier Highlights"
@@ -7095,7 +7165,7 @@ function copyCardToDraft(card: CardEntry) {
                               />
                             </div>
                             <button
-                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                               onClick={promptForCardLabel}
                               type="button"
                             >
@@ -7103,7 +7173,7 @@ function copyCardToDraft(card: CardEntry) {
                               <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
                             </button>
                             <button
-                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                               onClick={() => setIsBoardIconModalOpen(true)}
                               type="button"
                             >
@@ -7111,7 +7181,7 @@ function copyCardToDraft(card: CardEntry) {
                               {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
                             </button>
                             <button
-                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
                               onClick={() => {
                                 setIsBoardFieldSettingsModalOpen(true);
                                 setIsActionsMenuOpen(false);
@@ -7126,52 +7196,23 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
                       </div>
 
-                      {currentUser ? (
+                      <div
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+12.2rem)] right-[2rem]"
+                        data-mobile-actions-submenu-root="true"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <button
                           className={clsx(
-                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                             isDarkMode
-                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                          )}
-                          onClick={handleSignOut}
-                          type="button"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          <span>Log Out</span>
-                        </button>
-                      ) : authEnabled ? (
-                        <button
-                          className={clsx(
-                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                          )}
-                          disabled={isAuthLoading}
-                          onClick={() => {
-                            void handleOAuthLogin("google");
-                            setIsActionsMenuOpen(false);
-                            setIsMobileActionsOpen(false);
-                          }}
-                          type="button"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          <span>Log In</span>
-                        </button>
-                      ) : null}
-
-                      <div className="relative" data-mobile-actions-submenu-root="true">
-                        <button
-                          className={clsx(
-                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                              ? "border-white/10 bg-slate-900/96 text-slate-100"
+                              : "border-white/80 bg-white/96 text-slate-900",
+                            isMaintenanceMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                           )}
                           onClick={() => {
                             setIsMaintenanceMenuOpen((current) => !current);
                             setIsBoardsMenuOpen(false);
+                            setIsMobileSearchMenuOpen(false);
                             setIsCustomizationMenuOpen(false);
                             setIsTransferMenuOpen(false);
                             setIsActionsMenuOpen(false);
@@ -7179,32 +7220,35 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <Wrench className="h-4 w-4" />
-                          <span>Maintenance</span>
                         </button>
+
                         {isMaintenanceMenuOpen ? (
                           <div
                             className={clsx(
-                              "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
+                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                               isDarkMode
-                                ? "border-white/10 bg-slate-900/95"
-                                : "border-slate-200 bg-white/95",
+                                ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                : "border-white/80 bg-white/95 text-slate-900",
                             )}
                           >
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
+                            <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                              Maintenance
+                            </p>
+                            <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
                               <Trash2 className="h-4 w-4" />
                               Delete Duplicates
                             </button>
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
+                            <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
                               <Sparkles className="h-4 w-4" />
                               Tidy Titles
                             </button>
-                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
+                            <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
                               <WandSparkles className="h-4 w-4" />
                               Series Scraper
                             </button>
                             <button
                               className={clsx(
-                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition",
                                 isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
                                 boards.length <= 1 && "cursor-not-allowed opacity-50",
                               )}
@@ -7218,10 +7262,27 @@ function copyCardToDraft(card: CardEntry) {
                           </div>
                         ) : null}
                       </div>
+
+                      <div
+                        className={clsx(
+                          "pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+14.9rem)] right-[1.6rem] max-w-[220px] rounded-2xl px-4 py-3 text-xs shadow-[0_18px_34px_rgba(15,23,42,0.14)] transition",
+                          isDarkMode
+                            ? "bg-slate-900/88 text-slate-300"
+                            : "bg-white/88 text-slate-600",
+                        )}
+                      >
+                        {isUploadingArtwork
+                          ? "Uploading artwork..."
+                          : saveState === "error" || saveState === "offline"
+                            ? saveErrorMessage ?? "Changes could not be saved."
+                            : isPersisting
+                              ? "Saving..."
+                              : `Last saved ${formatLastSavedAt(lastSavedAt)}`}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                ) : null}
+              </>
             ) : null}
           </div>
 
