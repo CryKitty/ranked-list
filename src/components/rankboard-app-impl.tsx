@@ -13523,7 +13523,7 @@ function CardTile({
                     {displayTitle}
                   </h3>
                   {displaySeries ? (
-                    <p className={clsx("mt-0.5 line-clamp-1 text-[9px] font-semibold leading-none", collapsedSeriesClass)}>
+                    <p className={clsx("mt-0.5 line-clamp-1 text-[10px] font-semibold leading-none", collapsedSeriesClass)}>
                       {displaySeries}
                     </p>
                   ) : null}
