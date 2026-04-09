@@ -7898,7 +7898,9 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div aria-hidden="true" className="h-7 w-7 shrink-0 opacity-0" />
+                )}
               </>
             ) : null}
           </div>
@@ -11739,7 +11741,7 @@ function BoardColumn({
               !isEditingColumn && "cursor-grab active:cursor-grabbing",
             )}
           >
-            <div className="grid grid-cols-[minmax(0,1fr)_40px] items-start gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_40px] items-center gap-3">
             {isEditingColumn && editingColumnDraft ? (
               <div className="col-span-2 w-full space-y-3">
                 <input
@@ -11802,7 +11804,7 @@ function BoardColumn({
               </div>
             ) : (
               <>
-                <h2 className="w-full truncate whitespace-nowrap pr-2 text-left text-lg font-bold">{column.title}</h2>
+                <h2 className="flex min-h-10 w-full items-center truncate whitespace-nowrap pr-2 text-left text-lg font-bold">{column.title}</h2>
                 <div className="group relative" data-column-menu-root="true">
                   <div className="group/column-trigger relative inline-flex">
                     <button
