@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
   AutoScrollActivator,
@@ -1726,6 +1726,19 @@ export function RankboardApp() {
           : isTransferMenuOpen
             ? "settings"
             : null;
+  const mobileActionStackStep = 54;
+  const activeMobileActionTravelOffset =
+    activeMobileActionsSubmenu === "search"
+      ? `${mobileActionStackStep}px`
+      : activeMobileActionsSubmenu === "customization"
+        ? `${mobileActionStackStep * 2}px`
+        : activeMobileActionsSubmenu === "share"
+          ? `${mobileActionStackStep * 3}px`
+          : activeMobileActionsSubmenu === "maintenance"
+            ? `${mobileActionStackStep * 4}px`
+            : activeMobileActionsSubmenu === "settings"
+              ? `${mobileActionStackStep * 5}px`
+              : "0px";
   const mobileActionPillWidth = "12.625rem";
   const mobileActionPillClassName = clsx(
     "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
@@ -1735,7 +1748,7 @@ export function RankboardApp() {
   );
   const mobileActionPopoverClassName = clsx(
     "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] -translate-x-1/2 overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
-    "motion-safe:animate-[mobile-action-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
+    "motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
     isDarkMode
       ? "border-white/10 bg-slate-900/95 text-slate-100"
       : "border-white/80 bg-white/95 text-slate-900",
@@ -6956,19 +6969,21 @@ function copyCardToDraft(card: CardEntry) {
             {!hasOpenModal ? (
               <>
                 <style jsx global>{`
-                  @keyframes mobile-action-button-settle {
+                  @keyframes mobile-action-button-travel {
                     0% {
-                      transform: translateY(-14px) scale(0.98);
+                      opacity: 0.88;
+                      transform: translateY(var(--mobile-action-travel-offset, 0px)) scale(0.98);
                     }
                     100% {
+                      opacity: 1;
                       transform: translateY(0) scale(1);
                     }
                   }
 
-                  @keyframes mobile-action-panel-in {
+                  @keyframes mobile-action-panel-rise {
                     0% {
                       opacity: 0;
-                      transform: translate(-50%, 10px) scale(0.98);
+                      transform: translate(-50%, 24px) scale(0.98);
                     }
                     100% {
                       opacity: 1;
@@ -7018,7 +7033,7 @@ function copyCardToDraft(card: CardEntry) {
                               aria-label={`Add ${boardVocabulary.singular}`}
                               className={clsx(
                                 mobileActionPillClassName,
-                                isMobileQuickAddPanelOpen && "motion-safe:animate-[mobile-action-button-settle_260ms_cubic-bezier(0.22,1,0.36,1)]",
+                                isMobileQuickAddPanelOpen && "motion-safe:animate-[mobile-action-button-travel_260ms_cubic-bezier(0.22,1,0.36,1)]",
                               )}
                               onClick={() => {
                                 if (isMobileQuickAddPanelOpen) {
@@ -7028,7 +7043,10 @@ function copyCardToDraft(card: CardEntry) {
                                 openMobileQuickAddPanel();
                               }}
                               type="button"
-                              style={{ width: mobileActionPillWidth }}
+                              style={{
+                                width: mobileActionPillWidth,
+                                "--mobile-action-travel-offset": activeMobileActionTravelOffset,
+                              } as CSSProperties}
                             >
                               <Plus className="absolute left-4 h-4 w-4" />
                               <span>{`Add ${boardVocabulary.singular}`}</span>
@@ -7335,7 +7353,10 @@ function copyCardToDraft(card: CardEntry) {
                         <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             aria-label="Search"
-                            className={mobileActionPillClassName}
+                            className={clsx(
+                              mobileActionPillClassName,
+                              isMobileSearchMenuOpen && "motion-safe:animate-[mobile-action-button-travel_260ms_cubic-bezier(0.22,1,0.36,1)]",
+                            )}
                             onClick={() => {
                               setIsMobileSearchMenuOpen((current) => !current);
                               setIsTransferMenuOpen(false);
@@ -7346,7 +7367,10 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
-                            style={{ width: mobileActionPillWidth }}
+                            style={{
+                              width: mobileActionPillWidth,
+                              "--mobile-action-travel-offset": activeMobileActionTravelOffset,
+                            } as CSSProperties}
                           >
                             <Search className="absolute left-4 h-4 w-4" />
                             <span>Search</span>
@@ -7380,6 +7404,7 @@ function copyCardToDraft(card: CardEntry) {
                                 currentSeriesFilter={seriesFilter}
                                 isDarkMode={isDarkMode}
                                 isOpen={isHeaderSeriesMenuOpen}
+                                menuPlacement="up"
                                 onSelect={(series) => {
                                   setSeriesFilter(series);
                                   setIsHeaderSeriesMenuOpen(false);
@@ -7396,6 +7421,7 @@ function copyCardToDraft(card: CardEntry) {
                           <button
                             className={clsx(
                               mobileActionPillClassName,
+                              isCustomizationMenuOpen && "motion-safe:animate-[mobile-action-button-travel_260ms_cubic-bezier(0.22,1,0.36,1)]",
                               isCustomizationMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
                             onClick={() => {
@@ -7408,7 +7434,10 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
-                            style={{ width: mobileActionPillWidth }}
+                            style={{
+                              width: mobileActionPillWidth,
+                              "--mobile-action-travel-offset": activeMobileActionTravelOffset,
+                            } as CSSProperties}
                           >
                             <Sparkles className="absolute left-4 h-4 w-4" />
                             <span>Customization</span>
@@ -7484,7 +7513,7 @@ function copyCardToDraft(card: CardEntry) {
                               aria-label="Share"
                               className={clsx(
                                 mobileActionPillClassName,
-                                isMobileQuickSharePanelOpen && "motion-safe:animate-[mobile-action-button-settle_260ms_cubic-bezier(0.22,1,0.36,1)]",
+                                isMobileQuickSharePanelOpen && "motion-safe:animate-[mobile-action-button-travel_260ms_cubic-bezier(0.22,1,0.36,1)]",
                               )}
                               onClick={() => {
                                 if (isMobileQuickSharePanelOpen) {
@@ -7494,7 +7523,10 @@ function copyCardToDraft(card: CardEntry) {
                                 openMobileQuickSharePanel();
                               }}
                               type="button"
-                              style={{ width: mobileActionPillWidth }}
+                              style={{
+                                width: mobileActionPillWidth,
+                                "--mobile-action-travel-offset": activeMobileActionTravelOffset,
+                              } as CSSProperties}
                             >
                               <Share2 className="absolute left-4 h-4 w-4" />
                               <span>Share</span>
@@ -7695,6 +7727,7 @@ function copyCardToDraft(card: CardEntry) {
                           <button
                             className={clsx(
                               mobileActionPillClassName,
+                              isMaintenanceMenuOpen && "motion-safe:animate-[mobile-action-button-travel_260ms_cubic-bezier(0.22,1,0.36,1)]",
                               isMaintenanceMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
                             onClick={() => {
@@ -7708,7 +7741,10 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
-                            style={{ width: mobileActionPillWidth }}
+                            style={{
+                              width: mobileActionPillWidth,
+                              "--mobile-action-travel-offset": activeMobileActionTravelOffset,
+                            } as CSSProperties}
                           >
                             <Wrench className="absolute left-4 h-4 w-4" />
                             <span>Maintenance</span>
@@ -7717,7 +7753,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -7761,6 +7797,7 @@ function copyCardToDraft(card: CardEntry) {
                           <button
                             className={clsx(
                               mobileActionPillClassName,
+                              isTransferMenuOpen && "motion-safe:animate-[mobile-action-button-travel_260ms_cubic-bezier(0.22,1,0.36,1)]",
                               isTransferMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
                             onClick={() => {
@@ -7773,7 +7810,10 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
-                            style={{ width: mobileActionPillWidth }}
+                            style={{
+                              width: mobileActionPillWidth,
+                              "--mobile-action-travel-offset": activeMobileActionTravelOffset,
+                            } as CSSProperties}
                           >
                             <Settings2 className="absolute left-4 h-4 w-4" />
                             <span>Settings</span>
@@ -7782,7 +7822,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -11365,6 +11405,7 @@ function SeriesFilterButton({
   onSelect,
   onToggle,
   className,
+  menuPlacement = "down",
 }: {
   allSeries: string[];
   currentSeriesFilter: string;
@@ -11373,6 +11414,7 @@ function SeriesFilterButton({
   onSelect: (series: string) => void;
   onToggle: () => void;
   className?: string;
+  menuPlacement?: "up" | "down";
 }) {
   return (
     <div className={clsx("relative", className)} data-series-filter-root="true">
@@ -11412,7 +11454,8 @@ function SeriesFilterButton({
       {isOpen ? (
         <div
           className={clsx(
-            "absolute left-0 right-0 top-full z-[260] mt-2 flex max-h-[min(50vh,320px)] flex-col overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+            "absolute left-0 right-0 z-[260] flex max-h-[min(50vh,320px)] flex-col overflow-y-auto rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+            menuPlacement === "up" ? "bottom-full mb-2" : "top-full mt-2",
             isDarkMode ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white",
           )}
         >
