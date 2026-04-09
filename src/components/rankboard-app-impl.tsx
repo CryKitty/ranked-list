@@ -1419,6 +1419,8 @@ function HoverTooltip({
         ? "group-hover/rename:opacity-100"
         : scope === "column"
           ? "group-hover/column:opacity-100"
+          : scope === "column-trigger"
+            ? "group-hover/column-trigger:opacity-100"
           : scope === "edit"
             ? "group-hover/edit:opacity-100"
             : scope === "save"
@@ -2731,7 +2733,7 @@ export function RankboardApp() {
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
           const columnAutoScrollBoost =
-            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.155 : 1;
+            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.33 : 1;
           let deltaY = 0;
 
           if (coords.y <= rect.top + edgeThreshold) {
@@ -3087,6 +3089,16 @@ export function RankboardApp() {
 
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isCustomizationMenuOpen, isMaintenanceMenuOpen, isMobileActionsOpen, isTransferMenuOpen]);
+
+  useEffect(() => {
+    if (isMobileActionsOpen || isActionsMenuOpen) {
+      return;
+    }
+
+    setIsCustomizationMenuOpen(false);
+    setIsMaintenanceMenuOpen(false);
+    setIsTransferMenuOpen(false);
+  }, [isActionsMenuOpen, isMobileActionsOpen]);
 
   useEffect(() => {
     if (!isBoardsMenuOpen) {
@@ -6902,7 +6914,7 @@ function copyCardToDraft(card: CardEntry) {
               >
                 <div
                   className={clsx(
-                    "mx-auto mt-[14vh] max-w-3xl rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] sm:mt-[10vh] sm:p-5",
+                    "mx-auto mt-[22vh] max-w-3xl rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] sm:mt-[14vh] sm:p-5",
                     isDarkMode
                       ? "border-white/10 bg-slate-900 text-slate-100"
                       : "border-white/70 bg-white text-slate-950",
@@ -9151,7 +9163,7 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[275px] overflow-visible rounded-[28px] border border-transparent p-2 text-left transition sm:max-w-[302px] md:max-w-[330px]",
+                        "mx-auto w-full max-w-[303px] overflow-visible rounded-[28px] border border-transparent p-2 text-left transition sm:max-w-[332px] md:max-w-[363px]",
                         isDarkMode
                           ? "text-white hover:border-white/60"
                           : "text-slate-950 hover:border-slate-300",
@@ -11151,20 +11163,28 @@ function BoardColumn({
               <>
                 <h2 className="w-full truncate whitespace-nowrap pr-2 text-left text-lg font-bold">{column.title}</h2>
                 <div className="group relative" data-column-menu-root="true">
-                  <button
-                    className={clsx(
-                      "rounded-full p-2 transition",
-                      isDarkMode
-                        ? "bg-white/10 text-slate-200 hover:bg-white/20"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                    )}
-                    onClick={onToggleMenu}
-                    type="button"
-                    aria-label={`Open actions for ${column.title}`}
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                  <HoverTooltip isDarkMode={isDarkMode} label="Column Settings" placement="bottom" />
+                  <div className="group/column-trigger relative inline-flex">
+                    <button
+                      className={clsx(
+                        "rounded-full p-2 transition",
+                        isDarkMode
+                          ? "bg-white/10 text-slate-200 hover:bg-white/20"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                      )}
+                      onClick={onToggleMenu}
+                      type="button"
+                      aria-label={`Open actions for ${column.title}`}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    <HoverTooltip
+                      disabled={isMenuOpen}
+                      isDarkMode={isDarkMode}
+                      label="Column Settings"
+                      placement="bottom"
+                      scope="column-trigger"
+                    />
+                  </div>
                   {isMenuOpen ? (
                     <div
                       className={clsx(

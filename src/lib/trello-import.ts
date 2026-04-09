@@ -82,6 +82,19 @@ function pickAttachmentUrl(attachments: TrelloAttachment[] = []) {
     return "";
   }
 
+  const candidateUrls = [
+    imageAttachment.url,
+    ...(imageAttachment.previews ?? []).map((preview) => preview.url),
+  ].filter((value): value is string => Boolean(value?.trim()));
+
+  const preferredOriginalUrl = candidateUrls.find(
+    (value) => !/trello\.com|trellocdn\.com|atlassian\.com/i.test(value),
+  );
+
+  if (preferredOriginalUrl) {
+    return preferredOriginalUrl;
+  }
+
   return (
     imageAttachment.url ??
     imageAttachment.previews?.[imageAttachment.previews.length - 1]?.url ??
