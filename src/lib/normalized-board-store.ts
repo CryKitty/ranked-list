@@ -54,12 +54,17 @@ function extractColumnFromRow(row: NormalizedColumnRow): ColumnDefinition {
 }
 
 function extractCardFromRows(item: NormalizedItemRow, entry: NormalizedEntryRow): CardEntry {
+  const metadata = item.metadata ?? {};
   return {
     entryId: entry.client_id,
     itemId: item.client_id,
     title: item.title,
     imageUrl: item.image_url ?? "",
     imageStoragePath: item.image_storage_path ?? undefined,
+    mobileBoardImageUrl:
+      typeof metadata.mobileBoardImageUrl === "string" ? metadata.mobileBoardImageUrl : undefined,
+    mobileTierListImageUrl:
+      typeof metadata.mobileTierListImageUrl === "string" ? metadata.mobileTierListImageUrl : undefined,
     series: item.series ?? "",
     releaseYear: item.release_year ?? undefined,
     notes: item.notes ?? undefined,
@@ -337,7 +342,10 @@ export async function syncNormalizedBoards(
       release_year: card.releaseYear || null,
       notes: card.notes || null,
       custom_field_values: card.customFieldValues ?? {},
-      metadata: {},
+      metadata: {
+        mobileBoardImageUrl: card.mobileBoardImageUrl || null,
+        mobileTierListImageUrl: card.mobileTierListImageUrl || null,
+      },
     }));
 
     const { data: upsertedItems, error: itemsUpsertError } = await supabase

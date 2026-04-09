@@ -10,6 +10,8 @@ export type CardDraft = {
   title: string;
   imageUrl: string;
   imageStoragePath?: string;
+  mobileBoardImageUrl: string;
+  mobileTierListImageUrl: string;
   series: string;
   releaseYear: string;
   notes: string;
@@ -29,6 +31,8 @@ export type CardEditorDraft = {
   title: string;
   imageUrl: string;
   imageStoragePath?: string;
+  mobileBoardImageUrl: string;
+  mobileTierListImageUrl: string;
   series: string;
   releaseYear: string;
   notes: string;
@@ -48,6 +52,8 @@ export type PendingDuplicateAction = {
   match: DuplicateMatch;
   title: string;
   imageUrl: string;
+  mobileBoardImageUrl?: string;
+  mobileTierListImageUrl?: string;
   series: string;
   releaseYear?: string;
   notes?: string;

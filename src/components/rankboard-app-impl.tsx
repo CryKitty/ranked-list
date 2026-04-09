@@ -138,6 +138,8 @@ const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
   imageStoragePath: undefined,
+  mobileBoardImageUrl: "",
+  mobileTierListImageUrl: "",
   series: "",
   releaseYear: "",
   notes: "",
@@ -639,6 +641,8 @@ function buildMaintenancePreviewCard(
     title: card.title,
     imageUrl: card.imageUrl ?? "",
     imageStoragePath: card.imageStoragePath,
+    mobileBoardImageUrl: card.mobileBoardImageUrl ?? "",
+    mobileTierListImageUrl: card.mobileTierListImageUrl ?? "",
     series: card.series ?? "",
     releaseYear: card.releaseYear ?? "",
     notes: card.notes ?? "",
@@ -816,6 +820,8 @@ function createCardDraft(card: CardEntry): CardEditorDraft {
     title: card.title,
     imageUrl: card.imageUrl,
     imageStoragePath: card.imageStoragePath,
+    mobileBoardImageUrl: card.mobileBoardImageUrl ?? "",
+    mobileTierListImageUrl: card.mobileTierListImageUrl ?? "",
     series: card.series,
     releaseYear: card.releaseYear ?? "",
     notes: card.notes ?? "",
@@ -3283,6 +3289,7 @@ export function RankboardApp() {
 
       if (!target?.closest("[data-mobile-actions-submenu-root='true']")) {
         resetMobileActionPanels();
+        setIsMobileActionsOpen(false);
       }
     }
 
@@ -4367,6 +4374,8 @@ export function RankboardApp() {
     const title = String(formData.get("title") ?? draft.title).trim() || `Untitled ${boardVocabulary.singular}`;
     const series = String(formData.get("series") ?? draft.series).trim();
     const imageUrl = String(formData.get("imageUrl") ?? draft.imageUrl).trim();
+    const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? draft.mobileBoardImageUrl).trim();
+    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? draft.mobileTierListImageUrl).trim();
     const notes = String(formData.get("notes") ?? draft.notes).trim();
     const releaseYear = String(formData.get("releaseYear") ?? draft.releaseYear).trim();
     const columnId = String(formData.get("columnId") ?? draft.columnId).trim();
@@ -4387,6 +4396,8 @@ export function RankboardApp() {
         match: duplicate,
         title,
         imageUrl,
+        mobileBoardImageUrl,
+        mobileTierListImageUrl,
         series,
         releaseYear,
         notes,
@@ -4399,6 +4410,8 @@ export function RankboardApp() {
       title,
       series,
       imageUrl,
+      mobileBoardImageUrl,
+      mobileTierListImageUrl,
       notes,
       releaseYear,
       { ...draft.customFields },
@@ -4411,6 +4424,8 @@ export function RankboardApp() {
     title: string,
     series: string,
     imageUrl: string,
+    mobileBoardImageUrl: string,
+    mobileTierListImageUrl: string,
     notes: string,
     releaseYear: string,
     customFieldValues: Record<string, string>,
@@ -4459,6 +4474,8 @@ export function RankboardApp() {
       title,
       imageUrl,
       imageStoragePath: draft.imageStoragePath,
+      mobileBoardImageUrl: mobileBoardImageUrl || undefined,
+      mobileTierListImageUrl: mobileTierListImageUrl || undefined,
       series,
       releaseYear: releaseYear || undefined,
       notes: notes || undefined,
@@ -4737,6 +4754,8 @@ function copyCardToDraft(card: CardEntry) {
       title: card.title,
       imageUrl: card.imageUrl,
       imageStoragePath: card.imageStoragePath,
+      mobileBoardImageUrl: card.mobileBoardImageUrl ?? "",
+      mobileTierListImageUrl: card.mobileTierListImageUrl ?? "",
       series: card.series,
       releaseYear: card.releaseYear ?? "",
       notes: card.notes ?? "",
@@ -5021,6 +5040,8 @@ function copyCardToDraft(card: CardEntry) {
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? editingCardDraft.title).trim() || `Untitled ${boardVocabulary.singular}`;
     const imageUrl = String(formData.get("imageUrl") ?? editingCardDraft.imageUrl).trim();
+    const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? editingCardDraft.mobileBoardImageUrl).trim();
+    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? editingCardDraft.mobileTierListImageUrl).trim();
     const imageStoragePath = editingCardDraft.imageStoragePath;
     const series = String(formData.get("series") ?? editingCardDraft.series).trim();
     const releaseYear = String(formData.get("releaseYear") ?? editingCardDraft.releaseYear).trim();
@@ -5035,6 +5056,8 @@ function copyCardToDraft(card: CardEntry) {
         match: duplicate,
         title,
         imageUrl,
+        mobileBoardImageUrl,
+        mobileTierListImageUrl,
         series,
         releaseYear,
         notes,
@@ -5048,6 +5071,8 @@ function copyCardToDraft(card: CardEntry) {
       title,
       imageUrl,
       imageStoragePath,
+      mobileBoardImageUrl: mobileBoardImageUrl || undefined,
+      mobileTierListImageUrl: mobileTierListImageUrl || undefined,
       series,
       releaseYear: releaseYear || undefined,
       notes: notes || undefined,
@@ -5406,6 +5431,8 @@ function copyCardToDraft(card: CardEntry) {
         ...card,
         title: draftDuplicateAction.title,
         imageUrl: draftDuplicateAction.imageUrl || card.imageUrl,
+        mobileBoardImageUrl: draftDuplicateAction.mobileBoardImageUrl || card.mobileBoardImageUrl,
+        mobileTierListImageUrl: draftDuplicateAction.mobileTierListImageUrl || card.mobileTierListImageUrl,
         series: draftDuplicateAction.series || card.series,
         releaseYear: draftDuplicateAction.releaseYear || card.releaseYear,
         notes: draftDuplicateAction.notes || card.notes,
@@ -5422,6 +5449,8 @@ function copyCardToDraft(card: CardEntry) {
       draftDuplicateAction.title,
       draftDuplicateAction.series,
       draftDuplicateAction.imageUrl,
+      draftDuplicateAction.mobileBoardImageUrl ?? "",
+      draftDuplicateAction.mobileTierListImageUrl ?? "",
       draftDuplicateAction.notes ?? "",
       draftDuplicateAction.releaseYear ?? "",
       draftDuplicateAction.customFields ?? {},
@@ -5443,6 +5472,8 @@ function copyCardToDraft(card: CardEntry) {
         ...card,
         title: editingDuplicateAction.title,
         imageUrl: editingDuplicateAction.imageUrl || card.imageUrl,
+        mobileBoardImageUrl: editingDuplicateAction.mobileBoardImageUrl || card.mobileBoardImageUrl,
+        mobileTierListImageUrl: editingDuplicateAction.mobileTierListImageUrl || card.mobileTierListImageUrl,
         series: editingDuplicateAction.series || card.series,
         releaseYear: editingDuplicateAction.releaseYear || card.releaseYear,
         notes: editingDuplicateAction.notes || card.notes,
@@ -5459,6 +5490,8 @@ function copyCardToDraft(card: CardEntry) {
       ...card,
       title: editingDuplicateAction.title,
       imageUrl: editingDuplicateAction.imageUrl,
+      mobileBoardImageUrl: editingDuplicateAction.mobileBoardImageUrl || undefined,
+      mobileTierListImageUrl: editingDuplicateAction.mobileTierListImageUrl || undefined,
       series: editingDuplicateAction.series,
       releaseYear: editingDuplicateAction.releaseYear || undefined,
       notes: editingDuplicateAction.notes || undefined,
@@ -7490,12 +7523,12 @@ function copyCardToDraft(card: CardEntry) {
                   )}
                   onClick={() => {
                     setIsBoardsMenuOpen(false);
-                    setIsMobileActionsOpen((current) => {
-                      if (current) {
-                        resetMobileActionPanels();
-                      }
-                      return !current;
-                    });
+                    if (isMobileActionsOpen) {
+                      resetMobileActionPanels();
+                      setIsMobileActionsOpen(false);
+                      return;
+                    }
+                    setIsMobileActionsOpen(true);
                   }}
                   type="button"
                 >
@@ -9305,6 +9338,7 @@ function copyCardToDraft(card: CardEntry) {
                             frontFieldDefinitions={activeBoardFieldDefinitions}
                             rankBadge={activeDragRankBadge}
                             forceSquare={activeBoardLayout === "tier-list" && activeDragColumn?.title.trim().toLowerCase() !== "unsorted" && activeDragColumn?.title.trim().toLowerCase() !== "pool"}
+                            mobileArtworkVariant={isMobileViewport ? (activeBoardLayout === "tier-list" ? "tier-list" : "board") : undefined}
                             compactImageOnly={activeBoardLayout === "tier-list" && isMobileViewport}
                           />
                         </div>
@@ -9373,6 +9407,18 @@ function copyCardToDraft(card: CardEntry) {
             setEditingDuplicateAction(null);
             setEditingCardDraft((current) =>
               current ? { ...current, imageUrl: value, imageStoragePath: undefined } : current,
+            );
+          }}
+          onMobileBoardImageUrlChange={(value) => {
+            setEditingDuplicateAction(null);
+            setEditingCardDraft((current) =>
+              current ? { ...current, mobileBoardImageUrl: value } : current,
+            );
+          }}
+          onMobileTierListImageUrlChange={(value) => {
+            setEditingDuplicateAction(null);
+            setEditingCardDraft((current) =>
+              current ? { ...current, mobileTierListImageUrl: value } : current,
             );
           }}
           onMove={() => {
@@ -9492,6 +9538,20 @@ function copyCardToDraft(card: CardEntry) {
               ...current,
               imageUrl: value,
               imageStoragePath: undefined,
+            }));
+          }}
+          onMobileBoardImageUrlChange={(value) => {
+            setDraftDuplicateAction(null);
+            setDraft((current) => ({
+              ...current,
+              mobileBoardImageUrl: value,
+            }));
+          }}
+          onMobileTierListImageUrlChange={(value) => {
+            setDraftDuplicateAction(null);
+            setDraft((current) => ({
+              ...current,
+              mobileTierListImageUrl: value,
             }));
           }}
           onNewColumnTitleChange={(value) =>
@@ -13186,6 +13246,7 @@ function BoardColumn({
                   : null
               }
               clickToEdit
+              mobileArtworkVariant={isMobileViewport ? "board" : undefined}
               onEdit={() => onEditCard(card)}
             />
           ))
@@ -13243,6 +13304,7 @@ function BoardColumn({
                         : null
                     }
                     onEdit={() => onEditCard(card)}
+                    mobileArtworkVariant={isMobileViewport ? "board" : undefined}
                     preserveSpaceWhenDragging={false}
                     freezeLayoutWhileDragging={isCardDragging}
                   />
@@ -13365,6 +13427,7 @@ function TierListRow({
   const [isRowRailHovered, setIsRowRailHovered] = useState(false);
   const rowLaneRef = useRef<HTMLDivElement | null>(null);
   const rowRailRef = useRef<HTMLDivElement | null>(null);
+  const rowRailTouchRevealPendingRef = useRef(false);
   const [stableRowHeight, setStableRowHeight] = useState<number | null>(null);
 
   useEffect(() => {
@@ -13424,11 +13487,21 @@ function TierListRow({
           )}
           onPointerDown={(event) => {
             if (event.pointerType === "touch") {
+              rowRailTouchRevealPendingRef.current = !isRowRailHovered;
+            }
+          }}
+          onClick={() => {
+            if (rowRailTouchRevealPendingRef.current) {
+              rowRailTouchRevealPendingRef.current = false;
               setIsRowRailHovered(true);
             }
           }}
           onPointerEnter={() => setIsRowRailHovered(true)}
-          onPointerLeave={() => setIsRowRailHovered(false)}
+          onPointerLeave={(event) => {
+            if (event.pointerType !== "touch") {
+              setIsRowRailHovered(false);
+            }
+          }}
           onFocus={() => setIsRowRailHovered(true)}
           onBlur={() => setIsRowRailHovered(false)}
         >
@@ -13641,6 +13714,7 @@ function TierListRow({
                       forceSquare
                     rankBadge={null}
                     onEdit={() => onEditCard(card)}
+                    mobileArtworkVariant={isMobileViewport ? "tier-list" : undefined}
                     compactImageOnly={isMobileViewport}
                     clickToEdit
                     containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
@@ -14000,6 +14074,7 @@ function SortableCard({
   onEdit,
   forceSquare = false,
   compactImageOnly = false,
+  mobileArtworkVariant,
   containerClassName,
   clickToEdit = false,
   collapseSizeWhenDragging = false,
@@ -14018,6 +14093,7 @@ function SortableCard({
   onEdit: () => void;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
+  mobileArtworkVariant?: "board" | "tier-list";
   containerClassName?: string;
   clickToEdit?: boolean;
   collapseSizeWhenDragging?: boolean;
@@ -14076,6 +14152,7 @@ function SortableCard({
         isDragging={isDragging}
         forceSquare={forceSquare}
         compactImageOnly={compactImageOnly}
+        mobileArtworkVariant={mobileArtworkVariant}
         clickToEdit={clickToEdit}
         dragProps={{ ...attributes, ...listeners }}
           onEdit={onEdit}
@@ -14100,6 +14177,7 @@ function CardTile({
   clickToEdit = false,
   forceSquare = false,
   compactImageOnly = false,
+  mobileArtworkVariant,
   showDragCursor = true,
 }: {
   card: CardEntry;
@@ -14117,12 +14195,19 @@ function CardTile({
   clickToEdit?: boolean;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
+  mobileArtworkVariant?: "board" | "tier-list";
   showDragCursor?: boolean;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
-  const hasArtwork = showArtwork && Boolean(card.imageUrl?.trim());
-  const imageSource = hasArtwork ? getArtworkDisplayUrl(card.imageUrl.trim()) : "";
+  const selectedImageUrl =
+    mobileArtworkVariant === "board"
+      ? card.mobileBoardImageUrl?.trim() || card.imageUrl?.trim() || ""
+      : mobileArtworkVariant === "tier-list"
+        ? card.mobileTierListImageUrl?.trim() || card.imageUrl?.trim() || ""
+        : card.imageUrl?.trim() || "";
+  const hasArtwork = showArtwork && Boolean(selectedImageUrl);
+  const imageSource = hasArtwork ? getArtworkDisplayUrl(selectedImageUrl) : "";
   const shouldPrioritizeImage =
     !isDragging && (rankBadge?.value ?? secondaryRankBadge?.value ?? Number.POSITIVE_INFINITY) <= 2;
   const frontChips = frontFieldDefinitions

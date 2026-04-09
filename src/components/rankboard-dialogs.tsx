@@ -34,6 +34,8 @@ type CardEditorDraftLike = {
   title: string;
   imageUrl: string;
   imageStoragePath?: string;
+  mobileBoardImageUrl: string;
+  mobileTierListImageUrl: string;
   series: string;
   releaseYear: string;
   notes: string;
@@ -318,6 +320,8 @@ export function EditCardDialog({
   onSeriesChange,
   onReleaseYearChange,
   onImageUrlChange,
+  onMobileBoardImageUrlChange,
+  onMobileTierListImageUrlChange,
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
@@ -366,6 +370,8 @@ export function EditCardDialog({
   onSeriesChange: (value: string) => void;
   onReleaseYearChange: (value: string) => void;
   onImageUrlChange: (value: string) => void;
+  onMobileBoardImageUrlChange: (value: string) => void;
+  onMobileTierListImageUrlChange: (value: string) => void;
   onOpenImageSearch: () => void;
   onOpenGifSearch: () => void;
   onOpenUploadPicker: () => void;
@@ -490,7 +496,7 @@ export function EditCardDialog({
           </div>
 
           {shouldShowImageField ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+            <div className="mt-4 grid gap-3">
               <label className="grid gap-2">
                 <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
                 <input
@@ -505,6 +511,39 @@ export function EditCardDialog({
                   onChange={(event) => onImageUrlChange(event.target.value)}
                 />
               </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Kanban Artwork</span>
+                  <input
+                    name="mobileBoardImageUrl"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="Falls back to main artwork"
+                    value={editingCardDraft.mobileBoardImageUrl}
+                    onChange={(event) => onMobileBoardImageUrlChange(event.target.value)}
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Tier List Artwork</span>
+                  <input
+                    name="mobileTierListImageUrl"
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="Falls back to main artwork"
+                    value={editingCardDraft.mobileTierListImageUrl}
+                    onChange={(event) => onMobileTierListImageUrlChange(event.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
               <input ref={editArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
               <button className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900" : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white")} onClick={onOpenImageSearch} type="button" title="Search Google Images in a new tab">
                 <ImagePlus className="h-4 w-4" />
@@ -518,6 +557,7 @@ export function EditCardDialog({
                 <Upload className="h-4 w-4" />
                 Upload
               </button>
+              </div>
             </div>
           ) : null}
 
@@ -669,6 +709,8 @@ export function AddCardDialog({
   onSeriesChange,
   onReleaseYearChange,
   onImageUrlChange,
+  onMobileBoardImageUrlChange,
+  onMobileTierListImageUrlChange,
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
@@ -715,6 +757,8 @@ export function AddCardDialog({
   onSeriesChange: (value: string) => void;
   onReleaseYearChange: (value: string) => void;
   onImageUrlChange: (value: string) => void;
+  onMobileBoardImageUrlChange: (value: string) => void;
+  onMobileTierListImageUrlChange: (value: string) => void;
   onOpenImageSearch: () => void;
   onOpenGifSearch: () => void;
   onOpenUploadPicker: () => void;
@@ -825,7 +869,7 @@ export function AddCardDialog({
           </div>
 
           {shouldShowImageField ? (
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+            <div className="grid gap-3">
               <label className="grid gap-2">
                 <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
                 <div className="relative">
@@ -849,6 +893,39 @@ export function AddCardDialog({
                   />
                 </div>
               </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Kanban Artwork</span>
+                  <input
+                    name="mobileBoardImageUrl"
+                    className={clsx(
+                      "w-full rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="Falls back to main artwork"
+                    value={draft.mobileBoardImageUrl}
+                    onChange={(event) => onMobileBoardImageUrlChange(event.target.value)}
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Tier List Artwork</span>
+                  <input
+                    name="mobileTierListImageUrl"
+                    className={clsx(
+                      "w-full rounded-2xl border px-4 py-3 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="Falls back to main artwork"
+                    value={draft.mobileTierListImageUrl}
+                    onChange={(event) => onMobileTierListImageUrlChange(event.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
               <input ref={addArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
               <button
                 className={clsx(
@@ -893,6 +970,7 @@ export function AddCardDialog({
                 <Upload className="h-4 w-4" />
                 Upload
               </button>
+              </div>
             </div>
           ) : null}
 

@@ -67,6 +67,8 @@ export type CardEntry = {
   title: string;
   imageUrl: string;
   imageStoragePath?: string;
+  mobileBoardImageUrl?: string;
+  mobileTierListImageUrl?: string;
   series: string;
   releaseYear?: string;
   notes?: string;
