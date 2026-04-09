@@ -13240,7 +13240,38 @@ function TierListRow({
   });
   const trimmedColumnTitle = column.title.trim();
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
-  const usesHorizontalDragLane = isAnyCardDragging || isUnsortedRow;
+  const [isRowRailHovered, setIsRowRailHovered] = useState(false);
+  const rowLaneRef = useRef<HTMLDivElement | null>(null);
+  const [stableRowHeight, setStableRowHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isUnsortedRow) {
+      return;
+    }
+
+    const node = rowLaneRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const updateHeight = () => {
+      if (isAnyCardDragging) {
+        return;
+      }
+
+      const nextHeight = node.offsetHeight;
+      setStableRowHeight((current) => (current === nextHeight ? current : nextHeight));
+    };
+
+    updateHeight();
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(node);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isAnyCardDragging, isMobileViewport, isUnsortedRow]);
 
   return (
     <div className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch">
@@ -13251,6 +13282,10 @@ function TierListRow({
             "group/rowrail relative flex h-full min-h-[152px] items-center justify-center rounded-l-[27px] rounded-r-none px-1.5 py-3 text-center outline-none sm:min-h-[176px] sm:px-2 sm:py-4",
             isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
           )}
+          onPointerEnter={() => setIsRowRailHovered(true)}
+          onPointerLeave={() => setIsRowRailHovered(false)}
+          onFocus={() => setIsRowRailHovered(true)}
+          onBlur={() => setIsRowRailHovered(false)}
         >
           <div className="flex h-full w-full items-center justify-center">
             {isEditingColumn && editingColumnDraft ? (
@@ -13328,8 +13363,8 @@ function TierListRow({
           {!isEditingColumn ? (
             <div
               className={clsx(
-                "absolute left-1/2 top-2 -translate-x-1/2 transition-opacity",
-                "opacity-0 pointer-events-none group-hover/rowrail:opacity-100 group-hover/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto",
+                "absolute left-1/2 top-4 -translate-x-1/2 transition-opacity",
+                isRowRailHovered ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
               )}
             >
               <div className="relative">
@@ -13352,8 +13387,8 @@ function TierListRow({
           ) : null}
           <div
             className={clsx(
-              "absolute bottom-2 left-1/2 -translate-x-1/2 transition-opacity",
-              "opacity-0 pointer-events-none group-hover/rowrail:opacity-100 group-hover/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto",
+              "absolute bottom-4 left-1/2 -translate-x-1/2 transition-opacity",
+              isRowRailHovered ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
             )}
           >
             <div className="relative">
@@ -13387,12 +13422,13 @@ function TierListRow({
       >
         <SortableContext
           items={cards.map((card) => card.entryId)}
-          strategy={usesHorizontalDragLane ? horizontalListSortingStrategy : rectSortingStrategy}
+          strategy={isUnsortedRow ? horizontalListSortingStrategy : rectSortingStrategy}
         >
           <div
+            ref={rowLaneRef}
             className={clsx(
               "min-h-[152px] content-start justify-start pb-1 sm:min-h-[176px]",
-              usesHorizontalDragLane
+              isUnsortedRow
                 ? "scrollbar-hidden flex items-center gap-0 overflow-x-auto"
                 : isMobileViewport
                   ? "flex flex-wrap items-center gap-x-0 gap-y-0 overflow-visible"
@@ -13414,6 +13450,7 @@ function TierListRow({
 
               onOpenAddChooser(column.id, cards.length);
             }}
+            style={!isUnsortedRow && isAnyCardDragging && stableRowHeight ? { minHeight: stableRowHeight } : undefined}
           >
             {cards.length === 0 ? (
               <button
@@ -13459,7 +13496,6 @@ function TierListRow({
                     clickToEdit
                     containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
                     collapseSizeWhenDragging
-                    freezeLayoutWhileDragging={usesHorizontalDragLane}
                   />
                   </Fragment>
                 ))}
@@ -13961,6 +13997,7 @@ function CardTile({
     }))
     .filter((field) => field.value.length > 0);
   const [showCollapsedActions, setShowCollapsedActions] = useState(false);
+  const [showHoverActions, setShowHoverActions] = useState(false);
   const [loadedImageSource, setLoadedImageSource] = useState("");
   const cardRef = useRef<HTMLElement | null>(null);
   const tierBorderClass =
@@ -14068,6 +14105,26 @@ function CardTile({
           setShowCollapsedActions(true);
         } else if (clickToEdit && onEdit) {
           onEdit();
+        }
+      }}
+      onPointerEnter={() => {
+        if (!collapseCards) {
+          setShowHoverActions(true);
+        }
+      }}
+      onPointerLeave={() => {
+        if (!collapseCards) {
+          setShowHoverActions(false);
+        }
+      }}
+      onFocus={() => {
+        if (!collapseCards) {
+          setShowHoverActions(true);
+        }
+      }}
+      onBlur={() => {
+        if (!collapseCards) {
+          setShowHoverActions(false);
         }
       }}
       style={{
@@ -14255,12 +14312,16 @@ function CardTile({
       <div className={clsx(
         collapseCards
           ? "absolute inset-x-0 top-1/2 z-[650] flex -translate-y-1/2 items-center justify-center gap-3 opacity-0 transition duration-150"
-          : "absolute right-3 z-[650] flex flex-col items-end gap-2 opacity-0 transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+          : "absolute right-3 z-[650] flex flex-col items-end gap-2 transition duration-150",
         collapseCards
           ? showCollapsedActions && "opacity-100"
-          : frontChips.length > 0 || card.mirroredFromEntryId
+          : showHoverActions
+            ? "opacity-100"
+            : "opacity-0",
+        !collapseCards &&
+          (frontChips.length > 0 || card.mirroredFromEntryId
             ? "top-14"
-            : "top-3",
+            : "top-3"),
       )}>
         {onEdit ? (
           <div className="group/edit relative z-[700]">
@@ -14271,6 +14332,7 @@ function CardTile({
                 onEdit();
               }}
               onPointerDown={(event) => event.stopPropagation()}
+              onPointerEnter={() => setShowHoverActions(true)}
               type="button"
               aria-label={`Edit ${card.title}`}
             >
