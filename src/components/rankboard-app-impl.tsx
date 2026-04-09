@@ -6929,7 +6929,7 @@ function copyCardToDraft(card: CardEntry) {
                       <button
                         aria-label={`Add ${boardVocabulary.singular}`}
                         className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+2.85rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.1rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                           isDarkMode
                             ? "border-white/10 bg-slate-900/96 text-slate-100"
                             : "border-white/80 bg-white/96 text-slate-900",
@@ -6951,7 +6951,7 @@ function copyCardToDraft(card: CardEntry) {
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "search" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] right-[7.125rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+9.5rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -7019,7 +7019,7 @@ function copyCardToDraft(card: CardEntry) {
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "customization" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+9.65rem)] right-[7.125rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+12.9rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -7111,7 +7111,7 @@ function copyCardToDraft(card: CardEntry) {
                       <button
                         aria-label="Share"
                         className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.05rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+16.3rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                           isDarkMode
                             ? "border-white/10 bg-slate-900/96 text-slate-100"
                             : "border-white/80 bg-white/96 text-slate-900",
@@ -7133,7 +7133,7 @@ function copyCardToDraft(card: CardEntry) {
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "maintenance" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+16.45rem)] right-[7.125rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+19.7rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -7204,7 +7204,7 @@ function copyCardToDraft(card: CardEntry) {
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "settings" ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+19.85rem)] right-[7.125rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+23.1rem)] right-[7.125rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
                         >
