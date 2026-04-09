@@ -95,6 +95,15 @@ function pickAttachmentUrl(attachments: TrelloAttachment[] = []) {
     return preferredOriginalUrl;
   }
 
+  const preferredPreviewUrl = [...(imageAttachment.previews ?? [])]
+    .map((preview) => preview.url)
+    .filter((value): value is string => Boolean(value?.trim()))
+    .find(Boolean);
+
+  if (preferredPreviewUrl) {
+    return preferredPreviewUrl;
+  }
+
   return (
     imageAttachment.url ??
     imageAttachment.previews?.[imageAttachment.previews.length - 1]?.url ??
