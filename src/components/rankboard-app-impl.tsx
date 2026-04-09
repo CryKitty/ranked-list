@@ -6898,16 +6898,16 @@ function copyCardToDraft(card: CardEntry) {
               >
                 <div
                   className={clsx(
-                    "mx-auto mt-[22vh] max-w-3xl rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] sm:mt-[14vh] sm:p-5",
+                    "fixed bottom-[calc(env(safe-area-inset-bottom)+5.8rem)] right-3 z-[90] flex w-[min(calc(100vw-1.5rem),380px)] max-h-[min(72vh,640px)] flex-col overflow-hidden rounded-[28px] border p-4 shadow-[0_24px_60px_rgba(19,27,68,0.24)] sm:right-4 sm:w-[360px]",
                     isDarkMode
                       ? "border-white/10 bg-slate-900 text-slate-100"
                       : "border-white/70 bg-white text-slate-950",
                   )}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <h2 className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">
+                      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">
                         Actions
                       </h2>
                       <p className={clsx("mt-1 text-xs", isDarkMode ? "text-slate-400" : "text-slate-500")}>
@@ -6934,34 +6934,36 @@ function copyCardToDraft(card: CardEntry) {
                     </button>
                   </div>
 
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_260px]">
+                  <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+                    <div className="grid gap-3">
                       <input
-                      className={clsx(
+                        className={clsx(
                         "rounded-2xl border px-4 py-3 outline-none transition",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
                           : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      placeholder="Search title or series"
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                    />
+                        )}
+                        placeholder="Search title or series"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                      />
 
-                    <SeriesFilterButton
-                      allSeries={allSeries}
-                      currentSeriesFilter={seriesFilter}
-                      isDarkMode={isDarkMode}
-                      isOpen={isHeaderSeriesMenuOpen}
-                      onSelect={(series) => {
-                        setSeriesFilter(series);
-                        setIsHeaderSeriesMenuOpen(false);
-                      }}
-                      onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
-                    />
+                      <SeriesFilterButton
+                        allSeries={allSeries}
+                        currentSeriesFilter={seriesFilter}
+                        isDarkMode={isDarkMode}
+                        isOpen={isHeaderSeriesMenuOpen}
+                        onSelect={(series) => {
+                          setSeriesFilter(series);
+                          setIsHeaderSeriesMenuOpen(false);
+                        }}
+                        onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                      />
+                    </div>
 
                     <button
                       className={clsx(
-                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition sm:col-span-2",
+                        "inline-flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                           : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -6973,7 +6975,7 @@ function copyCardToDraft(card: CardEntry) {
                       {`Add ${boardVocabulary.singular}`}
                     </button>
 
-                    <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         className={clsx(
                           "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
@@ -7005,7 +7007,9 @@ function copyCardToDraft(card: CardEntry) {
                         <Upload className="h-4 w-4" />
                         <span>Import</span>
                       </button>
+                    </div>
 
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         className={clsx(
                           "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
@@ -7041,6 +7045,86 @@ function copyCardToDraft(card: CardEntry) {
                         {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                         <span>{isDarkMode ? "Lumos" : "Nox"}</span>
                       </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 overflow-visible">
+                      <div className="relative" data-mobile-actions-submenu-root="true">
+                        <button
+                          className={clsx(
+                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                          )}
+                          onClick={() => {
+                            setIsCustomizationMenuOpen((current) => !current);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          <span>Customization</span>
+                        </button>
+                        {isCustomizationMenuOpen ? (
+                          <div
+                            className={clsx(
+                              "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
+                              isDarkMode
+                                ? "border-white/10 bg-slate-900/95"
+                                : "border-slate-200 bg-white/95",
+                            )}
+                          >
+                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                              <span>Compact View</span>
+                              <ToggleSwitch
+                                ariaLabel="Toggle Compact View"
+                                enabled={activeBoardSettings.collapseCards}
+                                isDarkMode={isDarkMode}
+                                onClick={toggleCollapseCardsSetting}
+                              />
+                            </div>
+                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                              <span>Tier Highlights</span>
+                              <ToggleSwitch
+                                ariaLabel="Toggle Tier Highlights"
+                                enabled={activeBoardSettings.showTierHighlights}
+                                isDarkMode={isDarkMode}
+                                onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                              />
+                            </div>
+                            <button
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={promptForCardLabel}
+                              type="button"
+                            >
+                              <span>Card Label</span>
+                              <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={() => setIsBoardIconModalOpen(true)}
+                              type="button"
+                            >
+                              <span>Board Icon</span>
+                              {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                              onClick={() => {
+                                setIsBoardFieldSettingsModalOpen(true);
+                                setIsActionsMenuOpen(false);
+                                setIsMobileActionsOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <span>Fields</span>
+                              <Settings2 className="h-4 w-4 opacity-70" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
 
                       {currentUser ? (
                         <button
@@ -7077,150 +7161,64 @@ function copyCardToDraft(card: CardEntry) {
                         </button>
                       ) : null}
 
-                      <div className="col-span-2 grid grid-cols-2 gap-3 overflow-visible sm:col-span-2">
-                        <div className="relative" data-mobile-actions-submenu-root="true">
-                          <button
+                      <div className="relative" data-mobile-actions-submenu-root="true">
+                        <button
+                          className={clsx(
+                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                          )}
+                          onClick={() => {
+                            setIsMaintenanceMenuOpen((current) => !current);
+                            setIsBoardsMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsTransferMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <Wrench className="h-4 w-4" />
+                          <span>Maintenance</span>
+                        </button>
+                        {isMaintenanceMenuOpen ? (
+                          <div
                             className={clsx(
-                              "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
+                              "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
                               isDarkMode
-                                ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                                ? "border-white/10 bg-slate-900/95"
+                                : "border-slate-200 bg-white/95",
                             )}
-                            onClick={() => {
-                              setIsMaintenanceMenuOpen((current) => !current);
-                              setIsBoardsMenuOpen(false);
-                              setIsCustomizationMenuOpen(false);
-                              setIsTransferMenuOpen(false);
-                              setIsActionsMenuOpen(false);
-                            }}
-                            type="button"
                           >
-                            <span className="inline-flex items-center justify-center gap-2 text-center">
-                              <Wrench className="h-4 w-4" />
-                              Maintenance
-                            </span>
-                          </button>
-                          {isMaintenanceMenuOpen ? (
-                            <div
-                              className={clsx(
-                                "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
-                                isDarkMode
-                                  ? "border-white/10 bg-slate-900/95"
-                                  : "border-slate-200 bg-white/95",
-                              )}
-                            >
-                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
-                                <Trash2 className="h-4 w-4" />
-                                Delete Duplicates
-                              </button>
-                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
-                                <Sparkles className="h-4 w-4" />
-                                Tidy Titles
-                              </button>
-                              <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
-                                <WandSparkles className="h-4 w-4" />
-                                Series Scraper
-                              </button>
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                  boards.length <= 1 && "cursor-not-allowed opacity-50",
-                                )}
-                                disabled={boards.length <= 1}
-                                onClick={() => requestDeleteBoard()}
-                                type="button"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete Board
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="relative" data-mobile-actions-submenu-root="true">
-                          <button
-                            className={clsx(
-                              "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                            )}
-                            onClick={() => {
-                              setIsCustomizationMenuOpen((current) => !current);
-                              setIsMaintenanceMenuOpen(false);
-                              setIsTransferMenuOpen(false);
-                              setIsActionsMenuOpen(false);
-                            }}
-                            type="button"
-                          >
-                            <span className="inline-flex items-center justify-center gap-2 text-center">
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
+                              <Trash2 className="h-4 w-4" />
+                              Delete Duplicates
+                            </button>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
                               <Sparkles className="h-4 w-4" />
-                              Customization
-                            </span>
-                          </button>
-                          {isCustomizationMenuOpen ? (
-                            <div
+                              Tidy Titles
+                            </button>
+                            <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
+                              <WandSparkles className="h-4 w-4" />
+                              Series Scraper
+                            </button>
+                            <button
                               className={clsx(
-                                "absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 space-y-1 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur",
-                                isDarkMode
-                                  ? "border-white/10 bg-slate-900/95"
-                                  : "border-slate-200 bg-white/95",
+                                "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
+                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                boards.length <= 1 && "cursor-not-allowed opacity-50",
                               )}
+                              disabled={boards.length <= 1}
+                              onClick={() => requestDeleteBoard()}
+                              type="button"
                             >
-                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                                <span>Compact View</span>
-                                <ToggleSwitch
-                                  ariaLabel="Toggle Compact View"
-                                  enabled={activeBoardSettings.collapseCards}
-                                  isDarkMode={isDarkMode}
-                                  onClick={toggleCollapseCardsSetting}
-                                />
-                              </div>
-                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                                <span>Tier Highlights</span>
-                                <ToggleSwitch
-                                  ariaLabel="Toggle Tier Highlights"
-                                  enabled={activeBoardSettings.showTierHighlights}
-                                  isDarkMode={isDarkMode}
-                                  onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
-                                />
-                              </div>
-                              <button
-                                className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                onClick={promptForCardLabel}
-                                type="button"
-                              >
-                                <span>Card Label</span>
-                                <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
-                              </button>
-                              <button
-                                className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                onClick={() => setIsBoardIconModalOpen(true)}
-                                type="button"
-                              >
-                                <span>Board Icon</span>
-                                {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
-                              </button>
-                              <button
-                                className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                onClick={() => {
-                                  setIsBoardFieldSettingsModalOpen(true);
-                                  setIsActionsMenuOpen(false);
-                                  setIsMobileActionsOpen(false);
-                                }}
-                                type="button"
-                              >
-                                <span>Fields</span>
-                                <Settings2 className="h-4 w-4 opacity-70" />
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
+                              <Trash2 className="h-4 w-4" />
+                              Delete Board
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
-
                     </div>
-
                   </div>
                 </div>
               </div>
