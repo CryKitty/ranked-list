@@ -1721,6 +1721,7 @@ export function RankboardApp() {
             ? "settings"
             : null;
   const hasMobileActionsSubmenuOpen = activeMobileActionsSubmenu !== null;
+  const mobileActionPillWidth = "12rem";
   const hasBlockingMenuOpen =
     isBoardsMenuOpen ||
     isActionsMenuOpen ||
@@ -6930,16 +6931,21 @@ function copyCardToDraft(card: CardEntry) {
                         <button
                           aria-label={`Add ${boardVocabulary.singular}`}
                           className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.475rem)] right-[7.75rem] inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.475rem)] right-[7.75rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
                           )}
                           onClick={(event) => {
                             event.stopPropagation();
+                            setIsMobileSearchMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
                             openQuickAddModal();
                           }}
                           type="button"
+                          style={{ width: mobileActionPillWidth }}
                         >
                           <Plus className="absolute left-4 h-4 w-4" />
                           <span>{`Add ${boardVocabulary.singular}`}</span>
@@ -6955,7 +6961,7 @@ function copyCardToDraft(card: CardEntry) {
                           <button
                             aria-label="Search"
                             className={clsx(
-                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -6969,6 +6975,7 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
+                            style={{ width: mobileActionPillWidth }}
                           >
                             <Search className="absolute left-4 h-4 w-4" />
                             <span>Search</span>
@@ -7021,7 +7028,7 @@ function copyCardToDraft(card: CardEntry) {
                         >
                           <button
                             className={clsx(
-                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -7035,6 +7042,7 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
+                            style={{ width: mobileActionPillWidth }}
                           >
                             <Sparkles className="absolute left-4 h-4 w-4" />
                             <span>Customization</span>
@@ -7107,16 +7115,21 @@ function copyCardToDraft(card: CardEntry) {
                         <button
                           aria-label="Share"
                           className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.675rem)] right-[7.75rem] inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.675rem)] right-[7.75rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
                           )}
                           onClick={(event) => {
                             event.stopPropagation();
+                            setIsMobileSearchMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
                             openShareModal();
                           }}
                           type="button"
+                          style={{ width: mobileActionPillWidth }}
                         >
                           <Share2 className="absolute left-4 h-4 w-4" />
                           <span>Share</span>
@@ -7131,7 +7144,7 @@ function copyCardToDraft(card: CardEntry) {
                         >
                           <button
                             className={clsx(
-                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -7146,6 +7159,7 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
+                            style={{ width: mobileActionPillWidth }}
                           >
                             <Wrench className="absolute left-4 h-4 w-4" />
                             <span>Maintenance</span>
@@ -7154,7 +7168,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute left-1/2 top-[calc(100%+0.8rem)] z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -7201,7 +7215,7 @@ function copyCardToDraft(card: CardEntry) {
                         >
                           <button
                             className={clsx(
-                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -7215,6 +7229,7 @@ function copyCardToDraft(card: CardEntry) {
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
+                            style={{ width: mobileActionPillWidth }}
                           >
                             <Settings2 className="absolute left-4 h-4 w-4" />
                             <span>Settings</span>
@@ -7223,7 +7238,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute left-1/2 top-[calc(100%+0.8rem)] z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
