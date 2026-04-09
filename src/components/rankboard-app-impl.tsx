@@ -1710,6 +1710,16 @@ export function RankboardApp() {
   const activeBoardLayout = "board" as BoardLayout;
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
+  const activeMobileActionsSubmenu =
+    isMobileSearchMenuOpen
+      ? "search"
+      : isCustomizationMenuOpen
+        ? "customization"
+        : isMaintenanceMenuOpen
+          ? "maintenance"
+          : isTransferMenuOpen
+            ? "settings"
+            : null;
   const mobileActionPillWidth = "12.625rem";
   const mobileActionPillClassName = clsx(
     "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
@@ -6926,23 +6936,26 @@ function copyCardToDraft(card: CardEntry) {
                         className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.65rem)] right-[5.9rem] z-[95] flex flex-col-reverse gap-[0.4rem]"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <button
-                          aria-label={`Add ${boardVocabulary.singular}`}
-                          className={mobileActionPillClassName}
-                          onClick={() => {
-                            setIsMobileSearchMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                            openQuickAddModal();
-                          }}
-                          type="button"
-                          style={{ width: mobileActionPillWidth }}
-                        >
-                          <Plus className="absolute left-4 h-4 w-4" />
-                          <span>{`Add ${boardVocabulary.singular}`}</span>
-                        </button>
+                        {!activeMobileActionsSubmenu ? (
+                          <button
+                            aria-label={`Add ${boardVocabulary.singular}`}
+                            className={mobileActionPillClassName}
+                            onClick={() => {
+                              setIsMobileSearchMenuOpen(false);
+                              setIsCustomizationMenuOpen(false);
+                              setIsMaintenanceMenuOpen(false);
+                              setIsTransferMenuOpen(false);
+                              openQuickAddModal();
+                            }}
+                            type="button"
+                            style={{ width: mobileActionPillWidth }}
+                          >
+                            <Plus className="absolute left-4 h-4 w-4" />
+                            <span>{`Add ${boardVocabulary.singular}`}</span>
+                          </button>
+                        ) : null}
 
+                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "search" ? (
                         <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             aria-label="Search"
@@ -6998,7 +7011,9 @@ function copyCardToDraft(card: CardEntry) {
                             </div>
                           ) : null}
                         </div>
+                        ) : null}
 
+                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "customization" ? (
                         <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
@@ -7080,24 +7095,28 @@ function copyCardToDraft(card: CardEntry) {
                             </div>
                           ) : null}
                         </div>
+                        ) : null}
 
-                        <button
-                          aria-label="Share"
-                          className={mobileActionPillClassName}
-                          onClick={() => {
-                            setIsMobileSearchMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                            openShareModal();
-                          }}
-                          type="button"
-                          style={{ width: mobileActionPillWidth }}
-                        >
-                          <Share2 className="absolute left-4 h-4 w-4" />
-                          <span>Share</span>
-                        </button>
+                        {!activeMobileActionsSubmenu ? (
+                          <button
+                            aria-label="Share"
+                            className={mobileActionPillClassName}
+                            onClick={() => {
+                              setIsMobileSearchMenuOpen(false);
+                              setIsCustomizationMenuOpen(false);
+                              setIsMaintenanceMenuOpen(false);
+                              setIsTransferMenuOpen(false);
+                              openShareModal();
+                            }}
+                            type="button"
+                            style={{ width: mobileActionPillWidth }}
+                          >
+                            <Share2 className="absolute left-4 h-4 w-4" />
+                            <span>Share</span>
+                          </button>
+                        ) : null}
 
+                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "maintenance" ? (
                         <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
@@ -7159,7 +7178,9 @@ function copyCardToDraft(card: CardEntry) {
                             </div>
                           ) : null}
                         </div>
+                        ) : null}
 
+                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "settings" ? (
                         <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
@@ -7255,6 +7276,7 @@ function copyCardToDraft(card: CardEntry) {
                             </div>
                           ) : null}
                         </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
