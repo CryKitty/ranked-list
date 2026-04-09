@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-09
+
+- Reintroduced Tier List as a per-board `Customization` view toggle instead of a separate copied board type, so each board can now switch between `Kanban` and `Tier List` in place.
+- Tier List now persists its own row definitions and card ordering inside board settings, which means Tier List dragging no longer changes the kanban column/card ranking order.
+- Kept the existing kanban drag/drop path intact while routing only Tier List row/card reordering through the alternate tier-view state.
+- Tier List rows now render from that alternate view state rather than mutating real kanban columns, and deleting a row moves its cards back into `Pool` instead of deleting the cards themselves.
+- New cards created from Tier List are inserted into the chosen tier row without disturbing their real kanban column placement flow.
+- Tier List cards now use a 1:1 face on desktop and a portrait image-first treatment on mobile.
+
 ## 2026-04-08
 
 - Made the board `Customization > Fields` modal scroll within the viewport like the Share sheet, so phone-sized screens can still reach the close/action area.

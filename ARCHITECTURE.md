@@ -57,8 +57,9 @@
 ## Drag/Drop Model
 
 - Kanban insertion uses real droppable gaps between cards that stay collapsed until the pointer/finger hovers a valid target, then expand into the full card-sized drop space.
-- Tier List now follows the same pattern more closely on desktop: the dragged card’s source slot collapses to zero width, while each horizontal insert target uses a zero-width layout slot plus a larger hidden hit zone that spans into neighboring cards and only expands into a real layout gap when active.
-- Tier List row spacing is now carried by those insert slots rather than the flex row gap, so the visible space between cards is also the actual droppable target.
+- Tier List view uses its own persisted row/ordering model under `board.settings.tierListView`, so Tier drags no longer rewrite the kanban `columns/cardsByColumn` ordering.
+- Kanban drag/drop remains the primary column/card source of truth and keeps its existing collision, insert-gap, and scroll behavior unchanged.
+- Tier List view still uses the same insert-gap pattern on desktop: the dragged card’s source slot collapses to zero width, while horizontal insert targets use a zero-width layout slot plus a larger hidden hit zone that spans into neighboring cards and only expands into a real layout gap when active.
 
 ## Recovery Preference
 
@@ -84,11 +85,12 @@
 
 ## Board Layouts
 
-- The app currently supports two board layouts in the live codepath:
+- `boardLayout` is now used as a per-board view toggle:
   - `board`: the default kanban/ranked column layout
-  - `tier-list`: row-based tier ranking layout
-- `boardLayout` remains part of normalized board settings and drives creation, conversion, and rendering behavior in the main app implementation.
-- Old in-repo backup/reference copies of prior Tier List code were removed during the 2026-04-07 debloat pass, so the architecture source of truth is now the live runtime files rather than shadow copies under `src/components`.
+  - `tier-list`: the alternate tier-list presentation of the same board
+- The kanban board data still lives in normalized `columns/cardsByColumn`.
+- Tier List view stores its own row definitions and entry ordering in `board.settings.tierListView`, so switching views does not reshuffle kanban ranks.
+- Old copy-based board conversion code still exists in the implementation file as legacy reference/work-in-progress logic, but the live path is the in-place view toggle under `Customization`.
 
 ## Media
 
@@ -127,6 +129,7 @@
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The mobile action-sheet Maintenance panel should expose the same board-layout conversion action as the desktop maintenance menu.
+- `Customization` now also hosts the board-view toggle between `Kanban` and `Tier List`.
 - The board switcher also exposes create/delete affordances for board-level management.
 - In auth-enabled signed-out sessions, a welcome modal now appears before normal editing flow, gives a short three-step onboarding rundown, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board.
 - Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
@@ -135,6 +138,7 @@
 - Collapsed cards still use their own compact visual treatment, but they should now reuse the same series/title text derivation as full cards rather than dropping the series line entirely.
 - Tier logic now includes `Top 30` in both the main board and shared board rendering paths, with its own emerald accent treatment.
 - On artwork-backed cards, the series line now uses white text to match the title treatment more closely.
+- In Tier List view, desktop cards are square while mobile cards use a portrait image-first treatment.
 
 ## Mirror Linking
 

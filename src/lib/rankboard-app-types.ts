@@ -21,6 +21,8 @@ export type CardDraft = {
 export type AddCardTarget = {
   columnId: string;
   insertIndex: number;
+  tierRowId?: string;
+  tierInsertIndex?: number;
 };
 
 export type CardEditorDraft = {

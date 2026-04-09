@@ -17,6 +17,17 @@ export type BoardShareSettings = {
   expiresAt?: string | null;
 };
 
+export type TierListRowDefinition = {
+  id: string;
+  title: string;
+  accent: string;
+};
+
+export type TierListViewState = {
+  rows: TierListRowDefinition[];
+  entryIdsByRow: Record<string, string[]>;
+};
+
 export type PairwiseQuizProgress = {
   columnId: string;
   columnTitle: string;
@@ -88,6 +99,7 @@ export type BoardSettings = {
   boardIconKey?: string;
   boardIconUrl?: string;
   boardLayout?: BoardLayout;
+  tierListView?: TierListViewState;
   publicShare?: BoardShareSettings;
   pairwiseQuizProgressByColumn?: Record<string, PairwiseQuizProgress>;
   showSeriesOnCards: boolean;
