@@ -75,7 +75,7 @@ import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoar
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
-import { getArtworkDisplayUrl } from "@/lib/artwork-url";
+import { getArtworkDisplayUrl, getArtworkProxyUrl } from "@/lib/artwork-url";
 import {
   compareTitlesForDisplay,
   getDisplayCardText,
@@ -6502,7 +6502,7 @@ function copyCardToDraft(card: CardEntry) {
                 }
 
                 try {
-                  const response = await fetch(getArtworkDisplayUrl(remoteImageUrl), {
+                  const response = await fetch(getArtworkProxyUrl(remoteImageUrl), {
                     credentials: "same-origin",
                   });
 
@@ -12648,6 +12648,8 @@ function CardTile({
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
   const hasArtwork = showArtwork && Boolean(card.imageUrl?.trim());
   const imageSource = hasArtwork ? getArtworkDisplayUrl(card.imageUrl.trim()) : "";
+  const shouldPrioritizeImage =
+    !isDragging && (rankBadge?.value ?? secondaryRankBadge?.value ?? Number.POSITIVE_INFINITY) <= 2;
   const frontChips = frontFieldDefinitions
     .filter((field) => field.showOnCardFront && field.visible && !field.builtInKey)
     .map((field) => ({
@@ -12808,6 +12810,9 @@ function CardTile({
                 "absolute inset-0 h-full w-full object-cover transition duration-150",
                 loadedImageSource === imageSource ? "scale-100 blur-0 opacity-100" : "scale-[1.02] blur-sm opacity-75",
               )}
+              decoding={shouldPrioritizeImage ? "sync" : "async"}
+              fetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+              loading={shouldPrioritizeImage ? "eager" : "lazy"}
               onLoad={() => setLoadedImageSource(imageSource)}
               onError={() => setLoadedImageSource(imageSource)}
               src={imageSource}

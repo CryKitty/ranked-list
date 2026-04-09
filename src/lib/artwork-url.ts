@@ -35,6 +35,10 @@ export function getArtworkDisplayUrl(input: string) {
       return value;
     }
 
+    if (parsed.hostname === "trello.com" || parsed.hostname.endsWith(".trello.com")) {
+      return value;
+    }
+
     if (supabaseHostname && parsed.hostname === supabaseHostname) {
       return value;
     }
@@ -43,4 +47,18 @@ export function getArtworkDisplayUrl(input: string) {
   } catch {
     return value;
   }
+}
+
+export function getArtworkProxyUrl(input: string) {
+  const value = input.trim();
+
+  if (!value) {
+    return "";
+  }
+
+  if (value.startsWith("/api/artwork?")) {
+    return value;
+  }
+
+  return `/api/artwork?url=${encodeURIComponent(value)}`;
 }
