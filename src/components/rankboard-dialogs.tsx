@@ -438,6 +438,7 @@ export function EditCardDialog({
             <label className="grid gap-2">
               <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
               <input
+                autoFocus
                 name="title"
                 className={clsx(
                   "rounded-2xl border px-4 py-3 outline-none transition",

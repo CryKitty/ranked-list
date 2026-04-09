@@ -13377,6 +13377,7 @@ function TierListRow({
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
                   )}
                   onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
+                  onPointerEnter={() => setIsRowRailHovered(true)}
                   type="button"
                 >
                   <MoreHorizontal className="h-5 w-5" />
@@ -13401,6 +13402,7 @@ function TierListRow({
                     : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
                 )}
                 onClick={() => onOpenAddChooser(column.id, cards.length)}
+                onPointerEnter={() => setIsRowRailHovered(true)}
                 type="button"
               >
                 <Plus className="h-6 w-6" />
@@ -13495,7 +13497,7 @@ function TierListRow({
                     compactImageOnly={isMobileViewport}
                     clickToEdit
                     containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
-                    collapseSizeWhenDragging
+                    preserveSpaceWhenDragging
                   />
                   </Fragment>
                 ))}
@@ -13640,6 +13642,7 @@ function TierListInsertSlot({
               : "border-slate-300/80 bg-slate-100/80"
             : "border-transparent bg-transparent",
         )}
+        style={{ pointerEvents: isDragging ? "auto" : "none" }}
       />
     </div>
   );
@@ -13893,11 +13896,11 @@ function SortableCard({
     });
 
   return (
-    <div
-      ref={setNodeRef}
-      className={clsx(
-        "relative",
-        containerClassName,
+      <div
+        ref={setNodeRef}
+        className={clsx(
+          "relative",
+          containerClassName,
         isDragging &&
           (collapseSizeWhenDragging
             ? "z-20 h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
@@ -13918,8 +13921,8 @@ function SortableCard({
             : (transition ?? "transform 110ms cubic-bezier(0.22, 1, 0.36, 1)"),
         willChange: "transform",
       }}
-    >
-      <CardTile
+      >
+        <CardTile
         card={card}
         collapseCards={collapseCards}
         isDarkMode={isDarkMode}
@@ -13934,9 +13937,9 @@ function SortableCard({
         compactImageOnly={compactImageOnly}
         clickToEdit={clickToEdit}
         dragProps={{ ...attributes, ...listeners }}
-        onEdit={onEdit}
-      />
-    </div>
+          onEdit={onEdit}
+        />
+      </div>
   );
 }
 
@@ -14316,8 +14319,8 @@ function CardTile({
         collapseCards
           ? showCollapsedActions && "opacity-100"
           : showHoverActions
-            ? "opacity-100"
-            : "opacity-0",
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none",
         !collapseCards &&
           (frontChips.length > 0 || card.mirroredFromEntryId
             ? "top-14"
@@ -14333,6 +14336,7 @@ function CardTile({
               }}
               onPointerDown={(event) => event.stopPropagation()}
               onPointerEnter={() => setShowHoverActions(true)}
+              onFocus={() => setShowHoverActions(true)}
               type="button"
               aria-label={`Edit ${card.title}`}
             >
