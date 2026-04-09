@@ -159,6 +159,12 @@ export type MoveCardState = {
   targetRank: string;
 };
 
+export type TierRowAddState = {
+  rowId: string;
+  rowTitle: string;
+  insertIndex: number;
+};
+
 export type TierListConversionState = {
   mode: "to-tier-list" | "to-board";
   sourceBoardId: string;

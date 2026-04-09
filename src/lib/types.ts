@@ -100,6 +100,8 @@ export type BoardSettings = {
   boardIconUrl?: string;
   boardLayout?: BoardLayout;
   tierListView?: TierListViewState;
+  restoreCollapseCardsOnBoard?: boolean;
+  restoreTierHighlightsOnBoard?: boolean;
   publicShare?: BoardShareSettings;
   pairwiseQuizProgressByColumn?: Record<string, PairwiseQuizProgress>;
   showSeriesOnCards: boolean;

@@ -108,6 +108,7 @@ import {
   SeriesScrapeSuggestion,
   ShareDraft,
   TierFilter,
+  TierRowAddState,
   TierListConversionState,
   TierRowOptionsState,
   TitleTidySuggestion,
@@ -1725,6 +1726,8 @@ export function RankboardApp() {
   const [pendingBoardDelete, setPendingBoardDelete] = useState<SavedBoard | null>(null);
   const [moveAllCardsState, setMoveAllCardsState] = useState<MoveAllCardsState | null>(null);
   const [moveCardState, setMoveCardState] = useState<MoveCardState | null>(null);
+  const [tierRowAddState, setTierRowAddState] = useState<TierRowAddState | null>(null);
+  const [tierRowInsertState, setTierRowInsertState] = useState<TierRowAddState | null>(null);
   const [tierListConversionState, setTierListConversionState] = useState<TierListConversionState | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
@@ -1815,6 +1818,8 @@ export function RankboardApp() {
       .filter((card): card is CardEntry => Boolean(card)),
   }));
   const tierListPoolRowId = getTierListPoolRowId(normalizedTierListView.rows);
+  const tierListPoolCards =
+    tierListRows.find((item) => item.row.id === tierListPoolRowId)?.cards ?? [];
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeMobileActionsSubmenu =
@@ -1896,6 +1901,8 @@ export function RankboardApp() {
     Boolean(pendingBoardDelete) ||
     Boolean(moveAllCardsState) ||
     Boolean(moveCardState) ||
+    Boolean(tierRowAddState) ||
+    Boolean(tierRowInsertState) ||
     Boolean(tierListConversionState) ||
     isBoardFieldSettingsModalOpen;
   const activeBoardFieldDefinitions = normalizeFieldDefinitions(
@@ -6157,11 +6164,20 @@ function copyCardToDraft(card: CardEntry) {
     if (activeBoardLayout === "tier-list") {
       updateActiveBoardSettings({
         boardLayout: "board",
+        collapseCards: activeBoardSettings.restoreCollapseCardsOnBoard ?? activeBoardSettings.collapseCards,
+        showTierHighlights:
+          activeBoardSettings.restoreTierHighlightsOnBoard ?? activeBoardSettings.showTierHighlights,
       });
       return;
     }
 
     updateActiveTierListView((current) => current, "tier-list");
+    updateActiveBoardSettings({
+      collapseCards: false,
+      showTierHighlights: false,
+      restoreCollapseCardsOnBoard: activeBoardSettings.collapseCards,
+      restoreTierHighlightsOnBoard: activeBoardSettings.showTierHighlights,
+    });
   }
 
   function startEditingBoardTitle() {
@@ -6530,6 +6546,58 @@ function copyCardToDraft(card: CardEntry) {
 
   function openTierRowOptions(columnId: string, anchorRect: DOMRect) {
     setTierRowOptionsState({ rowId: columnId, anchorRect });
+  }
+
+  function openTierRowAddChooser(rowId: string, insertIndex: number) {
+    const row = normalizedTierListView.rows.find((item) => item.id === rowId);
+
+    if (!row) {
+      return;
+    }
+
+    setTierRowAddState({
+      rowId,
+      rowTitle: row.title,
+      insertIndex,
+    });
+  }
+
+  function insertCardFromPoolIntoTierRow(entryId: string) {
+    if (!tierRowInsertState) {
+      return;
+    }
+
+    updateActiveTierListView((current) => {
+      const poolRowId = getTierListPoolRowId(current.rows);
+      const sourceRowId = findTierListRowIdForEntry(entryId, current);
+
+      if (!sourceRowId || sourceRowId !== poolRowId) {
+        return current;
+      }
+
+      const nextEntryIdsByRow = Object.fromEntries(
+        current.rows.map((row) => [row.id, [...(current.entryIdsByRow[row.id] ?? [])]]),
+      ) as Record<string, string[]>;
+
+      nextEntryIdsByRow[sourceRowId] = nextEntryIdsByRow[sourceRowId].filter(
+        (currentEntryId) => currentEntryId !== entryId,
+      );
+
+      const targetEntryIds = [...(nextEntryIdsByRow[tierRowInsertState.rowId] ?? [])];
+      const nextInsertIndex = Math.max(
+        0,
+        Math.min(targetEntryIds.length, tierRowInsertState.insertIndex),
+      );
+      targetEntryIds.splice(nextInsertIndex, 0, entryId);
+      nextEntryIdsByRow[tierRowInsertState.rowId] = targetEntryIds;
+
+      return {
+        ...current,
+        entryIdsByRow: nextEntryIdsByRow,
+      };
+    });
+
+    setTierRowInsertState(null);
   }
 
   function requestDeleteTierRow(columnId: string) {
@@ -7107,8 +7175,13 @@ function copyCardToDraft(card: CardEntry) {
                             <button
                               className={clsx(
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                activeBoardLayout === "tier-list"
+                                  ? "cursor-not-allowed opacity-45"
+                                  : isDarkMode
+                                    ? "hover:bg-white/10"
+                                    : "hover:bg-white",
                               )}
+                              disabled={activeBoardLayout === "tier-list"}
                               onClick={toggleCollapseCardsSetting}
                               type="button"
                             >
@@ -7118,8 +7191,13 @@ function copyCardToDraft(card: CardEntry) {
                             <button
                               className={clsx(
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                activeBoardLayout === "tier-list"
+                                  ? "cursor-not-allowed opacity-45"
+                                  : isDarkMode
+                                    ? "hover:bg-white/10"
+                                    : "hover:bg-white",
                               )}
+                              disabled={activeBoardLayout === "tier-list"}
                               onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
                               type="button"
                             >
@@ -7134,7 +7212,7 @@ function copyCardToDraft(card: CardEntry) {
                               onClick={toggleBoardViewLayout}
                               type="button"
                             >
-                              <span>Board View</span>
+                              <span>Tier List View</span>
                               <span className="text-xs opacity-70">{activeBoardLayout === "tier-list" ? "Tier List" : "Kanban"}</span>
                             </button>
                             <button
@@ -7802,7 +7880,7 @@ function copyCardToDraft(card: CardEntry) {
                                 Customization
                               </p>
                               <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                                <span>Board View</span>
+                                <span>Tier List View</span>
                                 <ToggleSwitch
                                   ariaLabel="Toggle Tier List View"
                                   enabled={activeBoardLayout === "tier-list"}
@@ -7810,22 +7888,22 @@ function copyCardToDraft(card: CardEntry) {
                                   onClick={toggleBoardViewLayout}
                                 />
                               </div>
-                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", activeBoardLayout === "tier-list" ? "opacity-45" : isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                 <span>Compact View</span>
                                 <ToggleSwitch
                                   ariaLabel="Toggle Compact View"
                                   enabled={activeBoardSettings.collapseCards}
                                   isDarkMode={isDarkMode}
-                                  onClick={toggleCollapseCardsSetting}
+                                  onClick={activeBoardLayout === "tier-list" ? () => {} : toggleCollapseCardsSetting}
                                 />
                               </div>
-                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", activeBoardLayout === "tier-list" ? "opacity-45" : isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
                                 <span>Tier Highlights</span>
                                 <ToggleSwitch
                                   ariaLabel="Toggle Tier Highlights"
                                   enabled={activeBoardSettings.showTierHighlights}
                                   isDarkMode={isDarkMode}
-                                  onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                                  onClick={activeBoardLayout === "tier-list" ? () => {} : () => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
                                 />
                               </div>
                               <button
@@ -8848,7 +8926,7 @@ function copyCardToDraft(card: CardEntry) {
               onDragEnd={handleDragEnd}
             >
               {activeBoardLayout === "tier-list" ? (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-1 pb-3">
+                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-0 pb-3">
                   {tierListRows.map(({ row, cards }) => {
                     const visibleCards = filterCards(
                       cards,
@@ -8874,7 +8952,7 @@ function copyCardToDraft(card: CardEntry) {
                           onCancelColumnEdit={cancelEditingColumn}
                           onSaveColumnEdit={() => saveEditingColumn(row.id)}
                           onOpenRowOptions={(anchorRect) => openTierRowOptions(row.id, anchorRect)}
-                          onAddCard={openAddGameModal}
+                          onOpenAddChooser={openTierRowAddChooser}
                           onDragScrollActivity={suppressDragGapsTemporarily}
                           onEditCard={startEditingCard}
                           isAnyCardDragging={isCardDragging}
@@ -11660,6 +11738,177 @@ function copyCardToDraft(card: CardEntry) {
             </div>
           </div>
         ) : null}
+
+        {tierRowAddState ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setTierRowAddState(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                Add to {tierRowAddState.rowTitle}
+              </h2>
+              <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                Create a new {boardVocabulary.singular.toLowerCase()} or pull one in from Pool.
+              </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button
+                  className={clsx(
+                    "flex min-h-[136px] flex-col items-start justify-between rounded-[28px] border p-5 text-left transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 hover:border-white/35"
+                      : "border-slate-200 bg-white hover:border-slate-950",
+                  )}
+                  onClick={() => {
+                    const nextTarget = tierRowAddState;
+                    setTierRowAddState(null);
+                    openAddGameModal(nextTarget.rowId, nextTarget.insertIndex);
+                  }}
+                  type="button"
+                >
+                  <Plus className="h-6 w-6" />
+                  <div>
+                    <div className="text-base font-bold">Create</div>
+                    <div className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                      Make a brand-new card directly in this row.
+                    </div>
+                  </div>
+                </button>
+                <button
+                  className={clsx(
+                    "flex min-h-[136px] flex-col items-start justify-between rounded-[28px] border p-5 text-left transition",
+                    tierListPoolCards.length === 0
+                      ? "cursor-not-allowed opacity-45"
+                      : isDarkMode
+                        ? "border-white/10 bg-slate-950 hover:border-white/35"
+                        : "border-slate-200 bg-white hover:border-slate-950",
+                  )}
+                  disabled={tierListPoolCards.length === 0}
+                  onClick={() => {
+                    setTierRowInsertState(tierRowAddState);
+                    setTierRowAddState(null);
+                  }}
+                  type="button"
+                >
+                  <MoveVertical className="h-6 w-6" />
+                  <div>
+                    <div className="text-base font-bold">Insert from Pool</div>
+                    <div className={clsx("mt-1 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                      {tierListPoolCards.length === 0
+                        ? "Pool is empty right now."
+                        : `Choose from ${tierListPoolCards.length} card${tierListPoolCards.length === 1 ? "" : "s"} already in Pool.`}
+                    </div>
+                  </div>
+                </button>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setTierRowAddState(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {tierRowInsertState ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setTierRowInsertState(null)}
+          >
+            <div
+              className={clsx(
+                "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 px-6 pt-6">
+                <div>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Insert from Pool
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    Choose a card to move into <strong>{tierRowInsertState.rowTitle}</strong>.
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode ? "bg-white/10 text-slate-200 hover:bg-white/15" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setTierRowInsertState(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
+                <div className="grid gap-3">
+                  {tierListPoolCards.map((card) => (
+                    <button
+                      key={card.entryId}
+                      className={clsx(
+                        "flex items-center gap-4 rounded-[24px] border p-3 text-left transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 hover:border-white/35"
+                          : "border-slate-200 bg-white hover:border-slate-950",
+                      )}
+                      onClick={() => insertCardFromPoolIntoTierRow(card.entryId)}
+                      type="button"
+                    >
+                      <div className="w-[68px] shrink-0 overflow-hidden rounded-[18px] bg-slate-900">
+                        <CardTile
+                          card={card}
+                          collapseCards={false}
+                          isDarkMode={isDarkMode}
+                          showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                          showArtwork={shouldShowArtworkOnCards}
+                          showTierHighlights={false}
+                          frontFieldDefinitions={activeBoardFieldDefinitions}
+                          rankBadge={null}
+                          compactImageOnly
+                          showDragCursor={false}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-base font-bold">{card.title}</div>
+                        {card.series ? (
+                          <div className={clsx("mt-1 truncate text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                            {card.series}
+                          </div>
+                        ) : null}
+                      </div>
+                    </button>
+                  ))}
+                  {tierListPoolCards.length === 0 ? (
+                    <div className={clsx("rounded-[24px] border px-4 py-5 text-sm", isDarkMode ? "border-white/10 bg-slate-950 text-slate-300" : "border-slate-200 bg-white text-slate-600")}>
+                      Pool is empty.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
@@ -12958,7 +13207,7 @@ function TierListRow({
   onSaveColumnEdit,
   onOpenRowOptions,
   onEditCard,
-  onAddCard,
+  onOpenAddChooser,
   onDragScrollActivity,
   isAnyCardDragging,
   isDragGapSuppressed,
@@ -12981,7 +13230,7 @@ function TierListRow({
   onSaveColumnEdit: () => void;
   onOpenRowOptions: (anchorRect: DOMRect) => void;
   onEditCard: (card: CardEntry) => void;
-  onAddCard: (columnId: string, insertIndex: number) => void;
+  onOpenAddChooser: (rowId: string, insertIndex: number) => void;
   onDragScrollActivity: () => void;
   isAnyCardDragging: boolean;
   isDragGapSuppressed: boolean;
@@ -13081,7 +13330,7 @@ function TierListRow({
                 <button
                   aria-label={`Row options for ${column.title}`}
                   className={clsx(
-                    "inline-flex h-7 w-7 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
                     isDarkMode
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -13089,7 +13338,7 @@ function TierListRow({
                   onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
                   type="button"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-5 w-5" />
                 </button>
                 <HoverTooltip isDarkMode={isDarkMode} label="Row Options" />
               </div>
@@ -13100,15 +13349,15 @@ function TierListRow({
               <button
                 aria-label={`Add ${addLabel} to ${column.title}`}
                 className={clsx(
-                  "inline-flex h-7 w-7 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
+                  "inline-flex h-9 w-9 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
                   isDarkMode
                     ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                     : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
                 )}
-                onClick={() => onAddCard(column.id, cards.length)}
+                onClick={() => onOpenAddChooser(column.id, cards.length)}
                 type="button"
               >
-                <Plus className="h-5 w-5" />
+                <Plus className="h-6 w-6" />
               </button>
               <HoverTooltip isDarkMode={isDarkMode} label={`Add ${addLabel}`} />
             </div>
@@ -13135,11 +13384,25 @@ function TierListRow({
               isUnsortedRow
                 ? "scrollbar-hidden flex items-center gap-0 overflow-x-auto"
                 : isMobileViewport
-                  ? "flex flex-wrap items-center gap-x-0 gap-y-1 overflow-visible"
-                  : "flex flex-wrap items-start gap-x-0 gap-y-1 overflow-visible sm:gap-y-2",
+                  ? "flex flex-wrap items-center gap-x-0 gap-y-0 overflow-visible"
+                  : "flex flex-wrap items-start gap-x-0 gap-y-0 overflow-visible",
             )}
             data-column-scroll-id={column.id}
             onScroll={onDragScrollActivity}
+            onClick={(event) => {
+              const target = event.target as HTMLElement | null;
+
+              if (
+                isAnyCardDragging ||
+                target?.closest("[data-card-entry-id]") ||
+                target?.closest("button") ||
+                target?.closest("[data-tier-insert-slot='true']")
+              ) {
+                return;
+              }
+
+              onOpenAddChooser(column.id, cards.length);
+            }}
           >
             {cards.length === 0 ? (
               <button
@@ -13149,7 +13412,7 @@ function TierListRow({
                     ? "border-white/15 bg-white/[0.03] text-slate-400 hover:border-white/30 hover:bg-white/[0.05]"
                     : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white",
                 )}
-                onClick={() => onAddCard(column.id, 0)}
+                onClick={() => onOpenAddChooser(column.id, 0)}
                 type="button"
               >
                 <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold">
@@ -13182,7 +13445,7 @@ function TierListRow({
                       rankBadge={null}
                       onEdit={() => onEditCard(card)}
                       compactImageOnly={isMobileViewport}
-                      containerClassName="basis-[82px] w-[82px] shrink-0 self-start sm:basis-[176px] sm:w-[176px]"
+                      containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
                       collapseSizeWhenDragging
                     />
                   </Fragment>
@@ -13228,7 +13491,7 @@ function TierListAddRowDivider({
   };
 
   return (
-    <div className="-my-1 grid grid-cols-[44px_minmax(0,1fr)] items-center">
+    <div className="-my-[6px] grid grid-cols-[44px_minmax(0,1fr)] items-center">
       <div
         className="group flex items-center justify-center"
         data-mobile-inline-add-root="true"
@@ -13292,18 +13555,18 @@ function TierListInsertSlot({
   const expanded = isDragging && !isGapSuppressed && isOver;
   const activeWidthClass = isSquare
     ? isMobileViewport
-      ? "w-[82px]"
-      : "w-[176px]"
+      ? "w-[92px]"
+      : "w-[186px]"
     : "w-[184px]";
   const hiddenHitWidthClass = isSquare
     ? isMobileViewport
-      ? "w-[28px]"
-      : "w-[176px]"
+      ? "w-[36px]"
+      : "w-[186px]"
     : "w-[184px]";
   const heightClass = isSquare
     ? isMobileViewport
-      ? "h-[116px]"
-      : "h-[176px]"
+      ? "h-[126px]"
+      : "h-[186px]"
     : "h-[84px] sm:h-[124px]";
 
   return (
@@ -13316,6 +13579,7 @@ function TierListInsertSlot({
     >
       <div
         ref={setNodeRef}
+        data-tier-insert-slot="true"
         className={clsx(
           "absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
           heightClass,
@@ -13772,7 +14036,7 @@ function CardTile({
       data-card-entry-id={card.entryId}
       {...dragProps}
       className={clsx(
-        "group relative shrink-0 overflow-visible border",
+        "group relative h-full w-full shrink-0 overflow-visible border",
         showDragCursor && "cursor-grab active:cursor-grabbing",
         clickToEdit && !collapseCards && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
@@ -13781,7 +14045,8 @@ function CardTile({
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
         collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
       )}
-      onClick={() => {
+      onClick={(event) => {
+        event.stopPropagation();
         if (collapseCards) {
           setShowCollapsedActions(true);
         } else if (clickToEdit && onEdit) {
@@ -13796,7 +14061,7 @@ function CardTile({
     >
         <div
           className={clsx(
-            "relative overflow-hidden bg-center",
+            "relative h-full overflow-hidden bg-center",
             collapseCards ? collapsedTierSurfaceClass : "bg-slate-900",
             collapseCards
               ? "min-h-[52px]"
