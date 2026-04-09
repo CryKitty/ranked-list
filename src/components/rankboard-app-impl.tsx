@@ -8666,7 +8666,7 @@ function copyCardToDraft(card: CardEntry) {
                             {isCustomizationMenuOpen ? (
                               <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
                                 <div className={clsx("flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                                  <span>Board View</span>
+                                  <span>Tier List View</span>
                                   <ToggleSwitch
                                     ariaLabel="Toggle Tier List View"
                                     enabled={activeBoardLayout === "tier-list"}
@@ -13442,12 +13442,13 @@ function TierListRow({
                       showTierHighlights={false}
                       frontFieldDefinitions={frontFieldDefinitions}
                       forceSquare
-                      rankBadge={null}
-                      onEdit={() => onEditCard(card)}
-                      compactImageOnly={isMobileViewport}
-                      containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
-                      collapseSizeWhenDragging
-                    />
+                    rankBadge={null}
+                    onEdit={() => onEditCard(card)}
+                    compactImageOnly={isMobileViewport}
+                    clickToEdit
+                    containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
+                    collapseSizeWhenDragging
+                  />
                   </Fragment>
                 ))}
                 <TierListInsertSlot
@@ -13553,15 +13554,16 @@ function TierListInsertSlot({
   });
 
   const expanded = isDragging && !isGapSuppressed && isOver;
+  const restingWidthClass = isDragging && !isGapSuppressed ? "w-[10px] sm:w-[14px]" : "w-0";
   const activeWidthClass = isSquare
     ? isMobileViewport
-      ? "w-[92px]"
-      : "w-[186px]"
+      ? "w-[102px]"
+      : "w-[196px]"
     : "w-[184px]";
   const hiddenHitWidthClass = isSquare
     ? isMobileViewport
-      ? "w-[36px]"
-      : "w-[186px]"
+      ? "w-[48px]"
+      : "w-[132px]"
     : "w-[184px]";
   const heightClass = isSquare
     ? isMobileViewport
@@ -13573,7 +13575,7 @@ function TierListInsertSlot({
     <div
       className={clsx(
         "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
-        isDragging && !isGapSuppressed && expanded ? activeWidthClass : "w-0",
+        isDragging && !isGapSuppressed ? (expanded ? activeWidthClass : restingWidthClass) : "w-0",
         heightClass,
       )}
     >
@@ -13581,13 +13583,13 @@ function TierListInsertSlot({
         ref={setNodeRef}
         data-tier-insert-slot="true"
         className={clsx(
-          "absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] border transition-[width,background-color,border-color] duration-200 ease-out",
+          "absolute left-1/2 top-0 -translate-x-1/2 rounded-[24px] border transition-[width,background-color,border-color] duration-200 ease-out",
           heightClass,
           expanded ? "w-full" : hiddenHitWidthClass,
           expanded
             ? isDarkMode
-              ? "border-white/45 bg-white/8"
-              : "border-slate-500/45 bg-slate-100/80"
+              ? "border-white/10 bg-white/[0.03]"
+              : "border-slate-300/80 bg-slate-100/80"
             : "border-transparent bg-transparent",
         )}
       />
@@ -13807,6 +13809,7 @@ function SortableCard({
   forceSquare = false,
   compactImageOnly = false,
   containerClassName,
+  clickToEdit = false,
   collapseSizeWhenDragging = false,
   preserveSpaceWhenDragging = true,
   freezeLayoutWhileDragging = false,
@@ -13824,6 +13827,7 @@ function SortableCard({
   forceSquare?: boolean;
   compactImageOnly?: boolean;
   containerClassName?: string;
+  clickToEdit?: boolean;
   collapseSizeWhenDragging?: boolean;
   preserveSpaceWhenDragging?: boolean;
   freezeLayoutWhileDragging?: boolean;
@@ -13880,6 +13884,7 @@ function SortableCard({
         isDragging={isDragging}
         forceSquare={forceSquare}
         compactImageOnly={compactImageOnly}
+        clickToEdit={clickToEdit}
         dragProps={{ ...attributes, ...listeners }}
         onEdit={onEdit}
       />
