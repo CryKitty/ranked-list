@@ -13240,6 +13240,7 @@ function TierListRow({
   });
   const trimmedColumnTitle = column.title.trim();
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
+  const usesHorizontalDragLane = isAnyCardDragging || isUnsortedRow;
 
   return (
     <div className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch">
@@ -13325,12 +13326,17 @@ function TierListRow({
             )}
           </div>
           {!isEditingColumn ? (
-            <div className="absolute left-1/2 top-2 -translate-x-1/2">
-              <div className="group relative">
+            <div
+              className={clsx(
+                "absolute left-1/2 top-2 -translate-x-1/2 transition-opacity",
+                "opacity-0 pointer-events-none group-hover/rowrail:opacity-100 group-hover/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto",
+              )}
+            >
+              <div className="relative">
                 <button
                   aria-label={`Row options for ${column.title}`}
                   className={clsx(
-                    "inline-flex h-9 w-9 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
+                    "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
                     isDarkMode
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -13344,12 +13350,17 @@ function TierListRow({
               </div>
             </div>
           ) : null}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-            <div className="group relative">
+          <div
+            className={clsx(
+              "absolute bottom-2 left-1/2 -translate-x-1/2 transition-opacity",
+              "opacity-0 pointer-events-none group-hover/rowrail:opacity-100 group-hover/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto",
+            )}
+          >
+            <div className="relative">
               <button
                 aria-label={`Add ${addLabel} to ${column.title}`}
                 className={clsx(
-                  "inline-flex h-9 w-9 items-center justify-center rounded-full border transition pointer-events-none opacity-0 group-hover/rowrail:pointer-events-auto group-hover/rowrail:opacity-100 group-focus-within/rowrail:pointer-events-auto group-focus-within/rowrail:opacity-100",
+                  "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
                   isDarkMode
                     ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                     : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -13376,12 +13387,12 @@ function TierListRow({
       >
         <SortableContext
           items={cards.map((card) => card.entryId)}
-          strategy={isUnsortedRow ? horizontalListSortingStrategy : rectSortingStrategy}
+          strategy={usesHorizontalDragLane ? horizontalListSortingStrategy : rectSortingStrategy}
         >
           <div
             className={clsx(
               "min-h-[152px] content-start justify-start pb-1 sm:min-h-[176px]",
-              isUnsortedRow
+              usesHorizontalDragLane
                 ? "scrollbar-hidden flex items-center gap-0 overflow-x-auto"
                 : isMobileViewport
                   ? "flex flex-wrap items-center gap-x-0 gap-y-0 overflow-visible"
@@ -13448,6 +13459,7 @@ function TierListRow({
                     clickToEdit
                     containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
                     collapseSizeWhenDragging
+                    freezeLayoutWhileDragging={usesHorizontalDragLane}
                   />
                   </Fragment>
                 ))}
@@ -14043,7 +14055,7 @@ function CardTile({
       className={clsx(
         "group relative h-full w-full shrink-0 overflow-visible border",
         showDragCursor && "cursor-grab active:cursor-grabbing",
-        clickToEdit && !collapseCards && "cursor-pointer",
+        clickToEdit && !collapseCards && !showDragCursor && "cursor-pointer",
         collapseCards && collapsedTierSurfaceClass,
         !collapseCards && "bg-slate-900",
         collapseCards ? "border-slate-950" : tierBorderClass,
