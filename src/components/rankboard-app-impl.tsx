@@ -1304,22 +1304,6 @@ function getDefaultBoardSettings(boardTitle: string, _boardLayout: BoardLayout =
   };
 }
 
-function getUserDisplayName(user: User | null) {
-  if (!user) {
-    return "";
-  }
-
-  const metadata = user.user_metadata ?? {};
-  return (
-    metadata.full_name ||
-    metadata.name ||
-    metadata.user_name ||
-    metadata.email ||
-    user.email ||
-    "Account"
-  );
-}
-
 type PersistBoardStateOptions = {
   boards?: SavedBoard[];
   activeBoardId?: string;
@@ -7004,116 +6988,94 @@ function copyCardToDraft(card: CardEntry) {
                         <span>Share</span>
                       </button>
 
-                      <div className="relative" data-actions-menu-root="true">
+                      <button
+                        className={clsx(
+                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
+                        onClick={() => {
+                          setIsImportModalOpen(true);
+                          setIsActionsMenuOpen(false);
+                          setIsMobileActionsOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <Upload className="h-4 w-4" />
+                        <span>Import</span>
+                      </button>
+
+                      <button
+                        className={clsx(
+                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
+                        onClick={() => {
+                          exportActiveBoardAsJson();
+                          setIsActionsMenuOpen(false);
+                          setIsMobileActionsOpen(false);
+                        }}
+                        type="button"
+                      >
+                        <Save className="h-4 w-4" />
+                        <span>Export</span>
+                      </button>
+
+                      <button
+                        className={clsx(
+                          "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
+                        onClick={() => {
+                          void toggleThemePreference();
+                          setIsActionsMenuOpen(false);
+                          setIsMobileActionsOpen(false);
+                        }}
+                        type="button"
+                      >
+                        {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                        <span>{isDarkMode ? "Lumos" : "Nox"}</span>
+                      </button>
+
+                      {currentUser ? (
                         <button
-                          aria-label="Settings"
                           className={clsx(
                             "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
                             isDarkMode
                               ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
                               : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                           )}
+                          onClick={handleSignOut}
+                          type="button"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Log Out</span>
+                        </button>
+                      ) : authEnabled ? (
+                        <button
+                          className={clsx(
+                            "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border transition",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                          )}
+                          disabled={isAuthLoading}
                           onClick={() => {
-                            setIsBoardsMenuOpen(false);
-                            setIsActionsMenuOpen((current) => !current);
+                            void handleOAuthLogin("google");
+                            setIsActionsMenuOpen(false);
+                            setIsMobileActionsOpen(false);
                           }}
                           type="button"
                         >
-                          <Settings2 className="h-4 w-4" />
-                          <span>Settings</span>
+                          <LogOut className="h-4 w-4" />
+                          <span>Log In</span>
                         </button>
-                        {isActionsMenuOpen ? (
-                          <div
-                            className={clsx(
-                              "absolute right-0 z-40 mt-2 min-w-[260px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-950/95 text-slate-100"
-                                : "border-slate-200 bg-white/95 text-slate-700",
-                            )}
-                          >
-                            <div className="rounded-2xl">
-                              <MenuSectionButton
-                                icon={<Upload className="h-4 w-4" />}
-                                label="Import/Export"
-                                isDarkMode={isDarkMode}
-                                isOpen={isTransferMenuOpen}
-                                onClick={() => {
-                                  setIsTransferMenuOpen((current) => !current);
-                                  setIsBoardsMenuOpen(false);
-                                  setIsCustomizationMenuOpen(false);
-                                  setIsMaintenanceMenuOpen(false);
-                                }}
-                              />
-                              {isTransferMenuOpen ? (
-                                <div className={clsx("mt-1 space-y-1 rounded-2xl px-2 pb-2", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
-                                  <button
-                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={() => {
-                                      setIsImportModalOpen(true);
-                                      setIsActionsMenuOpen(false);
-                                      setIsMobileActionsOpen(false);
-                                    }}
-                                    type="button"
-                                  >
-                                    <Upload className="h-4 w-4" />
-                                    Import
-                                  </button>
-                                  <button
-                                    className={clsx("flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                    onClick={exportActiveBoardAsJson}
-                                    type="button"
-                                  >
-                                    <Save className="h-4 w-4" />
-                                    Export
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                            <button
-                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
-                              onClick={() => {
-                                void toggleThemePreference();
-                                setIsActionsMenuOpen(false);
-                                setIsMobileActionsOpen(false);
-                              }}
-                              type="button"
-                            >
-                              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                              {isDarkMode ? "Lumos" : "Nox"}
-                            </button>
-                            {currentUser ? (
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                                )}
-                                onClick={handleSignOut}
-                                type="button"
-                              >
-                                <LogOut className="h-4 w-4" />
-                                {getUserDisplayName(currentUser)}
-                              </button>
-                            ) : authEnabled ? (
-                              <button
-                                className={clsx(
-                                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
-                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
-                                )}
-                                disabled={isAuthLoading}
-                                onClick={() => {
-                                  void handleOAuthLogin("google");
-                                  setIsActionsMenuOpen(false);
-                                  setIsMobileActionsOpen(false);
-                                }}
-                                type="button"
-                              >
-                                <LogOut className="h-4 w-4" />
-                                Log In
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
+                      ) : null}
 
                       <div className="col-span-2 grid grid-cols-2 gap-3 overflow-visible sm:col-span-2">
                         <div className="relative" data-mobile-actions-submenu-root="true">
