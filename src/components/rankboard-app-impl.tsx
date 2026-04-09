@@ -1710,6 +1710,17 @@ export function RankboardApp() {
   const activeBoardLayout = "board" as BoardLayout;
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
+  const activeMobileActionsSubmenu =
+    isMobileSearchMenuOpen
+      ? "search"
+      : isCustomizationMenuOpen
+        ? "customization"
+        : isMaintenanceMenuOpen
+          ? "maintenance"
+          : isTransferMenuOpen
+            ? "settings"
+            : null;
+  const hasMobileActionsSubmenuOpen = activeMobileActionsSubmenu !== null;
   const hasBlockingMenuOpen =
     isBoardsMenuOpen ||
     isActionsMenuOpen ||
@@ -6911,52 +6922,56 @@ function copyCardToDraft(card: CardEntry) {
                     onClick={() => setIsMobileActionsOpen(false)}
                   >
                     <div className="pointer-events-none fixed inset-0 z-[90] lg:hidden">
-                      <button
-                        aria-label={`Add ${boardVocabulary.singular}`}
-                        className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.6rem)] right-[5.25rem] inline-flex h-12 w-[10.75rem] items-center justify-center gap-3 rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-900/96 text-slate-100"
-                            : "border-white/80 bg-white/96 text-slate-900",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openQuickAddModal();
-                        }}
-                        type="button"
-                      >
-                        <Plus className="h-4 w-4" />
-                        {`Add ${boardVocabulary.singular}`}
-                      </button>
+                      {!hasMobileActionsSubmenuOpen ? (
+                        <button
+                          aria-label={`Add ${boardVocabulary.singular}`}
+                          className={clsx(
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.475rem)] right-[7.75rem] inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-900/96 text-slate-100"
+                              : "border-white/80 bg-white/96 text-slate-900",
+                          )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openQuickAddModal();
+                          }}
+                          type="button"
+                        >
+                          <Plus className="absolute left-4 h-4 w-4" />
+                          <span>{`Add ${boardVocabulary.singular}`}</span>
+                        </button>
+                      ) : null}
 
-                      <button
-                        aria-label="Search"
-                        className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-[5.25rem] inline-flex h-12 w-[10.75rem] items-center justify-center gap-3 rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-900/96 text-slate-100"
-                            : "border-white/80 bg-white/96 text-slate-900",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setIsMobileSearchMenuOpen((current) => !current);
-                          setIsTransferMenuOpen(false);
-                          setIsCustomizationMenuOpen(false);
-                          setIsMaintenanceMenuOpen(false);
-                          setIsActionsMenuOpen(false);
-                        }}
-                        type="button"
-                      >
-                        <Search className="h-4 w-4" />
-                        Search
-                      </button>
+                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "search" ? (
+                        <button
+                          aria-label="Search"
+                          className={clsx(
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.875rem)] right-[7.75rem] inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            isDarkMode
+                              ? "border-white/10 bg-slate-900/96 text-slate-100"
+                              : "border-white/80 bg-white/96 text-slate-900",
+                          )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setIsMobileSearchMenuOpen((current) => !current);
+                            setIsTransferMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsActionsMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <Search className="absolute left-4 h-4 w-4" />
+                          <span>Search</span>
+                        </button>
+                      ) : null}
 
                       {isMobileSearchMenuOpen ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+8.4rem)] right-[5.25rem]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+10.275rem)] right-[7.75rem] z-[110]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
-                        >
+                      >
                           <div
                             className={clsx(
                               "w-[min(calc(100vw-2.2rem),320px)] space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
@@ -6994,41 +7009,42 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                       ) : null}
 
-                      <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+8.4rem)] right-[5.25rem]"
-                        data-mobile-actions-submenu-root="true"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <button
-                          className={clsx(
-                            "inline-flex h-12 w-[10.75rem] items-center justify-center gap-3 rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-900/96 text-slate-100"
-                              : "border-white/80 bg-white/96 text-slate-900",
-                            isCustomizationMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
-                          )}
-                          onClick={() => {
-                            setIsCustomizationMenuOpen((current) => !current);
-                            setIsMobileSearchMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                            setIsActionsMenuOpen(false);
-                          }}
-                          type="button"
+                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "customization" ? (
+                        <div
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+10.275rem)] right-[7.75rem]"
+                          data-mobile-actions-submenu-root="true"
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          <Sparkles className="h-4 w-4" />
-                          Customization
-                        </button>
-
-                        {isCustomizationMenuOpen ? (
-                          <div
+                          <button
                             className={clsx(
-                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                              "inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
-                                ? "border-white/10 bg-slate-900/95 text-slate-100"
-                                : "border-white/80 bg-white/95 text-slate-900",
+                                ? "border-white/10 bg-slate-900/96 text-slate-100"
+                                : "border-white/80 bg-white/96 text-slate-900",
+                              isCustomizationMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
+                            onClick={() => {
+                              setIsCustomizationMenuOpen((current) => !current);
+                              setIsMobileSearchMenuOpen(false);
+                              setIsMaintenanceMenuOpen(false);
+                              setIsTransferMenuOpen(false);
+                              setIsActionsMenuOpen(false);
+                            }}
+                            type="button"
                           >
+                            <Sparkles className="absolute left-4 h-4 w-4" />
+                            <span>Customization</span>
+                          </button>
+
+                          {isCustomizationMenuOpen ? (
+                            <div
+                              className={clsx(
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                  : "border-white/80 bg-white/95 text-slate-900",
+                              )}
+                            >
                             <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                               Customization
                             </p>
@@ -7078,64 +7094,68 @@ function copyCardToDraft(card: CardEntry) {
                               <span>Fields</span>
                               <Settings2 className="h-4 w-4 opacity-70" />
                             </button>
-                          </div>
-                        ) : null}
-                      </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
 
-                      <button
-                        aria-label="Share"
-                        className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+11.8rem)] right-[5.25rem] inline-flex h-12 w-[10.75rem] items-center justify-center gap-3 rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-900/96 text-slate-100"
-                            : "border-white/80 bg-white/96 text-slate-900",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openShareModal();
-                        }}
-                        type="button"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        Share
-                      </button>
-
-                      <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+15.2rem)] right-[5.25rem]"
-                        data-mobile-actions-submenu-root="true"
-                        onClick={(event) => event.stopPropagation()}
-                      >
+                      {!hasMobileActionsSubmenuOpen ? (
                         <button
+                          aria-label="Share"
                           className={clsx(
-                            "inline-flex h-12 w-[10.75rem] items-center justify-center gap-3 rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.675rem)] right-[7.75rem] inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
-                            isMaintenanceMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                           )}
-                          onClick={() => {
-                            setIsMaintenanceMenuOpen((current) => !current);
-                            setIsBoardsMenuOpen(false);
-                            setIsMobileSearchMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsTransferMenuOpen(false);
-                            setIsActionsMenuOpen(false);
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openShareModal();
                           }}
                           type="button"
                         >
-                          <Wrench className="h-4 w-4" />
-                          Maintenance
+                          <Share2 className="absolute left-4 h-4 w-4" />
+                          <span>Share</span>
                         </button>
+                      ) : null}
 
-                        {isMaintenanceMenuOpen ? (
-                          <div
+                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "maintenance" ? (
+                        <div
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+17.075rem)] right-[7.75rem]"
+                          data-mobile-actions-submenu-root="true"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <button
                             className={clsx(
-                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                              "inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
-                                ? "border-white/10 bg-slate-900/95 text-slate-100"
-                                : "border-white/80 bg-white/95 text-slate-900",
+                                ? "border-white/10 bg-slate-900/96 text-slate-100"
+                                : "border-white/80 bg-white/96 text-slate-900",
+                              isMaintenanceMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
+                            onClick={() => {
+                              setIsMaintenanceMenuOpen((current) => !current);
+                              setIsBoardsMenuOpen(false);
+                              setIsMobileSearchMenuOpen(false);
+                              setIsCustomizationMenuOpen(false);
+                              setIsTransferMenuOpen(false);
+                              setIsActionsMenuOpen(false);
+                            }}
+                            type="button"
                           >
+                            <Wrench className="absolute left-4 h-4 w-4" />
+                            <span>Maintenance</span>
+                          </button>
+
+                          {isMaintenanceMenuOpen ? (
+                            <div
+                              className={clsx(
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                  : "border-white/80 bg-white/95 text-slate-900",
+                              )}
+                            >
                             <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                               Maintenance
                             </p>
@@ -7164,45 +7184,47 @@ function copyCardToDraft(card: CardEntry) {
                               <Trash2 className="h-4 w-4" />
                               Delete Board
                             </button>
-                          </div>
-                        ) : null}
-                      </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
 
-                      <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+18.6rem)] right-[5.25rem]"
-                        data-mobile-actions-submenu-root="true"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <button
-                          className={clsx(
-                            "inline-flex h-12 w-[10.75rem] items-center justify-center gap-3 rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-900/96 text-slate-100"
-                              : "border-white/80 bg-white/96 text-slate-900",
-                            isTransferMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
-                          )}
-                          onClick={() => {
-                            setIsTransferMenuOpen((current) => !current);
-                            setIsMobileSearchMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsActionsMenuOpen(false);
-                          }}
-                          type="button"
+                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "settings" ? (
+                        <div
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+20.475rem)] right-[7.75rem]"
+                          data-mobile-actions-submenu-root="true"
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          Settings
-                          <Settings2 className="h-4 w-4" />
-                        </button>
-
-                        {isTransferMenuOpen ? (
-                          <div
+                          <button
                             className={clsx(
-                              "absolute bottom-[calc(100%+0.8rem)] right-0 w-[min(calc(100vw-2.2rem),280px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                              "inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
-                                ? "border-white/10 bg-slate-900/95 text-slate-100"
-                                : "border-white/80 bg-white/95 text-slate-900",
+                                ? "border-white/10 bg-slate-900/96 text-slate-100"
+                                : "border-white/80 bg-white/96 text-slate-900",
+                              isTransferMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
+                            onClick={() => {
+                              setIsTransferMenuOpen((current) => !current);
+                              setIsMobileSearchMenuOpen(false);
+                              setIsCustomizationMenuOpen(false);
+                              setIsMaintenanceMenuOpen(false);
+                              setIsActionsMenuOpen(false);
+                            }}
+                            type="button"
                           >
+                            <Settings2 className="absolute left-4 h-4 w-4" />
+                            <span>Settings</span>
+                          </button>
+
+                          {isTransferMenuOpen ? (
+                            <div
+                              className={clsx(
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),280px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                  : "border-white/80 bg-white/95 text-slate-900",
+                              )}
+                            >
                             <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                               Settings
                             </p>
@@ -7266,9 +7288,10 @@ function copyCardToDraft(card: CardEntry) {
                                 Log In
                               </button>
                             ) : null}
-                          </div>
-                        ) : null}
-                      </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
 
 
                     </div>
