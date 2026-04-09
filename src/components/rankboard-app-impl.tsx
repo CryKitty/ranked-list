@@ -8018,18 +8018,6 @@ function copyCardToDraft(card: CardEntry) {
                                 <span>Fields</span>
                                 <Settings2 className="h-4 w-4 opacity-70" />
                               </button>
-                              <button
-                                className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                                onClick={() => {
-                                  resetMobileActionPanels();
-                                  setIsMobileActionsOpen(false);
-                                  openShareModal();
-                                }}
-                                type="button"
-                              >
-                                <span>Share</span>
-                                <Share2 className="h-4 w-4 opacity-70" />
-                              </button>
                             </div>
                           ) : null}
                         </div>
@@ -8386,6 +8374,18 @@ function copyCardToDraft(card: CardEntry) {
                             <button
                               className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
                               onClick={() => {
+                                resetMobileActionPanels();
+                                setIsMobileActionsOpen(false);
+                                openShareModal();
+                              }}
+                              type="button"
+                            >
+                              <Share2 className="h-4 w-4" />
+                              Share
+                            </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => {
                                 void toggleThemePreference();
                                 setIsActionsMenuOpen(false);
                                 setIsMobileActionsOpen(false);
@@ -8436,7 +8436,7 @@ function copyCardToDraft(card: CardEntry) {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur sm:p-4",
+              "relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur -mt-[30px] sm:mt-0 sm:p-4",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -14279,8 +14279,8 @@ function CardTile({
           setShowHoverActions(true);
         }
       }}
-      onPointerLeave={() => {
-        if (!collapseCards) {
+      onPointerLeave={(event) => {
+        if (!collapseCards && event.pointerType !== "touch") {
           setShowHoverActions(false);
         }
       }}
