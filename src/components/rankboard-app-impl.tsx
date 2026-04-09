@@ -6909,6 +6909,10 @@ function copyCardToDraft(card: CardEntry) {
                   )}
                   onClick={() => {
                     setIsBoardsMenuOpen(false);
+                    setIsMobileSearchMenuOpen(false);
+                    setIsCustomizationMenuOpen(false);
+                    setIsMaintenanceMenuOpen(false);
+                    setIsTransferMenuOpen(false);
                     setIsMobileActionsOpen((current) => !current);
                   }}
                   type="button"
@@ -6926,7 +6930,7 @@ function copyCardToDraft(card: CardEntry) {
                         <button
                           aria-label={`Add ${boardVocabulary.singular}`}
                           className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.475rem)] right-[7.75rem] inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.475rem)] right-[7.75rem] inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
@@ -6943,43 +6947,42 @@ function copyCardToDraft(card: CardEntry) {
                       ) : null}
 
                       {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "search" ? (
-                        <button
-                          aria-label="Search"
-                          className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.875rem)] right-[7.75rem] inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                            isDarkMode
-                              ? "border-white/10 bg-slate-900/96 text-slate-100"
-                              : "border-white/80 bg-white/96 text-slate-900",
-                          )}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setIsMobileSearchMenuOpen((current) => !current);
-                            setIsTransferMenuOpen(false);
-                            setIsCustomizationMenuOpen(false);
-                            setIsMaintenanceMenuOpen(false);
-                            setIsActionsMenuOpen(false);
-                          }}
-                          type="button"
-                        >
-                          <Search className="absolute left-4 h-4 w-4" />
-                          <span>Search</span>
-                        </button>
-                      ) : null}
-
-                      {isMobileSearchMenuOpen ? (
                         <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+10.275rem)] right-[7.75rem] z-[110]"
+                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.875rem)] right-[7.75rem]"
                           data-mobile-actions-submenu-root="true"
                           onClick={(event) => event.stopPropagation()}
-                      >
-                          <div
+                        >
+                          <button
+                            aria-label="Search"
                             className={clsx(
-                              "w-[min(calc(100vw-2.2rem),320px)] space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
-                                ? "border-white/10 bg-slate-900/95 text-slate-100"
-                                : "border-white/80 bg-white/95 text-slate-900",
+                                ? "border-white/10 bg-slate-900/96 text-slate-100"
+                                : "border-white/80 bg-white/96 text-slate-900",
                             )}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setIsMobileSearchMenuOpen((current) => !current);
+                              setIsTransferMenuOpen(false);
+                              setIsCustomizationMenuOpen(false);
+                              setIsMaintenanceMenuOpen(false);
+                              setIsActionsMenuOpen(false);
+                            }}
+                            type="button"
                           >
+                            <Search className="absolute left-4 h-4 w-4" />
+                            <span>Search</span>
+                          </button>
+
+                          {isMobileSearchMenuOpen ? (
+                            <div
+                              className={clsx(
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),320px)] -translate-x-1/2 space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                isDarkMode
+                                  ? "border-white/10 bg-slate-900/95 text-slate-100"
+                                  : "border-white/80 bg-white/95 text-slate-900",
+                              )}
+                            >
                             <p className={clsx("px-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                               Search
                             </p>
@@ -7005,7 +7008,8 @@ function copyCardToDraft(card: CardEntry) {
                               }}
                               onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
                             />
-                          </div>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
 
@@ -7017,7 +7021,7 @@ function copyCardToDraft(card: CardEntry) {
                         >
                           <button
                             className={clsx(
-                              "inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -7039,7 +7043,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isCustomizationMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -7103,7 +7107,7 @@ function copyCardToDraft(card: CardEntry) {
                         <button
                           aria-label="Share"
                           className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.675rem)] right-[7.75rem] inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+13.675rem)] right-[7.75rem] inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
@@ -7127,7 +7131,7 @@ function copyCardToDraft(card: CardEntry) {
                         >
                           <button
                             className={clsx(
-                              "inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -7150,7 +7154,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -7197,7 +7201,7 @@ function copyCardToDraft(card: CardEntry) {
                         >
                           <button
                             className={clsx(
-                              "inline-flex h-12 w-[10.75rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+                              "inline-flex h-12 w-[11.375rem] items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
                               isDarkMode
                                 ? "border-white/10 bg-slate-900/96 text-slate-100"
                                 : "border-white/80 bg-white/96 text-slate-900",
@@ -7219,7 +7223,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),280px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
