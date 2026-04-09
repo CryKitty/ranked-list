@@ -1710,17 +1710,13 @@ export function RankboardApp() {
   const activeBoardLayout = "board" as BoardLayout;
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
-  const activeMobileActionsSubmenu =
-    isMobileSearchMenuOpen
-      ? "search"
-      : isCustomizationMenuOpen
-        ? "customization"
-        : isMaintenanceMenuOpen
-          ? "maintenance"
-          : isTransferMenuOpen
-            ? "settings"
-            : null;
   const mobileActionPillWidth = "12.625rem";
+  const mobileActionPillClassName = clsx(
+    "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
+    isDarkMode
+      ? "border-white/10 bg-slate-900/96 text-slate-100"
+      : "border-white/80 bg-white/96 text-slate-900",
+  );
   const hasBlockingMenuOpen =
     isBoardsMenuOpen ||
     isActionsMenuOpen ||
@@ -6926,45 +6922,32 @@ function copyCardToDraft(card: CardEntry) {
                     onClick={() => setIsMobileActionsOpen(false)}
                   >
                     <div className="pointer-events-none fixed inset-0 z-[90] lg:hidden">
-                      <button
-                        aria-label={`Add ${boardVocabulary.singular}`}
-                        className={clsx(
-                            "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+6.1rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-900/96 text-slate-100"
-                            : "border-white/80 bg-white/96 text-slate-900",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setIsMobileSearchMenuOpen(false);
-                          setIsCustomizationMenuOpen(false);
-                          setIsMaintenanceMenuOpen(false);
-                          setIsTransferMenuOpen(false);
-                          openQuickAddModal();
-                        }}
-                        type="button"
-                        style={{ width: mobileActionPillWidth }}
+                      <div
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.65rem)] right-[5.9rem] z-[95] flex flex-col-reverse gap-[0.4rem]"
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        <Plus className="absolute left-4 h-4 w-4" />
-                        <span>{`Add ${boardVocabulary.singular}`}</span>
-                      </button>
-
-                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "search" ? (
-                        <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+9.5rem)] right-[7.125rem]"
-                          data-mobile-actions-submenu-root="true"
-                          onClick={(event) => event.stopPropagation()}
+                        <button
+                          aria-label={`Add ${boardVocabulary.singular}`}
+                          className={mobileActionPillClassName}
+                          onClick={() => {
+                            setIsMobileSearchMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
+                            openQuickAddModal();
+                          }}
+                          type="button"
+                          style={{ width: mobileActionPillWidth }}
                         >
+                          <Plus className="absolute left-4 h-4 w-4" />
+                          <span>{`Add ${boardVocabulary.singular}`}</span>
+                        </button>
+
+                        <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             aria-label="Search"
-                            className={clsx(
-                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-900/96 text-slate-100"
-                                : "border-white/80 bg-white/96 text-slate-900",
-                            )}
-                            onClick={(event) => {
-                              event.stopPropagation();
+                            className={mobileActionPillClassName}
+                            onClick={() => {
                               setIsMobileSearchMenuOpen((current) => !current);
                               setIsTransferMenuOpen(false);
                               setIsCustomizationMenuOpen(false);
@@ -6987,48 +6970,39 @@ function copyCardToDraft(card: CardEntry) {
                                   : "border-white/80 bg-white/95 text-slate-900",
                               )}
                             >
-                            <p className={clsx("px-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                              Search
-                            </p>
-                            <input
-                              className={clsx(
-                                "w-full rounded-2xl border px-4 py-3 outline-none transition",
-                                isDarkMode
-                                  ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
-                                  : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                              )}
-                              placeholder="Search title or series"
-                              value={searchTerm}
-                              onChange={(event) => setSearchTerm(event.target.value)}
-                            />
-                            <SeriesFilterButton
-                              allSeries={allSeries}
-                              currentSeriesFilter={seriesFilter}
-                              isDarkMode={isDarkMode}
-                              isOpen={isHeaderSeriesMenuOpen}
-                              onSelect={(series) => {
-                                setSeriesFilter(series);
-                                setIsHeaderSeriesMenuOpen(false);
-                              }}
-                              onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
-                            />
+                              <p className={clsx("px-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Search
+                              </p>
+                              <input
+                                className={clsx(
+                                  "w-full rounded-2xl border px-4 py-3 outline-none transition",
+                                  isDarkMode
+                                    ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                )}
+                                placeholder="Search title or series"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                              />
+                              <SeriesFilterButton
+                                allSeries={allSeries}
+                                currentSeriesFilter={seriesFilter}
+                                isDarkMode={isDarkMode}
+                                isOpen={isHeaderSeriesMenuOpen}
+                                onSelect={(series) => {
+                                  setSeriesFilter(series);
+                                  setIsHeaderSeriesMenuOpen(false);
+                                }}
+                                onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                              />
                             </div>
                           ) : null}
                         </div>
-                      ) : null}
 
-                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "customization" ? (
-                        <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+12.9rem)] right-[7.125rem]"
-                          data-mobile-actions-submenu-root="true"
-                          onClick={(event) => event.stopPropagation()}
-                        >
+                        <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
-                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-900/96 text-slate-100"
-                                : "border-white/80 bg-white/96 text-slate-900",
+                              mobileActionPillClassName,
                               isCustomizationMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
                             onClick={() => {
@@ -7054,95 +7028,80 @@ function copyCardToDraft(card: CardEntry) {
                                   : "border-white/80 bg-white/95 text-slate-900",
                               )}
                             >
-                            <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                              Customization
-                            </p>
-                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                              <span>Compact View</span>
-                              <ToggleSwitch
-                                ariaLabel="Toggle Compact View"
-                                enabled={activeBoardSettings.collapseCards}
-                                isDarkMode={isDarkMode}
-                                onClick={toggleCollapseCardsSetting}
-                              />
-                            </div>
-                            <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
-                              <span>Tier Highlights</span>
-                              <ToggleSwitch
-                                ariaLabel="Toggle Tier Highlights"
-                                enabled={activeBoardSettings.showTierHighlights}
-                                isDarkMode={isDarkMode}
-                                onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
-                              />
-                            </div>
-                            <button
-                              className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                              onClick={promptForCardLabel}
-                              type="button"
-                            >
-                              <span>Card Label</span>
-                              <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
-                            </button>
-                            <button
-                              className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                              onClick={() => setIsBoardIconModalOpen(true)}
-                              type="button"
-                            >
-                              <span>Board Icon</span>
-                              {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
-                            </button>
-                            <button
-                              className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
-                              onClick={() => {
-                                setIsBoardFieldSettingsModalOpen(true);
-                                setIsActionsMenuOpen(false);
-                                setIsMobileActionsOpen(false);
-                              }}
-                              type="button"
-                            >
-                              <span>Fields</span>
-                              <Settings2 className="h-4 w-4 opacity-70" />
-                            </button>
+                              <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Customization
+                              </p>
+                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                                <span>Compact View</span>
+                                <ToggleSwitch
+                                  ariaLabel="Toggle Compact View"
+                                  enabled={activeBoardSettings.collapseCards}
+                                  isDarkMode={isDarkMode}
+                                  onClick={toggleCollapseCardsSetting}
+                                />
+                              </div>
+                              <div className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}>
+                                <span>Tier Highlights</span>
+                                <ToggleSwitch
+                                  ariaLabel="Toggle Tier Highlights"
+                                  enabled={activeBoardSettings.showTierHighlights}
+                                  isDarkMode={isDarkMode}
+                                  onClick={() => updateActiveBoardSettings({ showTierHighlights: !activeBoardSettings.showTierHighlights })}
+                                />
+                              </div>
+                              <button
+                                className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                onClick={promptForCardLabel}
+                                type="button"
+                              >
+                                <span>Card Label</span>
+                                <span className="text-xs opacity-70">{activeBoardSettings.cardLabel?.trim() || boardVocabulary.singular}</span>
+                              </button>
+                              <button
+                                className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                onClick={() => setIsBoardIconModalOpen(true)}
+                                type="button"
+                              >
+                                <span>Board Icon</span>
+                                {renderBoardIcon(boardIconKeysById.get(activeBoardId) ?? "game", activeBoard.settings?.boardIconUrl, "h-4 w-4")}
+                              </button>
+                              <button
+                                className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                onClick={() => {
+                                  setIsBoardFieldSettingsModalOpen(true);
+                                  setIsActionsMenuOpen(false);
+                                  setIsMobileActionsOpen(false);
+                                }}
+                                type="button"
+                              >
+                                <span>Fields</span>
+                                <Settings2 className="h-4 w-4 opacity-70" />
+                              </button>
                             </div>
                           ) : null}
                         </div>
-                      ) : null}
 
-                      <button
-                        aria-label="Share"
-                        className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+16.3rem)] right-[7.125rem] inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-900/96 text-slate-100"
-                            : "border-white/80 bg-white/96 text-slate-900",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setIsMobileSearchMenuOpen(false);
-                          setIsCustomizationMenuOpen(false);
-                          setIsMaintenanceMenuOpen(false);
-                          setIsTransferMenuOpen(false);
-                          openShareModal();
-                        }}
-                        type="button"
-                        style={{ width: mobileActionPillWidth }}
-                      >
-                        <Share2 className="absolute left-4 h-4 w-4" />
-                        <span>Share</span>
-                      </button>
-
-                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "maintenance" ? (
-                        <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+19.7rem)] right-[7.125rem]"
-                          data-mobile-actions-submenu-root="true"
-                          onClick={(event) => event.stopPropagation()}
+                        <button
+                          aria-label="Share"
+                          className={mobileActionPillClassName}
+                          onClick={() => {
+                            setIsMobileSearchMenuOpen(false);
+                            setIsCustomizationMenuOpen(false);
+                            setIsMaintenanceMenuOpen(false);
+                            setIsTransferMenuOpen(false);
+                            openShareModal();
+                          }}
+                          type="button"
+                          style={{ width: mobileActionPillWidth }}
                         >
+                          <Share2 className="absolute left-4 h-4 w-4" />
+                          <span>Share</span>
+                        </button>
+
+                        <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
-                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-900/96 text-slate-100"
-                                : "border-white/80 bg-white/96 text-slate-900",
+                              mobileActionPillClassName,
                               isMaintenanceMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
                             onClick={() => {
@@ -7169,51 +7128,42 @@ function copyCardToDraft(card: CardEntry) {
                                   : "border-white/80 bg-white/95 text-slate-900",
                               )}
                             >
-                            <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                              Maintenance
-                            </p>
-                            <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
-                              <Trash2 className="h-4 w-4" />
-                              Delete Duplicates
-                            </button>
-                            <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
-                              <Sparkles className="h-4 w-4" />
-                              Tidy Titles
-                            </button>
-                            <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
-                              <WandSparkles className="h-4 w-4" />
-                              Series Scraper
-                            </button>
-                            <button
-                              className={clsx(
-                                "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition",
-                                isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
-                                boards.length <= 1 && "cursor-not-allowed opacity-50",
-                              )}
-                              disabled={boards.length <= 1}
-                              onClick={() => requestDeleteBoard()}
-                              type="button"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete Board
-                            </button>
+                              <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                Maintenance
+                              </p>
+                              <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openDuplicateCleanupModal()} type="button">
+                                <Trash2 className="h-4 w-4" />
+                                Delete Duplicates
+                              </button>
+                              <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => openTitleTidyModal()} type="button">
+                                <Sparkles className="h-4 w-4" />
+                                Tidy Titles
+                              </button>
+                              <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={() => { void openSeriesScrapeModal(); }} type="button">
+                                <WandSparkles className="h-4 w-4" />
+                                Series Scraper
+                              </button>
+                              <button
+                                className={clsx(
+                                  "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition",
+                                  isDarkMode ? "hover:bg-white/10" : "hover:bg-white",
+                                  boards.length <= 1 && "cursor-not-allowed opacity-50",
+                                )}
+                                disabled={boards.length <= 1}
+                                onClick={() => requestDeleteBoard()}
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete Board
+                              </button>
                             </div>
                           ) : null}
                         </div>
-                      ) : null}
 
-                      {activeMobileActionsSubmenu === null || activeMobileActionsSubmenu === "settings" ? (
-                        <div
-                          className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+23.1rem)] right-[7.125rem]"
-                          data-mobile-actions-submenu-root="true"
-                          onClick={(event) => event.stopPropagation()}
-                        >
+                        <div className="relative" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
-                              "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative",
-                              isDarkMode
-                                ? "border-white/10 bg-slate-900/96 text-slate-100"
-                                : "border-white/80 bg-white/96 text-slate-900",
+                              mobileActionPillClassName,
                               isTransferMenuOpen && (isDarkMode ? "border-white/35" : "border-slate-400"),
                             )}
                             onClick={() => {
@@ -7305,9 +7255,7 @@ function copyCardToDraft(card: CardEntry) {
                             </div>
                           ) : null}
                         </div>
-                      ) : null}
-
-
+                      </div>
                     </div>
                   </div>
                 ) : null}
