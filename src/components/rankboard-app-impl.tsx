@@ -1574,6 +1574,8 @@ export function RankboardApp() {
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false);
+  const [isMobileQuickAddPanelOpen, setIsMobileQuickAddPanelOpen] = useState(false);
+  const [isMobileQuickSharePanelOpen, setIsMobileQuickSharePanelOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareDraft, setShareDraft] = useState<ShareDraft>({
     columnIds: [],
@@ -1711,7 +1713,11 @@ export function RankboardApp() {
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeMobileActionsSubmenu =
-    isMobileSearchMenuOpen
+    isMobileQuickAddPanelOpen
+      ? "add"
+      : isMobileQuickSharePanelOpen
+        ? "share"
+        : isMobileSearchMenuOpen
       ? "search"
       : isCustomizationMenuOpen
         ? "customization"
@@ -1727,6 +1733,13 @@ export function RankboardApp() {
       ? "border-white/10 bg-slate-900/96 text-slate-100"
       : "border-white/80 bg-white/96 text-slate-900",
   );
+  const mobileActionPopoverClassName = clsx(
+    "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] -translate-x-1/2 overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+    "motion-safe:animate-[mobile-action-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
+    isDarkMode
+      ? "border-white/10 bg-slate-900/95 text-slate-100"
+      : "border-white/80 bg-white/95 text-slate-900",
+  );
   const hasBlockingMenuOpen =
     isBoardsMenuOpen ||
     isActionsMenuOpen ||
@@ -1741,7 +1754,7 @@ export function RankboardApp() {
     openColumnColumnsMenuId !== null ||
     openColumnMaintenanceMenuId !== null;
   const hasOpenModal =
-    Boolean(addCardTarget) ||
+    (Boolean(addCardTarget) && !isMobileQuickAddPanelOpen) ||
     Boolean(editingCardId && editingCardDraft) ||
     isImportModalOpen ||
     isShareModalOpen ||
@@ -1840,8 +1853,7 @@ export function RankboardApp() {
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
     setIsBoardsMenuOpen(false);
-    setIsCustomizationMenuOpen(false);
-    setIsMaintenanceMenuOpen(false);
+    resetMobileActionPanels();
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
@@ -3076,7 +3088,9 @@ export function RankboardApp() {
       (!isMobileSearchMenuOpen &&
         !isCustomizationMenuOpen &&
         !isMaintenanceMenuOpen &&
-        !isTransferMenuOpen)
+        !isTransferMenuOpen &&
+        !isMobileQuickAddPanelOpen &&
+        !isMobileQuickSharePanelOpen)
     ) {
       return;
     }
@@ -3085,10 +3099,7 @@ export function RankboardApp() {
       const target = event.target as HTMLElement | null;
 
       if (!target?.closest("[data-mobile-actions-submenu-root='true']")) {
-        setIsMobileSearchMenuOpen(false);
-        setIsCustomizationMenuOpen(false);
-        setIsMaintenanceMenuOpen(false);
-        setIsTransferMenuOpen(false);
+        resetMobileActionPanels();
       }
     }
 
@@ -3099,6 +3110,8 @@ export function RankboardApp() {
     isCustomizationMenuOpen,
     isMaintenanceMenuOpen,
     isMobileActionsOpen,
+    isMobileQuickAddPanelOpen,
+    isMobileQuickSharePanelOpen,
     isMobileSearchMenuOpen,
     isTransferMenuOpen,
   ]);
@@ -3108,10 +3121,7 @@ export function RankboardApp() {
       return;
     }
 
-    setIsMobileSearchMenuOpen(false);
-    setIsCustomizationMenuOpen(false);
-    setIsMaintenanceMenuOpen(false);
-    setIsTransferMenuOpen(false);
+    resetMobileActionPanels();
   }, [isActionsMenuOpen, isMobileActionsOpen]);
 
   useEffect(() => {
@@ -3131,6 +3141,12 @@ export function RankboardApp() {
 
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isBoardsMenuOpen]);
+
+  useEffect(() => {
+    if (isMobileQuickAddPanelOpen && !addCardTarget) {
+      setIsMobileQuickAddPanelOpen(false);
+    }
+  }, [addCardTarget, isMobileQuickAddPanelOpen]);
 
   useEffect(() => {
     if (openColumnMenuId) {
@@ -4233,6 +4249,7 @@ export function RankboardApp() {
   }
 
   function closeAddGameModal() {
+    setIsMobileQuickAddPanelOpen(false);
     setAddCardTarget(null);
     setDraft(initialDraft);
     setDraftDuplicateAction(null);
@@ -4240,7 +4257,16 @@ export function RankboardApp() {
     setIsAddFieldSettingsOpen(false);
   }
 
-  function openQuickAddModal() {
+  function resetMobileActionPanels() {
+    setIsMobileSearchMenuOpen(false);
+    setIsCustomizationMenuOpen(false);
+    setIsMaintenanceMenuOpen(false);
+    setIsTransferMenuOpen(false);
+    setIsMobileQuickAddPanelOpen(false);
+    setIsMobileQuickSharePanelOpen(false);
+  }
+
+  function openMobileQuickAddPanel() {
     const tierListDefaultColumnId =
       activeBoardLayout === "tier-list" ? getTierListUnsortedColumnId(columns) : "";
     const focusedColumnId =
@@ -4263,9 +4289,13 @@ export function RankboardApp() {
       columnId: fallbackColumnId,
       insertIndex,
     });
-    setIsMobileActionsOpen(false);
-    setIsActionsMenuOpen(false);
     setDraftDuplicateAction(null);
+    setIsMobileSearchMenuOpen(false);
+    setIsCustomizationMenuOpen(false);
+    setIsMaintenanceMenuOpen(false);
+    setIsTransferMenuOpen(false);
+    setIsMobileQuickSharePanelOpen(false);
+    setIsMobileQuickAddPanelOpen(true);
   }
 
   function handleDeleteCard(columnId: string, entryId: string) {
@@ -5519,6 +5549,27 @@ function copyCardToDraft(card: CardEntry) {
     setIsShareModalOpen(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
+  }
+
+  function openMobileQuickSharePanel() {
+    const existingShare = normalizePublicShareSettings(activeBoardSettings.publicShare);
+    setShareDraft({
+      columnIds:
+        existingShare.columnIds.length > 0
+          ? existingShare.columnIds.filter((columnId) => columns.some((column) => column.id === columnId))
+          : columns.map((column) => column.id),
+      tierFilter: existingShare.tierFilter,
+      seriesFilter: existingShare.seriesFilter || seriesFilter,
+      searchTerm: existingShare.searchTerm || searchTerm,
+      title: existingShare.title || activeBoardTitle,
+    });
+    setCopiedShareUrl(null);
+    setIsMobileSearchMenuOpen(false);
+    setIsCustomizationMenuOpen(false);
+    setIsMaintenanceMenuOpen(false);
+    setIsTransferMenuOpen(false);
+    setIsMobileQuickAddPanelOpen(false);
+    setIsMobileQuickSharePanelOpen(true);
   }
 
   async function copyShareUrlToClipboard(shareUrl: string) {
@@ -6904,6 +6955,27 @@ function copyCardToDraft(card: CardEntry) {
           <div>
             {!hasOpenModal ? (
               <>
+                <style jsx global>{`
+                  @keyframes mobile-action-button-settle {
+                    0% {
+                      transform: translateY(-14px) scale(0.98);
+                    }
+                    100% {
+                      transform: translateY(0) scale(1);
+                    }
+                  }
+
+                  @keyframes mobile-action-panel-in {
+                    0% {
+                      opacity: 0;
+                      transform: translate(-50%, 10px) scale(0.98);
+                    }
+                    100% {
+                      opacity: 1;
+                      transform: translate(-50%, 0) scale(1);
+                    }
+                  }
+                `}</style>
                 <button
                   aria-label={isMobileActionsOpen ? "Close actions" : "Open actions"}
                   className={clsx(
@@ -6915,11 +6987,12 @@ function copyCardToDraft(card: CardEntry) {
                   )}
                   onClick={() => {
                     setIsBoardsMenuOpen(false);
-                    setIsMobileSearchMenuOpen(false);
-                    setIsCustomizationMenuOpen(false);
-                    setIsMaintenanceMenuOpen(false);
-                    setIsTransferMenuOpen(false);
-                    setIsMobileActionsOpen((current) => !current);
+                    setIsMobileActionsOpen((current) => {
+                      if (current) {
+                        resetMobileActionPanels();
+                      }
+                      return !current;
+                    });
                   }}
                   type="button"
                 >
@@ -6929,30 +7002,333 @@ function copyCardToDraft(card: CardEntry) {
                 {isMobileActionsOpen ? (
                   <div
                     className="fixed inset-0 z-[80] bg-slate-950/34 backdrop-blur-md lg:hidden"
-                    onClick={() => setIsMobileActionsOpen(false)}
+                    onClick={() => {
+                      resetMobileActionPanels();
+                      setIsMobileActionsOpen(false);
+                    }}
                   >
                     <div className="pointer-events-none fixed inset-0 z-[90] lg:hidden">
                       <div
                         className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.65rem)] right-[5.9rem] z-[95] flex flex-col-reverse gap-[0.4rem]"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        {!activeMobileActionsSubmenu ? (
-                          <button
-                            aria-label={`Add ${boardVocabulary.singular}`}
-                            className={mobileActionPillClassName}
-                            onClick={() => {
-                              setIsMobileSearchMenuOpen(false);
-                              setIsCustomizationMenuOpen(false);
-                              setIsMaintenanceMenuOpen(false);
-                              setIsTransferMenuOpen(false);
-                              openQuickAddModal();
-                            }}
-                            type="button"
-                            style={{ width: mobileActionPillWidth }}
-                          >
-                            <Plus className="absolute left-4 h-4 w-4" />
-                            <span>{`Add ${boardVocabulary.singular}`}</span>
-                          </button>
+                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "add" ? (
+                          <div className="relative" data-mobile-actions-submenu-root="true">
+                            <button
+                              aria-label={`Add ${boardVocabulary.singular}`}
+                              className={clsx(
+                                mobileActionPillClassName,
+                                isMobileQuickAddPanelOpen && "motion-safe:animate-[mobile-action-button-settle_260ms_cubic-bezier(0.22,1,0.36,1)]",
+                              )}
+                              onClick={() => {
+                                if (isMobileQuickAddPanelOpen) {
+                                  closeAddGameModal();
+                                  return;
+                                }
+                                openMobileQuickAddPanel();
+                              }}
+                              type="button"
+                              style={{ width: mobileActionPillWidth }}
+                            >
+                              <Plus className="absolute left-4 h-4 w-4" />
+                              <span>{`Add ${boardVocabulary.singular}`}</span>
+                            </button>
+
+                            {isMobileQuickAddPanelOpen ? (
+                              <form className={mobileActionPopoverClassName} onSubmit={handleDraftSubmit}>
+                                <div className="max-h-[min(68vh,560px)] overflow-y-auto p-3">
+                                  <div className="mb-3 flex items-center justify-between gap-3 px-1">
+                                    <div>
+                                      <p className={clsx("text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                        Quick Add
+                                      </p>
+                                      <h3 className="mt-1 text-lg font-black">{`Add ${boardVocabulary.singular}`}</h3>
+                                    </div>
+                                    <button
+                                      className={clsx(
+                                        "rounded-full p-2 transition",
+                                        isDarkMode ? "bg-white/10 text-slate-200 hover:bg-white/15" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                                      )}
+                                      onClick={closeAddGameModal}
+                                      type="button"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid gap-3">
+                                    <label className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
+                                      <input
+                                        className={clsx(
+                                          "rounded-2xl border px-4 py-3 outline-none transition",
+                                          isDarkMode
+                                            ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                        )}
+                                        placeholder={boardVocabulary.titleExamples}
+                                        value={draft.title}
+                                        onChange={(event) => {
+                                          setDraftDuplicateAction(null);
+                                          setDraft((current) => ({ ...current, title: event.target.value }));
+                                        }}
+                                      />
+                                    </label>
+
+                                    {shouldShowSeriesField ? (
+                                      <label className="grid gap-2">
+                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{seriesFieldLabel}</span>
+                                        <input
+                                          className={clsx(
+                                            "rounded-2xl border px-4 py-3 outline-none transition",
+                                            isDarkMode
+                                              ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                          )}
+                                          list="mobile-quick-add-series-options"
+                                          placeholder={boardVocabulary.seriesExamples}
+                                          value={draft.series}
+                                          onChange={(event) => {
+                                            setDraftDuplicateAction(null);
+                                            setDraft((current) => ({ ...current, series: event.target.value }));
+                                          }}
+                                        />
+                                      </label>
+                                    ) : null}
+
+                                    {shouldShowReleaseYearField ? (
+                                      <label className="grid gap-2">
+                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{releaseYearFieldLabel}</span>
+                                        <input
+                                          className={clsx(
+                                            "rounded-2xl border px-4 py-3 outline-none transition",
+                                            isDarkMode
+                                              ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                          )}
+                                          inputMode="numeric"
+                                          placeholder="2025"
+                                          value={draft.releaseYear}
+                                          onChange={(event) => setDraft((current) => ({ ...current, releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4) }))}
+                                        />
+                                      </label>
+                                    ) : null}
+
+                                    {shouldShowImageField ? (
+                                      <div className="grid gap-2">
+                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
+                                        <input
+                                          className={clsx(
+                                            "rounded-2xl border px-4 py-3 outline-none transition",
+                                            isDarkMode
+                                              ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                          )}
+                                          placeholder="Image URL"
+                                          value={draft.imageUrl}
+                                          onChange={(event) => {
+                                            setDraftDuplicateAction(null);
+                                            setDraft((current) => ({
+                                              ...current,
+                                              imageUrl: event.target.value,
+                                              imageStoragePath: undefined,
+                                            }));
+                                          }}
+                                        />
+                                        <div className="grid grid-cols-3 gap-2">
+                                          <button className={clsx("rounded-2xl border px-3 py-2 text-xs font-semibold transition", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/35" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")} onClick={() => handleAutofillDraftImage("image")} type="button">
+                                            Image
+                                          </button>
+                                          <button className={clsx("rounded-2xl border px-3 py-2 text-xs font-semibold transition", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/35" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")} onClick={() => handleAutofillDraftImage("gif")} type="button">
+                                            GIF
+                                          </button>
+                                          <button className={clsx("rounded-2xl border px-3 py-2 text-xs font-semibold transition disabled:opacity-60", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/35" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")} disabled={isUploadingArtwork} onClick={() => openArtworkUploadPicker("draft")} type="button">
+                                            Upload
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {shouldShowNotesField ? (
+                                      <label className="grid gap-2">
+                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{notesFieldLabel}</span>
+                                        <textarea
+                                          className={clsx(
+                                            "min-h-24 rounded-2xl border px-4 py-3 outline-none transition",
+                                            isDarkMode
+                                              ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                          )}
+                                          value={draft.notes}
+                                          onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
+                                        />
+                                      </label>
+                                    ) : null}
+
+                                    {visibleCustomFieldDefinitions.map((field) => (
+                                      <label key={field.id} className="grid gap-2">
+                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{field.label}</span>
+                                        {field.type === "long_text" ? (
+                                          <textarea
+                                            className={clsx(
+                                              "min-h-24 rounded-2xl border px-4 py-3 outline-none transition",
+                                              isDarkMode
+                                                ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                                : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                            )}
+                                            value={draft.customFields[field.id] ?? ""}
+                                            onChange={(event) =>
+                                              setDraft((current) => ({
+                                                ...current,
+                                                customFields: {
+                                                  ...current.customFields,
+                                                  [field.id]: event.target.value,
+                                                },
+                                              }))
+                                            }
+                                          />
+                                        ) : field.type === "select" ? (
+                                          <select
+                                            className={clsx(
+                                              "rounded-2xl border px-4 py-3 outline-none transition",
+                                              isDarkMode
+                                                ? "border-white/10 bg-slate-950/70 text-white focus:border-white/40"
+                                                : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                                            )}
+                                            value={draft.customFields[field.id] ?? ""}
+                                            onChange={(event) =>
+                                              setDraft((current) => ({
+                                                ...current,
+                                                customFields: {
+                                                  ...current.customFields,
+                                                  [field.id]: event.target.value,
+                                                },
+                                              }))
+                                            }
+                                          >
+                                            <option value="">Select one</option>
+                                            {(field.options ?? []).map((option) => (
+                                              <option key={option} value={option}>
+                                                {option}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : (
+                                          <input
+                                            className={clsx(
+                                              "rounded-2xl border px-4 py-3 outline-none transition",
+                                              isDarkMode
+                                                ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                                : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                            )}
+                                            inputMode={field.type === "date" ? "numeric" : undefined}
+                                            placeholder={field.type === "date" ? field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT : undefined}
+                                            type="text"
+                                            value={draft.customFields[field.id] ?? ""}
+                                            onChange={(event) =>
+                                              setDraft((current) => ({
+                                                ...current,
+                                                customFields: {
+                                                  ...current.customFields,
+                                                  [field.id]:
+                                                    field.type === "date"
+                                                      ? normalizeDateFieldInput(event.target.value, field.dateFormat ?? DEFAULT_DATE_FIELD_FORMAT)
+                                                      : event.target.value,
+                                                },
+                                              }))
+                                            }
+                                          />
+                                        )}
+                                      </label>
+                                    ))}
+
+                                    <label className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Column</span>
+                                      <select
+                                        className={clsx(
+                                          "rounded-2xl border px-4 py-3 outline-none transition",
+                                          isDarkMode
+                                            ? "border-white/10 bg-slate-950/70 text-white focus:border-white/40"
+                                            : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                                        )}
+                                        value={draft.columnId || addCardTarget?.columnId || columns[0]?.id || ""}
+                                        onChange={(event) => setDraft((current) => ({ ...current, columnId: event.target.value }))}
+                                      >
+                                        {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => (
+                                          <option key={column.id} value={column.id}>
+                                            {column.title}
+                                          </option>
+                                        ))}
+                                        <option value={NEW_COLUMN_OPTION}>Create new column</option>
+                                      </select>
+                                    </label>
+
+                                    {draft.columnId === NEW_COLUMN_OPTION ? (
+                                      <label className="grid gap-2">
+                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>New column title</span>
+                                        <input
+                                          className={clsx(
+                                            "rounded-2xl border px-4 py-3 outline-none transition",
+                                            isDarkMode
+                                              ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                          )}
+                                          placeholder="Favorites, 2026, Horror..."
+                                          value={draft.newColumnTitle}
+                                          onChange={(event) => setDraft((current) => ({ ...current, newColumnTitle: event.target.value }))}
+                                        />
+                                      </label>
+                                    ) : null}
+
+                                    {draftDuplicateAction ? (
+                                      <div
+                                        className={clsx(
+                                          "grid gap-2 rounded-2xl border px-4 py-3 text-sm",
+                                          isDarkMode
+                                            ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+                                            : "border-amber-300 bg-amber-50 text-amber-900",
+                                        )}
+                                      >
+                                        <span>&quot;{draftDuplicateAction.match.card.title}&quot; already exists in &quot;{draftDuplicateAction.match.column.title}&quot;.</span>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950" onClick={() => resolveDraftDuplicate("discard")} type="button">Discard</button>
+                                          <button className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950" onClick={() => resolveDraftDuplicate("update")} type="button">Update Original</button>
+                                          <button className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-950" onClick={() => resolveDraftDuplicate("duplicate")} type="button">Allow Duplicate</button>
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                <div className={clsx("flex items-center gap-2 border-t p-3", isDarkMode ? "border-white/10" : "border-slate-200")}>
+                                  <button
+                                    className={clsx(
+                                      "flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                                      isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
+                                    )}
+                                    type="submit"
+                                  >
+                                    {`Add ${boardVocabulary.singular}`}
+                                  </button>
+                                  <button
+                                    className={clsx(
+                                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                                      isDarkMode ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40" : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                                    )}
+                                    onClick={closeAddGameModal}
+                                    type="button"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                <datalist id="mobile-quick-add-series-options">
+                                  {allSeries.map((series) => (
+                                    <option key={series} value={series} />
+                                  ))}
+                                </datalist>
+                              </form>
+                            ) : null}
+                          </div>
                         ) : null}
 
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "search" ? (
@@ -6965,6 +7341,8 @@ function copyCardToDraft(card: CardEntry) {
                               setIsTransferMenuOpen(false);
                               setIsCustomizationMenuOpen(false);
                               setIsMaintenanceMenuOpen(false);
+                              setIsMobileQuickAddPanelOpen(false);
+                              setIsMobileQuickSharePanelOpen(false);
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
@@ -7025,6 +7403,8 @@ function copyCardToDraft(card: CardEntry) {
                               setIsMobileSearchMenuOpen(false);
                               setIsMaintenanceMenuOpen(false);
                               setIsTransferMenuOpen(false);
+                              setIsMobileQuickAddPanelOpen(false);
+                              setIsMobileQuickSharePanelOpen(false);
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
@@ -7085,6 +7465,7 @@ function copyCardToDraft(card: CardEntry) {
                                 onClick={() => {
                                   setIsBoardFieldSettingsModalOpen(true);
                                   setIsActionsMenuOpen(false);
+                                  resetMobileActionPanels();
                                   setIsMobileActionsOpen(false);
                                 }}
                                 type="button"
@@ -7097,23 +7478,216 @@ function copyCardToDraft(card: CardEntry) {
                         </div>
                         ) : null}
 
-                        {!activeMobileActionsSubmenu ? (
-                          <button
-                            aria-label="Share"
-                            className={mobileActionPillClassName}
-                            onClick={() => {
-                              setIsMobileSearchMenuOpen(false);
-                              setIsCustomizationMenuOpen(false);
-                              setIsMaintenanceMenuOpen(false);
-                              setIsTransferMenuOpen(false);
-                              openShareModal();
-                            }}
-                            type="button"
-                            style={{ width: mobileActionPillWidth }}
-                          >
-                            <Share2 className="absolute left-4 h-4 w-4" />
-                            <span>Share</span>
-                          </button>
+                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "share" ? (
+                          <div className="relative" data-mobile-actions-submenu-root="true">
+                            <button
+                              aria-label="Share"
+                              className={clsx(
+                                mobileActionPillClassName,
+                                isMobileQuickSharePanelOpen && "motion-safe:animate-[mobile-action-button-settle_260ms_cubic-bezier(0.22,1,0.36,1)]",
+                              )}
+                              onClick={() => {
+                                if (isMobileQuickSharePanelOpen) {
+                                  setIsMobileQuickSharePanelOpen(false);
+                                  return;
+                                }
+                                openMobileQuickSharePanel();
+                              }}
+                              type="button"
+                              style={{ width: mobileActionPillWidth }}
+                            >
+                              <Share2 className="absolute left-4 h-4 w-4" />
+                              <span>Share</span>
+                            </button>
+
+                            {isMobileQuickSharePanelOpen ? (
+                              <div className={mobileActionPopoverClassName}>
+                                <div className="max-h-[min(68vh,560px)] overflow-y-auto p-3">
+                                  <div className="mb-3 flex items-center justify-between gap-3 px-1">
+                                    <div>
+                                      <p className={clsx("text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                                        Share
+                                      </p>
+                                      <h3 className="mt-1 text-lg font-black">{activeBoardTitle}</h3>
+                                    </div>
+                                    <button
+                                      className={clsx(
+                                        "rounded-full p-2 transition",
+                                        isDarkMode ? "bg-white/10 text-slate-200 hover:bg-white/15" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                                      )}
+                                      onClick={() => setIsMobileQuickSharePanelOpen(false)}
+                                      type="button"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid gap-3">
+                                    <label className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Shared title</span>
+                                      <input
+                                        className={clsx(
+                                          "rounded-2xl border px-4 py-3 outline-none transition",
+                                          isDarkMode
+                                            ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                        )}
+                                        placeholder={activeBoardTitle}
+                                        value={shareDraft.title}
+                                        onChange={(event) => setShareDraft((current) => ({ ...current, title: event.target.value }))}
+                                      />
+                                    </label>
+
+                                    <label className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Search</span>
+                                      <input
+                                        className={clsx(
+                                          "rounded-2xl border px-4 py-3 outline-none transition",
+                                          isDarkMode
+                                            ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                        )}
+                                        placeholder="Optional title or series filter"
+                                        value={shareDraft.searchTerm}
+                                        onChange={(event) => setShareDraft((current) => ({ ...current, searchTerm: event.target.value }))}
+                                      />
+                                    </label>
+
+                                    <label className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
+                                      <select
+                                        className={clsx(
+                                          "rounded-2xl border px-4 py-3 outline-none transition",
+                                          isDarkMode
+                                            ? "border-white/10 bg-slate-950/70 text-white focus:border-white/40"
+                                            : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                                        )}
+                                        value={shareDraft.seriesFilter}
+                                        onChange={(event) => setShareDraft((current) => ({ ...current, seriesFilter: event.target.value }))}
+                                      >
+                                        <option value="">All series</option>
+                                        {allSeries.map((series) => (
+                                          <option key={series} value={series}>
+                                            {series}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+
+                                    <div className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Cards</span>
+                                      <div className="flex flex-wrap gap-2">
+                                        {[
+                                          ["all", "All"],
+                                          ["top10", "Top 10"],
+                                          ["top15", "Top 15"],
+                                          ["top20", "Top 20"],
+                                          ["top30", "Top 30"],
+                                        ].map(([tierValue, label]) => {
+                                          const enabled = shareDraft.tierFilter === tierValue;
+                                          return (
+                                            <button
+                                              key={tierValue}
+                                              className={clsx(
+                                                "rounded-full border px-3 py-2 text-xs font-semibold transition",
+                                                enabled
+                                                  ? isDarkMode
+                                                    ? "border-white/35 bg-white text-slate-950"
+                                                    : "border-slate-950 bg-slate-950 text-white"
+                                                  : isDarkMode
+                                                    ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                                              )}
+                                              onClick={() =>
+                                                setShareDraft((current) => ({
+                                                  ...current,
+                                                  tierFilter: tierValue as ShareDraft["tierFilter"],
+                                                }))
+                                              }
+                                              type="button"
+                                            >
+                                              {label}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Columns</span>
+                                      <div className="grid gap-2">
+                                        {columns.map((column) => {
+                                          const enabled = shareDraft.columnIds.includes(column.id);
+                                          return (
+                                            <button
+                                              key={column.id}
+                                              className={clsx(
+                                                "flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
+                                                enabled
+                                                  ? isDarkMode
+                                                    ? "border-white/25 bg-white/10 text-white"
+                                                    : "border-slate-950 bg-slate-50 text-slate-950"
+                                                  : isDarkMode
+                                                    ? "border-white/10 bg-slate-950 text-slate-300 hover:border-white/25"
+                                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                                              )}
+                                              onClick={() =>
+                                                setShareDraft((current) => ({
+                                                  ...current,
+                                                  columnIds: current.columnIds.includes(column.id)
+                                                    ? current.columnIds.filter((id) => id !== column.id)
+                                                    : [...current.columnIds, column.id],
+                                                }))
+                                              }
+                                              type="button"
+                                            >
+                                              <span className="truncate font-semibold">{column.title}</span>
+                                              <span className={clsx("inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full", enabled ? (isDarkMode ? "bg-white text-slate-950" : "bg-slate-950 text-white") : (isDarkMode ? "bg-white/10 text-slate-400" : "bg-slate-100 text-slate-400"))}>
+                                                <Check className="h-3.5 w-3.5" />
+                                              </span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    {copiedShareUrl ? (
+                                      <div className={clsx("rounded-2xl border px-4 py-3", isDarkMode ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-emerald-300 bg-emerald-50 text-emerald-900")}>
+                                        <p className="text-sm font-semibold">Share link copied</p>
+                                        <p className="mt-1 break-all text-xs opacity-80">{copiedShareUrl}</p>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                <div className={clsx("flex items-center gap-2 border-t p-3", isDarkMode ? "border-white/10" : "border-slate-200")}>
+                                  <button
+                                    className={clsx(
+                                      "flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                                      isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
+                                    )}
+                                    disabled={shareDraft.columnIds.length === 0}
+                                    onClick={() => {
+                                      void shareActiveBoard();
+                                    }}
+                                    type="button"
+                                  >
+                                    {copiedShareUrl ? "Refresh Link" : "Create Link"}
+                                  </button>
+                                  <button
+                                    className={clsx(
+                                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                                      isDarkMode ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40" : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                                    )}
+                                    onClick={() => setIsMobileQuickSharePanelOpen(false)}
+                                    type="button"
+                                  >
+                                    Close
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
                         ) : null}
 
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "maintenance" ? (
@@ -7129,6 +7703,8 @@ function copyCardToDraft(card: CardEntry) {
                               setIsMobileSearchMenuOpen(false);
                               setIsCustomizationMenuOpen(false);
                               setIsTransferMenuOpen(false);
+                              setIsMobileQuickAddPanelOpen(false);
+                              setIsMobileQuickSharePanelOpen(false);
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
@@ -7141,7 +7717,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute left-1/2 top-[calc(100%+0.8rem)] z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -7192,6 +7768,8 @@ function copyCardToDraft(card: CardEntry) {
                               setIsMobileSearchMenuOpen(false);
                               setIsCustomizationMenuOpen(false);
                               setIsMaintenanceMenuOpen(false);
+                              setIsMobileQuickAddPanelOpen(false);
+                              setIsMobileQuickSharePanelOpen(false);
                               setIsActionsMenuOpen(false);
                             }}
                             type="button"
@@ -7204,7 +7782,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute left-1/2 top-[calc(100%+0.8rem)] z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -8280,7 +8858,7 @@ function copyCardToDraft(card: CardEntry) {
           imageFieldLabel={imageFieldLabel}
           isAddFieldSettingsOpen={isAddFieldSettingsOpen}
           isDarkMode={isDarkMode}
-          isOpen={Boolean(addCardTarget)}
+          isOpen={Boolean(addCardTarget) && !isMobileQuickAddPanelOpen}
           isUploadingArtwork={isUploadingArtwork}
           newColumnOption={NEW_COLUMN_OPTION}
           notesFieldLabel={notesFieldLabel}
