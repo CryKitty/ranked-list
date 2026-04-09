@@ -2838,19 +2838,27 @@ export function RankboardApp() {
 
       if (coords) {
         if (activeBoardLayout === "tier-list") {
-          let windowDeltaY = 0;
+          const tierLane = boardLaneRef.current;
 
-          if (coords.y <= edgeThreshold) {
-            windowDeltaY = -Math.max(2, ((edgeThreshold - coords.y) / edgeThreshold) * maxScrollStep);
-          } else if (coords.y >= window.innerHeight - edgeThreshold) {
-            windowDeltaY = Math.max(
-              2,
-              ((coords.y - (window.innerHeight - edgeThreshold)) / edgeThreshold) * maxScrollStep,
-            );
-          }
+          if (tierLane) {
+            const laneRect = tierLane.getBoundingClientRect();
+            let laneDeltaY = 0;
 
-          if (windowDeltaY !== 0) {
-            window.scrollBy(0, windowDeltaY);
+            if (coords.y <= laneRect.top + edgeThreshold) {
+              laneDeltaY = -Math.max(
+                2,
+                ((laneRect.top + edgeThreshold - coords.y) / edgeThreshold) * maxScrollStep,
+              );
+            } else if (coords.y >= laneRect.bottom - edgeThreshold) {
+              laneDeltaY = Math.max(
+                2,
+                ((coords.y - (laneRect.bottom - edgeThreshold)) / edgeThreshold) * maxScrollStep,
+              );
+            }
+
+            if (laneDeltaY !== 0) {
+              tierLane.scrollTop += laneDeltaY;
+            }
           }
         }
 
@@ -2923,6 +2931,32 @@ export function RankboardApp() {
       }
     };
   }, [activeBoardLayout, dragPointerKind, isCardDragging, isMobileViewport]);
+
+  useEffect(() => {
+    if (!freshColumnEditId || activeBoardLayout !== "board" || !boardLaneRef.current) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const lane = boardLaneRef.current;
+
+      if (!lane) {
+        return;
+      }
+
+      const columnElement = lane.querySelector<HTMLElement>(
+        `[data-column-id="${freshColumnEditId}"]`,
+      );
+
+      columnElement?.scrollIntoView({
+        behavior: isMobileViewport ? "smooth" : "auto",
+        block: "nearest",
+        inline: "center",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeBoardLayout, freshColumnEditId, isMobileViewport]);
 
   useEffect(() => {
     if (activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
@@ -8910,9 +8944,6 @@ function copyCardToDraft(card: CardEntry) {
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
                 setActiveDragEntryId(String(active.id));
-                if (activeBoardLayout === "tier-list") {
-                  suppressDragGapsTemporarily();
-                }
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
@@ -8926,7 +8957,16 @@ function copyCardToDraft(card: CardEntry) {
               onDragEnd={handleDragEnd}
             >
               {activeBoardLayout === "tier-list" ? (
-                <div ref={boardLaneRef} className="relative z-10 flex w-full min-w-0 flex-col gap-0 pb-3">
+                <div
+                  ref={boardLaneRef}
+                  className="scrollbar-hidden relative z-10 flex min-h-0 w-full min-w-0 flex-1 flex-col gap-0 overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+                  style={{
+                    touchAction: isCardDragging ? "none" : "pan-y pinch-zoom",
+                    overscrollBehaviorY: "contain",
+                    overscrollBehaviorX: "none",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                >
                   {tierListRows.map(({ row, cards }) => {
                     const visibleCards = filterCards(
                       cards,
@@ -13603,18 +13643,11 @@ function TierListInsertSlot({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  const expanded = isDragging && !isGapSuppressed && isOver;
-  const restingWidthClass = isDragging && !isGapSuppressed ? "w-[10px] sm:w-[14px]" : "w-0";
-  const activeWidthClass = isSquare
+  const slotWidthClass = isSquare
     ? isMobileViewport
-      ? "w-[102px]"
-      : "w-[196px]"
-    : "w-[184px]";
-  const hiddenHitWidthClass = isSquare
-    ? isMobileViewport
-      ? "w-[48px]"
-      : "w-[132px]"
-    : "w-[184px]";
+      ? "w-[20px]"
+      : "w-[24px]"
+    : "w-[20px]";
   const heightClass = isSquare
     ? isMobileViewport
       ? "h-[126px]"
@@ -13625,7 +13658,7 @@ function TierListInsertSlot({
     <div
       className={clsx(
         "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
-        isDragging && !isGapSuppressed ? (expanded ? activeWidthClass : restingWidthClass) : "w-0",
+        isDragging && !isGapSuppressed ? slotWidthClass : "w-0",
         heightClass,
       )}
     >
@@ -13633,13 +13666,12 @@ function TierListInsertSlot({
         ref={setNodeRef}
         data-tier-insert-slot="true"
         className={clsx(
-          "absolute left-1/2 top-0 -translate-x-1/2 rounded-[24px] border transition-[width,background-color,border-color] duration-200 ease-out",
+          "absolute inset-y-0 left-1/2 w-full -translate-x-1/2 rounded-[24px] border transition-[background-color,border-color,box-shadow] duration-150 ease-out",
           heightClass,
-          expanded ? "w-full" : hiddenHitWidthClass,
-          expanded
+          isOver
             ? isDarkMode
-              ? "border-white/10 bg-white/[0.03]"
-              : "border-slate-300/80 bg-slate-100/80"
+              ? "border-sky-300/70 bg-sky-300/15 shadow-[0_0_0_1px_rgba(125,211,252,0.18)]"
+              : "border-sky-400/80 bg-sky-100/90 shadow-[0_0_0_1px_rgba(56,189,248,0.16)]"
             : "border-transparent bg-transparent",
         )}
         style={{ pointerEvents: isDragging ? "auto" : "none" }}

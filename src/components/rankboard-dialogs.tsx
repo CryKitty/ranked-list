@@ -723,6 +723,21 @@ export function AddCardDialog({
   onToggleFieldVisibility: (fieldId: string) => void;
   normalizeDateFieldInput: (value: string, format: NonNullable<BoardFieldDefinition["dateFormat"]>) => string;
 }) {
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen]);
+
   if (!isOpen) {
     return null;
   }
@@ -758,6 +773,7 @@ export function AddCardDialog({
             <label className="grid gap-2">
               <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
               <input
+                ref={titleInputRef}
                 name="title"
                 className={clsx(
                   "rounded-2xl border px-4 py-3 outline-none transition",
@@ -765,6 +781,7 @@ export function AddCardDialog({
                     ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
                     : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                 )}
+                autoFocus
                 placeholder={titlePlaceholder}
                 value={draft.title}
                 onChange={(event) => onTitleChange(event.target.value)}
