@@ -11804,8 +11804,8 @@ function BoardColumn({
               </div>
             ) : (
               <>
-                <h2 className="flex min-h-10 w-full items-center truncate whitespace-nowrap pr-2 text-left text-lg font-bold">{column.title}</h2>
-                <div className="group relative" data-column-menu-root="true">
+                <h2 className="flex h-10 w-full items-center truncate whitespace-nowrap pr-2 text-left text-lg font-bold leading-none">{column.title}</h2>
+                <div className="group relative flex h-10 items-center justify-end" data-column-menu-root="true">
                   <div className="group/column-trigger relative inline-flex">
                     <button
                       className={clsx(
@@ -13504,15 +13504,15 @@ function CardTile({
 
         {collapseCards ? (
           <div className="absolute inset-0 px-3 py-2">
-            <div className="flex h-full items-center gap-2 pr-11">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                {rankBadge ? (
-                  <div className="flex shrink-0 items-center justify-center">
+            <div className="flex h-full items-center pr-11">
+              <div className="grid min-w-0 flex-1 grid-cols-[2.75rem_minmax(0,1fr)] items-center">
+                <div className="flex h-7 w-11 items-center justify-center">
+                  {rankBadge ? (
                     <div className={clsx("flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-black leading-none", collapsedRankClass)}>
                       {rankBadge.value}
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
                 <div className="min-w-0 flex-1 text-center">
                   <h3
                     className={clsx(
