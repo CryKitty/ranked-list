@@ -1820,6 +1820,14 @@ export function RankboardApp() {
   const tierListPoolRowId = getTierListPoolRowId(normalizedTierListView.rows);
   const tierListPoolCards =
     tierListRows.find((item) => item.row.id === tierListPoolRowId)?.cards ?? [];
+  const defaultAddCardColumnId =
+    columns.find((column) => !column.mirrorsEntireBoard)?.id ??
+    columns[0]?.id ??
+    "";
+  const addCardSelectorOptions =
+    activeBoardLayout === "tier-list"
+      ? normalizedTierListView.rows.map((row) => ({ id: row.id, title: row.title }))
+      : columns.filter((column) => !column.mirrorsEntireBoard);
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeMobileActionsSubmenu =
@@ -4363,8 +4371,13 @@ export function RankboardApp() {
     const releaseYear = String(formData.get("releaseYear") ?? draft.releaseYear).trim();
     const columnId = String(formData.get("columnId") ?? draft.columnId).trim();
     const newColumnTitle = String(formData.get("newColumnTitle") ?? draft.newColumnTitle).trim();
+    const isTierListAdd = activeBoardLayout === "tier-list" && Boolean(addCardTarget.tierRowId);
     const selectedColumnId =
-      columnId === NEW_COLUMN_OPTION ? "" : columnId || addCardTarget.columnId;
+      isTierListAdd
+        ? addCardTarget.columnId
+        : columnId === NEW_COLUMN_OPTION
+          ? ""
+          : columnId || addCardTarget.columnId;
     const duplicate = selectedColumnId
       ? findDuplicateCard(title, selectedColumnId)
       : null;
@@ -4413,11 +4426,18 @@ export function RankboardApp() {
     let nextColumns = columns;
     const selectedColumnId = selectedColumnIdOverride ?? draft.columnId;
     const newColumnTitle = newColumnTitleOverride ?? draft.newColumnTitle;
-    let destinationColumnId = selectedColumnId || addCardTarget.columnId;
+    const isTierListAdd = activeBoardLayout === "tier-list" && Boolean(addCardTarget.tierRowId);
+    const selectedTierRowId =
+      isTierListAdd
+        ? selectedColumnId || addCardTarget.tierRowId || tierListPoolRowId
+        : addCardTarget.tierRowId;
+    let destinationColumnId = isTierListAdd
+      ? addCardTarget.columnId
+      : selectedColumnId || addCardTarget.columnId;
     let destinationInsertIndex = addCardTarget.insertIndex;
     let nextCardsByColumn = cardsByColumn;
 
-    if (selectedColumnId === NEW_COLUMN_OPTION) {
+    if (!isTierListAdd && selectedColumnId === NEW_COLUMN_OPTION) {
       const newColumn = createColumnDefinition(columns.length + 1, newColumnTitle);
       nextColumns = [...columns, newColumn];
       destinationColumnId = newColumn.id;
@@ -4428,7 +4448,7 @@ export function RankboardApp() {
       };
       latestColumnsRef.current = nextColumns;
       setColumns(nextColumns);
-    } else if (destinationColumnId !== addCardTarget.columnId) {
+    } else if (!isTierListAdd && destinationColumnId !== addCardTarget.columnId) {
       destinationInsertIndex = (nextCardsByColumn[destinationColumnId] ?? []).length;
     }
 
@@ -4471,10 +4491,10 @@ export function RankboardApp() {
     setDraft(initialDraft);
     setAddCardTarget(null);
     setDraftDuplicateAction(null);
-    if (addCardTarget.tierRowId) {
+    if (selectedTierRowId) {
       updateActiveTierListView((current) => {
         const nextEntryIdsByRow = { ...current.entryIdsByRow };
-        const targetRowId = addCardTarget.tierRowId ?? getTierListPoolRowId(current.rows);
+        const targetRowId = selectedTierRowId;
         const targetInsertIndex = Math.max(
           0,
           Math.min(
@@ -4513,10 +4533,7 @@ export function RankboardApp() {
     const isTierListTarget =
       activeBoardLayout === "tier-list" &&
       normalizedTierListView.rows.some((row) => row.id === columnId);
-    const fallbackColumnId =
-      columns.find((column) => !column.mirrorsEntireBoard)?.id ??
-      columns[0]?.id ??
-      "";
+    const fallbackColumnId = defaultAddCardColumnId;
     const targetColumnId = isTierListTarget ? fallbackColumnId : columnId;
 
     if (targetColumnId) {
@@ -4524,7 +4541,7 @@ export function RankboardApp() {
     }
     setDraft({
       ...initialDraft,
-      columnId: targetColumnId,
+      columnId: isTierListTarget ? columnId : targetColumnId,
     });
     setAddCardTarget(
       isTierListTarget
@@ -4565,22 +4582,35 @@ export function RankboardApp() {
     const focusedColumnId =
       getFocusedColumnIdFromLane(boardLaneRef.current) ||
       mobileFocusedColumnId ||
-      columns.find((column) => !column.mirrorsEntireBoard)?.id ||
+      defaultAddCardColumnId ||
       "";
-    const fallbackColumnId = focusedColumnId;
-    const selectedColumnId = fallbackColumnId || NEW_COLUMN_OPTION;
-    const insertIndex = fallbackColumnId
-      ? (cardsByColumn[fallbackColumnId] ?? []).length
-      : 0;
+    const isTierListQuickAdd =
+      activeBoardLayout === "tier-list" &&
+      normalizedTierListView.rows.some((row) => row.id === focusedColumnId);
+    const targetTierRowId = isTierListQuickAdd ? focusedColumnId : null;
+    const fallbackColumnId = defaultAddCardColumnId;
+    const selectedColumnId = isTierListQuickAdd
+      ? targetTierRowId ?? tierListPoolRowId
+      : fallbackColumnId || NEW_COLUMN_OPTION;
+    const insertIndex = fallbackColumnId ? (cardsByColumn[fallbackColumnId] ?? []).length : 0;
 
     setDraft({
       ...initialDraft,
       columnId: selectedColumnId,
     });
-    setAddCardTarget({
-      columnId: fallbackColumnId,
-      insertIndex,
-    });
+    setAddCardTarget(
+      targetTierRowId
+        ? {
+            columnId: fallbackColumnId,
+            insertIndex,
+            tierRowId: targetTierRowId,
+            tierInsertIndex: normalizedTierListView.entryIdsByRow[targetTierRowId]?.length ?? 0,
+          }
+        : {
+            columnId: fallbackColumnId,
+            insertIndex,
+          },
+    );
     setDraftDuplicateAction(null);
     setIsMobileSearchMenuOpen(false);
     setIsCustomizationMenuOpen(false);
@@ -7719,7 +7749,7 @@ function copyCardToDraft(card: CardEntry) {
                                     ))}
 
                                     <label className="grid gap-2">
-                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Column</span>
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{activeBoardLayout === "tier-list" ? "Row" : "Column"}</span>
                                       <select
                                         className={clsx(
                                           "rounded-2xl border px-4 py-3 outline-none transition",
@@ -7727,19 +7757,38 @@ function copyCardToDraft(card: CardEntry) {
                                             ? "border-white/10 bg-slate-950/70 text-white focus:border-white/40"
                                             : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
                                         )}
-                                        value={draft.columnId || addCardTarget?.columnId || columns[0]?.id || ""}
-                                        onChange={(event) => setDraft((current) => ({ ...current, columnId: event.target.value }))}
+                                        value={draft.columnId || addCardTarget?.tierRowId || addCardTarget?.columnId || columns[0]?.id || ""}
+                                        onChange={(event) => {
+                                          const value = event.target.value;
+
+                                          setDraft((current) => ({ ...current, columnId: value }));
+                                          if (activeBoardLayout === "tier-list") {
+                                            setAddCardTarget((current) =>
+                                              current
+                                                ? {
+                                                    ...current,
+                                                    columnId: defaultAddCardColumnId,
+                                                    insertIndex: (cardsByColumn[defaultAddCardColumnId] ?? []).length,
+                                                    tierRowId: value,
+                                                    tierInsertIndex: normalizedTierListView.entryIdsByRow[value]?.length ?? 0,
+                                                  }
+                                                : current,
+                                            );
+                                          }
+                                        }}
                                       >
-                                        {columns.filter((column) => !column.mirrorsEntireBoard).map((column) => (
+                                        {addCardSelectorOptions.map((column) => (
                                           <option key={column.id} value={column.id}>
                                             {column.title}
                                           </option>
                                         ))}
-                                        <option value={NEW_COLUMN_OPTION}>Create new column</option>
+                                        {activeBoardLayout !== "tier-list" ? (
+                                          <option value={NEW_COLUMN_OPTION}>Create new column</option>
+                                        ) : null}
                                       </select>
                                     </label>
 
-                                    {draft.columnId === NEW_COLUMN_OPTION ? (
+                                    {activeBoardLayout !== "tier-list" && draft.columnId === NEW_COLUMN_OPTION ? (
                                       <label className="grid gap-2">
                                         <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>New column title</span>
                                         <input
@@ -7969,12 +8018,24 @@ function copyCardToDraft(card: CardEntry) {
                                 <span>Fields</span>
                                 <Settings2 className="h-4 w-4 opacity-70" />
                               </button>
+                              <button
+                                className={clsx("flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")}
+                                onClick={() => {
+                                  resetMobileActionPanels();
+                                  setIsMobileActionsOpen(false);
+                                  openShareModal();
+                                }}
+                                type="button"
+                              >
+                                <span>Share</span>
+                                <Share2 className="h-4 w-4 opacity-70" />
+                              </button>
                             </div>
                           ) : null}
                         </div>
                         ) : null}
 
-                        {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "share" ? (
+                        {false && (!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "share") ? (
                           <div className="relative" data-mobile-actions-submenu-root="true">
                             <button
                               aria-label="Share"
@@ -9371,10 +9432,11 @@ function copyCardToDraft(card: CardEntry) {
         <AddCardDialog
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
           addArtworkInputRef={addArtworkInputRef}
-          addCardTargetColumnId={addCardTarget?.columnId ?? columns[0]?.id ?? ""}
+          addCardTargetColumnId={addCardTarget?.tierRowId ?? addCardTarget?.columnId ?? columns[0]?.id ?? ""}
           allSeries={allSeries}
           boardSingular={boardVocabulary.singular}
-          columns={columns}
+          columnLabel={activeBoardLayout === "tier-list" ? "Row" : "Column"}
+          columns={addCardSelectorOptions}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           draft={draft}
           draftDuplicateAction={draftDuplicateAction}
@@ -9389,12 +9451,32 @@ function copyCardToDraft(card: CardEntry) {
             void handleArtworkFileSelection("draft", event);
           }}
           onClose={closeAddGameModal}
-          onColumnIdChange={(value) =>
+          onColumnIdChange={(value) => {
+            if (activeBoardLayout === "tier-list" && addCardTarget) {
+              setDraft((current) => ({
+                ...current,
+                columnId: value,
+              }));
+              setAddCardTarget((current) =>
+                current
+                  ? {
+                      ...current,
+                      columnId: defaultAddCardColumnId,
+                      insertIndex: (cardsByColumn[defaultAddCardColumnId] ?? []).length,
+                      tierRowId: value,
+                      tierInsertIndex: normalizedTierListView.entryIdsByRow[value]?.length ?? 0,
+                    }
+                  : current,
+              );
+              return;
+            }
+
             setDraft((current) => ({
               ...current,
               columnId: value,
-            }))
-          }
+            }));
+          }}
+          allowCreateNewColumn={activeBoardLayout !== "tier-list"}
           onCustomFieldChange={(fieldId, value) =>
             setDraft((current) => ({
               ...current,
@@ -13282,6 +13364,7 @@ function TierListRow({
   const useVerticalLabel = trimmedColumnTitle.length > 1 && !/\s/.test(trimmedColumnTitle);
   const [isRowRailHovered, setIsRowRailHovered] = useState(false);
   const rowLaneRef = useRef<HTMLDivElement | null>(null);
+  const rowRailRef = useRef<HTMLDivElement | null>(null);
   const [stableRowHeight, setStableRowHeight] = useState<number | null>(null);
 
   useEffect(() => {
@@ -13313,15 +13396,37 @@ function TierListRow({
     };
   }, [isAnyCardDragging, isMobileViewport, isUnsortedRow]);
 
+  useEffect(() => {
+    if (!isMobileViewport || !isRowRailHovered) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rowRailRef.current?.contains(event.target as Node)) {
+        setIsRowRailHovered(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isMobileViewport, isRowRailHovered]);
+
   return (
-    <div className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch">
+    <div className={clsx("rounded-[28px] p-[1px]", column.accent)}>
+      <div className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch">
       <div className={clsx("rounded-l-[28px] rounded-r-none bg-gradient-to-b p-[1px]", column.accent)}>
         <div
+          ref={rowRailRef}
           tabIndex={0}
           className={clsx(
             "group/rowrail relative flex h-full min-h-[152px] items-center justify-center rounded-l-[27px] rounded-r-none px-1.5 py-3 text-center outline-none sm:min-h-[176px] sm:px-2 sm:py-4",
             isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950",
           )}
+          onPointerDown={(event) => {
+            if (event.pointerType === "touch") {
+              setIsRowRailHovered(true);
+            }
+          }}
           onPointerEnter={() => setIsRowRailHovered(true)}
           onPointerLeave={() => setIsRowRailHovered(false)}
           onFocus={() => setIsRowRailHovered(true)}
@@ -13416,8 +13521,9 @@ function TierListRow({
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
                   )}
-                  onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
+                    onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
                   onPointerEnter={() => setIsRowRailHovered(true)}
+                  onPointerDown={() => setIsRowRailHovered(true)}
                   type="button"
                 >
                   <MoreHorizontal className="h-5 w-5" />
@@ -13443,6 +13549,7 @@ function TierListRow({
                 )}
                 onClick={() => onOpenAddChooser(column.id, cards.length)}
                 onPointerEnter={() => setIsRowRailHovered(true)}
+                onPointerDown={() => setIsRowRailHovered(true)}
                 type="button"
               >
                 <Plus className="h-6 w-6" />
@@ -13538,6 +13645,7 @@ function TierListRow({
                     clickToEdit
                     containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
                     preserveSpaceWhenDragging
+                    freezeLayoutWhileDragging={isAnyCardDragging}
                   />
                   </Fragment>
                 ))}
@@ -13554,6 +13662,7 @@ function TierListRow({
             )}
           </div>
         </SortableContext>
+      </div>
       </div>
     </div>
   );
@@ -14035,6 +14144,7 @@ function CardTile({
   const [showHoverActions, setShowHoverActions] = useState(false);
   const [loadedImageSource, setLoadedImageSource] = useState("");
   const cardRef = useRef<HTMLElement | null>(null);
+  const touchRevealPendingRef = useRef(false);
   const tierBorderClass =
     tierKey === "top10"
       ? "border-amber-300/80"
@@ -14087,6 +14197,21 @@ function CardTile({
   }, [collapseCards, showCollapsedActions]);
 
   useEffect(() => {
+    if (collapseCards || !showHoverActions) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!cardRef.current?.contains(event.target as Node)) {
+        setShowHoverActions(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [collapseCards, showHoverActions]);
+
+  useEffect(() => {
     if (!imageSource) {
       return;
     }
@@ -14134,10 +14259,17 @@ function CardTile({
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
         collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
       )}
+      onPointerDown={(event) => {
+        touchRevealPendingRef.current =
+          !collapseCards && event.pointerType === "touch" && !showHoverActions;
+      }}
       onClick={(event) => {
         event.stopPropagation();
         if (collapseCards) {
           setShowCollapsedActions(true);
+        } else if (touchRevealPendingRef.current) {
+          touchRevealPendingRef.current = false;
+          setShowHoverActions(true);
         } else if (clickToEdit && onEdit) {
           onEdit();
         }
@@ -14366,7 +14498,10 @@ function CardTile({
                 event.stopPropagation();
                 onEdit();
               }}
-              onPointerDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                setShowHoverActions(true);
+              }}
               onPointerEnter={() => setShowHoverActions(true)}
               onFocus={() => setShowHoverActions(true)}
               type="button"

@@ -657,7 +657,9 @@ export function AddCardDialog({
   activeBoardFieldDefinitions,
   draftDuplicateAction,
   columns,
+  columnLabel,
   newColumnOption,
+  allowCreateNewColumn = true,
   defaultDateFieldFormat,
   addArtworkInputRef,
   onArtworkFileSelection,
@@ -701,7 +703,9 @@ export function AddCardDialog({
   activeBoardFieldDefinitions: BoardFieldDefinition[];
   draftDuplicateAction: DuplicateActionLike;
   columns: ColumnOption[];
+  columnLabel?: string;
   newColumnOption: string;
+  allowCreateNewColumn?: boolean;
   defaultDateFieldFormat: NonNullable<BoardFieldDefinition["dateFormat"]>;
   addArtworkInputRef: RefObject<HTMLInputElement | null>;
   onArtworkFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -970,7 +974,7 @@ export function AddCardDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2">
-              <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Column</span>
+              <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{columnLabel ?? "Column"}</span>
               <select
                 name="columnId"
                 className={clsx(
@@ -987,11 +991,11 @@ export function AddCardDialog({
                     {column.title}
                   </option>
                 ))}
-                <option value={newColumnOption}>Create new column</option>
+                {allowCreateNewColumn ? <option value={newColumnOption}>Create new column</option> : null}
               </select>
             </label>
 
-            {draft.columnId === newColumnOption ? (
+            {allowCreateNewColumn && draft.columnId === newColumnOption ? (
               <label className="grid gap-2">
                 <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>New column title</span>
                 <input
