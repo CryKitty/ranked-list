@@ -6914,7 +6914,7 @@ function copyCardToDraft(card: CardEntry) {
                       <button
                         aria-label={`Add ${boardVocabulary.singular}`}
                         className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+8.55rem)] right-[1.3rem] inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.15rem)] right-[5.25rem] inline-flex h-12 min-w-[9.75rem] items-center justify-start gap-3 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-900/96 text-slate-100"
                             : "border-white/80 bg-white/96 text-slate-900",
@@ -6926,12 +6926,13 @@ function copyCardToDraft(card: CardEntry) {
                         type="button"
                       >
                         <Plus className="h-4 w-4" />
+                        {`Add ${boardVocabulary.singular}`}
                       </button>
 
                       <button
                         aria-label="Share"
                         className={clsx(
-                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+7.15rem)] right-[3.2rem] inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                          "pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+4.55rem)] right-[5.25rem] inline-flex h-12 min-w-[9.75rem] items-center justify-start gap-3 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                           isDarkMode
                             ? "border-white/10 bg-slate-900/96 text-slate-100"
                             : "border-white/80 bg-white/96 text-slate-900",
@@ -6943,16 +6944,17 @@ function copyCardToDraft(card: CardEntry) {
                         type="button"
                       >
                         <Share2 className="h-4 w-4" />
+                        Share
                       </button>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+5.45rem)] right-[4.95rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+7.95rem)] right-[5.25rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <button
                           className={clsx(
-                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            "inline-flex h-12 min-w-[9.75rem] items-center justify-start gap-3 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
@@ -6968,6 +6970,7 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <Search className="h-4 w-4" />
+                          Search
                         </button>
 
                         {isMobileSearchMenuOpen ? (
@@ -7009,13 +7012,13 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+3.55rem)] right-[5.5rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+11.35rem)] right-[5.25rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <button
                           className={clsx(
-                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            "inline-flex h-12 min-w-[9.75rem] items-center justify-start gap-3 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
@@ -7031,6 +7034,7 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <Settings2 className="h-4 w-4" />
+                          Settings
                         </button>
 
                         {isTransferMenuOpen ? (
@@ -7110,13 +7114,13 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+1.8rem)] right-[4.9rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+14.75rem)] right-[5.25rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <button
                           className={clsx(
-                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            "inline-flex h-12 min-w-[9.75rem] items-center justify-start gap-3 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
@@ -7132,6 +7136,7 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <Sparkles className="h-4 w-4" />
+                          Customization
                         </button>
 
                         {isCustomizationMenuOpen ? (
@@ -7197,13 +7202,13 @@ function copyCardToDraft(card: CardEntry) {
                       </div>
 
                       <div
-                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+0.45rem)] right-[2.85rem]"
+                        className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+18.15rem)] right-[5.25rem]"
                         data-mobile-actions-submenu-root="true"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <button
                           className={clsx(
-                            "inline-flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
+                            "inline-flex h-12 min-w-[9.75rem] items-center justify-start gap-3 rounded-full border px-4 text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition",
                             isDarkMode
                               ? "border-white/10 bg-slate-900/96 text-slate-100"
                               : "border-white/80 bg-white/96 text-slate-900",
@@ -7220,6 +7225,7 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <Wrench className="h-4 w-4" />
+                          Maintenance
                         </button>
 
                         {isMaintenanceMenuOpen ? (
