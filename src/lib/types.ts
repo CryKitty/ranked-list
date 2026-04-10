@@ -101,6 +101,10 @@ export type BoardSettings = {
   boardIconKey?: string;
   boardIconUrl?: string;
   boardLayout?: BoardLayout;
+  tierListCardAspectRatio?: "portrait" | "square" | "landscape";
+  tierListRowOverflow?: "wrap" | "scroll";
+  tierListExcludedColumnIds?: string[];
+  tierListAutoSeedExcludedColumnIds?: string[];
   tierListView?: TierListViewState;
   restoreCollapseCardsOnBoard?: boolean;
   restoreTierHighlightsOnBoard?: boolean;
