@@ -9200,7 +9200,12 @@ function copyCardToDraft(card: CardEntry) {
               {activeBoardLayout === "tier-list" ? (
                 <div
                   ref={boardLaneRef}
-                  className="scrollbar-hidden relative z-10 flex min-h-0 w-full min-w-0 flex-1 flex-col gap-0 overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+                  className="scrollbar-hidden relative z-10 flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col gap-0 overflow-x-hidden overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+                  onScroll={(event) => {
+                    if (isMobileViewport && event.currentTarget.scrollLeft !== 0) {
+                      event.currentTarget.scrollLeft = 0;
+                    }
+                  }}
                   style={{
                     touchAction: isCardDragging ? "none" : "pan-y pinch-zoom",
                     overscrollBehaviorY: "contain",
