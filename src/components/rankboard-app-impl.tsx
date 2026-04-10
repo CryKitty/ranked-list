@@ -13904,22 +13904,28 @@ function TierListInsertSlot({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  const slotWidthClass = isSquare
+  const placeholderWidthClass = isSquare
     ? isMobileViewport
-      ? "w-[20px]"
-      : "w-[24px]"
-    : "w-[20px]";
+      ? "w-[102px]"
+      : "w-[196px]"
+    : "w-[224px]";
+  const hitAreaWidthClass = isSquare
+    ? isMobileViewport
+      ? "w-[52px]"
+      : "w-[72px]"
+    : "w-[64px]";
   const heightClass = isSquare
     ? isMobileViewport
       ? "h-[126px]"
       : "h-[186px]"
     : "h-[84px] sm:h-[124px]";
+  const showPlaceholder = isDragging && !isGapSuppressed && isOver;
 
   return (
     <div
       className={clsx(
         "relative shrink-0 overflow-visible transition-[width] duration-200 ease-out",
-        isDragging && !isGapSuppressed ? slotWidthClass : "w-0",
+        showPlaceholder ? placeholderWidthClass : "w-0",
         heightClass,
       )}
     >
@@ -13927,9 +13933,10 @@ function TierListInsertSlot({
         ref={setNodeRef}
         data-tier-insert-slot="true"
         className={clsx(
-          "absolute inset-y-0 left-1/2 w-full -translate-x-1/2 rounded-[24px] border transition-[background-color,border-color,box-shadow] duration-150 ease-out",
+          "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-[24px] border transition-[background-color,border-color,box-shadow,width] duration-150 ease-out",
           heightClass,
-          isOver
+          showPlaceholder ? placeholderWidthClass : hitAreaWidthClass,
+          showPlaceholder
             ? isDarkMode
               ? "border-sky-300/70 bg-sky-300/15 shadow-[0_0_0_1px_rgba(125,211,252,0.18)]"
               : "border-sky-400/80 bg-sky-100/90 shadow-[0_0_0_1px_rgba(56,189,248,0.16)]"
@@ -14308,6 +14315,7 @@ function CardTile({
   const [loadedImageSource, setLoadedImageSource] = useState("");
   const cardRef = useRef<HTMLElement | null>(null);
   const touchRevealPendingRef = useRef(false);
+  const wasDraggingRef = useRef(false);
   const tierBorderClass =
     tierKey === "top10"
       ? "border-amber-300/80"
@@ -14373,6 +14381,24 @@ function CardTile({
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [collapseCards, showHoverActions]);
+
+  useEffect(() => {
+    if (isDragging) {
+      wasDraggingRef.current = true;
+      return;
+    }
+
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      touchRevealPendingRef.current = false;
+      const frame = window.requestAnimationFrame(() => {
+        setShowHoverActions(false);
+        setShowCollapsedActions(false);
+      });
+
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [isDragging]);
 
   useEffect(() => {
     if (!imageSource) {
