@@ -12,6 +12,7 @@
 - Removed the post-drop kanban scroll-position restoration and shrank the hidden insert hit zones, which should reduce the visible column jump on pick-up/drop.
 - Kanban auto-scroll now continuously re-resolves the insert target under the stationary pointer while the list moves, and board drops prefer that tracked target over a stale `event.over`, which should keep placeholders and final drops aligned during long mobile auto-scroll drags.
 - Kanban columns now also refresh that tracked insert target directly from scroll events during drag, and drag mode no longer disables overflow anchoring on the column scroller, which should help the viewport stay visually locked while the list auto-scrolls under your finger.
+- Kanban placeholder rendering now uses a single board-mode source of truth instead of combining tracked insert targets with droppable `isOver` state, which should stop the “two gaps at once” / split-target behavior during auto-scroll drags.
 
 ## 2026-04-09
 

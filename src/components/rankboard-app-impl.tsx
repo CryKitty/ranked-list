@@ -14894,6 +14894,7 @@ function BoardColumn({
               isDragMode={isCardDragging}
               isGapSuppressed={isDragGapSuppressed}
               collapseCards={collapseCards}
+              visualTargetOnly
               forceActive={
                 activeBoardInsertTarget?.columnId === column.id &&
                 activeBoardInsertTarget.insertIndex === 0
@@ -14951,6 +14952,7 @@ function BoardColumn({
                   isDragMode={isCardDragging}
                   isGapSuppressed={isDragGapSuppressed}
                   collapseCards={collapseCards}
+                  visualTargetOnly
                   forceActive={
                     activeBoardInsertTarget?.columnId === column.id &&
                     activeBoardInsertTarget.insertIndex === index + 1
@@ -15547,6 +15549,7 @@ function AddCardRow({
   isGapSuppressed = false,
   collapseCards = false,
   forceActive = false,
+  visualTargetOnly = false,
   insertIndex,
   alwaysVisible = false,
   hideAction = false,
@@ -15562,6 +15565,7 @@ function AddCardRow({
   isGapSuppressed?: boolean;
   collapseCards?: boolean;
   forceActive?: boolean;
+  visualTargetOnly?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   hideAction?: boolean;
@@ -15590,7 +15594,10 @@ function AddCardRow({
 
     onClick();
   };
-  const showExpandedDropTarget = isDragMode && !isGapSuppressed && (isOver || forceActive);
+  const showExpandedDropTarget =
+    isDragMode &&
+    !isGapSuppressed &&
+    (visualTargetOnly ? forceActive : isOver || forceActive);
   const showTrelloStylePlaceholder = showExpandedDropTarget;
   const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
