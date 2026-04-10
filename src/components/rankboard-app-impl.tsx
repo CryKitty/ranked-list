@@ -4766,11 +4766,6 @@ export function RankboardApp() {
       return;
     }
 
-    const getColumnScrollElement = (columnId: string) =>
-      Array.from(document.querySelectorAll<HTMLElement>("[data-column-scroll-id]")).find(
-        (element) => element.dataset.columnScrollId === columnId,
-      ) ?? null;
-
     const movedCard = sourceCards[sourceIndex];
     let destinationIndex = destinationCards.length;
 
@@ -4804,7 +4799,6 @@ export function RankboardApp() {
       const reorderedCards = [...sourceCards];
       const [removedCard] = reorderedCards.splice(sourceIndex, 1);
       reorderedCards.splice(adjustedDestinationIndex, 0, removedCard);
-      const sourceScrollTop = getColumnScrollElement(sourceColumnId)?.scrollTop ?? null;
 
       const nextState = {
         ...latestCardsByColumnRef.current,
@@ -4819,21 +4813,12 @@ export function RankboardApp() {
         cardsByColumn: nextState,
         debounceMs: 900,
       });
-      if (sourceScrollTop !== null) {
-        window.requestAnimationFrame(() => {
-          const nextElement = getColumnScrollElement(sourceColumnId);
-          if (nextElement) {
-            nextElement.scrollTop = sourceScrollTop;
-          }
-        });
-      }
 
       return;
     }
 
     const nextSourceCards = sourceCards.filter((card) => card.entryId !== activeId);
     const nextDestinationCards = [...destinationCards];
-    const destinationScrollTop = getColumnScrollElement(overColumnId)?.scrollTop ?? null;
 
     if (destinationColumn?.mirrorsEntireBoard && !movedCard.mirroredFromEntryId) {
       return;
@@ -4862,14 +4847,6 @@ export function RankboardApp() {
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
     queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
-    if (destinationScrollTop !== null) {
-      window.requestAnimationFrame(() => {
-        const nextElement = getColumnScrollElement(overColumnId);
-        if (nextElement) {
-          nextElement.scrollTop = destinationScrollTop;
-        }
-      });
-    }
   }
 
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -10326,9 +10303,7 @@ function copyCardToDraft(card: CardEntry) {
                     args.droppableContainers as Array<{ id: string | number }>,
                   );
 
-                  if (boardInsertCollision) {
-                    return boardInsertCollision;
-                  }
+                  return boardInsertCollision ?? [];
                 }
 
                 const pointerHits = pointerWithin(args);
@@ -15539,8 +15514,8 @@ function AddCardRow({
     ? isOver
       ? "inset-y-0"
       : insertIndex === 0
-        ? "-top-8 -bottom-14"
-        : "-inset-y-14"
+        ? "-top-4 -bottom-8"
+        : "-inset-y-8"
     : "inset-y-0";
 
   const handleClick = () => {

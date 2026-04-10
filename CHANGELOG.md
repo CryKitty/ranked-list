@@ -8,6 +8,8 @@
 - Removed root-level kanban insert-target drag state so placeholder hover feedback no longer forces a whole-board React rerender on every move, which should make mobile card dragging much smoother and more accurate.
 - Tuned the kanban drag overlay to render slightly smaller and more translucent, and made touch auto-scroll accelerate more sharply as the held card approaches the screen edges.
 - Reconfigured kanban card dragging to use lightweight draggables plus explicit insert gaps instead of sortable sibling transforms, which should reduce the “drag through mud” feel in long mobile columns.
+- Tightened kanban board collision so board-mode dragging now trusts only the explicit insert-target resolver instead of falling back to generic overlapping droppables, which should make the placeholder stop jumping a couple cards away from the hovered card.
+- Removed the post-drop kanban scroll-position restoration and shrank the hidden insert hit zones, which should reduce the visible column jump on pick-up/drop.
 
 ## 2026-04-09
 
