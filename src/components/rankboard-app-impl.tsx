@@ -4989,9 +4989,52 @@ export function RankboardApp() {
     setIsMobileActionsOpen(false);
   }
 
+  function getFocusedAddDestinationId() {
+    if (typeof window === "undefined") {
+      return getFocusedColumnIdFromLane(boardLaneRef.current);
+    }
+
+    const lane = boardLaneRef.current;
+    const laneRect = lane?.getBoundingClientRect();
+    const probeX = Math.round(window.innerWidth / 2);
+    const probeYs = [
+      Math.round(window.innerHeight * 0.45),
+      Math.round(window.innerHeight * 0.55),
+      Math.round(window.innerHeight * 0.35),
+      laneRect ? Math.round(laneRect.top + laneRect.height / 2) : null,
+    ].filter((value): value is number => value !== null);
+
+    for (const probeY of probeYs) {
+      const elements = document.elementsFromPoint(probeX, probeY);
+
+      for (const element of elements) {
+        const cardElement = element.closest<HTMLElement>("[data-card-entry-id]");
+        const cardColumnId = cardElement?.dataset.cardEntryId
+          ? findColumnIdForEntry(cardElement.dataset.cardEntryId)
+          : null;
+
+        if (cardColumnId) {
+          return cardColumnId;
+        }
+
+        const scrollElement = element.closest<HTMLElement>("[data-column-scroll-id]");
+        if (scrollElement?.dataset.columnScrollId) {
+          return scrollElement.dataset.columnScrollId;
+        }
+
+        const columnElement = element.closest<HTMLElement>("[data-column-id]");
+        if (columnElement?.dataset.columnId) {
+          return columnElement.dataset.columnId;
+        }
+      }
+    }
+
+    return getFocusedColumnIdFromLane(lane);
+  }
+
   function openMobileQuickAddPanel() {
     const focusedColumnId =
-      getFocusedColumnIdFromLane(boardLaneRef.current) ||
+      getFocusedAddDestinationId() ||
       mobileFocusedColumnId ||
       defaultAddCardColumnId ||
       "";
@@ -5520,10 +5563,10 @@ function copyCardToDraft(card: CardEntry) {
     field: ArtworkFieldKind,
     input?: HTMLInputElement | null,
   ) {
-    const previousReadOnly = input?.readOnly ?? false;
+    const previousInputMode = input?.inputMode ?? "";
 
     if (input) {
-      input.readOnly = true;
+      input.inputMode = "none";
       input.focus({ preventScroll: true });
     }
 
@@ -5570,7 +5613,7 @@ function copyCardToDraft(card: CardEntry) {
       if (input) {
         window.setTimeout(() => {
           input.blur();
-          input.readOnly = previousReadOnly;
+          input.inputMode = previousInputMode;
         }, 0);
       }
     }
@@ -8457,7 +8500,7 @@ function copyCardToDraft(card: CardEntry) {
                       mobileActionsHeightUnlockTimeoutRef.current = null;
                     }
                     isMobileActionsOpenRef.current = true;
-                    setMobileFocusedColumnId(getFocusedColumnIdFromLane(boardLaneRef.current));
+                    setMobileFocusedColumnId(getFocusedAddDestinationId());
                     setIsMobileActionsOpen(true);
                   }}
                   type="button"
