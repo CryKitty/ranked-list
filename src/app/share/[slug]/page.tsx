@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { SharedBoardView } from "@/components/shared-board-view";
+import { SharedBoardLocalFallback } from "@/components/shared-board-local-fallback";
 import { loadPublicBoardBySlug } from "@/lib/normalized-board-store";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -35,7 +36,7 @@ export default async function SharedBoardPage({
   const supabase = await getSupabaseServerClient();
 
   if (!supabase) {
-    return <div className="min-h-screen bg-slate-950 p-8 text-white">Supabase is not configured.</div>;
+    return <SharedBoardLocalFallback slug={slug} />;
   }
 
   const board = await loadPublicBoardBySlug(supabase, slug);

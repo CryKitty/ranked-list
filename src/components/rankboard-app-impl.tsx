@@ -629,6 +629,112 @@ function normalizeTierListRowOverflow(value?: BoardSettings["tierListRowOverflow
   return value === "scroll" ? "scroll" : "wrap";
 }
 
+function getTierListArtworkVariant(
+  cardAspectRatio: "portrait" | "square" | "landscape",
+  isMobileViewport: boolean,
+): "tier-list" | undefined {
+  return isMobileViewport || cardAspectRatio === "portrait" || cardAspectRatio === "square"
+    ? "tier-list"
+    : undefined;
+}
+
+function getTierListCardContainerClass(
+  cardAspectRatio: "portrait" | "square" | "landscape",
+  isMobileViewport: boolean,
+) {
+  if (isMobileViewport) {
+    return "m-[5px] basis-[92px] w-[92px] shrink-0 self-start";
+  }
+
+  if (cardAspectRatio === "landscape") {
+    return "m-[5px] basis-[306px] w-[306px] shrink-0 self-start";
+  }
+
+  if (cardAspectRatio === "portrait") {
+    return "m-[5px] basis-[124px] w-[124px] shrink-0 self-start";
+  }
+
+  return "m-[5px] basis-[186px] w-[186px] shrink-0 self-start";
+}
+
+function getTierListOverlayWidthClass(
+  cardAspectRatio: "portrait" | "square" | "landscape",
+  isMobileViewport: boolean,
+) {
+  if (isMobileViewport) {
+    return "w-[72px]";
+  }
+
+  if (cardAspectRatio === "landscape") {
+    return "w-[258px]";
+  }
+
+  if (cardAspectRatio === "portrait") {
+    return "w-[112px]";
+  }
+
+  return "w-[156px]";
+}
+
+function getTierListRankFilteredEntryIds(
+  columns: ColumnDefinition[],
+  cardsByColumn: Record<string, CardEntry[]>,
+  excludedColumnIds: string[] = [],
+  options?: {
+    seriesFilter?: string;
+    tierFilter?: ShareTierFilter;
+  },
+) {
+  const selectedSeries = options?.seriesFilter?.trim() ?? "";
+  const selectedTierFilter = options?.tierFilter ?? "all";
+  const excludedColumnIdSet = new Set(excludedColumnIds);
+  const allowedEntryIds = new Set<string>();
+  const assignedItemIds = new Set<string>();
+  const rankedColumns = columns.filter(
+    (column) => !column.mirrorsEntireBoard && isRankedColumn(column) && !excludedColumnIdSet.has(column.id),
+  );
+  const maxRankedColumnLength = Math.max(
+    0,
+    ...rankedColumns.map((column) => cardsByColumn[column.id]?.length ?? 0),
+  );
+
+  for (let rankIndex = 0; rankIndex < maxRankedColumnLength; rankIndex += 1) {
+    for (const column of rankedColumns) {
+      const card = cardsByColumn[column.id]?.[rankIndex];
+
+      if (
+        !card ||
+        card.mirroredFromEntryId ||
+        assignedItemIds.has(card.itemId) ||
+        (selectedSeries && card.series !== selectedSeries) ||
+        !matchesTierFilter(rankIndex + 1, selectedTierFilter)
+      ) {
+        continue;
+      }
+
+      allowedEntryIds.add(card.entryId);
+      assignedItemIds.add(card.itemId);
+    }
+  }
+
+  return allowedEntryIds;
+}
+
+function filterTierListViewByAllowedEntryIds(
+  tierListView: TierListViewState,
+  allowedEntryIds: Set<string>,
+) {
+  return {
+    ...tierListView,
+    entryIdsByRow: Object.fromEntries(
+      tierListView.rows.map((row) => [
+        row.id,
+        (tierListView.entryIdsByRow[row.id] ?? []).filter((entryId) => allowedEntryIds.has(entryId)),
+      ]),
+    ),
+  } satisfies TierListViewState;
+}
+
 function formatDateFieldValue(value: string, format: DateFieldFormat) {
   const trimmedValue = value.trim();
 
@@ -936,9 +1042,11 @@ function openGoogleImageSearch(
   title: string,
   mode: ArtworkSearchMode = "image",
   artworkField: ArtworkFieldKind = "landscape",
+  series = "",
 ) {
-  const orientationHint = artworkField === "portrait" ? "portrait wallpaper" : "landscape wallpaper";
-  const query = `${title.trim()} ${orientationHint}`.trim();
+  const queryParts = [title.trim(), series.trim()].filter(Boolean);
+  const query = queryParts.join(" ");
+  const exactPhrase = queryParts.map((part) => `"${part}"`).join(" ");
 
   if (!query || typeof window === "undefined") {
     return;
@@ -951,8 +1059,9 @@ function openGoogleImageSearch(
   }
 
   const url = new URL("https://www.google.com/search");
-  url.searchParams.set("q", `${query} -site:fandom.com`);
+  url.searchParams.set("as_epq", exactPhrase || query);
   url.searchParams.set("tbm", "isch");
+  url.searchParams.set("tbs", artworkField === "portrait" ? "iar:t" : "iar:w");
 
   window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
@@ -2070,7 +2179,6 @@ export function RankboardApp() {
     Boolean(pendingMirrorLinkSuggestions) ||
     Boolean(pendingCardDelete) ||
     Boolean(pendingColumnDelete) ||
-    Boolean(tierRowOptionsState) ||
     Boolean(pairwiseQuizState) ||
     Boolean(pairwiseQuizReview) ||
     Boolean(pendingPairwiseQuizResume) ||
@@ -2118,11 +2226,6 @@ export function RankboardApp() {
             (card) => card.entryId === activeDragEntryId,
           ) ?? null
         : null)
-    : null;
-  const activeDragColumn = activeDragColumnId
-    ? activeBoardLayout === "tier-list"
-      ? normalizedTierListView.rows.find((row) => row.id === activeDragColumnId) ?? null
-      : columns.find((column) => column.id === activeDragColumnId) ?? null
     : null;
   const activeDragBoardColumn =
     activeBoardLayout === "board" && activeDragColumnId
@@ -2718,13 +2821,11 @@ export function RankboardApp() {
     }
 
     visualViewport?.addEventListener("resize", syncAppHeight);
-    visualViewport?.addEventListener("scroll", syncAppHeight);
     window.addEventListener("resize", syncAppHeight);
     window.addEventListener("orientationchange", syncAppHeight);
 
     return () => {
       visualViewport?.removeEventListener("resize", syncAppHeight);
-      visualViewport?.removeEventListener("scroll", syncAppHeight);
       window.removeEventListener("resize", syncAppHeight);
       window.removeEventListener("orientationchange", syncAppHeight);
       root.style.setProperty("--app-height", "100dvh");
@@ -5278,7 +5379,7 @@ function copyCardToDraft(card: CardEntry) {
     artworkField: ArtworkFieldKind,
     mode: ArtworkSearchMode = "image",
   ) {
-    openGoogleImageSearch(draft.title, mode, artworkField);
+    openGoogleImageSearch(draft.title, mode, artworkField, draft.series);
   }
 
   function openArtworkUploadPicker(target: "draft" | "edit", field: ArtworkFieldKind = "landscape") {
@@ -5475,7 +5576,7 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    openGoogleImageSearch(editingCardDraft.title, mode, artworkField);
+    openGoogleImageSearch(editingCardDraft.title, mode, artworkField, editingCardDraft.series);
   }
 
   function selectArtworkOption(imageUrl: string) {
@@ -6752,10 +6853,25 @@ function copyCardToDraft(card: CardEntry) {
         latestCardsByColumnRef.current,
         excludedColumnIds,
       );
+      const shouldApplySeedFilter = Boolean(options?.seriesFilter?.trim()) || (options?.tierFilter ?? "all") !== "all";
+      const seedFilteredTierListView = shouldApplySeedFilter
+        ? filterTierListViewByAllowedEntryIds(
+            normalizedNextTierListView,
+            getTierListRankFilteredEntryIds(
+              latestColumnsRef.current,
+              latestCardsByColumnRef.current,
+              excludedColumnIds,
+              {
+                seriesFilter: options?.seriesFilter,
+                tierFilter: options?.tierFilter,
+              },
+            ),
+          )
+        : normalizedNextTierListView;
       const nextTierListView =
-        !options?.skipAutoSeed && shouldSeedTierListFromKanban(normalizedNextTierListView)
+        !options?.skipAutoSeed && shouldSeedTierListFromKanban(seedFilteredTierListView)
           ? seedTierListFromKanbanRankings(
-              normalizedNextTierListView,
+              seedFilteredTierListView,
               latestColumnsRef.current,
               latestCardsByColumnRef.current,
               autoSeedExcludedColumnIds,
@@ -6764,7 +6880,7 @@ function copyCardToDraft(card: CardEntry) {
                 tierFilter: options?.tierFilter,
               },
             )
-          : normalizedNextTierListView;
+          : seedFilteredTierListView;
 
       return {
         ...board,
@@ -8102,11 +8218,11 @@ function copyCardToDraft(card: CardEntry) {
                   @keyframes mobile-action-panel-rise {
                     0% {
                       opacity: 0;
-                      margin-bottom: -18px;
+                      transform: translate(-50%, 18px) scale(0.98);
                     }
                     100% {
                       opacity: 1;
-                      margin-bottom: 0;
+                      transform: translate(-50%, 0) scale(1);
                     }
                   }
 
@@ -10076,9 +10192,7 @@ function copyCardToDraft(card: CardEntry) {
                           className={clsx(
                             "pointer-events-none rotate-[1deg] opacity-70 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
                             activeBoardLayout === "tier-list"
-                              ? isMobileViewport
-                                ? "w-[72px]"
-                                : "w-[156px]"
+                              ? getTierListOverlayWidthClass(tierListCardAspectRatio, isMobileViewport)
                               : "w-[224px]",
                           )}
                         >
@@ -10091,9 +10205,22 @@ function copyCardToDraft(card: CardEntry) {
                             showTierHighlights={activeBoardSettings.showTierHighlights}
                             frontFieldDefinitions={activeBoardFieldDefinitions}
                             rankBadge={activeDragRankBadge}
-                            forceSquare={activeBoardLayout === "tier-list" && activeDragColumn?.title.trim().toLowerCase() !== "unsorted" && activeDragColumn?.title.trim().toLowerCase() !== "pool"}
-                            mobileArtworkVariant={isMobileViewport ? (activeBoardLayout === "tier-list" ? "tier-list" : "board") : undefined}
+                            forceSquare={activeBoardLayout === "tier-list" && tierListCardAspectRatio === "square"}
+                            mobileArtworkVariant={
+                              activeBoardLayout === "tier-list"
+                                ? getTierListArtworkVariant(tierListCardAspectRatio, isMobileViewport)
+                                : isMobileViewport
+                                  ? "board"
+                                  : undefined
+                            }
                             compactImageOnly={activeBoardLayout === "tier-list" && isMobileViewport}
+                            cardAspectRatio={
+                              activeBoardLayout === "tier-list"
+                                ? isMobileViewport
+                                  ? "portrait"
+                                  : tierListCardAspectRatio
+                                : "landscape"
+                            }
                           />
                         </div>
                       ) : null}
@@ -13003,7 +13130,18 @@ function copyCardToDraft(card: CardEntry) {
                       onClick={() => insertCardFromPoolIntoTierRow(card.entryId)}
                       type="button"
                     >
-                      <div className="w-[68px] shrink-0 overflow-hidden rounded-[18px] bg-slate-900">
+                      <div
+                        className={clsx(
+                          "shrink-0 overflow-hidden rounded-[18px] bg-slate-900",
+                          isMobileViewport
+                            ? "w-[92px]"
+                            : tierListCardAspectRatio === "landscape"
+                              ? "w-[220px]"
+                              : tierListCardAspectRatio === "portrait"
+                                ? "w-[92px]"
+                                : "w-[120px]",
+                        )}
+                      >
                         <CardTile
                           card={card}
                           collapseCards={false}
@@ -13013,7 +13151,9 @@ function copyCardToDraft(card: CardEntry) {
                           showTierHighlights={false}
                           frontFieldDefinitions={activeBoardFieldDefinitions}
                           rankBadge={null}
-                          compactImageOnly
+                          cardAspectRatio={isMobileViewport ? "portrait" : tierListCardAspectRatio}
+                          forceSquare={!isMobileViewport && tierListCardAspectRatio === "square"}
+                          mobileArtworkVariant={getTierListArtworkVariant(tierListCardAspectRatio, isMobileViewport)}
                           showDragCursor={false}
                         />
                       </div>
@@ -14457,11 +14597,11 @@ function TierListRow({
         >
           <div className="flex h-full w-full items-center justify-center">
             {isEditingColumn && editingColumnDraft ? (
-              <div className="flex w-full flex-col items-center gap-2">
+              <div className="relative flex h-full w-full flex-col items-center justify-center gap-2">
                 <input
                   autoFocus
                   className={clsx(
-                    "w-full rounded-2xl border px-3 py-2 text-center text-sm outline-none transition",
+                    "absolute left-1/2 top-1/2 h-10 w-[136px] -translate-x-1/2 -translate-y-1/2 -rotate-90 rounded-2xl border px-3 py-2 text-center text-sm outline-none transition",
                     isDarkMode
                       ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
                       : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
@@ -14489,10 +14629,10 @@ function TierListRow({
                     }
                   }}
                 />
-                <div className="flex gap-2">
+                <div className="absolute bottom-0 left-1/2 flex -translate-x-1/2 gap-1">
                   <button
                     className={clsx(
-                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      "inline-flex items-center gap-2 rounded-full px-2 py-1 text-[10px] font-semibold",
                       isDarkMode ? "bg-white text-slate-950" : "bg-slate-950 text-white",
                     )}
                     onClick={onSaveColumnEdit}
@@ -14502,7 +14642,7 @@ function TierListRow({
                   </button>
                   <button
                     className={clsx(
-                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      "inline-flex items-center gap-2 rounded-full px-2 py-1 text-[10px] font-semibold",
                       isDarkMode ? "bg-white/10 text-white" : "bg-slate-100 text-slate-700",
                     )}
                     onClick={onCancelColumnEdit}
@@ -14544,7 +14684,7 @@ function TierListRow({
                       ? "border-white/15 bg-white/10 text-white hover:border-white/35 hover:bg-white/15"
                       : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
                   )}
-                    onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
+                  onClick={(event) => onOpenRowOptions(event.currentTarget.getBoundingClientRect())}
                   onPointerEnter={() => setIsRowRailHovered(true)}
                   onPointerDown={() => setIsRowRailHovered(true)}
                   type="button"
@@ -14652,7 +14792,7 @@ function TierListRow({
                       isDarkMode={isDarkMode}
                       isDragging={isAnyCardDragging}
                       isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
-                      isSquare
+                      cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
                       isMobileViewport={isMobileViewport}
                     />
                     <SortableCard
@@ -14664,18 +14804,16 @@ function TierListRow({
                       showTierHighlights={false}
                       frontFieldDefinitions={frontFieldDefinitions}
                       forceSquare={!isMobileViewport && cardAspectRatio === "square"}
-                    rankBadge={null}
-                    onEdit={() => onEditCard(card)}
-                    mobileArtworkVariant={
-                      isMobileViewport || cardAspectRatio === "portrait" ? "tier-list" : undefined
-                    }
-                    compactImageOnly={isMobileViewport}
-                    cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
-                    clickToEdit
-                    containerClassName="m-[5px] basis-[92px] w-[92px] shrink-0 self-start sm:basis-[186px] sm:w-[186px]"
-                    preserveSpaceWhenDragging
-                    freezeLayoutWhileDragging={isAnyCardDragging}
-                  />
+                      rankBadge={null}
+                      onEdit={() => onEditCard(card)}
+                      mobileArtworkVariant={getTierListArtworkVariant(cardAspectRatio, isMobileViewport)}
+                      compactImageOnly={isMobileViewport}
+                      cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
+                      clickToEdit
+                      containerClassName={getTierListCardContainerClass(cardAspectRatio, isMobileViewport)}
+                      preserveSpaceWhenDragging
+                      freezeLayoutWhileDragging={isAnyCardDragging}
+                    />
                   </Fragment>
                 ))}
                 <TierListInsertSlot
@@ -14684,7 +14822,7 @@ function TierListRow({
                   isDarkMode={isDarkMode}
                   isDragging={isAnyCardDragging}
                   isGapSuppressed={isAnyCardDragging && isDragGapSuppressed}
-                  isSquare
+                  cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
                   isMobileViewport={isMobileViewport}
                 />
               </>
@@ -14766,7 +14904,7 @@ function TierListInsertSlot({
   isDarkMode,
   isDragging,
   isGapSuppressed,
-  isSquare,
+  cardAspectRatio,
   isMobileViewport,
 }: {
   columnId: string;
@@ -14774,28 +14912,34 @@ function TierListInsertSlot({
   isDarkMode: boolean;
   isDragging: boolean;
   isGapSuppressed: boolean;
-  isSquare: boolean;
+  cardAspectRatio: "portrait" | "square" | "landscape";
   isMobileViewport: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: makeInsertDropId(columnId, insertIndex),
   });
 
-  const placeholderWidthClass = isSquare
-    ? isMobileViewport
-      ? "w-[102px]"
-      : "w-[196px]"
-    : "w-[224px]";
-  const hitAreaWidthClass = isSquare
-    ? isMobileViewport
-      ? "w-[52px]"
-      : "w-[72px]"
-    : "w-[64px]";
-  const heightClass = isSquare
-    ? isMobileViewport
-      ? "h-[126px]"
-      : "h-[186px]"
-    : "h-[84px] sm:h-[124px]";
+  const placeholderWidthClass = isMobileViewport
+    ? "w-[102px]"
+    : cardAspectRatio === "landscape"
+      ? "w-[316px]"
+      : cardAspectRatio === "portrait"
+        ? "w-[134px]"
+        : "w-[196px]";
+  const hitAreaWidthClass = isMobileViewport
+    ? "w-[52px]"
+    : cardAspectRatio === "landscape"
+      ? "w-[88px]"
+      : cardAspectRatio === "portrait"
+        ? "w-[56px]"
+        : "w-[72px]";
+  const heightClass = isMobileViewport
+    ? "h-[126px]"
+    : cardAspectRatio === "landscape"
+      ? "h-[176px]"
+      : cardAspectRatio === "portrait"
+        ? "h-[186px]"
+        : "h-[186px]";
   const showPlaceholder = isDragging && !isGapSuppressed && isOver;
 
   return (
