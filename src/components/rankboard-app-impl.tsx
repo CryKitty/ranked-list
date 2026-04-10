@@ -2027,6 +2027,10 @@ export function RankboardApp() {
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const artworkUploadFieldRef = useRef<{ target: "draft" | "edit"; field: ArtworkFieldKind } | null>(null);
   const mobileActionsCloseLockUntilRef = useRef(0);
+  const isMobileActionsOpenRef = useRef(false);
+  const mobileQuickAddTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileQuickAddLandscapeArtworkInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileQuickAddPortraitArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const desktopAddCardCooldownTimeoutRef = useRef<number | null>(null);
@@ -2596,6 +2600,22 @@ export function RankboardApp() {
   }, []);
 
   useEffect(() => {
+    isMobileActionsOpenRef.current = isMobileActionsOpen;
+  }, [isMobileActionsOpen]);
+
+  useEffect(() => {
+    if (!isMobileQuickAddPanelOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      mobileQuickAddTitleInputRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isMobileQuickAddPanelOpen]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -2822,6 +2842,10 @@ export function RankboardApp() {
     const visualViewport = window.visualViewport;
 
     const syncAppHeight = () => {
+      if (isMobileViewport && isMobileActionsOpenRef.current) {
+        return;
+      }
+
       const nextHeight = visualViewport?.height ?? window.innerHeight;
       root.style.setProperty("--app-height", `${Math.round(nextHeight)}px`);
     };
@@ -4761,6 +4785,7 @@ export function RankboardApp() {
     let nextColumns = columns;
     const selectedColumnId = selectedColumnIdOverride ?? draft.columnId;
     const newColumnTitle = newColumnTitleOverride ?? draft.newColumnTitle;
+    const shouldCloseMobileQuickAdd = isMobileQuickAddPanelOpen;
     const isTierListAdd = activeBoardLayout === "tier-list" && Boolean(addCardTarget.tierRowId);
     const selectedTierRowId =
       isTierListAdd
@@ -4784,7 +4809,7 @@ export function RankboardApp() {
       latestColumnsRef.current = nextColumns;
       setColumns(nextColumns);
     } else if (!isTierListAdd && destinationColumnId !== addCardTarget.columnId) {
-      destinationInsertIndex = (nextCardsByColumn[destinationColumnId] ?? []).length;
+      destinationInsertIndex = shouldCloseMobileQuickAdd ? 0 : (nextCardsByColumn[destinationColumnId] ?? []).length;
     }
 
     const itemId = makeId("item");
@@ -4836,7 +4861,9 @@ export function RankboardApp() {
           0,
           Math.min(
             nextEntryIdsByRow[targetRowId]?.length ?? 0,
-            addCardTarget.tierInsertIndex ?? nextEntryIdsByRow[targetRowId]?.length ?? 0,
+            shouldCloseMobileQuickAdd
+              ? 0
+              : addCardTarget.tierInsertIndex ?? nextEntryIdsByRow[targetRowId]?.length ?? 0,
           ),
         );
 
@@ -4864,6 +4891,11 @@ export function RankboardApp() {
       columns: nextColumns,
       cardsByColumn: nextState,
     });
+
+    if (shouldCloseMobileQuickAdd) {
+      resetMobileActionPanels();
+      setIsMobileActionsOpen(false);
+    }
   }
 
   function openAddGameModal(columnId: string, insertIndex: number) {
@@ -4944,7 +4976,7 @@ export function RankboardApp() {
     const selectedColumnId = isTierListQuickAdd
       ? targetTierRowId ?? tierListPoolRowId
       : fallbackColumnId || NEW_COLUMN_OPTION;
-    const insertIndex = fallbackColumnId ? (cardsByColumn[fallbackColumnId] ?? []).length : 0;
+    const insertIndex = 0;
 
     setDraft({
       ...initialDraft,
@@ -4956,7 +4988,7 @@ export function RankboardApp() {
             columnId: fallbackColumnId,
             insertIndex,
             tierRowId: targetTierRowId,
-            tierInsertIndex: normalizedTierListView.entryIdsByRow[targetTierRowId]?.length ?? 0,
+            tierInsertIndex: 0,
           }
         : {
             columnId: fallbackColumnId,
@@ -8369,7 +8401,7 @@ function copyCardToDraft(card: CardEntry) {
                               )}
                               onClick={() => {
                                 if (isMobileQuickAddPanelOpen) {
-                                  closeAddGameModal();
+                                  closeMobileActionsMenu();
                                   return;
                                 }
                                 openMobileQuickAddPanel();
@@ -8407,6 +8439,9 @@ function copyCardToDraft(card: CardEntry) {
                                     <label className="grid gap-2">
                                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Title</span>
                                       <input
+                                        ref={mobileQuickAddTitleInputRef}
+                                        autoFocus
+                                        name="title"
                                         className={clsx(
                                           "rounded-2xl border px-4 py-3 outline-none transition",
                                           isDarkMode
@@ -8433,6 +8468,7 @@ function copyCardToDraft(card: CardEntry) {
                                               : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                                           )}
                                           list="mobile-quick-add-series-options"
+                                          name="series"
                                           placeholder={boardVocabulary.seriesExamples}
                                           value={draft.series}
                                           onChange={(event) => {
@@ -8454,6 +8490,7 @@ function copyCardToDraft(card: CardEntry) {
                                               : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                                           )}
                                           inputMode="numeric"
+                                          name="releaseYear"
                                           placeholder="2025"
                                           value={draft.releaseYear}
                                           onChange={(event) => setDraft((current) => ({ ...current, releaseYear: event.target.value.replace(/[^\d]/g, "").slice(0, 4) }))}
@@ -8494,6 +8531,12 @@ function copyCardToDraft(card: CardEntry) {
                                             <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{artworkField.label}</span>
                                             <div className="relative">
                                               <input
+                                                ref={
+                                                  artworkField.field === "landscape"
+                                                    ? mobileQuickAddLandscapeArtworkInputRef
+                                                    : mobileQuickAddPortraitArtworkInputRef
+                                                }
+                                                name={artworkField.field === "landscape" ? "imageUrl" : "mobileTierListImageUrl"}
                                                 className={clsx(
                                                   "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
                                                   isDarkMode
@@ -8510,7 +8553,20 @@ function copyCardToDraft(card: CardEntry) {
                                                     ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
                                                 )}
+                                                onPointerDown={(event) => {
+                                                  event.preventDefault();
+                                                  const input =
+                                                    artworkField.field === "landscape"
+                                                      ? mobileQuickAddLandscapeArtworkInputRef.current
+                                                      : mobileQuickAddPortraitArtworkInputRef.current;
+                                                  input?.focus({ preventScroll: true });
+                                                }}
                                                 onClick={() => {
+                                                  const input =
+                                                    artworkField.field === "landscape"
+                                                      ? mobileQuickAddLandscapeArtworkInputRef.current
+                                                      : mobileQuickAddPortraitArtworkInputRef.current;
+                                                  input?.focus({ preventScroll: true });
                                                   void pasteArtworkFromClipboard("draft", artworkField.field);
                                                 }}
                                                 type="button"
@@ -8678,9 +8734,13 @@ function copyCardToDraft(card: CardEntry) {
                                                 ? {
                                                     ...current,
                                                     columnId: defaultAddCardColumnId,
-                                                    insertIndex: (cardsByColumn[defaultAddCardColumnId] ?? []).length,
+                                                    insertIndex: isMobileQuickAddPanelOpen
+                                                      ? 0
+                                                      : (cardsByColumn[defaultAddCardColumnId] ?? []).length,
                                                     tierRowId: value,
-                                                    tierInsertIndex: normalizedTierListView.entryIdsByRow[value]?.length ?? 0,
+                                                    tierInsertIndex: isMobileQuickAddPanelOpen
+                                                      ? 0
+                                                      : normalizedTierListView.entryIdsByRow[value]?.length ?? 0,
                                                   }
                                                 : current,
                                             );
