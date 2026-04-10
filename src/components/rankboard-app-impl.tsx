@@ -337,9 +337,14 @@ function normalizeTierListViewState(
   columns: ColumnDefinition[],
   cardsByColumn: Record<string, CardEntry[]>,
   excludedColumnIds: string[] = [],
+  allowedEntryIds?: Set<string>,
 ): TierListViewState {
   const { eligibleCards } = getTierListEligibleCards(columns, cardsByColumn, excludedColumnIds);
-  const eligibleEntryIds = new Set(eligibleCards.map((card) => card.entryId));
+  const eligibleEntryIds = new Set(
+    eligibleCards
+      .map((card) => card.entryId)
+      .filter((entryId) => !allowedEntryIds || allowedEntryIds.has(entryId)),
+  );
   const rows =
     tierListView?.rows && tierListView.rows.length > 0
       ? tierListView.rows.map((row, index) => ({
@@ -366,7 +371,7 @@ function normalizeTierListViewState(
 
   const unassignedEntryIds = eligibleCards
     .map((card) => card.entryId)
-    .filter((entryId) => !assignedEntryIds.has(entryId));
+    .filter((entryId) => eligibleEntryIds.has(entryId) && !assignedEntryIds.has(entryId));
 
   normalizedEntryIdsByRow[poolRowId] = [
     ...(normalizedEntryIdsByRow[poolRowId] ?? []),
@@ -723,21 +728,6 @@ function getTierListRankFilteredEntryIds(
   return allowedEntryIds;
 }
 
-function filterTierListViewByAllowedEntryIds(
-  tierListView: TierListViewState,
-  allowedEntryIds: Set<string>,
-) {
-  return {
-    ...tierListView,
-    entryIdsByRow: Object.fromEntries(
-      tierListView.rows.map((row) => [
-        row.id,
-        (tierListView.entryIdsByRow[row.id] ?? []).filter((entryId) => allowedEntryIds.has(entryId)),
-      ]),
-    ),
-  } satisfies TierListViewState;
-}
-
 function getFullInsertIndexFromVisibleCards(
   fullCards: CardEntry[],
   visibleCards: CardEntry[],
@@ -1079,6 +1069,7 @@ function openGoogleImageSearch(
   const url = new URL("https://www.google.com/search");
   url.searchParams.set("as_epq", exactPhrase || query);
   url.searchParams.set("tbm", "isch");
+  url.searchParams.set("as_imgar", artworkField === "portrait" ? "t" : "w");
   url.searchParams.set("tbs", artworkField === "portrait" ? "iar:t" : "iar:w");
 
   window.open(url.toString(), "_blank", "noopener,noreferrer");
@@ -2002,6 +1993,7 @@ export function RankboardApp() {
     title: string;
   } | null>(null);
   const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
+  const [isResetTierListConfirmOpen, setIsResetTierListConfirmOpen] = useState(false);
   const [tierRowOptionsState, setTierRowOptionsState] = useState<TierRowOptionsState | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
@@ -2201,6 +2193,7 @@ export function RankboardApp() {
     Boolean(pendingMirrorLinkSuggestions) ||
     Boolean(pendingCardDelete) ||
     Boolean(pendingColumnDelete) ||
+    isResetTierListConfirmOpen ||
     Boolean(pairwiseQuizState) ||
     Boolean(pairwiseQuizReview) ||
     Boolean(pendingPairwiseQuizResume) ||
@@ -5236,7 +5229,6 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    const poolRowId = getTierListPoolRowId(normalizedTierListView.rows);
     const entryIds = normalizedTierListView.rows.flatMap(
       (row) => normalizedTierListView.entryIdsByRow[row.id] ?? [],
     );
@@ -5245,9 +5237,19 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    if (!window.confirm("Reset Tier List? This will move all cards to the Pool.")) {
+    setIsResetTierListConfirmOpen(true);
+    setIsMaintenanceMenuOpen(false);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+  }
+
+  function confirmResetTierListToPool() {
+    if (activeBoardLayout !== "tier-list") {
+      setIsResetTierListConfirmOpen(false);
       return;
     }
+
+    const poolRowId = getTierListPoolRowId(normalizedTierListView.rows);
 
     updateActiveTierListView((current) => {
       const normalized = normalizeTierListViewState(
@@ -5281,9 +5283,7 @@ function copyCardToDraft(card: CardEntry) {
       };
     }, "tier-list");
 
-    setIsMaintenanceMenuOpen(false);
-    setIsActionsMenuOpen(false);
-    setIsMobileActionsOpen(false);
+    setIsResetTierListConfirmOpen(false);
   }
 
   function syncKanbanCardsToTierListPool() {
@@ -6881,27 +6881,25 @@ function copyCardToDraft(card: CardEntry) {
       const excludedColumnIds = options?.excludedColumnIds ?? currentSettings.tierListExcludedColumnIds ?? [];
       const autoSeedExcludedColumnIds =
         options?.autoSeedExcludedColumnIds ?? currentSettings.tierListAutoSeedExcludedColumnIds ?? [];
-      const normalizedNextTierListView = normalizeTierListViewState(
+      const shouldApplySeedFilter = Boolean(options?.seriesFilter?.trim()) || (options?.tierFilter ?? "all") !== "all";
+      const allowedSeedEntryIds = shouldApplySeedFilter
+        ? getTierListRankFilteredEntryIds(
+            latestColumnsRef.current,
+            latestCardsByColumnRef.current,
+            excludedColumnIds,
+            {
+              seriesFilter: options?.seriesFilter,
+              tierFilter: options?.tierFilter,
+            },
+          )
+        : undefined;
+      const seedFilteredTierListView = normalizeTierListViewState(
         currentSettings.tierListView,
         latestColumnsRef.current,
         latestCardsByColumnRef.current,
         excludedColumnIds,
+        allowedSeedEntryIds,
       );
-      const shouldApplySeedFilter = Boolean(options?.seriesFilter?.trim()) || (options?.tierFilter ?? "all") !== "all";
-      const seedFilteredTierListView = shouldApplySeedFilter
-        ? filterTierListViewByAllowedEntryIds(
-            normalizedNextTierListView,
-            getTierListRankFilteredEntryIds(
-              latestColumnsRef.current,
-              latestCardsByColumnRef.current,
-              excludedColumnIds,
-              {
-                seriesFilter: options?.seriesFilter,
-                tierFilter: options?.tierFilter,
-              },
-            ),
-          )
-        : normalizedNextTierListView;
       const nextTierListView =
         !options?.skipAutoSeed && shouldSeedTierListFromKanban(seedFilteredTierListView)
           ? seedTierListFromKanbanRankings(
@@ -12546,6 +12544,57 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
+        {isResetTierListConfirmOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setIsResetTierListConfirmOpen(false)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                Reset Tier List?
+              </h2>
+              <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                This will move all Tier List cards back into <strong>Pool</strong>. Your Kanban rankings will stay unchanged.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={confirmResetTierListToPool}
+                  type="button"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset Tier List
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setIsResetTierListConfirmOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {moveAllCardsState ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -14346,35 +14395,36 @@ function BoardColumn({
       >
         {filtering || isTierFiltering ? (
           tierFilteredCards.map((card, index) => (
-            <CardTile
-              key={card.entryId}
-              card={card}
-              collapseCards={collapseCards}
-              isDarkMode={isDarkMode}
-              showSeries={showSeriesOnCards}
-              showArtwork={showArtworkOnCards}
-              showTierHighlights={showTierHighlights}
-              frontFieldDefinitions={frontFieldDefinitions}
-              rankBadge={
-                      isRankedColumn(column)
-                        ? {
-                      value:
-                        fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
-                    }
-                  : null
-              }
-              secondaryRankBadge={
-                filtering && isRankedColumn(column)
-                  ? {
-                      label: "Filter",
-                      value: index + 1,
-                    }
-                  : null
-              }
-              clickToEdit
-              mobileArtworkVariant={isMobileViewport ? "board" : undefined}
-              onEdit={() => onEditCard(card)}
-            />
+            <div key={card.entryId} className={clsx("flex flex-col", collapseCards ? "gap-0" : "gap-1.5 sm:gap-3")}>
+              <CardTile
+                card={card}
+                collapseCards={collapseCards}
+                isDarkMode={isDarkMode}
+                showSeries={showSeriesOnCards}
+                showArtwork={showArtworkOnCards}
+                showTierHighlights={showTierHighlights}
+                frontFieldDefinitions={frontFieldDefinitions}
+                rankBadge={
+                  isRankedColumn(column)
+                    ? {
+                        value:
+                          fullCards.findIndex((columnCard) => columnCard.entryId === card.entryId) + 1,
+                      }
+                    : null
+                }
+                secondaryRankBadge={
+                  filtering && isRankedColumn(column)
+                    ? {
+                        label: "Filter",
+                        value: index + 1,
+                      }
+                    : null
+                }
+                clickToEdit
+                mobileArtworkVariant={isMobileViewport ? "board" : undefined}
+                onEdit={() => onEditCard(card)}
+              />
+            </div>
           ))
         ) : (
           <SortableContext
