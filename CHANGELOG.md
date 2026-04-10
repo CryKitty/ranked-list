@@ -11,6 +11,7 @@
 - Tightened kanban board collision so board-mode dragging now trusts only the explicit insert-target resolver instead of falling back to generic overlapping droppables, which should make the placeholder stop jumping a couple cards away from the hovered card.
 - Removed the post-drop kanban scroll-position restoration and shrank the hidden insert hit zones, which should reduce the visible column jump on pick-up/drop.
 - Kanban auto-scroll now continuously re-resolves the insert target under the stationary pointer while the list moves, and board drops prefer that tracked target over a stale `event.over`, which should keep placeholders and final drops aligned during long mobile auto-scroll drags.
+- Kanban columns now also refresh that tracked insert target directly from scroll events during drag, and drag mode no longer disables overflow anchoring on the column scroller, which should help the viewport stay visually locked while the list auto-scrolls under your finger.
 
 ## 2026-04-09
 

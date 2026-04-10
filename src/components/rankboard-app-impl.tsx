@@ -3363,8 +3363,6 @@ export function RankboardApp() {
             applyActiveBoardInsertTarget(resolveBoardInsertTarget(coords), {
               syncVisualState: true,
             });
-          } else if (activeBoardInsertTarget) {
-            setActiveBoardInsertTarget(null);
           }
         }
       }
@@ -3949,6 +3947,18 @@ export function RankboardApp() {
       setIsDragGapSuppressed(false);
       dragGapSuppressTimeoutRef.current = null;
     }, 2000);
+  }
+
+  function refreshBoardInsertTargetFromPointer() {
+    const pointerCoordinates = dragPointerCoordsRef.current;
+
+    if (!pointerCoordinates || activeBoardLayout !== "board" || isDragGapSuppressed) {
+      return;
+    }
+
+    applyActiveBoardInsertTarget(resolveBoardInsertTarget(pointerCoordinates), {
+      syncVisualState: true,
+    });
   }
 
   function beginDesktopAddCardCooldown() {
@@ -10610,7 +10620,7 @@ function copyCardToDraft(card: CardEntry) {
                             setSeriesFilter(nextSeries);
                             setOpenColumnMenuId(null);
                           }}
-                          onDragScrollActivity={() => {}}
+                          onDragScrollActivity={refreshBoardInsertTargetFromPointer}
                           onColumnDragStart={setDraggingColumnId}
                           onColumnDrop={moveColumnToTarget}
                           onMoveColumnLeft={(columnId) => moveColumnByDirection(columnId, "left")}
@@ -14839,7 +14849,7 @@ function BoardColumn({
         style={{
           touchAction: isCardDragging ? "none" : "auto",
           overscrollBehaviorY: "contain",
-          overflowAnchor: isCardDragging ? "none" : "auto",
+          overflowAnchor: "auto",
           WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
         }}
       >
