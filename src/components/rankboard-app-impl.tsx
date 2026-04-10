@@ -4836,8 +4836,11 @@ export function RankboardApp() {
         return;
       }
 
-      const adjustedDestinationIndex =
-        sourceIndex < destinationIndex ? destinationIndex - 1 : destinationIndex;
+      const adjustedDestinationIndex = parsedDropTarget
+        ? destinationIndex
+        : sourceIndex < destinationIndex
+          ? destinationIndex - 1
+          : destinationIndex;
 
       if (adjustedDestinationIndex === sourceIndex) {
         return;
@@ -10371,12 +10374,31 @@ function copyCardToDraft(card: CardEntry) {
                 return closestCorners(args);
               }}
               onDragStart={({ active, activatorEvent }) => {
+                const activeId = String(active.id);
                 setIsCardDragging(true);
                 beginDesktopAddCardCooldown();
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
-                setActiveBoardInsertTarget(null);
-                setActiveDragEntryId(String(active.id));
+                if (activeBoardLayout === "board") {
+                  const sourceColumnId = findColumnIdForEntry(activeId);
+                  const sourceCards = sourceColumnId ? cardsByColumn[sourceColumnId] ?? [] : [];
+                  const sourceIndex = sourceCards.findIndex((card) => card.entryId === activeId);
+
+                  if (sourceColumnId && sourceIndex >= 0) {
+                    applyActiveBoardInsertTarget(
+                      {
+                        columnId: sourceColumnId,
+                        insertIndex: sourceIndex,
+                      },
+                      { syncVisualState: true },
+                    );
+                  } else {
+                    setActiveBoardInsertTarget(null);
+                  }
+                } else {
+                  setActiveBoardInsertTarget(null);
+                }
+                setActiveDragEntryId(activeId);
               }}
               onDragCancel={() => {
                 setIsCardDragging(false);
@@ -10509,6 +10531,7 @@ function copyCardToDraft(card: CardEntry) {
                           suppressAddCardAffordances={isDesktopAddCardCooldownActive}
                           isCardDragging={isCardDragging}
                           isDragGapSuppressed={false}
+                          activeDragEntryId={activeDragEntryId}
                           activeBoardInsertTarget={activeBoardInsertTarget}
                           cards={visibleCards}
                           activeTierFilter={columnTierFilters[column.id] ?? "all"}
@@ -13969,6 +13992,7 @@ function BoardColumn({
   suppressAddCardAffordances,
   isCardDragging,
   isDragGapSuppressed,
+  activeDragEntryId,
   activeBoardInsertTarget,
   cards,
   activeTierFilter,
@@ -14033,6 +14057,7 @@ function BoardColumn({
   suppressAddCardAffordances: boolean;
   isCardDragging: boolean;
   isDragGapSuppressed: boolean;
+  activeDragEntryId: string | null;
   activeBoardInsertTarget: { columnId: string; insertIndex: number } | null;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
@@ -14104,6 +14129,10 @@ function BoardColumn({
       : null;
     return matchesTierFilter(originalRank, activeTierFilter);
   });
+  const renderedCards =
+    isCardDragging && activeDragEntryId
+      ? tierFilteredCards.filter((card) => card.entryId !== activeDragEntryId)
+      : tierFilteredCards;
 
   useEffect(() => {
     const node = columnScrollRef.current;
@@ -14900,11 +14929,11 @@ function BoardColumn({
                 activeBoardInsertTarget.insertIndex === 0
               }
               insertIndex={0}
-              alwaysVisible={tierFilteredCards.length === 0}
+              alwaysVisible={renderedCards.length === 0}
               hideAction={
                 suppressAddCardAffordances ||
                 (!isCardDragging &&
-                  (tierFilteredCards.length === 0 ||
+                  (renderedCards.length === 0 ||
                     isMenuOpen ||
                     isSortMenuOpen ||
                     isFilterMenuOpen ||
@@ -14920,7 +14949,7 @@ function BoardColumn({
               onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: 0 })}
               onClick={() => onAddCard(column.id, 0)}
             />
-            {tierFilteredCards.map((card, index) => (
+            {renderedCards.map((card, index) => (
               <div
                 key={card.entryId}
                 className={clsx(
@@ -14958,7 +14987,7 @@ function BoardColumn({
                     activeBoardInsertTarget.insertIndex === index + 1
                   }
                   insertIndex={index + 1}
-                  alwaysVisible={index === tierFilteredCards.length - 1}
+                  alwaysVisible={index === renderedCards.length - 1}
                   hideAction={
                     suppressAddCardAffordances ||
                     (!isCardDragging &&
@@ -14982,7 +15011,7 @@ function BoardColumn({
           </>
         )}
 
-        {tierFilteredCards.length === 0 ? (
+        {renderedCards.length === 0 ? (
           <button
             className={clsx(
               "group flex flex-1 items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6 transition",
