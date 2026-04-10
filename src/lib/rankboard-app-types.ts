@@ -1,4 +1,5 @@
 import type {
+  BoardLayout,
   CardEntry,
   ColumnDefinition,
   PairwiseQuizProgress,
@@ -68,6 +69,7 @@ export type RankBadge = {
 export type TierFilter = ShareTierFilter;
 
 export type ShareDraft = {
+  view: BoardLayout;
   columnIds: string[];
   tierFilter: ShareTierFilter;
   seriesFilter: string;

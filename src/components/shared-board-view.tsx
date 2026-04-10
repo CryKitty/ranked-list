@@ -24,7 +24,7 @@ const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df
 function buildSharedBoardCopy(board: SavedBoard) {
   const shareSettings = board.settings?.publicShare;
   const selectedColumnIds =
-    shareSettings?.columnIds && shareSettings.columnIds.length > 0
+    shareSettings?.view !== "tier-list" && shareSettings?.columnIds && shareSettings.columnIds.length > 0
       ? shareSettings.columnIds
       : board.columns.map((column) => column.id);
   const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
@@ -172,11 +172,23 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   }
 
   const shareSettings = board.settings?.publicShare;
+  const isTierListShare = shareSettings?.view === "tier-list";
   const sharedTitle = shareSettings?.title?.trim() || board.title;
   const selectedColumnIds =
-    shareSettings?.columnIds && shareSettings.columnIds.length > 0
+    !isTierListShare && shareSettings?.columnIds && shareSettings.columnIds.length > 0
       ? shareSettings.columnIds
       : board.columns.map((column) => column.id);
+  const tierRows = useMemo(
+    () => board.settings?.tierListView?.rows ?? [],
+    [board.settings?.tierListView?.rows],
+  );
+  const selectedTierRowIds = useMemo(
+    () =>
+      isTierListShare && shareSettings?.columnIds && shareSettings.columnIds.length > 0
+        ? shareSettings.columnIds
+        : tierRows.map((row) => row.id),
+    [isTierListShare, shareSettings, tierRows],
+  );
   const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
   const tierFilter = shareSettings?.tierFilter ?? "all";
   const selectedSeries = shareSettings?.seriesFilter?.trim() ?? "";
@@ -212,6 +224,48 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
         };
       }),
     [board.cardsByColumn, selectedColumns, selectedSearchTerm, selectedSeries, tierFilter],
+  );
+  const tierCardsByEntryId = useMemo(() => {
+    const entries = new Map<string, SavedBoard["cardsByColumn"][string][number]>();
+
+    for (const card of Object.values(board.cardsByColumn).flat()) {
+      if (card.mirroredFromEntryId || entries.has(card.entryId)) {
+        continue;
+      }
+
+      entries.set(card.entryId, card);
+    }
+
+    return entries;
+  }, [board.cardsByColumn]);
+  const scopedTierRows = useMemo(
+    () =>
+      tierRows
+        .filter((row) => selectedTierRowIds.includes(row.id))
+        .map((row) => {
+          const cards = (board.settings?.tierListView?.entryIdsByRow[row.id] ?? [])
+            .map((entryId) => tierCardsByEntryId.get(entryId))
+            .filter((card): card is SavedBoard["cardsByColumn"][string][number] => Boolean(card))
+            .filter((card) => {
+              if (selectedSeries && card.series !== selectedSeries) {
+                return false;
+              }
+
+              return matchesCardSearch(card, selectedSearchTerm);
+            })
+            .filter((_, index) => matchesTierFilterByIndex(index, tierFilter));
+
+          return { row, cards };
+        }),
+    [
+      board.settings?.tierListView?.entryIdsByRow,
+      selectedSearchTerm,
+      selectedSeries,
+      selectedTierRowIds,
+      tierCardsByEntryId,
+      tierFilter,
+      tierRows,
+    ],
   );
 
   return (
@@ -266,10 +320,15 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
 
         <section
           className={clsx(
-            "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full flex-1 items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
-            isMobileViewport
-              ? "snap-x snap-mandatory gap-4 px-0"
-              : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
+            "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full flex-1 items-start pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
+            isTierListShare
+              ? "flex-col gap-2 overflow-y-auto overflow-x-hidden px-0"
+              : "overflow-x-auto overflow-y-hidden",
+            !isTierListShare && (
+              isMobileViewport
+                ? "snap-x snap-mandatory gap-4 px-0"
+                : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none"
+            ),
           )}
           style={
             isMobileViewport
@@ -285,7 +344,53 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
               : undefined
           }
         >
-          {scopedColumns.map(({ column, cards }) => {
+          {isTierListShare ? scopedTierRows.map(({ row, cards }) => {
+            return (
+              <div key={row.id} className={clsx("grid w-full grid-cols-[44px_minmax(0,1fr)] rounded-[28px] p-[1px]", row.accent)}>
+                <div className={clsx("flex min-h-[142px] items-center justify-center rounded-l-[27px] px-2 py-4", isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950")}>
+                  <span className="text-center text-lg font-black leading-none">{row.title}</span>
+                </div>
+                <div className={clsx("min-h-[142px] rounded-r-[27px] border p-3", isDarkMode ? "border-slate-800 bg-slate-950/95" : "border-slate-200 bg-[#fff7f0]")}>
+                  <div className="flex flex-wrap content-start gap-2">
+                    {cards.map((card) => {
+                      const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
+                      const artworkUrl = isMobileViewport || board.settings?.tierListCardAspectRatio === "portrait"
+                        ? card.mobileTierListImageUrl || card.imageUrl
+                        : card.imageUrl;
+
+                      return (
+                        <article
+                          key={card.entryId}
+                          className="w-[92px] shrink-0 overflow-hidden rounded-[22px] border border-white/10 bg-slate-900 sm:w-[150px]"
+                        >
+                          <div className={clsx("relative bg-slate-900", isMobileViewport ? "aspect-[3/4]" : board.settings?.tierListCardAspectRatio === "landscape" ? "aspect-video" : board.settings?.tierListCardAspectRatio === "portrait" ? "aspect-[3/4]" : "aspect-square")}>
+                            {artworkUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(artworkUrl)} />
+                            ) : null}
+                            <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
+                            <div className="absolute inset-x-0 bottom-0 p-3">
+                              {displaySeries ? (
+                                <p className="mb-1 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">
+                                  {displaySeries}
+                                </p>
+                              ) : null}
+                              <h3 className="truncate text-sm font-bold text-white sm:text-base">{displayTitle}</h3>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                    {cards.length === 0 ? (
+                      <div className={clsx("flex min-h-28 flex-1 items-center justify-center rounded-[24px] border border-dashed px-4 text-center text-sm", isDarkMode ? "border-white/10 bg-white/[0.02] text-slate-400" : "border-slate-300 bg-white/70 text-slate-500")}>
+                        Nothing in this shared row.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          }) : scopedColumns.map(({ column, cards }) => {
             return (
               <div
                 key={column.id}

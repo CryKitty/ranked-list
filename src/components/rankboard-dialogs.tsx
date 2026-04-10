@@ -1133,6 +1133,7 @@ export function ShareBoardDialog({
   boardTitle,
   sharedTitle,
   columns,
+  shareView,
   allSeries,
   selectedColumnIds,
   selectedTierFilter,
@@ -1140,6 +1141,7 @@ export function ShareBoardDialog({
   searchTerm,
   copiedShareUrl,
   onClose,
+  onShareViewChange,
   onToggleColumn,
   onTierChange,
   onSeriesChange,
@@ -1153,6 +1155,7 @@ export function ShareBoardDialog({
   boardTitle: string;
   sharedTitle: string;
   columns: ShareColumnOption[];
+  shareView: BoardLayout;
   allSeries: string[];
   selectedColumnIds: string[];
   selectedTierFilter: ShareTierFilter;
@@ -1160,6 +1163,7 @@ export function ShareBoardDialog({
   searchTerm: string;
   copiedShareUrl: string | null;
   onClose: () => void;
+  onShareViewChange: (view: BoardLayout) => void;
   onToggleColumn: (columnId: string) => void;
   onTierChange: (tier: ShareTierFilter) => void;
   onSeriesChange: (series: string) => void;
@@ -1179,6 +1183,7 @@ export function ShareBoardDialog({
     { id: "top20", label: "Top 20" },
     { id: "top30", label: "Top 30" },
   ];
+  const shareOptionLabel = shareView === "tier-list" ? "Rows" : "Columns";
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
@@ -1215,7 +1220,40 @@ export function ShareBoardDialog({
             <section className="grid gap-3">
               <div className="flex items-center gap-2">
                 <Share2 className={clsx("h-4 w-4", isDarkMode ? "text-slate-300" : "text-slate-600")} />
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">Columns</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">View</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ["board", "Kanban"],
+                  ["tier-list", "Tier List"],
+                ] as const).map(([view, label]) => {
+                  const enabled = shareView === view;
+                  return (
+                    <button
+                      key={view}
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                        enabled
+                          ? isDarkMode
+                            ? "border-white/35 bg-white text-slate-950"
+                            : "border-slate-950 bg-slate-950 text-white"
+                          : isDarkMode
+                            ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                      )}
+                      onClick={() => onShareViewChange(view)}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            <section className="grid gap-3">
+              <div className="flex items-center gap-2">
+                <Share2 className={clsx("h-4 w-4", isDarkMode ? "text-slate-300" : "text-slate-600")} />
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em]">{shareOptionLabel}</h3>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {columns.map((column) => {

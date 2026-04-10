@@ -58,7 +58,11 @@ import {
   Search,
   Settings2,
   Share2,
+  RectangleHorizontal,
+  RectangleVertical,
+  Rows3,
   Sparkles,
+  Square,
   Sun,
   Trash2,
   Tv,
@@ -133,7 +137,7 @@ import {
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, TierListRowDefinition, TierListViewState } from "@/lib/types";
+import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, ShareTierFilter, TierListRowDefinition, TierListViewState } from "@/lib/types";
 
 type ArtworkFieldKind = "landscape" | "portrait";
 
@@ -165,6 +169,8 @@ type TierListSeedPromptState = {
     cardCount: number;
     mode: TierListSeedColumnMode;
   }>;
+  seriesFilter: string;
+  tierFilter: ShareTierFilter;
 };
 const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   cardLabel: "",
@@ -177,6 +183,7 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   tierListAutoSeedExcludedColumnIds: [],
   tierListView: undefined,
   publicShare: {
+    view: "board",
     columnIds: [],
     tierFilter: "all",
     seriesFilter: "",
@@ -389,10 +396,16 @@ function seedTierListFromKanbanRankings(
   columns: ColumnDefinition[],
   cardsByColumn: Record<string, CardEntry[]>,
   excludedColumnIds: string[] = [],
+  options?: {
+    seriesFilter?: string;
+    tierFilter?: ShareTierFilter;
+  },
 ): TierListViewState {
   const poolRowId = getTierListPoolRowId(tierListView.rows);
   const rankedRows = tierListView.rows.filter((row) => row.id !== poolRowId);
   const excludedColumnIdSet = new Set(excludedColumnIds);
+  const selectedSeries = options?.seriesFilter?.trim() ?? "";
+  const selectedTierFilter = options?.tierFilter ?? "all";
 
   if (rankedRows.length === 0) {
     return tierListView;
@@ -417,7 +430,9 @@ function seedTierListFromKanbanRankings(
         !card ||
         card.mirroredFromEntryId ||
         assignedEntryIds.has(card.entryId) ||
-        assignedItemIds.has(card.itemId)
+        assignedItemIds.has(card.itemId) ||
+        (selectedSeries && card.series !== selectedSeries) ||
+        !matchesTierFilter(rankIndex + 1, selectedTierFilter)
       ) {
         continue;
       }
@@ -592,6 +607,7 @@ function normalizeFieldDefinitions(
 
 function normalizePublicShareSettings(settings?: Partial<BoardSettings>["publicShare"]): NonNullable<BoardSettings["publicShare"]> {
   return {
+    view: normalizeBoardLayout(settings?.view),
     columnIds: settings?.columnIds ?? [],
     tierFilter: settings?.tierFilter ?? "all",
     seriesFilter: settings?.seriesFilter ?? "",
@@ -1807,6 +1823,7 @@ export function RankboardApp() {
   const [isMobileQuickSharePanelOpen, setIsMobileQuickSharePanelOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareDraft, setShareDraft] = useState<ShareDraft>({
+    view: "board",
     columnIds: [],
     tierFilter: "all",
     seriesFilter: "",
@@ -1966,6 +1983,11 @@ export function RankboardApp() {
   const tierListPoolRowId = getTierListPoolRowId(normalizedTierListView.rows);
   const tierListPoolCards =
     tierListRows.find((item) => item.row.id === tierListPoolRowId)?.cards ?? [];
+  const shareOptions =
+    shareDraft.view === "tier-list"
+      ? normalizedTierListView.rows
+      : columns;
+  const shareOptionLabel = shareDraft.view === "tier-list" ? "Rows" : "Columns";
   const defaultAddCardColumnId =
     columns.find((column) => !column.mirrorsEntireBoard)?.id ??
     columns[0]?.id ??
@@ -3078,6 +3100,29 @@ export function RankboardApp() {
 
           if (deltaY !== 0) {
             scrollContainer.scrollTop += deltaY * columnAutoScrollBoost;
+          }
+
+          if (activeBoardLayout === "tier-list" && scrollContainer.scrollWidth > scrollContainer.clientWidth) {
+            const horizontalEdgeThreshold = Math.max(42, Math.min(86, rect.width * 0.16));
+            let deltaX = 0;
+
+            if (coords.x <= rect.left + horizontalEdgeThreshold) {
+              deltaX = -Math.max(
+                isMobileViewport && isTouchDrag ? 1.5 : 3,
+                ((rect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) *
+                  (isMobileViewport && isTouchDrag ? 7 : 13),
+              );
+            } else if (coords.x >= rect.right - horizontalEdgeThreshold) {
+              deltaX = Math.max(
+                isMobileViewport && isTouchDrag ? 1.5 : 3,
+                ((coords.x - (rect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) *
+                  (isMobileViewport && isTouchDrag ? 7 : 13),
+              );
+            }
+
+            if (deltaX !== 0) {
+              scrollContainer.scrollLeft += deltaX;
+            }
           }
         }
       }
@@ -6246,11 +6291,17 @@ function copyCardToDraft(card: CardEntry) {
 
   function openShareModal() {
     const existingShare = normalizePublicShareSettings(activeBoardSettings.publicShare);
+    const nextShareView = existingShare.view ?? activeBoardLayout;
+    const nextShareOptions =
+      nextShareView === "tier-list"
+        ? normalizedTierListView.rows
+        : columns;
     setShareDraft({
+      view: nextShareView,
       columnIds:
         existingShare.columnIds.length > 0
-          ? existingShare.columnIds.filter((columnId) => columns.some((column) => column.id === columnId))
-          : columns.map((column) => column.id),
+          ? existingShare.columnIds.filter((columnId) => nextShareOptions.some((item) => item.id === columnId))
+          : nextShareOptions.map((item) => item.id),
       tierFilter: existingShare.tierFilter,
       seriesFilter: existingShare.seriesFilter || seriesFilter,
       searchTerm: existingShare.searchTerm || searchTerm,
@@ -6264,11 +6315,17 @@ function copyCardToDraft(card: CardEntry) {
 
   function openMobileQuickSharePanel() {
     const existingShare = normalizePublicShareSettings(activeBoardSettings.publicShare);
+    const nextShareView = existingShare.view ?? activeBoardLayout;
+    const nextShareOptions =
+      nextShareView === "tier-list"
+        ? normalizedTierListView.rows
+        : columns;
     setShareDraft({
+      view: nextShareView,
       columnIds:
         existingShare.columnIds.length > 0
-          ? existingShare.columnIds.filter((columnId) => columns.some((column) => column.id === columnId))
-          : columns.map((column) => column.id),
+          ? existingShare.columnIds.filter((columnId) => nextShareOptions.some((item) => item.id === columnId))
+          : nextShareOptions.map((item) => item.id),
       tierFilter: existingShare.tierFilter,
       seriesFilter: existingShare.seriesFilter || seriesFilter,
       searchTerm: existingShare.searchTerm || searchTerm,
@@ -6297,7 +6354,8 @@ function copyCardToDraft(card: CardEntry) {
     const nextPublishedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const normalizedShareDraft = {
-      columnIds: shareDraft.columnIds.filter((columnId) => columns.some((column) => column.id === columnId)),
+      view: shareDraft.view,
+      columnIds: shareDraft.columnIds.filter((columnId) => shareOptions.some((item) => item.id === columnId)),
       tierFilter: shareDraft.tierFilter,
       seriesFilter: shareDraft.seriesFilter,
       searchTerm: shareDraft.searchTerm.trim(),
@@ -6592,17 +6650,24 @@ function copyCardToDraft(card: CardEntry) {
               Card Shape
             </span>
             <div className="grid grid-cols-3 gap-1.5">
-              {(["portrait", "square", "landscape"] as const).map((value) => (
+              {([
+                ["portrait", RectangleVertical, "Portrait cards"],
+                ["square", Square, "Square cards"],
+                ["landscape", RectangleHorizontal, "Landscape cards"],
+              ] as const).map(([value, Icon, label]) => (
                 <button
                   key={value}
+                  aria-label={label}
+                  title={label}
                   className={clsx(
                     buttonBaseClass,
+                    "inline-flex items-center justify-center",
                     tierListCardAspectRatio === value ? activeButtonClass : inactiveButtonClass,
                   )}
                   onClick={() => updateActiveBoardSettings({ tierListCardAspectRatio: value })}
                   type="button"
                 >
-                  {value === "portrait" ? "Portrait" : value === "square" ? "Square" : "Landscape"}
+                  <Icon className="h-4 w-4" />
                 </button>
               ))}
             </div>
@@ -6613,17 +6678,23 @@ function copyCardToDraft(card: CardEntry) {
             Row Overflow
           </span>
           <div className="grid grid-cols-2 gap-1.5">
-            {(["wrap", "scroll"] as const).map((value) => (
+            {([
+              ["wrap", Rows3, "Wrap rows"],
+              ["scroll", ArrowLeftRight, "Scroll rows"],
+            ] as const).map(([value, Icon, label]) => (
               <button
                 key={value}
+                aria-label={label}
+                title={label}
                 className={clsx(
                   buttonBaseClass,
+                  "inline-flex items-center justify-center",
                   tierListRowOverflow === value ? activeButtonClass : inactiveButtonClass,
                 )}
                 onClick={() => updateActiveBoardSettings({ tierListRowOverflow: value })}
                 type="button"
               >
-                {value === "wrap" ? "Wrap" : "Scroll"}
+                <Icon className="h-4 w-4" />
               </button>
             ))}
           </div>
@@ -6659,6 +6730,8 @@ function copyCardToDraft(card: CardEntry) {
   function applyTierListViewLayout(options?: {
     excludedColumnIds?: string[];
     autoSeedExcludedColumnIds?: string[];
+    seriesFilter?: string;
+    tierFilter?: ShareTierFilter;
     skipAutoSeed?: boolean;
   }) {
     const nextBoards = latestBoardsRef.current.map((board) => {
@@ -6686,6 +6759,10 @@ function copyCardToDraft(card: CardEntry) {
               latestColumnsRef.current,
               latestCardsByColumnRef.current,
               autoSeedExcludedColumnIds,
+              {
+                seriesFilter: options?.seriesFilter,
+                tierFilter: options?.tierFilter,
+              },
             )
           : normalizedNextTierListView;
 
@@ -6729,6 +6806,8 @@ function copyCardToDraft(card: CardEntry) {
       autoSeedExcludedColumnIds: tierListSeedPromptState.columns
         .filter((column) => column.mode === "pool")
         .map((column) => column.id),
+      seriesFilter: tierListSeedPromptState.seriesFilter,
+      tierFilter: tierListSeedPromptState.tierFilter,
     });
   }
 
@@ -6774,7 +6853,7 @@ function copyCardToDraft(card: CardEntry) {
     );
 
     if (shouldSeedTierListFromKanban(normalizedNextTierListView) && seedColumns.length > 0) {
-      setTierListSeedPromptState({ columns: seedColumns });
+      setTierListSeedPromptState({ columns: seedColumns, seriesFilter, tierFilter: "all" });
       setIsActionsMenuOpen(false);
       setIsMobileActionsOpen(false);
       return;
@@ -8702,6 +8781,51 @@ function copyCardToDraft(card: CardEntry) {
                                   </div>
 
                                   <div className="grid gap-3">
+                                    <div className="grid gap-2">
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>View</span>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {([
+                                          ["board", "Kanban"],
+                                          ["tier-list", "Tier List"],
+                                        ] as const).map(([view, label]) => {
+                                          const enabled = shareDraft.view === view;
+                                          return (
+                                            <button
+                                              key={view}
+                                              className={clsx(
+                                                "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                                                enabled
+                                                  ? isDarkMode
+                                                    ? "border-white/35 bg-white text-slate-950"
+                                                    : "border-slate-950 bg-slate-950 text-white"
+                                                  : isDarkMode
+                                                    ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                                              )}
+                                              onClick={() =>
+                                                setShareDraft((current) => {
+                                                  const nextOptions = view === "tier-list" ? normalizedTierListView.rows : columns;
+                                                  const retainedColumnIds = current.columnIds.filter((id) =>
+                                                    nextOptions.some((item) => item.id === id),
+                                                  );
+
+                                                  return {
+                                                    ...current,
+                                                    view,
+                                                    columnIds: retainedColumnIds.length > 0
+                                                      ? retainedColumnIds
+                                                      : nextOptions.map((item) => item.id),
+                                                  };
+                                                })
+                                              }
+                                              type="button"
+                                            >
+                                              {label}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
                                     <label className="grid gap-2">
                                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Shared title</span>
                                       <input
@@ -8793,9 +8917,9 @@ function copyCardToDraft(card: CardEntry) {
                                     </div>
 
                                     <div className="grid gap-2">
-                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Columns</span>
+                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{shareOptionLabel}</span>
                                       <div className="grid gap-2">
-                                        {columns.map((column) => {
+                                        {shareOptions.map((column) => {
                                           const enabled = shareDraft.columnIds.includes(column.id);
                                           return (
                                             <button
@@ -9079,7 +9203,7 @@ function copyCardToDraft(card: CardEntry) {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur -mt-[30px] sm:mt-0 sm:p-4",
+              "relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur -mt-[30px] sm:-mt-[2vh] sm:p-4",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -10331,7 +10455,7 @@ function copyCardToDraft(card: CardEntry) {
           allSeries={allSeries}
           boardTitle={activeBoardTitle}
           sharedTitle={shareDraft.title}
-          columns={columns}
+          columns={shareOptions}
           copiedShareUrl={copiedShareUrl}
           isDarkMode={isDarkMode}
           isOpen={isShareModalOpen}
@@ -10339,6 +10463,7 @@ function copyCardToDraft(card: CardEntry) {
           selectedColumnIds={shareDraft.columnIds}
           selectedSeriesFilter={shareDraft.seriesFilter}
           selectedTierFilter={shareDraft.tierFilter}
+          shareView={shareDraft.view}
           onClose={() => setIsShareModalOpen(false)}
           onCopyAgain={() => {
             if (copiedShareUrl) {
@@ -10348,6 +10473,22 @@ function copyCardToDraft(card: CardEntry) {
           onSearchChange={(value) => setShareDraft((current) => ({ ...current, searchTerm: value }))}
           onSharedTitleChange={(value) => setShareDraft((current) => ({ ...current, title: value }))}
           onSeriesChange={(series) => setShareDraft((current) => ({ ...current, seriesFilter: series }))}
+          onShareViewChange={(view) =>
+            setShareDraft((current) => {
+              const nextOptions = view === "tier-list" ? normalizedTierListView.rows : columns;
+              const retainedColumnIds = current.columnIds.filter((id) =>
+                nextOptions.some((item) => item.id === id),
+              );
+
+              return {
+                ...current,
+                view,
+                columnIds: retainedColumnIds.length > 0
+                  ? retainedColumnIds
+                  : nextOptions.map((item) => item.id),
+              };
+            })
+          }
           onSubmit={() => {
             void shareActiveBoard();
           }}
@@ -12351,6 +12492,75 @@ function copyCardToDraft(card: CardEntry) {
                 </button>
               </div>
               <div className="mt-6 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                <div className={clsx("grid gap-3 rounded-2xl border p-3", isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50")}>
+                  <p className="text-sm font-black">Optional curation</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                        Series
+                      </span>
+                      <select
+                        className={clsx(
+                          "rounded-2xl border px-3 py-2.5 text-sm outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
+                        )}
+                        value={tierListSeedPromptState.seriesFilter}
+                        onChange={(event) =>
+                          setTierListSeedPromptState((current) =>
+                            current ? { ...current, seriesFilter: event.target.value } : current,
+                          )
+                        }
+                      >
+                        <option value="">All series</option>
+                        {allSeries.map((series) => (
+                          <option key={series} value={series}>
+                            {series}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="grid gap-2">
+                      <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                        Rank tier
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {([
+                          ["all", "All"],
+                          ["top10", "Top 10"],
+                          ["top20", "Top 20"],
+                          ["top30", "Top 30"],
+                        ] as const).map(([value, label]) => {
+                          const enabled = tierListSeedPromptState.tierFilter === value;
+                          return (
+                            <button
+                              key={value}
+                              className={clsx(
+                                "rounded-full border px-3 py-2 text-xs font-semibold transition",
+                                enabled
+                                  ? isDarkMode
+                                    ? "border-white/35 bg-white text-slate-950"
+                                    : "border-slate-950 bg-slate-950 text-white"
+                                  : isDarkMode
+                                    ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
+                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                              )}
+                              onClick={() =>
+                                setTierListSeedPromptState((current) =>
+                                  current ? { ...current, tierFilter: value } : current,
+                                )
+                              }
+                              type="button"
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {tierListSeedPromptState.columns.map((column) => (
                   <div
                     key={column.id}
@@ -12388,6 +12598,7 @@ function copyCardToDraft(card: CardEntry) {
                               setTierListSeedPromptState((current) =>
                                 current
                                   ? {
+                                      ...current,
                                       columns: current.columns.map((item) =>
                                         item.id === column.id ? { ...item, mode } : item,
                                       ),
@@ -14455,7 +14666,9 @@ function TierListRow({
                       forceSquare={!isMobileViewport && cardAspectRatio === "square"}
                     rankBadge={null}
                     onEdit={() => onEditCard(card)}
-                    mobileArtworkVariant={isMobileViewport ? "tier-list" : undefined}
+                    mobileArtworkVariant={
+                      isMobileViewport || cardAspectRatio === "portrait" ? "tier-list" : undefined
+                    }
                     compactImageOnly={isMobileViewport}
                     cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
                     clickToEdit

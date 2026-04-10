@@ -9,6 +9,7 @@ export type BuiltInFieldKey = "series" | "releaseYear" | "imageUrl" | "notes";
 export type ShareTierFilter = "all" | "top10" | "top15" | "top20" | "top30";
 
 export type BoardShareSettings = {
+  view?: BoardLayout;
   columnIds: string[];
   tierFilter: ShareTierFilter;
   seriesFilter: string;
