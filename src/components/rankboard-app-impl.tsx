@@ -261,15 +261,14 @@ function getTierListRankedCards(columns: ColumnDefinition[], cardsByColumn: Reco
   };
 }
 
-function createEmptyBoard(title = "New Board", _layout: BoardLayout = "board"): SavedBoard {
-  void _layout;
+function createEmptyBoard(title = "New Board", layout: BoardLayout = "board"): SavedBoard {
   const timestamp = new Date().toISOString();
   const starterSnapshot = createStarterBoardSnapshot();
 
   return {
     id: makeId("board"),
     title,
-    settings: getDefaultBoardSettings(title, "board"),
+    settings: getDefaultBoardSettings(title, layout),
     columns: starterSnapshot.columns,
     cardsByColumn: starterSnapshot.cardsByColumn,
     createdAt: timestamp,
@@ -493,6 +492,10 @@ function normalizePublicShareSettings(settings?: Partial<BoardSettings>["publicS
     title: settings?.title ?? "",
     expiresAt: settings?.expiresAt ?? null,
   };
+}
+
+function normalizeBoardLayout(layout?: BoardLayout): BoardLayout {
+  return layout === "tier-list" ? "tier-list" : "board";
 }
 
 function formatDateFieldValue(value: string, format: DateFieldFormat) {
@@ -892,6 +895,8 @@ function isEphemeralStarterBoard(board: SavedBoard) {
 }
 
 function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> & { settings?: Partial<BoardSettings> })) {
+  const boardLayout = normalizeBoardLayout(board.settings?.boardLayout);
+
   return {
     ...board,
     columns: board.columns.map((column) => ({
@@ -903,13 +908,13 @@ function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> &
       confirmMirrorClones: column.confirmMirrorClones ?? false,
     })),
     settings: {
-      ...getDefaultBoardSettings(board.title),
+      ...getDefaultBoardSettings(board.title, boardLayout),
       ...board.settings,
-      boardLayout: "board",
+      boardLayout,
       publicShare: normalizePublicShareSettings(board.settings?.publicShare),
       fieldDefinitions: normalizeFieldDefinitions(board.settings?.fieldDefinitions, board.title, {
         ...board.settings,
-        boardLayout: "board",
+        boardLayout,
       }),
     },
     cardsByColumn: Object.fromEntries(
@@ -1393,13 +1398,12 @@ function getCardLinkedSiblings(cardsByColumn: Record<string, CardEntry[]>, entry
   );
 }
 
-function getDefaultBoardSettings(boardTitle: string, _boardLayout: BoardLayout = "board"): BoardSettings {
-  void _boardLayout;
+function getDefaultBoardSettings(boardTitle: string, boardLayout: BoardLayout = "board"): BoardSettings {
   const boardKind = getBoardKind(boardTitle);
 
   return {
     ...DEFAULT_BOARD_SETTINGS,
-    boardLayout: "board",
+    boardLayout,
     cardLabel: deriveDefaultCardLabel(boardTitle),
     collapseCards: false,
     showTierHighlights: true,
@@ -6300,21 +6304,71 @@ function copyCardToDraft(card: CardEntry) {
 
   function toggleBoardViewLayout() {
     if (activeBoardLayout === "tier-list") {
-      updateActiveBoardSettings({
-        boardLayout: "board",
-        collapseCards: activeBoardSettings.restoreCollapseCardsOnBoard ?? activeBoardSettings.collapseCards,
-        showTierHighlights:
-          activeBoardSettings.restoreTierHighlightsOnBoard ?? activeBoardSettings.showTierHighlights,
+      const nextBoards = latestBoardsRef.current.map((board) =>
+        board.id === activeBoardId
+          ? {
+              ...board,
+              settings: {
+                ...DEFAULT_BOARD_SETTINGS,
+                ...board.settings,
+                boardLayout: "board" as const,
+                collapseCards: activeBoardSettings.restoreCollapseCardsOnBoard ?? activeBoardSettings.collapseCards,
+                showTierHighlights:
+                  activeBoardSettings.restoreTierHighlightsOnBoard ?? activeBoardSettings.showTierHighlights,
+              },
+              updatedAt: new Date().toISOString(),
+            }
+          : board,
+      );
+
+      latestBoardsRef.current = nextBoards;
+      setBoards(nextBoards);
+
+      queuePersistBoardState({
+        boards: nextBoards,
+        activeBoardId,
+        cardsByColumn: latestCardsByColumnRef.current,
       });
       return;
     }
 
-    updateActiveTierListView((current) => current, "tier-list");
-    updateActiveBoardSettings({
-      collapseCards: false,
-      showTierHighlights: false,
-      restoreCollapseCardsOnBoard: activeBoardSettings.collapseCards,
-      restoreTierHighlightsOnBoard: activeBoardSettings.showTierHighlights,
+    const nextBoards = latestBoardsRef.current.map((board) => {
+      if (board.id !== activeBoardId) {
+        return board;
+      }
+
+      const currentSettings = {
+        ...DEFAULT_BOARD_SETTINGS,
+        ...board.settings,
+      };
+      const nextTierListView = normalizeTierListViewState(
+        currentSettings.tierListView,
+        latestColumnsRef.current,
+        latestCardsByColumnRef.current,
+      );
+
+      return {
+        ...board,
+        settings: {
+          ...currentSettings,
+          boardLayout: "tier-list" as const,
+          tierListView: nextTierListView,
+          collapseCards: false,
+          showTierHighlights: false,
+          restoreCollapseCardsOnBoard: activeBoardSettings.collapseCards,
+          restoreTierHighlightsOnBoard: activeBoardSettings.showTierHighlights,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    latestBoardsRef.current = nextBoards;
+    setBoards(nextBoards);
+
+    queuePersistBoardState({
+      boards: nextBoards,
+      activeBoardId,
+      cardsByColumn: latestCardsByColumnRef.current,
     });
   }
 
