@@ -2393,13 +2393,22 @@ export function RankboardApp() {
       boards: effectiveBoards,
     });
 
-    window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
+    try {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
 
-    if (currentUser) {
-      try {
+      if (currentUser) {
         window.localStorage.setItem(getUserBoardCacheKey(currentUser.id), serializedState);
+      }
+    } catch {
+      // Local storage can be smaller than a large board. Remote persistence and
+      // in-memory state should keep moving instead of crashing the app.
+      try {
+        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+        if (currentUser) {
+          window.localStorage.removeItem(getUserBoardCacheKey(currentUser.id));
+        }
       } catch {
-        // Ignore user-scoped cache failures.
+        // Ignore cache cleanup failures too.
       }
     }
 
