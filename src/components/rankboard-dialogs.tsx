@@ -68,6 +68,7 @@ function ArtworkFieldInput({
   name,
   value,
   placeholder,
+  menuPlacement = "down",
   isUploadingArtwork,
   onChange,
   onOpenImageSearch,
@@ -79,6 +80,7 @@ function ArtworkFieldInput({
   name: string;
   value: string;
   placeholder: string;
+  menuPlacement?: "down" | "up";
   isUploadingArtwork: boolean;
   onChange: (value: string) => void;
   onOpenImageSearch: () => void;
@@ -135,7 +137,8 @@ function ArtworkFieldInput({
         {isMenuOpen ? (
           <div
             className={clsx(
-              "absolute right-0 top-[calc(100%+0.55rem)] z-20 grid min-w-[9.5rem] gap-1 rounded-[20px] border p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)]",
+              "absolute right-0 z-20 grid min-w-[9.5rem] gap-1 rounded-[20px] border p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)]",
+              menuPlacement === "up" ? "bottom-[calc(100%+0.55rem)]" : "top-[calc(100%+0.55rem)]",
               isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900",
             )}
           >
@@ -607,6 +610,7 @@ export function EditCardDialog({
                 isDarkMode={isDarkMode}
                 isUploadingArtwork={isUploadingArtwork}
                 label="Portrait Artwork"
+                menuPlacement="up"
                 name="mobileTierListImageUrl"
                 onChange={onMobileTierListImageUrlChange}
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
@@ -940,6 +944,7 @@ export function AddCardDialog({
                 isDarkMode={isDarkMode}
                 isUploadingArtwork={isUploadingArtwork}
                 label="Portrait Artwork"
+                menuPlacement="up"
                 name="mobileTierListImageUrl"
                 onChange={onMobileTierListImageUrlChange}
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}

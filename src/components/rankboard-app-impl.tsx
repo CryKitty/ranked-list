@@ -350,6 +350,73 @@ function normalizeTierListViewState(
   };
 }
 
+function shouldSeedTierListFromKanban(tierListView: TierListViewState) {
+  const poolRowId = getTierListPoolRowId(tierListView.rows);
+
+  return tierListView.rows.every((row) => {
+    if (row.id === poolRowId) {
+      return true;
+    }
+
+    return (tierListView.entryIdsByRow[row.id] ?? []).length === 0;
+  });
+}
+
+function seedTierListFromKanbanRankings(
+  tierListView: TierListViewState,
+  columns: ColumnDefinition[],
+  cardsByColumn: Record<string, CardEntry[]>,
+): TierListViewState {
+  const poolRowId = getTierListPoolRowId(tierListView.rows);
+  const rankedRows = tierListView.rows.filter((row) => row.id !== poolRowId);
+
+  if (rankedRows.length === 0) {
+    return tierListView;
+  }
+
+  const assignedEntryIds = new Set<string>();
+  const rankedEntryIds: string[] = [];
+
+  for (const column of columns.filter((item) => !item.mirrorsEntireBoard && isRankedColumn(item))) {
+    for (const card of cardsByColumn[column.id] ?? []) {
+      if (card.mirroredFromEntryId || assignedEntryIds.has(card.entryId)) {
+        continue;
+      }
+
+      assignedEntryIds.add(card.entryId);
+      rankedEntryIds.push(card.entryId);
+    }
+  }
+
+  if (rankedEntryIds.length === 0) {
+    return tierListView;
+  }
+
+  const nextEntryIdsByRow: Record<string, string[]> = Object.fromEntries(
+    tierListView.rows.map((row) => [row.id, []]),
+  );
+
+  for (const [index, entryId] of rankedEntryIds.entries()) {
+    const rowIndex = Math.min(
+      rankedRows.length - 1,
+      Math.floor((index * rankedRows.length) / rankedEntryIds.length),
+    );
+    nextEntryIdsByRow[rankedRows[rowIndex].id] = [
+      ...(nextEntryIdsByRow[rankedRows[rowIndex].id] ?? []),
+      entryId,
+    ];
+  }
+
+  nextEntryIdsByRow[poolRowId] = (tierListView.entryIdsByRow[poolRowId] ?? []).filter(
+    (entryId) => !assignedEntryIds.has(entryId),
+  );
+
+  return {
+    ...tierListView,
+    entryIdsByRow: nextEntryIdsByRow,
+  };
+}
+
 function findTierListRowIdForEntry(entryId: string, tierListView: TierListViewState) {
   return (
     tierListView.rows.find((row) =>
@@ -6350,11 +6417,18 @@ function copyCardToDraft(card: CardEntry) {
         ...DEFAULT_BOARD_SETTINGS,
         ...board.settings,
       };
-      const nextTierListView = normalizeTierListViewState(
+      const normalizedNextTierListView = normalizeTierListViewState(
         currentSettings.tierListView,
         latestColumnsRef.current,
         latestCardsByColumnRef.current,
       );
+      const nextTierListView = shouldSeedTierListFromKanban(normalizedNextTierListView)
+        ? seedTierListFromKanbanRankings(
+            normalizedNextTierListView,
+            latestColumnsRef.current,
+            latestCardsByColumnRef.current,
+          )
+        : normalizedNextTierListView;
 
       return {
         ...board,
@@ -7820,7 +7894,10 @@ function copyCardToDraft(card: CardEntry) {
                                               {mobileQuickAddArtworkMenuField === artworkField.field ? (
                                                 <div
                                                   className={clsx(
-                                                    "absolute right-0 top-[calc(100%+0.55rem)] z-20 grid min-w-[9.5rem] gap-1 rounded-[20px] border p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)]",
+                                                    "absolute right-0 z-20 grid min-w-[9.5rem] gap-1 rounded-[20px] border p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)]",
+                                                    artworkField.field === "portrait"
+                                                      ? "bottom-[calc(100%+0.55rem)]"
+                                                      : "top-[calc(100%+0.55rem)]",
                                                     isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900",
                                                   )}
                                                 >
