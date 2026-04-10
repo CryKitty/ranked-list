@@ -1068,9 +1068,11 @@ function openGoogleImageSearch(
   }
 
   const url = new URL("https://www.google.com/search");
+  url.searchParams.set("as_st", "y");
   url.searchParams.set("as_epq", exactPhrase || query);
   url.searchParams.set("tbm", "isch");
-  url.searchParams.set("as_imgar", artworkField === "portrait" ? "t" : "w");
+  url.searchParams.set("udm", "2");
+  url.searchParams.set("imgar", artworkField === "portrait" ? "t" : "w");
   url.searchParams.set("tbs", artworkField === "portrait" ? "iar:t" : "iar:w");
 
   window.open(url.toString(), "_blank", "noopener,noreferrer");
@@ -2159,7 +2161,7 @@ export function RankboardApp() {
       : "border-white/80 bg-white/96 text-slate-900",
   );
   const mobileActionPopoverClassName = clsx(
-    "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] -translate-x-1/2 overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+    "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),340px)] overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
     "motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
     isDarkMode
       ? "border-white/10 bg-slate-900/95 text-slate-100"
@@ -5457,45 +5459,76 @@ function copyCardToDraft(card: CardEntry) {
     editArtworkInputRef.current?.click();
   }
 
-  async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
-    if (!navigator.clipboard?.readText) {
-      setSaveState("error");
-      setSaveErrorMessage("Clipboard paste is not available in this browser.");
+  function applyPastedArtworkValue(target: "draft" | "edit", field: ArtworkFieldKind, value: string) {
+    const pastedValue = value.trim();
+    if (!pastedValue) {
       return;
     }
 
+    if (target === "draft") {
+      setDraftDuplicateAction(null);
+      setDraft((current) => ({
+        ...current,
+        imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
+        imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
+        mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
+      }));
+      return;
+    }
+
+    setEditingDuplicateAction(null);
+    setEditingCardDraft((current) =>
+      current
+        ? {
+            ...current,
+            imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
+            imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
+            mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
+          }
+        : current,
+    );
+  }
+
+  async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
     try {
-      const pastedValue = (await navigator.clipboard.readText()).trim();
-      if (!pastedValue) {
+      if (navigator.clipboard?.readText) {
+        const pastedValue = (await navigator.clipboard.readText()).trim();
+        if (pastedValue) {
+          applyPastedArtworkValue(target, field, pastedValue);
+          return;
+        }
+      }
+
+      if (navigator.clipboard?.read) {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const item of clipboardItems) {
+          if (!item.types.includes("text/plain")) {
+            continue;
+          }
+
+          const textBlob = await item.getType("text/plain");
+          const pastedValue = (await textBlob.text()).trim();
+          if (pastedValue) {
+            applyPastedArtworkValue(target, field, pastedValue);
+            return;
+          }
+        }
+      }
+
+      const pasted = document.execCommand?.("paste");
+      if (pasted) {
         return;
       }
 
-      if (target === "draft") {
-        setDraftDuplicateAction(null);
-        setDraft((current) => ({
-          ...current,
-          imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
-          imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
-          mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
-        }));
-        return;
-      }
-
-      setEditingDuplicateAction(null);
-      setEditingCardDraft((current) =>
-        current
-          ? {
-              ...current,
-              imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
-              imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
-              mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
-            }
-          : current,
-      );
+      setSaveState("error");
+      setSaveErrorMessage("Tap and hold the artwork field, then choose Paste.");
     } catch (error) {
       console.error(error);
-      setSaveState("error");
-      setSaveErrorMessage("Clipboard contents could not be pasted.");
+      const pasted = document.execCommand?.("paste");
+      if (!pasted) {
+        setSaveState("error");
+        setSaveErrorMessage("Clipboard contents could not be pasted.");
+      }
     }
   }
 
@@ -8323,11 +8356,13 @@ function copyCardToDraft(card: CardEntry) {
                   @keyframes mobile-action-panel-rise {
                     0% {
                       opacity: 0;
-                      transform: translate(-50%, 18px) scale(0.98);
+                      transform: translateY(18px) scale(0.98);
+                      transform-origin: right bottom;
                     }
                     100% {
                       opacity: 1;
-                      transform: translate(-50%, 0) scale(1);
+                      transform: translateY(0) scale(1);
+                      transform-origin: right bottom;
                     }
                   }
 
@@ -8545,6 +8580,15 @@ function copyCardToDraft(card: CardEntry) {
                                                 )}
                                                 value={artworkField.value}
                                                 onChange={(event) => artworkField.onChange(event.target.value)}
+                                                onPaste={(event) => {
+                                                  const pastedValue = event.clipboardData.getData("text").trim();
+                                                  if (!pastedValue) {
+                                                    return;
+                                                  }
+
+                                                  event.preventDefault();
+                                                  artworkField.onChange(pastedValue);
+                                                }}
                                               />
                                               <button
                                                 className={clsx(
@@ -8846,7 +8890,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMobileSearchMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),320px)] -translate-x-1/2 space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),320px)] space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -8913,7 +8957,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isCustomizationMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -9275,7 +9319,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),290px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -9356,7 +9400,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] right-0 z-[110] w-[min(calc(100vw-2.2rem),280px)] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",

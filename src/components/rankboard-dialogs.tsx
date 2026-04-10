@@ -125,6 +125,15 @@ function ArtworkFieldInput({
           placeholder={placeholder}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onPaste={(event) => {
+            const pastedValue = event.clipboardData.getData("text").trim();
+            if (!pastedValue) {
+              return;
+            }
+
+            event.preventDefault();
+            onChange(pastedValue);
+          }}
         />
         <button
           className={clsx(
