@@ -3974,15 +3974,26 @@ export function RankboardApp() {
 
     const cardElements = Array.from(
       scrollContainer.querySelectorAll<HTMLElement>("[data-card-entry-id]"),
-    );
+    ).filter((element) => {
+      if (element.dataset.cardEntryId === activeDragEntryId) {
+        return false;
+      }
+
+      return element.getBoundingClientRect().height > 8;
+    });
 
     let insertIndex = cardElements.length;
+    const firstCardRect = cardElements[0]?.getBoundingClientRect();
 
-    for (const [index, element] of cardElements.entries()) {
-      const rect = element.getBoundingClientRect();
-      if (pointerCoordinates.y < rect.top + rect.height / 2) {
-        insertIndex = index;
-        break;
+    if (firstCardRect && pointerCoordinates.y <= firstCardRect.top + firstCardRect.height / 3) {
+      insertIndex = 0;
+    } else {
+      for (const [index, element] of cardElements.entries()) {
+        const rect = element.getBoundingClientRect();
+        if (pointerCoordinates.y < rect.top + rect.height / 2) {
+          insertIndex = index;
+          break;
+        }
       }
     }
 
