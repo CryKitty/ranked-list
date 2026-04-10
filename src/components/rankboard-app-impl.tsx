@@ -4156,22 +4156,24 @@ export function RankboardApp() {
     const destinationColumn = columns.find(
       (column) => column.id === destinationColumnId,
     );
+    const sourceMirrorTargetId = sourceColumn?.autoMirrorToColumnId;
+    const destinationMirrorTargetId = destinationColumn?.autoMirrorToColumnId;
 
     let updatedState = nextState;
 
-    if (sourceColumn?.autoMirrorToColumnId) {
+    if (sourceMirrorTargetId && sourceMirrorTargetId !== destinationMirrorTargetId) {
       updatedState = removeMirroredCard(
         updatedState,
         movedCard.entryId,
-        sourceColumn.autoMirrorToColumnId,
+        sourceMirrorTargetId,
       );
     }
 
-    if (destinationColumn?.autoMirrorToColumnId) {
+    if (destinationMirrorTargetId && destinationMirrorTargetId !== sourceMirrorTargetId) {
       updatedState = addMirroredCard(
         updatedState,
         movedCard,
-        destinationColumn.autoMirrorToColumnId,
+        destinationMirrorTargetId,
       );
     }
 
@@ -8182,17 +8184,34 @@ function copyCardToDraft(card: CardEntry) {
           <div className="hidden">
             <div className="flex flex-col items-center gap-4">
               <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-[1fr_260px_auto_auto] sm:gap-4">
-                <input
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                  )}
-                  placeholder="Search title or series"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    className={clsx(
+                      "w-full rounded-2xl border py-3 pl-4 pr-11 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="Search title or series"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
+                  {searchTerm ? (
+                    <button
+                      aria-label="Clear search"
+                      className={clsx(
+                        "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition",
+                        isDarkMode
+                          ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                      )}
+                      onClick={() => setSearchTerm("")}
+                      type="button"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
 
                 <SeriesFilterButton
                   allSeries={allSeries}
@@ -9062,17 +9081,34 @@ function copyCardToDraft(card: CardEntry) {
                               <p className={clsx("px-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                                 Search
                               </p>
-                              <input
-                                className={clsx(
-                                  "w-full rounded-2xl border px-4 py-3 outline-none transition",
-                                  isDarkMode
-                                    ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
-                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                                )}
-                                placeholder="Search title or series"
-                                value={searchTerm}
-                                onChange={(event) => setSearchTerm(event.target.value)}
-                              />
+                              <div className="relative">
+                                <input
+                                  className={clsx(
+                                    "w-full rounded-2xl border py-3 pl-4 pr-11 outline-none transition",
+                                    isDarkMode
+                                      ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                  )}
+                                  placeholder="Search title or series"
+                                  value={searchTerm}
+                                  onChange={(event) => setSearchTerm(event.target.value)}
+                                />
+                                {searchTerm ? (
+                                  <button
+                                    aria-label="Clear search"
+                                    className={clsx(
+                                      "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition",
+                                      isDarkMode
+                                        ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                                    )}
+                                    onClick={() => setSearchTerm("")}
+                                    type="button"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                ) : null}
+                              </div>
                               <SeriesFilterButton
                                 allSeries={allSeries}
                                 currentSeriesFilter={seriesFilter}
@@ -9895,18 +9931,35 @@ function copyCardToDraft(card: CardEntry) {
                     />
                   </div>
                   <div className="hidden shrink-0 items-center gap-2 lg:flex">
-                    <input
-                      name="title"
-                      className={clsx(
-                        "w-[240px] rounded-2xl border px-4 py-3 outline-none transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                      )}
-                      placeholder="Search title or series"
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                    />
+                    <div className="relative w-[240px]">
+                      <input
+                        name="title"
+                        className={clsx(
+                          "w-full rounded-2xl border py-3 pl-4 pr-11 outline-none transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                        )}
+                        placeholder="Search title or series"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                      />
+                      {searchTerm ? (
+                        <button
+                          aria-label="Clear search"
+                          className={clsx(
+                            "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition",
+                            isDarkMode
+                              ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                          )}
+                          onClick={() => setSearchTerm("")}
+                          type="button"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
                     <SeriesFilterButton
                       allSeries={allSeries}
                       className="w-[190px]"
