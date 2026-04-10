@@ -92,7 +92,6 @@ function ArtworkFieldInput({
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -114,7 +113,6 @@ function ArtworkFieldInput({
       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{label}</span>
       <div className="relative">
         <input
-          ref={inputRef}
           name={name}
           className={clsx(
             "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
@@ -142,14 +140,7 @@ function ArtworkFieldInput({
               ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
               : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
           )}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            inputRef.current?.focus({ preventScroll: true });
-          }}
-          onClick={() => {
-            inputRef.current?.focus({ preventScroll: true });
-            onPaste();
-          }}
+          onClick={onPaste}
           type="button"
           aria-label={`Paste ${label}`}
         >
