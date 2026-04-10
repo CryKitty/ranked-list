@@ -9,6 +9,8 @@
 - Updated drag pointer tracking to refresh the active kanban insert placeholder directly from touch/mouse movement, so the first card's top-third target can light up even when the hidden insert row is not directly hit.
 - Added an inline clear button to board search inputs.
 - Fixed card moves between columns that share the same auto-mirror target so existing linked mirror clones keep their rank instead of being removed and recreated at the top.
+- Debounced board search filtering by two seconds so the board stops re-filtering on every keystroke.
+- Shared links now initialize their modal defaults from the live board view/filter state, and the shared Tier List view better matches the owner styling while allowing full vertical scrolling on mobile.
 
 - Added server-side `board_snapshots` persistence so each successfully normalized board save also stores a per-board recovery snapshot, capped to the latest 20 snapshots per board.
 - Kept `board_states` as the backup/migration parachute while making per-board snapshot history available for future restore tooling.

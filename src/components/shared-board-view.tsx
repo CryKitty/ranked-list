@@ -278,8 +278,8 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
       <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-3 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
         <header className={clsx("rounded-[28px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
           <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:text-left">
-            <div className="flex min-w-0 items-center justify-center gap-3">
-              <h1 className={clsx("min-w-0 truncate text-3xl font-black sm:text-4xl", isDarkMode ? "text-white" : "text-slate-950")}>
+            <div className="flex min-w-0 items-center justify-center gap-3 sm:max-w-[min(100%,48rem)]">
+              <h1 className={clsx("min-w-0 break-words text-3xl font-black leading-tight sm:text-4xl", isDarkMode ? "text-white" : "text-slate-950")}>
                 {sharedTitle}
               </h1>
             </div>
@@ -335,10 +335,10 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
               ? {
                   paddingInline: mobileBoardLaneInset,
                   scrollPaddingInline: mobileBoardLaneInset,
-                  touchAction: "pan-x",
-                  overscrollBehaviorX: "contain",
-                  overscrollBehaviorY: "none",
-                  overscrollBehavior: "contain",
+                  touchAction: isTierListShare ? "pan-y pinch-zoom" : "pan-x pinch-zoom",
+                  overscrollBehaviorX: isTierListShare ? "none" : "contain",
+                  overscrollBehaviorY: isTierListShare ? "contain" : "none",
+                  overscrollBehavior: isTierListShare ? "auto" : "contain",
                   WebkitOverflowScrolling: "touch",
                 }
               : undefined
@@ -346,8 +346,8 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
         >
           {isTierListShare ? scopedTierRows.map(({ row, cards }) => {
             return (
-              <div key={row.id} className={clsx("grid w-full grid-cols-[44px_minmax(0,1fr)] rounded-[28px] p-[1px]", row.accent)}>
-                <div className={clsx("flex min-h-[142px] items-center justify-center rounded-l-[27px] px-2 py-4", isDarkMode ? "bg-slate-950/96 text-white" : "bg-white/92 text-slate-950")}>
+              <div key={row.id} className={clsx("grid w-full grid-cols-[44px_minmax(0,1fr)] gap-px rounded-[28px] p-[1px]", row.accent)}>
+                <div className={clsx("flex min-h-[142px] items-center justify-center rounded-l-[27px] bg-gradient-to-br px-2 py-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]", row.accent)}>
                   <span className="text-center text-lg font-black leading-none">{row.title}</span>
                 </div>
                 <div className={clsx("min-h-[142px] rounded-r-[27px] border p-3", isDarkMode ? "border-slate-800 bg-slate-950/95" : "border-slate-200 bg-[#fff7f0]")}>
@@ -355,6 +355,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                     {cards.map((card) => {
                       const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
                       const isPortraitTierCard = !isMobileViewport && board.settings?.tierListCardAspectRatio === "portrait";
+                      const hideTextOverlay = isMobileViewport || isPortraitTierCard;
                       const artworkUrl = isMobileViewport || isPortraitTierCard
                         ? card.mobileTierListImageUrl || card.imageUrl
                         : card.imageUrl;
@@ -369,10 +370,10 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(artworkUrl)} />
                             ) : null}
-                            {!isPortraitTierCard ? (
+                            {!hideTextOverlay ? (
                               <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
                             ) : null}
-                            {!isPortraitTierCard ? (
+                            {!hideTextOverlay ? (
                             <div className="absolute inset-x-0 bottom-0 p-3">
                               {displaySeries ? (
                                 <p className="mb-1 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">

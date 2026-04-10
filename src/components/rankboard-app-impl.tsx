@@ -1927,6 +1927,7 @@ export function RankboardApp() {
   const [draft, setDraft] = useState<CardDraft>(initialDraft);
   const [addCardTarget, setAddCardTarget] = useState<AddCardTarget | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [seriesFilter, setSeriesFilter] = useState("");
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [editingCardItemId, setEditingCardItemId] = useState<string | null>(null);
@@ -1989,6 +1990,18 @@ export function RankboardApp() {
   const [newBoardSettings, setNewBoardSettings] = useState<BoardSettings>(
     getDefaultBoardSettings("New Board"),
   );
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setDebouncedSearchTerm("");
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 2000);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchTerm]);
   const [starterBoardDisplayTitle, setStarterBoardDisplayTitle] = useState(defaultBoard.title);
   const [starterBoardTitlePhase, setStarterBoardTitlePhase] = useState<"idle" | "exit" | "enter">("idle");
   const [isBoardIconModalOpen, setIsBoardIconModalOpen] = useState(false);
@@ -2087,7 +2100,8 @@ export function RankboardApp() {
   const isSigningOutRef = useRef(false);
   const hasAutoOpenedBoardSetupRef = useRef(false);
 
-  const filtering = searchTerm.length > 0 || seriesFilter.length > 0;
+  const effectiveSearchTerm = debouncedSearchTerm.trim();
+  const filtering = effectiveSearchTerm.length > 0 || seriesFilter.length > 0;
   const mobileBoardLaneInset = "1rem";
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -4622,7 +4636,7 @@ export function RankboardApp() {
           const destinationFullCards = destinationEntryIds
             .map((entryId) => tierListCardsByEntryId.get(entryId))
             .filter((card): card is CardEntry => Boolean(card));
-          const destinationVisibleCards = filterCards(destinationFullCards, searchTerm, seriesFilter);
+          const destinationVisibleCards = filterCards(destinationFullCards, effectiveSearchTerm, seriesFilter);
           destinationIndex = getFullInsertIndexFromVisibleCards(
             destinationFullCards,
             destinationVisibleCards,
@@ -6696,24 +6710,29 @@ function copyCardToDraft(card: CardEntry) {
     setIsMobileActionsOpen(false);
   }
 
-  function openShareModal() {
+  function buildShareDraftFromCurrentView() {
     const existingShare = normalizePublicShareSettings(activeBoardSettings.publicShare);
-    const nextShareView = existingShare.view ?? activeBoardLayout;
+    const nextShareView = activeBoardLayout;
     const nextShareOptions =
       nextShareView === "tier-list"
         ? normalizedTierListView.rows
         : columns;
-    setShareDraft({
+    return {
       view: nextShareView,
       columnIds:
-        existingShare.columnIds.length > 0
+        existingShare.view === nextShareView && existingShare.columnIds.length > 0
           ? existingShare.columnIds.filter((columnId) => nextShareOptions.some((item) => item.id === columnId))
           : nextShareOptions.map((item) => item.id),
-      tierFilter: existingShare.tierFilter,
-      seriesFilter: existingShare.seriesFilter || seriesFilter,
-      searchTerm: existingShare.searchTerm || searchTerm,
+      tierFilter:
+        existingShare.view === nextShareView ? existingShare.tierFilter : "all",
+      seriesFilter: seriesFilter,
+      searchTerm: effectiveSearchTerm,
       title: existingShare.title || activeBoardTitle,
-    });
+    } satisfies ShareDraft;
+  }
+
+  function openShareModal() {
+    setShareDraft(buildShareDraftFromCurrentView());
     setCopiedShareUrl(null);
     setIsShareModalOpen(true);
     setIsActionsMenuOpen(false);
@@ -6721,23 +6740,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function openMobileQuickSharePanel() {
-    const existingShare = normalizePublicShareSettings(activeBoardSettings.publicShare);
-    const nextShareView = existingShare.view ?? activeBoardLayout;
-    const nextShareOptions =
-      nextShareView === "tier-list"
-        ? normalizedTierListView.rows
-        : columns;
-    setShareDraft({
-      view: nextShareView,
-      columnIds:
-        existingShare.columnIds.length > 0
-          ? existingShare.columnIds.filter((columnId) => nextShareOptions.some((item) => item.id === columnId))
-          : nextShareOptions.map((item) => item.id),
-      tierFilter: existingShare.tierFilter,
-      seriesFilter: existingShare.seriesFilter || seriesFilter,
-      searchTerm: existingShare.searchTerm || searchTerm,
-      title: existingShare.title || activeBoardTitle,
-    });
+    setShareDraft(buildShareDraftFromCurrentView());
     setCopiedShareUrl(null);
     setIsMobileSearchMenuOpen(false);
     setIsCustomizationMenuOpen(false);
@@ -10343,7 +10346,7 @@ function copyCardToDraft(card: CardEntry) {
                   {tierListRows.map(({ row, cards }) => {
                     const visibleCards = filterCards(
                       cards,
-                      searchTerm,
+                      effectiveSearchTerm,
                       seriesFilter,
                     );
 
@@ -10418,7 +10421,7 @@ function copyCardToDraft(card: CardEntry) {
                   {columns.map((column, columnIndex) => {
                     const visibleCards = filterCards(
                       cardsByColumn[column.id] ?? [],
-                      searchTerm,
+                      effectiveSearchTerm,
                       seriesFilter,
                     );
 
