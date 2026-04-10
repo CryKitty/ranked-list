@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Clapperboard,
+  ClipboardPaste,
   Clock3,
   Copy,
   ImagePlus,
@@ -71,6 +72,7 @@ function ArtworkFieldInput({
   menuPlacement = "down",
   isUploadingArtwork,
   onChange,
+  onPaste,
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
@@ -79,10 +81,11 @@ function ArtworkFieldInput({
   label: string;
   name: string;
   value: string;
-  placeholder: string;
+  placeholder?: string;
   menuPlacement?: "down" | "up";
   isUploadingArtwork: boolean;
   onChange: (value: string) => void;
+  onPaste: () => void;
   onOpenImageSearch: () => void;
   onOpenGifSearch: () => void;
   onOpenUploadPicker: () => void;
@@ -112,7 +115,7 @@ function ArtworkFieldInput({
         <input
           name={name}
           className={clsx(
-            "w-full rounded-2xl border px-4 py-3 pr-12 outline-none transition",
+            "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
             isDarkMode
               ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
               : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
@@ -121,6 +124,19 @@ function ArtworkFieldInput({
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
+        <button
+          className={clsx(
+            "absolute right-[3.45rem] top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border transition",
+            isDarkMode
+              ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
+              : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
+          )}
+          onClick={onPaste}
+          type="button"
+          aria-label={`Paste ${label}`}
+        >
+          <ClipboardPaste className="h-4.5 w-4.5" />
+        </button>
         <button
           className={clsx(
             "absolute right-2 top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border transition",
@@ -424,6 +440,7 @@ export function EditCardDialog({
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
+  onPasteArtwork,
   editArtworkInputRef,
   onArtworkFileSelection,
   onNotesChange,
@@ -472,6 +489,7 @@ export function EditCardDialog({
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
+  onPasteArtwork: (field: ArtworkFieldKind) => void;
   editArtworkInputRef: RefObject<HTMLInputElement | null>;
   onArtworkFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
   onNotesChange: (value: string) => void;
@@ -602,7 +620,7 @@ export function EditCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
-                placeholder="Used for desktop and Kanban on mobile."
+                onPaste={() => onPasteArtwork("landscape")}
                 value={editingCardDraft.imageUrl}
               />
               <ArtworkFieldInput
@@ -615,7 +633,7 @@ export function EditCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
-                placeholder="Used for Tier List on mobile. Falls back to landscape."
+                onPaste={() => onPasteArtwork("portrait")}
                 value={editingCardDraft.mobileTierListImageUrl}
               />
               <input ref={editArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
@@ -773,6 +791,7 @@ export function AddCardDialog({
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
+  onPasteArtwork,
   onNotesChange,
   onCustomFieldChange,
   onColumnIdChange,
@@ -819,6 +838,7 @@ export function AddCardDialog({
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
+  onPasteArtwork: (field: ArtworkFieldKind) => void;
   onNotesChange: (value: string) => void;
   onCustomFieldChange: (fieldId: string, value: string, type: BoardFieldDefinition["type"], dateFormat?: BoardFieldDefinition["dateFormat"]) => void;
   onColumnIdChange: (value: string) => void;
@@ -936,7 +956,7 @@ export function AddCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
-                placeholder="Used for desktop and Kanban on mobile."
+                onPaste={() => onPasteArtwork("landscape")}
                 value={draft.imageUrl}
               />
               <ArtworkFieldInput
@@ -949,7 +969,7 @@ export function AddCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
-                placeholder="Used for Tier List on mobile. Falls back to landscape."
+                onPaste={() => onPasteArtwork("portrait")}
                 value={draft.mobileTierListImageUrl}
               />
               <input ref={addArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />

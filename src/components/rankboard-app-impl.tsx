@@ -37,6 +37,7 @@ import {
   CheckCheck,
   CircleDashed,
   Clapperboard,
+  ClipboardPaste,
   Edit3,
   Filter,
   Gamepad2,
@@ -2137,17 +2138,15 @@ export function RankboardApp() {
             : null;
   const mobileActionStackStep = 54;
   const activeMobileActionTravelOffset =
-    activeMobileActionsSubmenu === "search"
-      ? `${mobileActionStackStep}px`
+    activeMobileActionsSubmenu === "add"
+      ? `${mobileActionStackStep * 4}px`
       : activeMobileActionsSubmenu === "customization"
-        ? `${mobileActionStackStep * 2}px`
-        : activeMobileActionsSubmenu === "share"
-          ? `${mobileActionStackStep * 3}px`
-          : activeMobileActionsSubmenu === "maintenance"
-            ? `${mobileActionStackStep * 4}px`
-            : activeMobileActionsSubmenu === "settings"
-              ? `${mobileActionStackStep * 5}px`
-              : "0px";
+        ? `${mobileActionStackStep * 3}px`
+        : activeMobileActionsSubmenu === "maintenance"
+          ? `${mobileActionStackStep * 2}px`
+          : activeMobileActionsSubmenu === "search"
+            ? `${mobileActionStackStep}px`
+            : "0px";
   const mobileActionPillWidth = "12.625rem";
   const mobileActionPillClassName = clsx(
     "inline-flex h-12 items-center justify-center rounded-full border px-4 text-center text-sm font-semibold shadow-[0_18px_34px_rgba(15,23,42,0.18)] transition relative motion-safe:animate-[mobile-action-item-rise_220ms_cubic-bezier(0.22,1,0.36,1)_both]",
@@ -5426,6 +5425,48 @@ function copyCardToDraft(card: CardEntry) {
     editArtworkInputRef.current?.click();
   }
 
+  async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
+    if (!navigator.clipboard?.readText) {
+      setSaveState("error");
+      setSaveErrorMessage("Clipboard paste is not available in this browser.");
+      return;
+    }
+
+    try {
+      const pastedValue = (await navigator.clipboard.readText()).trim();
+      if (!pastedValue) {
+        return;
+      }
+
+      if (target === "draft") {
+        setDraftDuplicateAction(null);
+        setDraft((current) => ({
+          ...current,
+          imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
+          imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
+          mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
+        }));
+        return;
+      }
+
+      setEditingDuplicateAction(null);
+      setEditingCardDraft((current) =>
+        current
+          ? {
+              ...current,
+              imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
+              imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
+              mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
+            }
+          : current,
+      );
+    } catch (error) {
+      console.error(error);
+      setSaveState("error");
+      setSaveErrorMessage("Clipboard contents could not be pasted.");
+    }
+  }
+
   async function handleArtworkFileSelection(
     target: "draft" | "edit",
     event: React.ChangeEvent<HTMLInputElement>,
@@ -8319,7 +8360,7 @@ function copyCardToDraft(card: CardEntry) {
                         onClick={(event) => event.stopPropagation()}
                       >
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "add" ? (
-                          <div className="relative" data-mobile-actions-submenu-root="true">
+                          <div className="relative order-[5]" data-mobile-actions-submenu-root="true">
                             <button
                               aria-label={`Add ${boardVocabulary.singular}`}
                               className={clsx(
@@ -8426,7 +8467,6 @@ function copyCardToDraft(card: CardEntry) {
                                           {
                                             field: "landscape" as const,
                                             label: "Landscape Artwork",
-                                            placeholder: "Used for desktop and Kanban on mobile.",
                                             value: draft.imageUrl,
                                             onChange: (value: string) => {
                                               setDraftDuplicateAction(null);
@@ -8440,7 +8480,6 @@ function copyCardToDraft(card: CardEntry) {
                                           {
                                             field: "portrait" as const,
                                             label: "Portrait Artwork",
-                                            placeholder: "Used for Tier List on mobile. Falls back to landscape.",
                                             value: draft.mobileTierListImageUrl,
                                             onChange: (value: string) => {
                                               setDraftDuplicateAction(null);
@@ -8456,15 +8495,29 @@ function copyCardToDraft(card: CardEntry) {
                                             <div className="relative">
                                               <input
                                                 className={clsx(
-                                                  "w-full rounded-2xl border px-4 py-3 pr-14 outline-none transition",
+                                                  "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
                                                   isDarkMode
                                                     ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
                                                     : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                                                 )}
-                                                placeholder={artworkField.placeholder}
                                                 value={artworkField.value}
                                                 onChange={(event) => artworkField.onChange(event.target.value)}
                                               />
+                                              <button
+                                                className={clsx(
+                                                  "absolute right-[3.45rem] top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border transition",
+                                                  isDarkMode
+                                                    ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
+                                                    : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
+                                                )}
+                                                onClick={() => {
+                                                  void pasteArtworkFromClipboard("draft", artworkField.field);
+                                                }}
+                                                type="button"
+                                                aria-label={`Paste ${artworkField.label}`}
+                                              >
+                                                <ClipboardPaste className="h-4.5 w-4.5" />
+                                              </button>
                                               <button
                                                 className={clsx(
                                                   "absolute right-2 top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border transition",
@@ -8692,16 +8745,6 @@ function copyCardToDraft(card: CardEntry) {
                                   >
                                     {`Add ${boardVocabulary.singular}`}
                                   </button>
-                                  <button
-                                    className={clsx(
-                                      "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                                      isDarkMode ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40" : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                                    )}
-                                    onClick={closeAddGameModal}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
                                 </div>
                                 <datalist id="mobile-quick-add-series-options">
                                   {allSeries.map((series) => (
@@ -8714,7 +8757,7 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
 
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "search" ? (
-                        <div className="relative" data-mobile-actions-submenu-root="true">
+                        <div className="relative order-[2]" data-mobile-actions-submenu-root="true">
                           <button
                             aria-label="Search"
                             className={clsx(
@@ -8781,7 +8824,7 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
 
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "customization" ? (
-                        <div className="relative" data-mobile-actions-submenu-root="true">
+                        <div className="relative order-[4]" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               mobileActionPillClassName,
@@ -9142,7 +9185,7 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
 
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "maintenance" ? (
-                        <div className="relative" data-mobile-actions-submenu-root="true">
+                        <div className="relative order-[3]" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               mobileActionPillClassName,
@@ -9224,7 +9267,7 @@ function copyCardToDraft(card: CardEntry) {
                         ) : null}
 
                         {!activeMobileActionsSubmenu || activeMobileActionsSubmenu === "settings" ? (
-                        <div className="relative" data-mobile-actions-submenu-root="true">
+                        <div className="relative order-[1]" data-mobile-actions-submenu-root="true">
                           <button
                             className={clsx(
                               mobileActionPillClassName,
@@ -10350,6 +10393,9 @@ function copyCardToDraft(card: CardEntry) {
           onOpenGifSearch={(field) => autofillEditingCardImageForField(field, "gif")}
           onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
+          onPasteArtwork={(field) => {
+            void pasteArtworkFromClipboard("edit", field);
+          }}
           onReleaseYearChange={(value) =>
             setEditingCardDraft((current) =>
               current
@@ -10472,6 +10518,9 @@ function copyCardToDraft(card: CardEntry) {
           onOpenGifSearch={(field) => handleAutofillDraftImageForField(field, "gif")}
           onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}
+          onPasteArtwork={(field) => {
+            void pasteArtworkFromClipboard("draft", field);
+          }}
           onReleaseYearChange={(value) =>
             setDraft((current) => ({
               ...current,
@@ -13243,6 +13292,7 @@ function copyCardToDraft(card: CardEntry) {
                           forceSquare={!isMobileViewport && tierListCardAspectRatio === "square"}
                           mobileArtworkVariant={getTierListArtworkVariant(tierListCardAspectRatio, isMobileViewport)}
                           hideTextOverlay={!isMobileViewport && tierListCardAspectRatio === "portrait"}
+                          compactImageOnly={isMobileViewport}
                           showDragCursor={false}
                         />
                       </div>
