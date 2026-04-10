@@ -282,19 +282,25 @@ function getTierListEligibleCards(
 ) {
   const eligibleCards: CardEntry[] = [];
   const eligibleCardsByEntryId = new Map<string, CardEntry>();
+  const eligibleItemIds = new Set<string>();
 
   for (const column of columns) {
-    if (column.mirrorsEntireBoard) {
+    if (column.mirrorsEntireBoard || !isRankedColumn(column)) {
       continue;
     }
 
     for (const card of cardsByColumn[column.id] ?? []) {
-      if (card.mirroredFromEntryId || eligibleCardsByEntryId.has(card.entryId)) {
+      if (
+        card.mirroredFromEntryId ||
+        eligibleCardsByEntryId.has(card.entryId) ||
+        eligibleItemIds.has(card.itemId)
+      ) {
         continue;
       }
 
       eligibleCards.push(card);
       eligibleCardsByEntryId.set(card.entryId, card);
+      eligibleItemIds.add(card.itemId);
     }
   }
 
@@ -375,15 +381,29 @@ function seedTierListFromKanbanRankings(
   }
 
   const assignedEntryIds = new Set<string>();
+  const assignedItemIds = new Set<string>();
   const rankedEntryIds: string[] = [];
+  const rankedColumns = columns.filter((item) => !item.mirrorsEntireBoard && isRankedColumn(item));
+  const maxRankedColumnLength = Math.max(
+    0,
+    ...rankedColumns.map((column) => cardsByColumn[column.id]?.length ?? 0),
+  );
 
-  for (const column of columns.filter((item) => !item.mirrorsEntireBoard && isRankedColumn(item))) {
-    for (const card of cardsByColumn[column.id] ?? []) {
-      if (card.mirroredFromEntryId || assignedEntryIds.has(card.entryId)) {
+  for (let rankIndex = 0; rankIndex < maxRankedColumnLength; rankIndex += 1) {
+    for (const column of rankedColumns) {
+      const card = cardsByColumn[column.id]?.[rankIndex];
+
+      if (
+        !card ||
+        card.mirroredFromEntryId ||
+        assignedEntryIds.has(card.entryId) ||
+        assignedItemIds.has(card.itemId)
+      ) {
         continue;
       }
 
       assignedEntryIds.add(card.entryId);
+      assignedItemIds.add(card.itemId);
       rankedEntryIds.push(card.entryId);
     }
   }
@@ -4834,6 +4854,24 @@ export function RankboardApp() {
   }
 
   function openMoveCardModal(card: CardEntry) {
+    if (activeBoardLayout === "tier-list") {
+      const sourceRowId = findTierListRowIdForEntry(card.entryId, normalizedTierListView);
+
+      if (!sourceRowId) {
+        return;
+      }
+
+      setMoveCardState({
+        entryId: card.entryId,
+        itemId: card.itemId,
+        title: card.title,
+        sourceColumnId: sourceRowId,
+        targetColumnId: sourceRowId,
+        targetRank: "",
+      });
+      return;
+    }
+
     const sourceColumnId = findColumnIdForEntry(card.entryId);
 
     if (!sourceColumnId) {
@@ -4876,6 +4914,44 @@ function copyCardToDraft(card: CardEntry) {
 
   function confirmMoveCard() {
     if (!moveCardState) {
+      return;
+    }
+
+    if (activeBoardLayout === "tier-list") {
+      const targetRowId = moveCardState.targetColumnId;
+
+      if (!normalizedTierListView.rows.some((row) => row.id === targetRowId)) {
+        setMoveCardState(null);
+        return;
+      }
+
+      updateActiveTierListView((current) => {
+        const normalized = normalizeTierListViewState(
+          current,
+          latestColumnsRef.current,
+          latestCardsByColumnRef.current,
+        );
+        const nextEntryIdsByRow = Object.fromEntries(
+          normalized.rows.map((row) => [
+            row.id,
+            (normalized.entryIdsByRow[row.id] ?? []).filter(
+              (entryId) => entryId !== moveCardState.entryId,
+            ),
+          ]),
+        ) as Record<string, string[]>;
+
+        nextEntryIdsByRow[targetRowId] = [
+          ...(nextEntryIdsByRow[targetRowId] ?? []),
+          moveCardState.entryId,
+        ];
+
+        return {
+          ...normalized,
+          entryIdsByRow: nextEntryIdsByRow,
+        };
+      }, "tier-list");
+      setMoveCardState(null);
+      cancelEditingCard();
       return;
     }
 
@@ -4933,6 +5009,60 @@ function copyCardToDraft(card: CardEntry) {
     setMoveCardState(null);
     cancelEditingCard();
     queuePersistBoardState({ cardsByColumn: nextState });
+  }
+
+  function resetTierListToPool() {
+    if (activeBoardLayout !== "tier-list") {
+      return;
+    }
+
+    const poolRowId = getTierListPoolRowId(normalizedTierListView.rows);
+    const entryIds = normalizedTierListView.rows.flatMap(
+      (row) => normalizedTierListView.entryIdsByRow[row.id] ?? [],
+    );
+
+    if (entryIds.length === 0) {
+      return;
+    }
+
+    if (!window.confirm("Reset Tier List? This will move all cards to the Pool.")) {
+      return;
+    }
+
+    updateActiveTierListView((current) => {
+      const normalized = normalizeTierListViewState(
+        current,
+        latestColumnsRef.current,
+        latestCardsByColumnRef.current,
+      );
+      const seenEntryIds = new Set<string>();
+      const pooledEntryIds: string[] = [];
+
+      for (const row of normalized.rows) {
+        for (const entryId of normalized.entryIdsByRow[row.id] ?? []) {
+          if (seenEntryIds.has(entryId)) {
+            continue;
+          }
+
+          seenEntryIds.add(entryId);
+          pooledEntryIds.push(entryId);
+        }
+      }
+
+      return {
+        ...normalized,
+        entryIdsByRow: Object.fromEntries(
+          normalized.rows.map((row) => [
+            row.id,
+            row.id === poolRowId ? pooledEntryIds : [],
+          ]),
+        ),
+      };
+    }, "tier-list");
+
+    setIsMaintenanceMenuOpen(false);
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
   }
 
   function requestMoveAllCards(columnId: string) {
@@ -7557,6 +7687,12 @@ function copyCardToDraft(card: CardEntry) {
                                   <WandSparkles className="h-4 w-4" />
                                   Series Scraper
                                 </button>
+                                {activeBoardLayout === "tier-list" ? (
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={resetTierListToPool} type="button">
+                                    <RotateCcw className="h-4 w-4" />
+                                    Reset Tier List
+                                  </button>
+                                ) : null}
                                 <button
                                   className={clsx(
                                     "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
@@ -8556,6 +8692,12 @@ function copyCardToDraft(card: CardEntry) {
                                 <WandSparkles className="h-4 w-4" />
                                 Series Scraper
                               </button>
+                              {activeBoardLayout === "tier-list" ? (
+                                <button className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={resetTierListToPool} type="button">
+                                  <RotateCcw className="h-4 w-4" />
+                                  Reset Tier List
+                                </button>
+                              ) : null}
                               <button
                                 className={clsx(
                                   "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition",
@@ -9111,6 +9253,12 @@ function copyCardToDraft(card: CardEntry) {
                                   <WandSparkles className="h-4 w-4" />
                                   Series Scraper
                                 </button>
+                                {activeBoardLayout === "tier-list" ? (
+                                  <button className={clsx("flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-white")} onClick={resetTierListToPool} type="button">
+                                    <RotateCcw className="h-4 w-4" />
+                                    Reset Tier List
+                                  </button>
+                                ) : null}
                               </div>
                             ) : null}
                           </div>
@@ -12072,7 +12220,9 @@ function copyCardToDraft(card: CardEntry) {
               </h2>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Column</span>
+                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
+                    {activeBoardLayout === "tier-list" ? "Row" : "Column"}
+                  </span>
                   <select
                     className={clsx(
                       "rounded-2xl border px-4 py-3 outline-none transition",
@@ -12087,31 +12237,33 @@ function copyCardToDraft(card: CardEntry) {
                       )
                     }
                   >
-                    {columns.map((column) => (
-                      <option key={column.id} value={column.id}>
-                        {column.title}
+                    {(activeBoardLayout === "tier-list" ? normalizedTierListView.rows : columns).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title}
                       </option>
                     ))}
                   </select>
                 </label>
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Rank</span>
-                  <input
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    inputMode="numeric"
-                    value={moveCardState.targetRank}
-                    onChange={(event) =>
-                      setMoveCardState((current) =>
-                        current ? { ...current, targetRank: event.target.value.replace(/[^\d]/g, "") } : current,
-                      )
-                    }
-                  />
-                </label>
+                {activeBoardLayout !== "tier-list" ? (
+                  <label className="grid gap-2">
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Rank</span>
+                    <input
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                      )}
+                      inputMode="numeric"
+                      value={moveCardState.targetRank}
+                      onChange={(event) =>
+                        setMoveCardState((current) =>
+                          current ? { ...current, targetRank: event.target.value.replace(/[^\d]/g, "") } : current,
+                        )
+                      }
+                    />
+                  </label>
+                ) : null}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
