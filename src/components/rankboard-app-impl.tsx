@@ -1951,6 +1951,10 @@ export function RankboardApp() {
   const [isCardDragging, setIsCardDragging] = useState(false);
   const [isDesktopAddCardCooldownActive, setIsDesktopAddCardCooldownActive] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
+  const [activeBoardInsertTarget, setActiveBoardInsertTarget] = useState<{
+    columnId: string;
+    insertIndex: number;
+  } | null>(null);
   const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
   const [isDragGapSuppressed, setIsDragGapSuppressed] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -3259,6 +3263,7 @@ export function RankboardApp() {
       const coords = dragPointerCoordsRef.current;
 
       if (coords) {
+        let didAutoScrollBoard = false;
         if (activeBoardLayout === "tier-list") {
           const tierLane = boardLaneRef.current;
 
@@ -3296,6 +3301,7 @@ export function RankboardApp() {
 
           if (deltaX !== 0) {
             boardLaneRef.current.scrollLeft += deltaX;
+            didAutoScrollBoard = true;
           }
         }
 
@@ -3326,6 +3332,7 @@ export function RankboardApp() {
 
           if (deltaY !== 0) {
             targetScrollContainer.scrollTop += deltaY * columnAutoScrollBoost;
+            didAutoScrollBoard = didAutoScrollBoard || activeBoardLayout === "board";
           }
 
           if (
@@ -3350,6 +3357,16 @@ export function RankboardApp() {
             }
           }
         }
+
+        if (activeBoardLayout === "board" && !isDragGapSuppressed) {
+          if (didAutoScrollBoard) {
+            applyActiveBoardInsertTarget(resolveBoardInsertTarget(coords), {
+              syncVisualState: true,
+            });
+          } else if (activeBoardInsertTarget) {
+            setActiveBoardInsertTarget(null);
+          }
+        }
       }
 
       dragAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
@@ -3363,7 +3380,15 @@ export function RankboardApp() {
         dragAutoScrollFrameRef.current = null;
       }
     };
-  }, [activeBoardLayout, dragPointerKind, isCardDragging, isMobileViewport]);
+  }, [
+    activeBoardInsertTarget,
+    activeBoardLayout,
+    dragPointerKind,
+    isCardDragging,
+    isDragGapSuppressed,
+    isMobileViewport,
+    resolveBoardInsertTarget,
+  ]);
 
   useEffect(() => {
     if (!freshColumnEditId || activeBoardLayout !== "board" || !boardLaneRef.current) {
@@ -4112,13 +4137,26 @@ export function RankboardApp() {
     return { columnId, insertIndex };
   }, [activeDragEntryId, cardsByColumn]);
 
-  function applyActiveBoardInsertTarget(target: { columnId: string; insertIndex: number } | null) {
+  function applyActiveBoardInsertTarget(
+    target: { columnId: string; insertIndex: number } | null,
+    options?: { syncVisualState?: boolean },
+  ) {
     if (!target) {
       lastBoardInsertTargetRef.current = null;
+      if (options?.syncVisualState) {
+        setActiveBoardInsertTarget(null);
+      }
       return;
     }
 
     lastBoardInsertTargetRef.current = target;
+    if (options?.syncVisualState) {
+      setActiveBoardInsertTarget((current) =>
+        current?.columnId === target.columnId && current.insertIndex === target.insertIndex
+          ? current
+          : target,
+      );
+    }
   }
 
   function getBoardInsertCollision(
@@ -4652,6 +4690,7 @@ export function RankboardApp() {
     setDragPointerKind(null);
     dragPointerCoordsRef.current = null;
     lastBoardInsertTargetRef.current = null;
+    setActiveBoardInsertTarget(null);
     setActiveDragEntryId(null);
 
     if ((filtering && activeBoardLayout !== "tier-list") || !event.over) {
@@ -4744,7 +4783,7 @@ export function RankboardApp() {
       return;
     }
 
-    const parsedDropTarget = parseDropTargetId(overId);
+    const parsedDropTarget = parseDropTargetId(overId) ?? lastBoardInsertTargetRef.current;
     const sourceColumnId = findColumnIdForEntry(activeId);
     const overColumnId = parsedDropTarget
       ? parsedDropTarget.columnId
@@ -10326,6 +10365,7 @@ function copyCardToDraft(card: CardEntry) {
                 beginDesktopAddCardCooldown();
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
+                setActiveBoardInsertTarget(null);
                 setActiveDragEntryId(String(active.id));
               }}
               onDragCancel={() => {
@@ -10335,6 +10375,7 @@ function copyCardToDraft(card: CardEntry) {
                 setDragPointerKind(null);
                 dragPointerCoordsRef.current = null;
                 lastBoardInsertTargetRef.current = null;
+                setActiveBoardInsertTarget(null);
                 setActiveDragEntryId(null);
               }}
               onDragMove={() => {
@@ -10458,6 +10499,7 @@ function copyCardToDraft(card: CardEntry) {
                           suppressAddCardAffordances={isDesktopAddCardCooldownActive}
                           isCardDragging={isCardDragging}
                           isDragGapSuppressed={false}
+                          activeBoardInsertTarget={activeBoardInsertTarget}
                           cards={visibleCards}
                           activeTierFilter={columnTierFilters[column.id] ?? "all"}
                           currentSeriesFilter={seriesFilter}
@@ -13917,6 +13959,7 @@ function BoardColumn({
   suppressAddCardAffordances,
   isCardDragging,
   isDragGapSuppressed,
+  activeBoardInsertTarget,
   cards,
   activeTierFilter,
   currentSeriesFilter,
@@ -13980,6 +14023,7 @@ function BoardColumn({
   suppressAddCardAffordances: boolean;
   isCardDragging: boolean;
   isDragGapSuppressed: boolean;
+  activeBoardInsertTarget: { columnId: string; insertIndex: number } | null;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
   currentSeriesFilter: string;
@@ -14840,6 +14884,10 @@ function BoardColumn({
               isDragMode={isCardDragging}
               isGapSuppressed={isDragGapSuppressed}
               collapseCards={collapseCards}
+              forceActive={
+                activeBoardInsertTarget?.columnId === column.id &&
+                activeBoardInsertTarget.insertIndex === 0
+              }
               insertIndex={0}
               alwaysVisible={tierFilteredCards.length === 0}
               hideAction={
@@ -14893,6 +14941,10 @@ function BoardColumn({
                   isDragMode={isCardDragging}
                   isGapSuppressed={isDragGapSuppressed}
                   collapseCards={collapseCards}
+                  forceActive={
+                    activeBoardInsertTarget?.columnId === column.id &&
+                    activeBoardInsertTarget.insertIndex === index + 1
+                  }
                   insertIndex={index + 1}
                   alwaysVisible={index === tierFilteredCards.length - 1}
                   hideAction={
@@ -15484,6 +15536,7 @@ function AddCardRow({
   isDragMode = false,
   isGapSuppressed = false,
   collapseCards = false,
+  forceActive = false,
   insertIndex,
   alwaysVisible = false,
   hideAction = false,
@@ -15498,6 +15551,7 @@ function AddCardRow({
   isDragMode?: boolean;
   isGapSuppressed?: boolean;
   collapseCards?: boolean;
+  forceActive?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   hideAction?: boolean;
@@ -15526,7 +15580,7 @@ function AddCardRow({
 
     onClick();
   };
-  const showExpandedDropTarget = isDragMode && !isGapSuppressed && isOver;
+  const showExpandedDropTarget = isDragMode && !isGapSuppressed && (isOver || forceActive);
   const showTrelloStylePlaceholder = showExpandedDropTarget;
   const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
