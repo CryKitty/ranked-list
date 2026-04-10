@@ -134,6 +134,8 @@ import {
 } from "@/lib/normalized-board-store";
 import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, TierListRowDefinition, TierListViewState } from "@/lib/types";
 
+type ArtworkFieldKind = "landscape" | "portrait";
+
 const initialDraft: CardDraft = {
   title: "",
   imageUrl: "",
@@ -795,8 +797,13 @@ function readBoardsFromBackupRow(data: {
   return null;
 }
 
-function openGoogleImageSearch(title: string, mode: ArtworkSearchMode = "image") {
-  const query = title.trim();
+function openGoogleImageSearch(
+  title: string,
+  mode: ArtworkSearchMode = "image",
+  artworkField: ArtworkFieldKind = "landscape",
+) {
+  const orientationHint = artworkField === "portrait" ? "portrait poster" : "landscape wallpaper";
+  const query = `${title.trim()} ${orientationHint}`.trim();
 
   if (!query || typeof window === "undefined") {
     return;
@@ -1751,6 +1758,8 @@ export function RankboardApp() {
   const boardIconUploadInputRef = useRef<HTMLInputElement | null>(null);
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
+  const artworkUploadFieldRef = useRef<{ target: "draft" | "edit"; field: ArtworkFieldKind } | null>(null);
+  const mobileActionsCloseLockUntilRef = useRef(0);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const desktopAddCardCooldownTimeoutRef = useRef<number | null>(null);
@@ -3288,8 +3297,7 @@ export function RankboardApp() {
       const target = event.target as HTMLElement | null;
 
       if (!target?.closest("[data-mobile-actions-submenu-root='true']")) {
-        resetMobileActionPanels();
-        setIsMobileActionsOpen(false);
+        closeMobileActionsMenu();
       }
     }
 
@@ -4595,6 +4603,12 @@ export function RankboardApp() {
     setIsMobileQuickSharePanelOpen(false);
   }
 
+  function closeMobileActionsMenu() {
+    mobileActionsCloseLockUntilRef.current = Date.now() + 250;
+    resetMobileActionPanels();
+    setIsMobileActionsOpen(false);
+  }
+
   function openMobileQuickAddPanel() {
     const focusedColumnId =
       getFocusedColumnIdFromLane(boardLaneRef.current) ||
@@ -4937,7 +4951,15 @@ function copyCardToDraft(card: CardEntry) {
     openGoogleImageSearch(draft.title, mode);
   }
 
-  function openArtworkUploadPicker(target: "draft" | "edit") {
+  function handleAutofillDraftImageForField(
+    artworkField: ArtworkFieldKind,
+    mode: ArtworkSearchMode = "image",
+  ) {
+    openGoogleImageSearch(draft.title, mode, artworkField);
+  }
+
+  function openArtworkUploadPicker(target: "draft" | "edit", field: ArtworkFieldKind = "landscape") {
+    artworkUploadFieldRef.current = { target, field };
     if (target === "draft") {
       addArtworkInputRef.current?.click();
       return;
@@ -4956,6 +4978,11 @@ function copyCardToDraft(card: CardEntry) {
     if (!file) {
       return;
     }
+
+    const artworkField =
+      artworkUploadFieldRef.current?.target === target
+        ? artworkUploadFieldRef.current.field
+        : "landscape";
 
     setIsUploadingArtwork(true);
     setSaveErrorMessage(null);
@@ -4982,16 +5009,20 @@ function copyCardToDraft(card: CardEntry) {
       if (target === "draft") {
         setDraft((current) => ({
           ...current,
-          imageUrl: nextImageUrl,
+          imageUrl: artworkField === "landscape" ? nextImageUrl : current.imageUrl,
           imageStoragePath: nextStoragePath,
+          mobileTierListImageUrl:
+            artworkField === "portrait" ? nextImageUrl : current.mobileTierListImageUrl,
         }));
       } else {
         setEditingCardDraft((current) =>
           current
             ? {
                 ...current,
-                imageUrl: nextImageUrl,
+                imageUrl: artworkField === "landscape" ? nextImageUrl : current.imageUrl,
                 imageStoragePath: nextStoragePath,
+                mobileTierListImageUrl:
+                  artworkField === "portrait" ? nextImageUrl : current.mobileTierListImageUrl,
               }
             : current,
         );
@@ -5003,6 +5034,7 @@ function copyCardToDraft(card: CardEntry) {
       setSaveState("error");
       setSaveErrorMessage(error instanceof Error ? error.message : "Artwork could not be uploaded.");
     } finally {
+      artworkUploadFieldRef.current = null;
       setIsUploadingArtwork(false);
       if (uploadSucceeded) {
         if (target === "draft") {
@@ -5112,12 +5144,15 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  function autofillEditingCardImage(mode: ArtworkSearchMode = "image") {
+  function autofillEditingCardImageForField(
+    artworkField: ArtworkFieldKind,
+    mode: ArtworkSearchMode = "image",
+  ) {
     if (!editingCardDraft) {
       return;
     }
 
-    openGoogleImageSearch(editingCardDraft.title, mode);
+    openGoogleImageSearch(editingCardDraft.title, mode, artworkField);
   }
 
   function selectArtworkOption(imageUrl: string) {
@@ -7523,9 +7558,11 @@ function copyCardToDraft(card: CardEntry) {
                   )}
                   onClick={() => {
                     setIsBoardsMenuOpen(false);
+                    if (Date.now() < mobileActionsCloseLockUntilRef.current) {
+                      return;
+                    }
                     if (isMobileActionsOpen) {
-                      resetMobileActionPanels();
-                      setIsMobileActionsOpen(false);
+                      closeMobileActionsMenu();
                       return;
                     }
                     setIsMobileActionsOpen(true);
@@ -7539,8 +7576,7 @@ function copyCardToDraft(card: CardEntry) {
                   <div
                     className="fixed inset-0 z-[80] bg-slate-950/34 backdrop-blur-md lg:hidden"
                     onClick={() => {
-                      resetMobileActionPanels();
-                      setIsMobileActionsOpen(false);
+                      closeMobileActionsMenu();
                     }}
                   >
                     <div className="pointer-events-none fixed inset-0 z-[90] lg:hidden">
@@ -9360,7 +9396,6 @@ function copyCardToDraft(card: CardEntry) {
           editingCardDraft={editingCardDraft}
           editingCardId={editingCardId}
           editingDuplicateAction={editingDuplicateAction}
-          imageFieldLabel={imageFieldLabel}
           isDarkMode={isDarkMode}
           isEditFieldSettingsOpen={isEditFieldSettingsOpen}
           isOpen={Boolean(editingCardId && editingCardDraft)}
@@ -9409,12 +9444,6 @@ function copyCardToDraft(card: CardEntry) {
               current ? { ...current, imageUrl: value, imageStoragePath: undefined } : current,
             );
           }}
-          onMobileBoardImageUrlChange={(value) => {
-            setEditingDuplicateAction(null);
-            setEditingCardDraft((current) =>
-              current ? { ...current, mobileBoardImageUrl: value } : current,
-            );
-          }}
           onMobileTierListImageUrlChange={(value) => {
             setEditingDuplicateAction(null);
             setEditingCardDraft((current) =>
@@ -9436,9 +9465,9 @@ function copyCardToDraft(card: CardEntry) {
               current ? { ...current, notes: value } : current,
             )
           }
-          onOpenGifSearch={() => autofillEditingCardImage("gif")}
-          onOpenImageSearch={() => autofillEditingCardImage("image")}
-          onOpenUploadPicker={() => openArtworkUploadPicker("edit")}
+          onOpenGifSearch={(field) => autofillEditingCardImageForField(field, "gif")}
+          onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
+          onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
           onReleaseYearChange={(value) =>
             setEditingCardDraft((current) =>
               current
@@ -9486,7 +9515,6 @@ function copyCardToDraft(card: CardEntry) {
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           draft={draft}
           draftDuplicateAction={draftDuplicateAction}
-          imageFieldLabel={imageFieldLabel}
           isAddFieldSettingsOpen={isAddFieldSettingsOpen}
           isDarkMode={isDarkMode}
           isOpen={Boolean(addCardTarget) && !isMobileQuickAddPanelOpen}
@@ -9540,13 +9568,6 @@ function copyCardToDraft(card: CardEntry) {
               imageStoragePath: undefined,
             }));
           }}
-          onMobileBoardImageUrlChange={(value) => {
-            setDraftDuplicateAction(null);
-            setDraft((current) => ({
-              ...current,
-              mobileBoardImageUrl: value,
-            }));
-          }}
           onMobileTierListImageUrlChange={(value) => {
             setDraftDuplicateAction(null);
             setDraft((current) => ({
@@ -9566,9 +9587,9 @@ function copyCardToDraft(card: CardEntry) {
               notes: value,
             }))
           }
-          onOpenGifSearch={() => handleAutofillDraftImage("gif")}
-          onOpenImageSearch={() => handleAutofillDraftImage("image")}
-          onOpenUploadPicker={() => openArtworkUploadPicker("draft")}
+          onOpenGifSearch={(field) => handleAutofillDraftImageForField(field, "gif")}
+          onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
+          onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}
           onReleaseYearChange={(value) =>
             setDraft((current) => ({
               ...current,
@@ -14202,7 +14223,7 @@ function CardTile({
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
   const selectedImageUrl =
     mobileArtworkVariant === "board"
-      ? card.mobileBoardImageUrl?.trim() || card.imageUrl?.trim() || ""
+      ? card.imageUrl?.trim() || ""
       : mobileArtworkVariant === "tier-list"
         ? card.mobileTierListImageUrl?.trim() || card.imageUrl?.trim() || ""
         : card.imageUrl?.trim() || "";

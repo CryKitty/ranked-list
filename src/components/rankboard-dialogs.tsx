@@ -30,6 +30,8 @@ import {
 import { getSeriesFilterDisplayLabel } from "@/lib/rankboard-display";
 import type { BoardFieldDefinition, BoardLayout, ColumnDefinition, ShareTierFilter } from "@/lib/types";
 
+type ArtworkFieldKind = "landscape" | "portrait";
+
 type CardEditorDraftLike = {
   title: string;
   imageUrl: string;
@@ -59,6 +61,102 @@ type ColumnOption = {
   title: string;
   mirrorsEntireBoard?: boolean;
 };
+
+function ArtworkFieldInput({
+  isDarkMode,
+  label,
+  name,
+  value,
+  placeholder,
+  isUploadingArtwork,
+  onChange,
+  onOpenImageSearch,
+  onOpenGifSearch,
+  onOpenUploadPicker,
+}: {
+  isDarkMode: boolean;
+  label: string;
+  name: string;
+  value: string;
+  placeholder: string;
+  isUploadingArtwork: boolean;
+  onChange: (value: string) => void;
+  onOpenImageSearch: () => void;
+  onOpenGifSearch: () => void;
+  onOpenUploadPicker: () => void;
+}) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isMenuOpen]);
+
+  return (
+    <div ref={rootRef} className="grid gap-2">
+      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{label}</span>
+      <div className="relative">
+        <input
+          name={name}
+          className={clsx(
+            "w-full rounded-2xl border px-4 py-3 pr-12 outline-none transition",
+            isDarkMode
+              ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
+              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+          )}
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          className={clsx(
+            "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border transition",
+            isDarkMode
+              ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
+              : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
+          )}
+          onClick={() => setIsMenuOpen((current) => !current)}
+          type="button"
+          aria-label={`Artwork options for ${label}`}
+        >
+          <ChevronDown className={clsx("h-4 w-4 transition", isMenuOpen && "rotate-180")} />
+        </button>
+        {isMenuOpen ? (
+          <div
+            className={clsx(
+              "absolute right-0 top-[calc(100%+0.55rem)] z-20 grid min-w-[9.5rem] gap-1 rounded-[20px] border p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)]",
+              isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900",
+            )}
+          >
+            <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setIsMenuOpen(false); onOpenImageSearch(); }} type="button">
+              <ImagePlus className="h-4 w-4" />
+              Image
+            </button>
+            <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setIsMenuOpen(false); onOpenGifSearch(); }} type="button">
+              <Clapperboard className="h-4 w-4" />
+              GIF
+            </button>
+            <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-60", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} disabled={isUploadingArtwork} onClick={() => { setIsMenuOpen(false); onOpenUploadPicker(); }} type="button">
+              <Upload className="h-4 w-4" />
+              Upload
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 type ShareColumnOption = Pick<ColumnDefinition, "id" | "title" | "accent">;
 
@@ -305,7 +403,6 @@ export function EditCardDialog({
   shouldShowNotesField,
   seriesFieldLabel,
   releaseYearFieldLabel,
-  imageFieldLabel,
   notesFieldLabel,
   visibleCustomFieldDefinitions,
   isUploadingArtwork,
@@ -320,7 +417,6 @@ export function EditCardDialog({
   onSeriesChange,
   onReleaseYearChange,
   onImageUrlChange,
-  onMobileBoardImageUrlChange,
   onMobileTierListImageUrlChange,
   onOpenImageSearch,
   onOpenGifSearch,
@@ -350,7 +446,6 @@ export function EditCardDialog({
   shouldShowNotesField: boolean;
   seriesFieldLabel: string;
   releaseYearFieldLabel: string;
-  imageFieldLabel: string;
   notesFieldLabel: string;
   visibleCustomFieldDefinitions: BoardFieldDefinition[];
   isUploadingArtwork: boolean;
@@ -370,11 +465,10 @@ export function EditCardDialog({
   onSeriesChange: (value: string) => void;
   onReleaseYearChange: (value: string) => void;
   onImageUrlChange: (value: string) => void;
-  onMobileBoardImageUrlChange: (value: string) => void;
   onMobileTierListImageUrlChange: (value: string) => void;
-  onOpenImageSearch: () => void;
-  onOpenGifSearch: () => void;
-  onOpenUploadPicker: () => void;
+  onOpenImageSearch: (field: ArtworkFieldKind) => void;
+  onOpenGifSearch: (field: ArtworkFieldKind) => void;
+  onOpenUploadPicker: (field: ArtworkFieldKind) => void;
   editArtworkInputRef: RefObject<HTMLInputElement | null>;
   onArtworkFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
   onNotesChange: (value: string) => void;
@@ -496,68 +590,32 @@ export function EditCardDialog({
           </div>
 
           {shouldShowImageField ? (
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-2">
-                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
-                <input
-                  name="imageUrl"
-                  className={clsx(
-                    "rounded-2xl border px-4 py-3 outline-none transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                  )}
-                  value={editingCardDraft.imageUrl}
-                  onChange={(event) => onImageUrlChange(event.target.value)}
-                />
-              </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Kanban Artwork</span>
-                  <input
-                    name="mobileBoardImageUrl"
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="Falls back to main artwork"
-                    value={editingCardDraft.mobileBoardImageUrl}
-                    onChange={(event) => onMobileBoardImageUrlChange(event.target.value)}
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Tier List Artwork</span>
-                  <input
-                    name="mobileTierListImageUrl"
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="Falls back to main artwork"
-                    value={editingCardDraft.mobileTierListImageUrl}
-                    onChange={(event) => onMobileTierListImageUrlChange(event.target.value)}
-                  />
-                </label>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <ArtworkFieldInput
+                isDarkMode={isDarkMode}
+                isUploadingArtwork={isUploadingArtwork}
+                label="Landscape Artwork"
+                name="imageUrl"
+                onChange={onImageUrlChange}
+                onOpenGifSearch={() => onOpenGifSearch("landscape")}
+                onOpenImageSearch={() => onOpenImageSearch("landscape")}
+                onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
+                placeholder="Used for desktop and Kanban on mobile."
+                value={editingCardDraft.imageUrl}
+              />
+              <ArtworkFieldInput
+                isDarkMode={isDarkMode}
+                isUploadingArtwork={isUploadingArtwork}
+                label="Portrait Artwork"
+                name="mobileTierListImageUrl"
+                onChange={onMobileTierListImageUrlChange}
+                onOpenGifSearch={() => onOpenGifSearch("portrait")}
+                onOpenImageSearch={() => onOpenImageSearch("portrait")}
+                onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
+                placeholder="Used for Tier List on mobile. Falls back to landscape."
+                value={editingCardDraft.mobileTierListImageUrl}
+              />
               <input ref={editArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
-              <button className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900" : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white")} onClick={onOpenImageSearch} type="button" title="Search Google Images in a new tab">
-                <ImagePlus className="h-4 w-4" />
-                Image
-              </button>
-              <button className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900" : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white")} onClick={onOpenGifSearch} type="button" title="Search Tenor in a new tab">
-                <Clapperboard className="h-4 w-4" />
-                GIF
-              </button>
-              <button className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:opacity-60" : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:opacity-60")} disabled={isUploadingArtwork} onClick={onOpenUploadPicker} type="button" title="Upload artwork from your device">
-                <Upload className="h-4 w-4" />
-                Upload
-              </button>
-              </div>
             </div>
           ) : null}
 
@@ -688,7 +746,6 @@ export function AddCardDialog({
   shouldShowNotesField,
   seriesFieldLabel,
   releaseYearFieldLabel,
-  imageFieldLabel,
   notesFieldLabel,
   allSeries,
   visibleCustomFieldDefinitions,
@@ -709,7 +766,6 @@ export function AddCardDialog({
   onSeriesChange,
   onReleaseYearChange,
   onImageUrlChange,
-  onMobileBoardImageUrlChange,
   onMobileTierListImageUrlChange,
   onOpenImageSearch,
   onOpenGifSearch,
@@ -736,7 +792,6 @@ export function AddCardDialog({
   shouldShowNotesField: boolean;
   seriesFieldLabel: string;
   releaseYearFieldLabel: string;
-  imageFieldLabel: string;
   notesFieldLabel: string;
   allSeries: string[];
   visibleCustomFieldDefinitions: BoardFieldDefinition[];
@@ -757,11 +812,10 @@ export function AddCardDialog({
   onSeriesChange: (value: string) => void;
   onReleaseYearChange: (value: string) => void;
   onImageUrlChange: (value: string) => void;
-  onMobileBoardImageUrlChange: (value: string) => void;
   onMobileTierListImageUrlChange: (value: string) => void;
-  onOpenImageSearch: () => void;
-  onOpenGifSearch: () => void;
-  onOpenUploadPicker: () => void;
+  onOpenImageSearch: (field: ArtworkFieldKind) => void;
+  onOpenGifSearch: (field: ArtworkFieldKind) => void;
+  onOpenUploadPicker: (field: ArtworkFieldKind) => void;
   onNotesChange: (value: string) => void;
   onCustomFieldChange: (fieldId: string, value: string, type: BoardFieldDefinition["type"], dateFormat?: BoardFieldDefinition["dateFormat"]) => void;
   onColumnIdChange: (value: string) => void;
@@ -869,108 +923,32 @@ export function AddCardDialog({
           </div>
 
           {shouldShowImageField ? (
-            <div className="grid gap-3">
-              <label className="grid gap-2">
-                <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
-                <div className="relative">
-                  <ImagePlus
-                    className={clsx(
-                      "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2",
-                      isDarkMode ? "text-slate-500" : "text-slate-400",
-                    )}
-                  />
-                  <input
-                    name="imageUrl"
-                    className={clsx(
-                      "w-full rounded-2xl border py-3 pl-11 pr-4 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="Enter the URL of the image or GIF, or upload one from your device."
-                    value={draft.imageUrl}
-                    onChange={(event) => onImageUrlChange(event.target.value)}
-                  />
-                </div>
-              </label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Kanban Artwork</span>
-                  <input
-                    name="mobileBoardImageUrl"
-                    className={clsx(
-                      "w-full rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="Falls back to main artwork"
-                    value={draft.mobileBoardImageUrl}
-                    onChange={(event) => onMobileBoardImageUrlChange(event.target.value)}
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Mobile Tier List Artwork</span>
-                  <input
-                    name="mobileTierListImageUrl"
-                    className={clsx(
-                      "w-full rounded-2xl border px-4 py-3 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="Falls back to main artwork"
-                    value={draft.mobileTierListImageUrl}
-                    onChange={(event) => onMobileTierListImageUrlChange(event.target.value)}
-                  />
-                </label>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ArtworkFieldInput
+                isDarkMode={isDarkMode}
+                isUploadingArtwork={isUploadingArtwork}
+                label="Landscape Artwork"
+                name="imageUrl"
+                onChange={onImageUrlChange}
+                onOpenGifSearch={() => onOpenGifSearch("landscape")}
+                onOpenImageSearch={() => onOpenImageSearch("landscape")}
+                onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
+                placeholder="Used for desktop and Kanban on mobile."
+                value={draft.imageUrl}
+              />
+              <ArtworkFieldInput
+                isDarkMode={isDarkMode}
+                isUploadingArtwork={isUploadingArtwork}
+                label="Portrait Artwork"
+                name="mobileTierListImageUrl"
+                onChange={onMobileTierListImageUrlChange}
+                onOpenGifSearch={() => onOpenGifSearch("portrait")}
+                onOpenImageSearch={() => onOpenImageSearch("portrait")}
+                onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
+                placeholder="Used for Tier List on mobile. Falls back to landscape."
+                value={draft.mobileTierListImageUrl}
+              />
               <input ref={addArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
-              <button
-                className={clsx(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                )}
-                onClick={onOpenImageSearch}
-                type="button"
-                title="Search Google Images in a new tab"
-              >
-                <ImagePlus className="h-4 w-4" />
-                Image
-              </button>
-              <button
-                className={clsx(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900"
-                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white",
-                )}
-                onClick={onOpenGifSearch}
-                type="button"
-                title="Search Tenor in a new tab"
-              >
-                <Clapperboard className="h-4 w-4" />
-                GIF
-              </button>
-              <button
-                className={clsx(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition sm:h-[50px]",
-                  isDarkMode
-                    ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/40 hover:bg-slate-900 disabled:opacity-60"
-                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-950 hover:bg-white disabled:opacity-60",
-                )}
-                disabled={isUploadingArtwork}
-                onClick={onOpenUploadPicker}
-                type="button"
-                title="Upload artwork from your device"
-              >
-                <Upload className="h-4 w-4" />
-                Upload
-              </button>
-              </div>
             </div>
           ) : null}
 
