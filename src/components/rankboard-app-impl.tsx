@@ -3139,10 +3139,15 @@ export function RankboardApp() {
     }
 
     function handlePointerMove(event: PointerEvent) {
-      dragPointerCoordsRef.current = {
+      const nextPointerCoordinates = {
         x: event.clientX,
         y: event.clientY,
       };
+      dragPointerCoordsRef.current = nextPointerCoordinates;
+
+      if (activeBoardLayout === "board" && !isDragGapSuppressed) {
+        applyActiveBoardInsertTarget(resolveBoardInsertTarget(nextPointerCoordinates));
+      }
     }
 
     function handleTouchMove(event: TouchEvent) {
@@ -3150,10 +3155,15 @@ export function RankboardApp() {
       if (!touch) {
         return;
       }
-      dragPointerCoordsRef.current = {
+      const nextPointerCoordinates = {
         x: touch.clientX,
         y: touch.clientY,
       };
+      dragPointerCoordsRef.current = nextPointerCoordinates;
+
+      if (activeBoardLayout === "board" && !isDragGapSuppressed) {
+        applyActiveBoardInsertTarget(resolveBoardInsertTarget(nextPointerCoordinates));
+      }
     }
 
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
@@ -3163,7 +3173,7 @@ export function RankboardApp() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("touchmove", handleTouchMove);
     };
-  }, [isCardDragging]);
+  }, [activeBoardLayout, activeDragEntryId, isCardDragging, isDragGapSuppressed]);
 
   useEffect(() => {
     return () => {
@@ -4169,29 +4179,19 @@ export function RankboardApp() {
   }
 
   function updateCardsForItem(itemId: string, updater: (card: CardEntry) => CardEntry) {
-    let nextStateSnapshot: Record<string, CardEntry[]> | null = null;
+    const nextState: Record<string, CardEntry[]> = {};
 
-    setCardsByColumn((current) => {
-      const nextState: Record<string, CardEntry[]> = {};
-
-      for (const [columnId, cards] of Object.entries(current)) {
-        const updatedCards = cards.map((card) =>
-          card.itemId === itemId ? updater(card) : card,
-        );
-        const column = latestColumnsRef.current.find((item) => item.id === columnId);
-        nextState[columnId] = column ? applyColumnSortMode(column, updatedCards) : updatedCards;
-      }
-
-      latestCardsByColumnRef.current = nextState;
-      nextStateSnapshot = nextState;
-      return nextState;
-    });
-
-    if (nextStateSnapshot) {
-      queuePersistBoardState({ cardsByColumn: nextStateSnapshot });
-    } else {
-      queuePersistBoardState();
+    for (const [columnId, cards] of Object.entries(latestCardsByColumnRef.current)) {
+      const updatedCards = cards.map((card) =>
+        card.itemId === itemId ? updater(card) : card,
+      );
+      const column = latestColumnsRef.current.find((item) => item.id === columnId);
+      nextState[columnId] = column ? applyColumnSortMode(column, updatedCards) : updatedCards;
     }
+
+    latestCardsByColumnRef.current = nextState;
+    setCardsByColumn(nextState);
+    queuePersistBoardState({ cardsByColumn: nextState });
   }
 
   function linkMatchingMirrorCards(columnId: string) {
