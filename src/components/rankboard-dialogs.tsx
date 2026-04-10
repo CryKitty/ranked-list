@@ -85,13 +85,14 @@ function ArtworkFieldInput({
   menuPlacement?: "down" | "up";
   isUploadingArtwork: boolean;
   onChange: (value: string) => void;
-  onPaste: () => void;
+  onPaste: (input: HTMLInputElement | null) => void;
   onOpenImageSearch: () => void;
   onOpenGifSearch: () => void;
   onOpenUploadPicker: () => void;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -113,6 +114,7 @@ function ArtworkFieldInput({
       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{label}</span>
       <div className="relative">
         <input
+          ref={inputRef}
           name={name}
           className={clsx(
             "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
@@ -140,7 +142,7 @@ function ArtworkFieldInput({
               ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
               : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
           )}
-          onClick={onPaste}
+          onClick={() => onPaste(inputRef.current)}
           type="button"
           aria-label={`Paste ${label}`}
         >
@@ -498,7 +500,7 @@ export function EditCardDialog({
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
-  onPasteArtwork: (field: ArtworkFieldKind) => void;
+  onPasteArtwork: (field: ArtworkFieldKind, input: HTMLInputElement | null) => void;
   editArtworkInputRef: RefObject<HTMLInputElement | null>;
   onArtworkFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
   onNotesChange: (value: string) => void;
@@ -629,7 +631,7 @@ export function EditCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
-                onPaste={() => onPasteArtwork("landscape")}
+                onPaste={(input) => onPasteArtwork("landscape", input)}
                 value={editingCardDraft.imageUrl}
               />
               <ArtworkFieldInput
@@ -642,7 +644,7 @@ export function EditCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
-                onPaste={() => onPasteArtwork("portrait")}
+                onPaste={(input) => onPasteArtwork("portrait", input)}
                 value={editingCardDraft.mobileTierListImageUrl}
               />
               <input ref={editArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
@@ -847,7 +849,7 @@ export function AddCardDialog({
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
-  onPasteArtwork: (field: ArtworkFieldKind) => void;
+  onPasteArtwork: (field: ArtworkFieldKind, input: HTMLInputElement | null) => void;
   onNotesChange: (value: string) => void;
   onCustomFieldChange: (fieldId: string, value: string, type: BoardFieldDefinition["type"], dateFormat?: BoardFieldDefinition["dateFormat"]) => void;
   onColumnIdChange: (value: string) => void;
@@ -965,7 +967,7 @@ export function AddCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
-                onPaste={() => onPasteArtwork("landscape")}
+                onPaste={(input) => onPasteArtwork("landscape", input)}
                 value={draft.imageUrl}
               />
               <ArtworkFieldInput
@@ -978,7 +980,7 @@ export function AddCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
-                onPaste={() => onPasteArtwork("portrait")}
+                onPaste={(input) => onPasteArtwork("portrait", input)}
                 value={draft.mobileTierListImageUrl}
               />
               <input ref={addArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />

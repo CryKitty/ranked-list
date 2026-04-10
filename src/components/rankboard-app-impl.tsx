@@ -2031,8 +2031,11 @@ export function RankboardApp() {
   const editArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const artworkUploadFieldRef = useRef<{ target: "draft" | "edit"; field: ArtworkFieldKind } | null>(null);
   const mobileActionsCloseLockUntilRef = useRef(0);
+  const mobileActionsHeightUnlockTimeoutRef = useRef<number | null>(null);
   const isMobileActionsOpenRef = useRef(false);
   const mobileQuickAddTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileQuickAddLandscapeArtworkInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileQuickAddPortraitArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const desktopAddCardCooldownTimeoutRef = useRef<number | null>(null);
@@ -2161,7 +2164,7 @@ export function RankboardApp() {
       : "border-white/80 bg-white/96 text-slate-900",
   );
   const mobileActionPopoverClassName = clsx(
-    "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] -translate-x-1/2 overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+    "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] [translate:-50%_0] backdrop-blur",
     "motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
     isDarkMode
       ? "border-white/10 bg-slate-900/95 text-slate-100"
@@ -2602,8 +2605,23 @@ export function RankboardApp() {
   }, []);
 
   useEffect(() => {
-    isMobileActionsOpenRef.current = isMobileActionsOpen;
+    if (isMobileActionsOpen) {
+      isMobileActionsOpenRef.current = true;
+      return;
+    }
+
+    if (!mobileActionsHeightUnlockTimeoutRef.current) {
+      isMobileActionsOpenRef.current = false;
+    }
   }, [isMobileActionsOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (mobileActionsHeightUnlockTimeoutRef.current) {
+        window.clearTimeout(mobileActionsHeightUnlockTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isMobileQuickAddPanelOpen) {
@@ -4953,6 +4971,13 @@ export function RankboardApp() {
 
   function closeMobileActionsMenu() {
     mobileActionsCloseLockUntilRef.current = Date.now() + 250;
+    if (mobileActionsHeightUnlockTimeoutRef.current) {
+      window.clearTimeout(mobileActionsHeightUnlockTimeoutRef.current);
+    }
+    mobileActionsHeightUnlockTimeoutRef.current = window.setTimeout(() => {
+      isMobileActionsOpenRef.current = false;
+      mobileActionsHeightUnlockTimeoutRef.current = null;
+    }, 280);
     if (isMobileQuickAddPanelOpen) {
       setAddCardTarget(null);
       setDraft(initialDraft);
@@ -5490,7 +5515,18 @@ function copyCardToDraft(card: CardEntry) {
     );
   }
 
-  async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
+  async function pasteArtworkFromClipboard(
+    target: "draft" | "edit",
+    field: ArtworkFieldKind,
+    input?: HTMLInputElement | null,
+  ) {
+    const previousReadOnly = input?.readOnly ?? false;
+
+    if (input) {
+      input.readOnly = true;
+      input.focus({ preventScroll: true });
+    }
+
     try {
       if (navigator.clipboard?.readText) {
         const pastedValue = (await navigator.clipboard.readText()).trim();
@@ -5529,6 +5565,13 @@ function copyCardToDraft(card: CardEntry) {
       if (!pasted) {
         setSaveState("error");
         setSaveErrorMessage("Clipboard contents could not be pasted.");
+      }
+    } finally {
+      if (input) {
+        window.setTimeout(() => {
+          input.blur();
+          input.readOnly = previousReadOnly;
+        }, 0);
       }
     }
   }
@@ -8357,12 +8400,14 @@ function copyCardToDraft(card: CardEntry) {
                   @keyframes mobile-action-panel-rise {
                     0% {
                       opacity: 0;
-                      transform: translateX(-50%) translateY(18px) scale(0.98);
+                      scale: 0.98;
+                      translate: -50% 18px;
                       transform-origin: center bottom;
                     }
                     100% {
                       opacity: 1;
-                      transform: translateX(-50%) translateY(0) scale(1);
+                      scale: 1;
+                      translate: -50% 0;
                       transform-origin: center bottom;
                     }
                   }
@@ -8407,6 +8452,12 @@ function copyCardToDraft(card: CardEntry) {
                       closeMobileActionsMenu();
                       return;
                     }
+                    if (mobileActionsHeightUnlockTimeoutRef.current) {
+                      window.clearTimeout(mobileActionsHeightUnlockTimeoutRef.current);
+                      mobileActionsHeightUnlockTimeoutRef.current = null;
+                    }
+                    isMobileActionsOpenRef.current = true;
+                    setMobileFocusedColumnId(getFocusedColumnIdFromLane(boardLaneRef.current));
                     setIsMobileActionsOpen(true);
                   }}
                   type="button"
@@ -8567,6 +8618,11 @@ function copyCardToDraft(card: CardEntry) {
                                             <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{artworkField.label}</span>
                                             <div className="relative">
                                               <input
+                                                ref={
+                                                  artworkField.field === "landscape"
+                                                    ? mobileQuickAddLandscapeArtworkInputRef
+                                                    : mobileQuickAddPortraitArtworkInputRef
+                                                }
                                                 name={artworkField.field === "landscape" ? "imageUrl" : "mobileTierListImageUrl"}
                                                 className={clsx(
                                                   "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
@@ -8594,7 +8650,11 @@ function copyCardToDraft(card: CardEntry) {
                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
                                                 )}
                                                 onClick={() => {
-                                                  void pasteArtworkFromClipboard("draft", artworkField.field);
+                                                  const input =
+                                                    artworkField.field === "landscape"
+                                                      ? mobileQuickAddLandscapeArtworkInputRef.current
+                                                      : mobileQuickAddPortraitArtworkInputRef.current;
+                                                  void pasteArtworkFromClipboard("draft", artworkField.field, input);
                                                 }}
                                                 type="button"
                                                 aria-label={`Paste ${artworkField.label}`}
@@ -8873,7 +8933,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMobileSearchMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),320px)] -translate-x-1/2 space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),320px)] [translate:-50%_0] space-y-3 rounded-[26px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -8940,7 +9000,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isCustomizationMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] [translate:-50%_0] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -9302,7 +9362,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] [translate:-50%_0] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -9383,7 +9443,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] -translate-x-1/2 space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] [translate:-50%_0] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -10480,8 +10540,8 @@ function copyCardToDraft(card: CardEntry) {
           onOpenGifSearch={(field) => autofillEditingCardImageForField(field, "gif")}
           onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
-          onPasteArtwork={(field) => {
-            void pasteArtworkFromClipboard("edit", field);
+          onPasteArtwork={(field, input) => {
+            void pasteArtworkFromClipboard("edit", field, input);
           }}
           onReleaseYearChange={(value) =>
             setEditingCardDraft((current) =>
@@ -10605,8 +10665,8 @@ function copyCardToDraft(card: CardEntry) {
           onOpenGifSearch={(field) => handleAutofillDraftImageForField(field, "gif")}
           onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}
-          onPasteArtwork={(field) => {
-            void pasteArtworkFromClipboard("draft", field);
+          onPasteArtwork={(field, input) => {
+            void pasteArtworkFromClipboard("draft", field, input);
           }}
           onReleaseYearChange={(value) =>
             setDraft((current) => ({
