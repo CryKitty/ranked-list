@@ -3980,7 +3980,7 @@ export function RankboardApp() {
     }, 1000);
   }
 
-  const resolveBoardInsertTarget = useCallback((pointerCoordinates: { x: number; y: number }) => {
+  function resolveBoardInsertTarget(pointerCoordinates: { x: number; y: number }) {
     if (typeof document === "undefined") {
       return null;
     }
@@ -4135,7 +4135,7 @@ export function RankboardApp() {
     }
 
     return { columnId, insertIndex };
-  }, [activeDragEntryId, cardsByColumn]);
+  }
 
   function applyActiveBoardInsertTarget(
     target: { columnId: string; insertIndex: number } | null,
