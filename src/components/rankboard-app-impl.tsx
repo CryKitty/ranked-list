@@ -134,6 +134,7 @@ import {
   ensureNormalizedProfile,
   loadPairwiseQuizProgress,
   loadNormalizedBoards,
+  saveBoardSnapshots,
   savePairwiseQuizProgress as savePairwiseQuizProgressRemote,
   syncNormalizedBoards,
   uploadArtworkToStorage,
@@ -2429,6 +2430,11 @@ export function RankboardApp() {
         await ensureNormalizedProfile(supabase, currentUser);
         await syncNormalizedBoards(supabase, currentUser, nextBoards);
         normalizedSaved = true;
+        try {
+          await saveBoardSnapshots(supabase, currentUser, nextBoards);
+        } catch (snapshotError) {
+          console.error("Board snapshot save failed.", snapshotError);
+        }
       } catch (persistError) {
         normalizedError = persistError;
         console.error("Normalized board sync failed.", persistError);
@@ -3508,6 +3514,11 @@ export function RankboardApp() {
           if (normalizedLoadError) {
             try {
               await syncNormalizedBoards(client, user, backupState.boards);
+              try {
+                await saveBoardSnapshots(client, user, backupState.boards);
+              } catch (snapshotError) {
+                console.error("Board snapshot save failed after backup migration.", snapshotError);
+              }
             } catch (error) {
               console.error("Backup state loaded, but normalized migration retry failed.", error);
             }
@@ -3536,6 +3547,11 @@ export function RankboardApp() {
           try {
             await syncNormalizedBoards(client, user, localBoards);
             normalizedSaved = true;
+            try {
+              await saveBoardSnapshots(client, user, localBoards);
+            } catch (snapshotError) {
+              console.error("Board snapshot save failed during bootstrap.", snapshotError);
+            }
           } catch (error) {
             console.error("Normalized board bootstrap failed; saving backup snapshot only.", error);
           }

@@ -29,6 +29,8 @@
   - `column_entries`
 - Backup and migration compatibility:
   - `board_states`
+- Per-board recovery history:
+  - `board_snapshots`
 - Durable quiz progress:
   - `pairwise_quiz_progress`
 - Active board preference:
@@ -49,6 +51,7 @@
 - During an active session, the in-browser board state is treated as authoritative.
 - The app writes `board_states` backup snapshots first, then tries to repair/update normalized rows.
 - If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
+- After normalized rows save successfully, the app writes per-board rows to `board_snapshots` and prunes each board to the latest 20 snapshots.
 - Local storage keeps a fast cache plus recent backup snapshots.
 - Pairwise quiz progress is now stored per `owner_id + board_client_id + column_client_id` in `pairwise_quiz_progress`, with local storage retained only as a fallback/recovery layer.
 - `column_entries` are now rewritten per board sync pass instead of incrementally upserted by stale IDs, which reduces the prior `409` conflict path.

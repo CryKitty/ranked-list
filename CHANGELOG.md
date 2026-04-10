@@ -2,6 +2,9 @@
 
 ## 2026-04-09
 
+- Added server-side `board_snapshots` persistence so each successfully normalized board save also stores a per-board recovery snapshot, capped to the latest 20 snapshots per board.
+- Kept `board_states` as the backup/migration parachute while making per-board snapshot history available for future restore tooling.
+
 - Reintroduced Tier List as a per-board `Customization` view toggle instead of a separate copied board type, so each board can now switch between `Kanban` and `Tier List` in place.
 - Tier List now persists its own row definitions and card ordering inside board settings, which means Tier List dragging no longer changes the kanban column/card ranking order.
 - Kept the existing kanban drag/drop path intact while routing only Tier List row/card reordering through the alternate tier-view state.

@@ -14,8 +14,16 @@ import type {
 } from "./types";
 
 export const ARTWORK_BUCKET = "board-artwork";
+export const BOARD_SNAPSHOT_RETENTION_LIMIT = 20;
 
 type SupabaseLike = Pick<SupabaseClient, "from" | "storage">;
+type BoardSnapshotInsert = {
+  owner_id: string;
+  board_id: string;
+  board_client_id: string;
+  snapshot: SavedBoard;
+  created_at: string;
+};
 
 function columnMetadata(column: ColumnDefinition) {
   return {
@@ -423,6 +431,92 @@ export async function syncNormalizedBoards(
 
     if (removedEntryIds.length > 0) {
       await supabase.from("column_entries").delete().in("id", removedEntryIds);
+    }
+  }
+}
+
+export async function saveBoardSnapshots(
+  supabase: SupabaseLike,
+  user: User,
+  boards: SavedBoard[],
+  retentionLimit = BOARD_SNAPSHOT_RETENTION_LIMIT,
+) {
+  if (boards.length === 0) {
+    return;
+  }
+
+  const boardClientIds = boards.map((board) => board.id);
+  const { data: boardRows, error: boardsError } = await supabase
+    .from("boards")
+    .select("id, client_id")
+    .eq("owner_id", user.id)
+    .in("client_id", boardClientIds);
+
+  if (boardsError) {
+    throw boardsError;
+  }
+
+  const boardDbIdByClientId = new Map(
+    ((boardRows ?? []) as Pick<NormalizedBoardRow, "id" | "client_id">[]).map((row) => [
+      row.client_id,
+      row.id,
+    ]),
+  );
+  const createdAt = new Date().toISOString();
+  const snapshotPayload = boards
+    .map((board) => {
+      const boardDbId = boardDbIdByClientId.get(board.id);
+
+      if (!boardDbId) {
+        return null;
+      }
+
+      return {
+        owner_id: user.id,
+        board_id: boardDbId,
+        board_client_id: board.id,
+        snapshot: board,
+        created_at: createdAt,
+      };
+    })
+    .filter((payload): payload is BoardSnapshotInsert => Boolean(payload));
+
+  if (snapshotPayload.length === 0) {
+    return;
+  }
+
+  const { error: insertError } = await supabase
+    .from("board_snapshots")
+    .insert(snapshotPayload);
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  for (const payload of snapshotPayload) {
+    const { data: oldSnapshotRows, error: oldSnapshotsError } = await supabase
+      .from("board_snapshots")
+      .select("id")
+      .eq("owner_id", user.id)
+      .eq("board_id", payload.board_id)
+      .order("created_at", { ascending: false })
+      .range(retentionLimit, 1000);
+
+    if (oldSnapshotsError) {
+      throw oldSnapshotsError;
+    }
+
+    const oldSnapshotIds = ((oldSnapshotRows ?? []) as Array<{ id: string }>).map((row) => row.id);
+
+    if (oldSnapshotIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("board_snapshots")
+        .delete()
+        .in("id", oldSnapshotIds);
+
+      if (deleteError) {
+        throw deleteError;
+      }
     }
   }
 }
