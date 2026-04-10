@@ -3164,18 +3164,31 @@ export function RankboardApp() {
     }
 
     const isTouchDrag = dragPointerKind === "touch";
+    const getAutoScrollStep = (distanceIntoEdge: number, threshold: number, maxStep: number, minStep: number) => {
+      const proximity = Math.max(0, Math.min(1, distanceIntoEdge / threshold));
+      if (proximity <= 0) {
+        return 0;
+      }
+
+      return minStep + (maxStep - minStep) * proximity * proximity;
+    };
     const edgeThreshold =
       activeBoardLayout === "tier-list"
-        ? 170
+        ? isMobileViewport && isTouchDrag
+          ? 190
+          : 170
         : isMobileViewport && isTouchDrag
-          ? 88
+          ? 112
           : 140;
     const maxScrollStep =
       activeBoardLayout === "tier-list"
-        ? 12
+        ? isMobileViewport && isTouchDrag
+          ? 18
+          : 14
         : isMobileViewport && isTouchDrag
-          ? 4.5
-          : 10;
+          ? 12
+          : 14;
+    const minScrollStep = isMobileViewport && isTouchDrag ? 1.6 : 2;
 
     const tick = () => {
       const coords = dragPointerCoordsRef.current;
@@ -3189,15 +3202,9 @@ export function RankboardApp() {
             let laneDeltaY = 0;
 
             if (coords.y <= laneRect.top + edgeThreshold) {
-              laneDeltaY = -Math.max(
-                2,
-                ((laneRect.top + edgeThreshold - coords.y) / edgeThreshold) * maxScrollStep,
-              );
+              laneDeltaY = -getAutoScrollStep(laneRect.top + edgeThreshold - coords.y, edgeThreshold, maxScrollStep, minScrollStep);
             } else if (coords.y >= laneRect.bottom - edgeThreshold) {
-              laneDeltaY = Math.max(
-                2,
-                ((coords.y - (laneRect.bottom - edgeThreshold)) / edgeThreshold) * maxScrollStep,
-              );
+              laneDeltaY = getAutoScrollStep(coords.y - (laneRect.bottom - edgeThreshold), edgeThreshold, maxScrollStep, minScrollStep);
             }
 
             if (laneDeltaY !== 0) {
@@ -3210,22 +3217,16 @@ export function RankboardApp() {
           const laneRect = boardLaneRef.current.getBoundingClientRect();
           const horizontalEdgeThreshold =
             isMobileViewport && isTouchDrag
-              ? Math.max(34, Math.min(56, laneRect.width * 0.08))
+              ? Math.max(48, Math.min(84, laneRect.width * 0.14))
               : Math.max(72, Math.min(132, laneRect.width * 0.18));
+          const maxHorizontalStep = isMobileViewport && isTouchDrag ? 14 : 16;
+          const minHorizontalStep = isMobileViewport && isTouchDrag ? 1.4 : 3;
           let deltaX = 0;
 
           if (coords.x <= laneRect.left + horizontalEdgeThreshold) {
-            deltaX = -Math.max(
-              isMobileViewport && isTouchDrag ? 1.2 : 3,
-              ((laneRect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) *
-                (isMobileViewport && isTouchDrag ? 5 : 14),
-            );
+            deltaX = -getAutoScrollStep(laneRect.left + horizontalEdgeThreshold - coords.x, horizontalEdgeThreshold, maxHorizontalStep, minHorizontalStep);
           } else if (coords.x >= laneRect.right - horizontalEdgeThreshold) {
-            deltaX = Math.max(
-              isMobileViewport && isTouchDrag ? 1.2 : 3,
-              ((coords.x - (laneRect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) *
-                (isMobileViewport && isTouchDrag ? 5 : 14),
-            );
+            deltaX = getAutoScrollStep(coords.x - (laneRect.right - horizontalEdgeThreshold), horizontalEdgeThreshold, maxHorizontalStep, minHorizontalStep);
           }
 
           if (deltaX !== 0) {
@@ -3241,20 +3242,13 @@ export function RankboardApp() {
         if (scrollContainer) {
           const rect = scrollContainer.getBoundingClientRect();
           const columnAutoScrollBoost =
-            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.33 : 1;
+            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.2 : 1;
           let deltaY = 0;
 
           if (coords.y <= rect.top + edgeThreshold) {
-            deltaY =
-              -Math.max(
-                2,
-                ((rect.top + edgeThreshold - coords.y) / edgeThreshold) * maxScrollStep,
-              );
+            deltaY = -getAutoScrollStep(rect.top + edgeThreshold - coords.y, edgeThreshold, maxScrollStep, minScrollStep);
           } else if (coords.y >= rect.bottom - edgeThreshold) {
-            deltaY = Math.max(
-              2,
-              ((coords.y - (rect.bottom - edgeThreshold)) / edgeThreshold) * maxScrollStep,
-            );
+            deltaY = getAutoScrollStep(coords.y - (rect.bottom - edgeThreshold), edgeThreshold, maxScrollStep, minScrollStep);
           }
 
           if (deltaY !== 0) {
@@ -3262,21 +3256,17 @@ export function RankboardApp() {
           }
 
           if (activeBoardLayout === "tier-list" && scrollContainer.scrollWidth > scrollContainer.clientWidth) {
-            const horizontalEdgeThreshold = Math.max(42, Math.min(86, rect.width * 0.16));
+            const horizontalEdgeThreshold = isMobileViewport && isTouchDrag
+              ? Math.max(58, Math.min(112, rect.width * 0.22))
+              : Math.max(42, Math.min(86, rect.width * 0.16));
+            const maxHorizontalStep = isMobileViewport && isTouchDrag ? 15 : 14;
+            const minHorizontalStep = isMobileViewport && isTouchDrag ? 1.5 : 3;
             let deltaX = 0;
 
             if (coords.x <= rect.left + horizontalEdgeThreshold) {
-              deltaX = -Math.max(
-                isMobileViewport && isTouchDrag ? 1.5 : 3,
-                ((rect.left + horizontalEdgeThreshold - coords.x) / horizontalEdgeThreshold) *
-                  (isMobileViewport && isTouchDrag ? 7 : 13),
-              );
+              deltaX = -getAutoScrollStep(rect.left + horizontalEdgeThreshold - coords.x, horizontalEdgeThreshold, maxHorizontalStep, minHorizontalStep);
             } else if (coords.x >= rect.right - horizontalEdgeThreshold) {
-              deltaX = Math.max(
-                isMobileViewport && isTouchDrag ? 1.5 : 3,
-                ((coords.x - (rect.right - horizontalEdgeThreshold)) / horizontalEdgeThreshold) *
-                  (isMobileViewport && isTouchDrag ? 7 : 13),
-              );
+              deltaX = getAutoScrollStep(coords.x - (rect.right - horizontalEdgeThreshold), horizontalEdgeThreshold, maxHorizontalStep, minHorizontalStep);
             }
 
             if (deltaX !== 0) {
