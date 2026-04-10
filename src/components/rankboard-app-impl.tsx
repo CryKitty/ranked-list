@@ -1682,6 +1682,25 @@ type PersistBoardStateOptions = {
   debounceMs?: number;
 };
 
+function mergePersistOptions(
+  current: PersistBoardStateOptions | null,
+  incoming?: PersistBoardStateOptions,
+) {
+  if (!incoming) {
+    return null;
+  }
+
+  if (!current) {
+    return incoming;
+  }
+
+  return {
+    ...current,
+    ...incoming,
+    debounceMs: incoming.debounceMs ?? current.debounceMs,
+  };
+}
+
 function formatLastSavedAt(savedAt: string | null) {
   if (!savedAt) {
     return "Not saved yet";
@@ -2062,6 +2081,8 @@ export function RankboardApp() {
   const latestActiveBoardIdRef = useRef(activeBoardId);
   const pendingPersistOptionsRef = useRef<PersistBoardStateOptions | null>(null);
   const pendingPersistDelayRef = useRef<number>(120);
+  const isRemotePersistInFlightRef = useRef(false);
+  const hasQueuedPersistAfterCurrentRef = useRef(false);
   const recentBackupSnapshotsRef = useRef<BoardBackupSnapshot[]>([]);
   const isSigningOutRef = useRef(false);
   const hasAutoOpenedBoardSetupRef = useRef(false);
@@ -2403,11 +2424,22 @@ export function RankboardApp() {
       return;
     }
 
+    if (isRemotePersistInFlightRef.current) {
+      pendingPersistOptionsRef.current = mergePersistOptions(
+        pendingPersistOptionsRef.current,
+        options,
+      );
+      hasQueuedPersistAfterCurrentRef.current = true;
+      setSaveState("pending");
+      return;
+    }
+
     const nextBoards = buildEffectiveBoardsSnapshot(options);
     const nextActiveBoardId = options?.activeBoardId ?? latestActiveBoardIdRef.current;
     const nextCardsByColumn = options?.cardsByColumn ?? latestCardsByColumnRef.current;
     const { payload, snapshot } = buildPersistedColumnsPayload(nextBoards, nextActiveBoardId);
 
+    isRemotePersistInFlightRef.current = true;
     setIsPersisting(true);
     setSaveState("saving");
     setSaveErrorMessage(null);
@@ -2458,6 +2490,12 @@ export function RankboardApp() {
       setSaveErrorMessage(error instanceof Error ? error.message : "Changes could not be saved.");
     } finally {
       setIsPersisting(false);
+      isRemotePersistInFlightRef.current = false;
+
+      if (hasQueuedPersistAfterCurrentRef.current) {
+        hasQueuedPersistAfterCurrentRef.current = false;
+        setPersistRequestId((current) => current + 1);
+      }
     }
   }, [buildEffectiveBoardsSnapshot, buildPersistedColumnsPayload, currentUser, supabase, writeLocalBackupSnapshot]);
 
@@ -3889,10 +3927,7 @@ export function RankboardApp() {
     }, 1000);
   }
 
-  function getBoardInsertCollision(
-    pointerCoordinates: { x: number; y: number },
-    droppableContainers: Array<{ id: string | number }>,
-  ) {
+  function resolveBoardInsertTarget(pointerCoordinates: { x: number; y: number }) {
     if (typeof document === "undefined") {
       return null;
     }
@@ -3908,7 +3943,6 @@ export function RankboardApp() {
       const fallbackTarget = lastBoardInsertTargetRef.current;
 
       if (!fallbackTarget) {
-        setActiveBoardInsertTarget(null);
         return null;
       }
 
@@ -3918,7 +3952,6 @@ export function RankboardApp() {
 
       if (!fallbackScrollContainer) {
         lastBoardInsertTargetRef.current = null;
-        setActiveBoardInsertTarget(null);
         return null;
       }
 
@@ -3929,38 +3962,9 @@ export function RankboardApp() {
         pointerCoordinates.y >= fallbackRect.top - 64 &&
         pointerCoordinates.y <= fallbackRect.bottom + 220
       ) {
-        const fallbackId = makeInsertDropId(
-          fallbackTarget.columnId,
-          fallbackTarget.insertIndex,
-        );
-        const fallbackContainer = droppableContainers.find(
-          (container) => String(container.id) === fallbackId,
-        );
-
-        if (fallbackContainer) {
-          setActiveBoardInsertTarget((current) =>
-            current?.columnId === fallbackTarget.columnId &&
-            current.insertIndex === fallbackTarget.insertIndex
-              ? current
-              : {
-                  columnId: fallbackTarget.columnId,
-                  insertIndex: fallbackTarget.insertIndex,
-                },
-          );
-
-          return [
-            {
-              id: fallbackContainer.id,
-              data: {
-                droppableContainer: fallbackContainer,
-                value: 0,
-              },
-            },
-          ];
-        }
+        return fallbackTarget;
       }
 
-      setActiveBoardInsertTarget(null);
       return null;
     }
 
@@ -3976,7 +3980,6 @@ export function RankboardApp() {
         document.querySelector<HTMLElement>(`[data-column-scroll-id="${columnId}"]`));
 
     if (!scrollContainer) {
-      setActiveBoardInsertTarget(null);
       return null;
     }
 
@@ -3987,7 +3990,6 @@ export function RankboardApp() {
       pointerCoordinates.y < scrollRect.top - 64 ||
       pointerCoordinates.y > scrollRect.bottom + 220
     ) {
-      setActiveBoardInsertTarget(null);
       return null;
     }
 
@@ -4002,36 +4004,67 @@ export function RankboardApp() {
     });
 
     let insertIndex = cardElements.length;
-    const firstCardRect = cardElements[0]?.getBoundingClientRect();
 
-    if (firstCardRect && pointerCoordinates.y <= firstCardRect.top + firstCardRect.height / 3) {
-      insertIndex = 0;
-    } else {
-      for (const [index, element] of cardElements.entries()) {
-        const rect = element.getBoundingClientRect();
-        if (pointerCoordinates.y < rect.top + rect.height / 2) {
-          insertIndex = index;
-          break;
-        }
+    for (const [index, element] of cardElements.entries()) {
+      const rect = element.getBoundingClientRect();
+      const topThirdBoundary = rect.top + rect.height / 3;
+
+      if (pointerCoordinates.y <= topThirdBoundary) {
+        insertIndex = index;
+        break;
+      }
+
+      if (pointerCoordinates.y <= rect.bottom) {
+        insertIndex = index + 1;
+        break;
+      }
+
+      if (pointerCoordinates.y < rect.top) {
+        insertIndex = index;
+        break;
       }
     }
 
-    const targetId = makeInsertDropId(columnId, insertIndex);
+    return { columnId, insertIndex };
+  }
+
+  function applyActiveBoardInsertTarget(target: { columnId: string; insertIndex: number } | null) {
+    if (!target) {
+      lastBoardInsertTargetRef.current = null;
+      setActiveBoardInsertTarget(null);
+      return;
+    }
+
+    lastBoardInsertTargetRef.current = target;
+    setActiveBoardInsertTarget((current) =>
+      current?.columnId === target.columnId && current.insertIndex === target.insertIndex
+        ? current
+        : target,
+    );
+  }
+
+  function getBoardInsertCollision(
+    pointerCoordinates: { x: number; y: number },
+    droppableContainers: Array<{ id: string | number }>,
+  ) {
+    const insertTarget = resolveBoardInsertTarget(pointerCoordinates);
+
+    if (!insertTarget) {
+      applyActiveBoardInsertTarget(null);
+      return null;
+    }
+
+    const targetId = makeInsertDropId(insertTarget.columnId, insertTarget.insertIndex);
     const droppableContainer = droppableContainers.find(
       (container) => String(container.id) === targetId,
     );
 
     if (!droppableContainer) {
-      setActiveBoardInsertTarget(null);
+      applyActiveBoardInsertTarget(insertTarget);
       return null;
     }
 
-    lastBoardInsertTargetRef.current = { columnId, insertIndex };
-    setActiveBoardInsertTarget((current) =>
-      current?.columnId === columnId && current.insertIndex === insertIndex
-        ? current
-        : { columnId, insertIndex },
-    );
+    applyActiveBoardInsertTarget(insertTarget);
 
     return [
       {
@@ -4780,9 +4813,9 @@ export function RankboardApp() {
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? draft.title).trim() || `Untitled ${boardVocabulary.singular}`;
     const series = String(formData.get("series") ?? draft.series).trim();
-    const imageUrl = String(formData.get("imageUrl") ?? draft.imageUrl).trim();
-    const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? draft.mobileBoardImageUrl).trim();
-    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? draft.mobileTierListImageUrl).trim();
+    const imageUrl = draft.imageUrl.trim();
+    const mobileBoardImageUrl = draft.mobileBoardImageUrl.trim();
+    const mobileTierListImageUrl = draft.mobileTierListImageUrl.trim();
     const notes = String(formData.get("notes") ?? draft.notes).trim();
     const releaseYear = String(formData.get("releaseYear") ?? draft.releaseYear).trim();
     const columnId = String(formData.get("columnId") ?? draft.columnId).trim();
@@ -5611,6 +5644,7 @@ function copyCardToDraft(card: CardEntry) {
     if (input) {
       input.inputMode = "none";
       input.focus({ preventScroll: true });
+      input.select();
     }
 
     try {
@@ -5765,9 +5799,9 @@ function copyCardToDraft(card: CardEntry) {
 
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? editingCardDraft.title).trim() || `Untitled ${boardVocabulary.singular}`;
-    const imageUrl = String(formData.get("imageUrl") ?? editingCardDraft.imageUrl).trim();
-    const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? editingCardDraft.mobileBoardImageUrl).trim();
-    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? editingCardDraft.mobileTierListImageUrl).trim();
+    const imageUrl = editingCardDraft.imageUrl.trim();
+    const mobileBoardImageUrl = editingCardDraft.mobileBoardImageUrl.trim();
+    const mobileTierListImageUrl = editingCardDraft.mobileTierListImageUrl.trim();
     const imageStoragePath = editingCardDraft.imageStoragePath;
     const series = String(formData.get("series") ?? editingCardDraft.series).trim();
     const releaseYear = String(formData.get("releaseYear") ?? editingCardDraft.releaseYear).trim();
@@ -10187,8 +10221,6 @@ function copyCardToDraft(card: CardEntry) {
                   if (boardInsertCollision) {
                     return boardInsertCollision;
                   }
-
-                  setActiveBoardInsertTarget(null);
                 }
 
                 const pointerHits = pointerWithin(args);
@@ -10223,6 +10255,19 @@ function copyCardToDraft(card: CardEntry) {
                 lastBoardInsertTargetRef.current = null;
                 setActiveBoardInsertTarget(null);
                 setActiveDragEntryId(null);
+              }}
+              onDragMove={() => {
+                if (activeBoardLayout !== "board" || isDragGapSuppressed) {
+                  return;
+                }
+
+                const pointerCoordinates = dragPointerCoordsRef.current;
+
+                if (!pointerCoordinates) {
+                  return;
+                }
+
+                applyActiveBoardInsertTarget(resolveBoardInsertTarget(pointerCoordinates));
               }}
               onDragEnd={handleDragEnd}
             >

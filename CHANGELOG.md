@@ -2,6 +2,10 @@
 
 ## 2026-04-09
 
+- Made kanban insert targeting treat the top third of every hovered card as the drop-above target, including the first card in a column.
+- Serialized authenticated remote saves so rapid artwork edits queue behind any in-flight save and the latest board snapshot wins.
+- Made artwork paste buttons select the existing field value first and made add/edit card submits trust the controlled draft artwork values, so pasted URLs overwrite reliably.
+
 - Added server-side `board_snapshots` persistence so each successfully normalized board save also stores a per-board recovery snapshot, capped to the latest 20 snapshots per board.
 - Kept `board_states` as the backup/migration parachute while making per-board snapshot history available for future restore tooling.
 
