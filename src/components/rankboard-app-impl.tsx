@@ -11,6 +11,7 @@ import {
   TouchSensor,
   closestCorners,
   pointerWithin,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
@@ -20,7 +21,6 @@ import {
   defaultAnimateLayoutChanges,
   horizontalListSortingStrategy,
   rectSortingStrategy,
-  verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -1951,10 +1951,6 @@ export function RankboardApp() {
   const [isCardDragging, setIsCardDragging] = useState(false);
   const [isDesktopAddCardCooldownActive, setIsDesktopAddCardCooldownActive] = useState(false);
   const [activeDragEntryId, setActiveDragEntryId] = useState<string | null>(null);
-  const [activeBoardInsertTarget, setActiveBoardInsertTarget] = useState<{
-    columnId: string;
-    insertIndex: number;
-  } | null>(null);
   const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
   const [isDragGapSuppressed, setIsDragGapSuppressed] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -3158,10 +3154,6 @@ export function RankboardApp() {
         y: event.clientY,
       };
       dragPointerCoordsRef.current = nextPointerCoordinates;
-
-      if (activeBoardLayout === "board" && !isDragGapSuppressed) {
-        applyActiveBoardInsertTarget(resolveBoardInsertTarget(nextPointerCoordinates));
-      }
     }
 
     function handleTouchMove(event: TouchEvent) {
@@ -3174,10 +3166,6 @@ export function RankboardApp() {
         y: touch.clientY,
       };
       dragPointerCoordsRef.current = nextPointerCoordinates;
-
-      if (activeBoardLayout === "board" && !isDragGapSuppressed) {
-        applyActiveBoardInsertTarget(resolveBoardInsertTarget(nextPointerCoordinates));
-      }
     }
 
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
@@ -3187,7 +3175,7 @@ export function RankboardApp() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("touchmove", handleTouchMove);
     };
-  }, [activeBoardLayout, activeDragEntryId, isCardDragging, isDragGapSuppressed]);
+  }, [isCardDragging]);
 
   useEffect(() => {
     return () => {
@@ -3242,7 +3230,12 @@ export function RankboardApp() {
         return 0;
       }
 
-      return minStep + (maxStep - minStep) * proximity * proximity;
+      const easedProximity =
+        activeBoardLayout === "board" && isMobileViewport && isTouchDrag
+          ? proximity * proximity * proximity
+          : proximity * proximity;
+
+      return minStep + (maxStep - minStep) * easedProximity;
     };
     const edgeThreshold =
       activeBoardLayout === "tier-list"
@@ -3250,7 +3243,7 @@ export function RankboardApp() {
           ? 190
           : 170
         : isMobileViewport && isTouchDrag
-          ? 112
+          ? 156
           : 140;
     const maxScrollStep =
       activeBoardLayout === "tier-list"
@@ -3258,9 +3251,9 @@ export function RankboardApp() {
           ? 18
           : 14
         : isMobileViewport && isTouchDrag
-          ? 12
+          ? 28
           : 14;
-    const minScrollStep = isMobileViewport && isTouchDrag ? 1.6 : 2;
+    const minScrollStep = isMobileViewport && isTouchDrag ? 0.7 : 2;
 
     const tick = () => {
       const coords = dragPointerCoordsRef.current;
@@ -3289,10 +3282,10 @@ export function RankboardApp() {
           const laneRect = boardLaneRef.current.getBoundingClientRect();
           const horizontalEdgeThreshold =
             isMobileViewport && isTouchDrag
-              ? Math.max(48, Math.min(84, laneRect.width * 0.14))
+              ? Math.max(56, Math.min(108, laneRect.width * 0.2))
               : Math.max(72, Math.min(132, laneRect.width * 0.18));
-          const maxHorizontalStep = isMobileViewport && isTouchDrag ? 14 : 16;
-          const minHorizontalStep = isMobileViewport && isTouchDrag ? 1.4 : 3;
+          const maxHorizontalStep = isMobileViewport && isTouchDrag ? 22 : 16;
+          const minHorizontalStep = isMobileViewport && isTouchDrag ? 0.8 : 3;
           let deltaX = 0;
 
           if (coords.x <= laneRect.left + horizontalEdgeThreshold) {
@@ -3310,11 +3303,19 @@ export function RankboardApp() {
           .elementsFromPoint(coords.x, coords.y)
           .map((element) => element.closest("[data-column-scroll-id]"))
           .find(Boolean) as HTMLElement | null;
+        const fallbackInsertTarget = lastBoardInsertTargetRef.current;
+        const fallbackScrollContainer =
+          !scrollContainer && activeBoardLayout === "board" && fallbackInsertTarget
+            ? document.querySelector<HTMLElement>(
+                `[data-column-scroll-id="${fallbackInsertTarget.columnId}"]`,
+              )
+            : null;
+        const targetScrollContainer = scrollContainer ?? fallbackScrollContainer;
 
-        if (scrollContainer) {
-          const rect = scrollContainer.getBoundingClientRect();
+        if (targetScrollContainer) {
+          const rect = targetScrollContainer.getBoundingClientRect();
           const columnAutoScrollBoost =
-            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.2 : 1;
+            activeBoardLayout === "board" && isMobileViewport && isTouchDrag ? 1.4 : 1;
           let deltaY = 0;
 
           if (coords.y <= rect.top + edgeThreshold) {
@@ -3324,10 +3325,13 @@ export function RankboardApp() {
           }
 
           if (deltaY !== 0) {
-            scrollContainer.scrollTop += deltaY * columnAutoScrollBoost;
+            targetScrollContainer.scrollTop += deltaY * columnAutoScrollBoost;
           }
 
-          if (activeBoardLayout === "tier-list" && scrollContainer.scrollWidth > scrollContainer.clientWidth) {
+          if (
+            activeBoardLayout === "tier-list" &&
+            targetScrollContainer.scrollWidth > targetScrollContainer.clientWidth
+          ) {
             const horizontalEdgeThreshold = isMobileViewport && isTouchDrag
               ? Math.max(58, Math.min(112, rect.width * 0.22))
               : Math.max(42, Math.min(86, rect.width * 0.16));
@@ -3342,7 +3346,7 @@ export function RankboardApp() {
             }
 
             if (deltaX !== 0) {
-              scrollContainer.scrollLeft += deltaX;
+              targetScrollContainer.scrollLeft += deltaX;
             }
           }
         }
@@ -3951,13 +3955,16 @@ export function RankboardApp() {
     }, 1000);
   }
 
-  function resolveBoardInsertTarget(pointerCoordinates: { x: number; y: number }) {
+  const resolveBoardInsertTarget = useCallback((pointerCoordinates: { x: number; y: number }) => {
     if (typeof document === "undefined") {
       return null;
     }
 
-    const columnElement = document
-      .elementsFromPoint(pointerCoordinates.x, pointerCoordinates.y)
+    const elementsAtPoint = document.elementsFromPoint(
+      pointerCoordinates.x,
+      pointerCoordinates.y,
+    );
+    const columnElement = elementsAtPoint
       .map((element) => element.closest("[data-column-id]"))
       .find(Boolean) as HTMLElement | null;
 
@@ -3993,14 +4000,13 @@ export function RankboardApp() {
     }
 
     const scrollContainer =
-      ((document
-      .elementsFromPoint(pointerCoordinates.x, pointerCoordinates.y)
-      .map((element) => element.closest("[data-column-scroll-id]"))
-      .find(
-        (element) =>
-          element instanceof HTMLElement &&
-          element.dataset.columnScrollId === columnId,
-      ) as HTMLElement | null) ??
+      ((elementsAtPoint
+        .map((element) => element.closest("[data-column-scroll-id]"))
+        .find(
+          (element) =>
+            element instanceof HTMLElement &&
+            element.dataset.columnScrollId === columnId,
+        ) as HTMLElement | null) ??
         document.querySelector<HTMLElement>(`[data-column-scroll-id="${columnId}"]`));
 
     if (!scrollContainer) {
@@ -4017,6 +4023,46 @@ export function RankboardApp() {
       return null;
     }
 
+    const activeColumnCards = (cardsByColumn[columnId] ?? []).filter(
+      (card) => card.entryId !== activeDragEntryId,
+    );
+    const hoveredCardElement = elementsAtPoint
+      .map((element) => element.closest("[data-card-entry-id]"))
+      .find(
+        (element) =>
+          element instanceof HTMLElement &&
+          element.dataset.cardEntryId !== activeDragEntryId,
+      ) as HTMLElement | null;
+
+    if (hoveredCardElement?.dataset.cardEntryId) {
+      const hoveredIndex = activeColumnCards.findIndex(
+        (card) => card.entryId === hoveredCardElement.dataset.cardEntryId,
+      );
+
+      if (hoveredIndex >= 0) {
+        const rect = hoveredCardElement.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        return {
+          columnId,
+          insertIndex: pointerCoordinates.y < midpoint ? hoveredIndex : hoveredIndex + 1,
+        };
+      }
+    }
+
+    const directInsertTarget = elementsAtPoint
+      .map((element) => element.closest("[data-insert-drop-id]"))
+      .find(Boolean) as HTMLElement | null;
+    const directInsertId = directInsertTarget?.dataset.insertDropId;
+
+    if (directInsertId) {
+      const parsedDirectTarget = parseDropTargetId(directInsertId);
+
+      if (parsedDirectTarget?.columnId === columnId) {
+        return parsedDirectTarget;
+      }
+    }
+
     const cardElements = Array.from(
       scrollContainer.querySelectorAll<HTMLElement>("[data-card-entry-id]"),
     ).filter((element) => {
@@ -4027,13 +4073,27 @@ export function RankboardApp() {
       return element.getBoundingClientRect().height > 8;
     });
 
+    if (cardElements.length === 0) {
+      return { columnId, insertIndex: 0 };
+    }
+
+    const firstRect = cardElements[0].getBoundingClientRect();
+    if (pointerCoordinates.y <= firstRect.top) {
+      return { columnId, insertIndex: 0 };
+    }
+
+    const lastRect = cardElements[cardElements.length - 1].getBoundingClientRect();
+    if (pointerCoordinates.y >= lastRect.bottom) {
+      return { columnId, insertIndex: cardElements.length };
+    }
+
     let insertIndex = cardElements.length;
 
     for (const [index, element] of cardElements.entries()) {
       const rect = element.getBoundingClientRect();
-      const topThirdBoundary = rect.top + rect.height / 3;
+      const midpoint = rect.top + rect.height / 2;
 
-      if (pointerCoordinates.y <= topThirdBoundary) {
+      if (pointerCoordinates.y < midpoint) {
         insertIndex = index;
         break;
       }
@@ -4050,21 +4110,15 @@ export function RankboardApp() {
     }
 
     return { columnId, insertIndex };
-  }
+  }, [activeDragEntryId, cardsByColumn]);
 
   function applyActiveBoardInsertTarget(target: { columnId: string; insertIndex: number } | null) {
     if (!target) {
       lastBoardInsertTargetRef.current = null;
-      setActiveBoardInsertTarget(null);
       return;
     }
 
     lastBoardInsertTargetRef.current = target;
-    setActiveBoardInsertTarget((current) =>
-      current?.columnId === target.columnId && current.insertIndex === target.insertIndex
-        ? current
-        : target,
-    );
   }
 
   function getBoardInsertCollision(
@@ -4598,7 +4652,6 @@ export function RankboardApp() {
     setDragPointerKind(null);
     dragPointerCoordsRef.current = null;
     lastBoardInsertTargetRef.current = null;
-    setActiveBoardInsertTarget(null);
     setActiveDragEntryId(null);
 
     if ((filtering && activeBoardLayout !== "tier-list") || !event.over) {
@@ -10257,7 +10310,6 @@ function copyCardToDraft(card: CardEntry) {
               sensors={sensors}
               collisionDetection={(args) => {
                 if (activeBoardLayout === "board" && isDragGapSuppressed) {
-                  setActiveBoardInsertTarget(null);
                   return [];
                 }
 
@@ -10299,7 +10351,6 @@ function copyCardToDraft(card: CardEntry) {
                 beginDesktopAddCardCooldown();
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
-                setActiveBoardInsertTarget(null);
                 setActiveDragEntryId(String(active.id));
               }}
               onDragCancel={() => {
@@ -10309,21 +10360,11 @@ function copyCardToDraft(card: CardEntry) {
                 setDragPointerKind(null);
                 dragPointerCoordsRef.current = null;
                 lastBoardInsertTargetRef.current = null;
-                setActiveBoardInsertTarget(null);
                 setActiveDragEntryId(null);
               }}
               onDragMove={() => {
-                if (activeBoardLayout !== "board" || isDragGapSuppressed) {
-                  return;
-                }
-
-                const pointerCoordinates = dragPointerCoordsRef.current;
-
-                if (!pointerCoordinates) {
-                  return;
-                }
-
-                applyActiveBoardInsertTarget(resolveBoardInsertTarget(pointerCoordinates));
+                // Placeholder targeting is resolved from collision detection to avoid
+                // doing the same insert-target work multiple times per pointer move.
               }}
               onDragEnd={handleDragEnd}
             >
@@ -10442,7 +10483,6 @@ function copyCardToDraft(card: CardEntry) {
                           suppressAddCardAffordances={isDesktopAddCardCooldownActive}
                           isCardDragging={isCardDragging}
                           isDragGapSuppressed={false}
-                          activeBoardInsertTarget={activeBoardInsertTarget}
                           cards={visibleCards}
                           activeTierFilter={columnTierFilters[column.id] ?? "all"}
                           currentSeriesFilter={seriesFilter}
@@ -10605,7 +10645,7 @@ function copyCardToDraft(card: CardEntry) {
                       {activeDragCard ? (
                         <div
                           className={clsx(
-                            "pointer-events-none rotate-[1deg] opacity-70 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
+                            "pointer-events-none scale-[0.96] rotate-[1deg] opacity-65 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
                             activeBoardLayout === "tier-list"
                               ? getTierListOverlayWidthClass(tierListCardAspectRatio, isMobileViewport)
                               : "w-[224px]",
@@ -13902,7 +13942,6 @@ function BoardColumn({
   suppressAddCardAffordances,
   isCardDragging,
   isDragGapSuppressed,
-  activeBoardInsertTarget,
   cards,
   activeTierFilter,
   currentSeriesFilter,
@@ -13966,7 +14005,6 @@ function BoardColumn({
   suppressAddCardAffordances: boolean;
   isCardDragging: boolean;
   isDragGapSuppressed: boolean;
-  activeBoardInsertTarget: { columnId: string; insertIndex: number } | null;
   cards: CardEntry[];
   activeTierFilter: TierFilter;
   currentSeriesFilter: string;
@@ -14782,6 +14820,7 @@ function BoardColumn({
         style={{
           touchAction: isCardDragging ? "none" : "auto",
           overscrollBehaviorY: "contain",
+          overflowAnchor: isCardDragging ? "none" : "auto",
           WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
         }}
       >
@@ -14819,101 +14858,89 @@ function BoardColumn({
             </div>
           ))
         ) : (
-          <SortableContext
-            items={tierFilteredCards.map((card) => card.entryId)}
-            strategy={verticalListSortingStrategy}
-          >
-            <>
-              <AddCardRow
-                columnId={column.id}
-                isDarkMode={isDarkMode}
-                isDragMode={isCardDragging}
-                isGapSuppressed={isDragGapSuppressed}
-                collapseCards={collapseCards}
-                forceActive={
-                  activeBoardInsertTarget?.columnId === column.id &&
-                  activeBoardInsertTarget.insertIndex === 0
-                }
-                insertIndex={0}
-                alwaysVisible={tierFilteredCards.length === 0}
-                hideAction={
-                  suppressAddCardAffordances ||
-                  (!isCardDragging &&
+          <>
+            <AddCardRow
+              columnId={column.id}
+              isDarkMode={isDarkMode}
+              isDragMode={isCardDragging}
+              isGapSuppressed={isDragGapSuppressed}
+              collapseCards={collapseCards}
+              insertIndex={0}
+              alwaysVisible={tierFilteredCards.length === 0}
+              hideAction={
+                suppressAddCardAffordances ||
+                (!isCardDragging &&
                   (tierFilteredCards.length === 0 ||
                     isMenuOpen ||
                     isSortMenuOpen ||
                     isFilterMenuOpen ||
                     isMirrorMenuOpen ||
                     isMaintenanceMenuOpen))
-                }
-                isMobileViewport={isMobileViewport}
-                mobileArmed={revealedMobileAddCardTarget?.columnId === column.id && revealedMobileAddCardTarget.insertIndex === 0}
-                interactive={!disableAddAffordances && !suppressAddCardAffordances}
-                onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: 0 })}
-                onClick={() => onAddCard(column.id, 0)}
-              />
-              {tierFilteredCards.map((card, index) => (
-                <div
-                  key={card.entryId}
-                  className={clsx(
-                    "flex flex-col",
-                    collapseCards ? "gap-0" : "gap-1.5 sm:gap-3",
-                  )}
-                >
-                  <SortableCard
-                    card={card}
-                    collapseCards={collapseCards}
-                    isDarkMode={isDarkMode}
-                    showSeries={showSeriesOnCards}
-                    showArtwork={showArtworkOnCards}
-                    showTierHighlights={showTierHighlights}
-                    frontFieldDefinitions={frontFieldDefinitions}
-                    rankBadge={
-                      isRankedColumn(column)
-                        ? {
-                            value: index + 1,
-                          }
-                        : null
-                    }
-                    onEdit={() => onEditCard(card)}
-                    mobileArtworkVariant={isMobileViewport ? "board" : undefined}
-                    preserveSpaceWhenDragging={false}
-                    freezeLayoutWhileDragging={isCardDragging}
-                  />
-                  <AddCardRow
-                    columnId={column.id}
-                    isDarkMode={isDarkMode}
-                    isDragMode={isCardDragging}
-                    isGapSuppressed={isDragGapSuppressed}
-                    collapseCards={collapseCards}
-                    forceActive={
-                      activeBoardInsertTarget?.columnId === column.id &&
-                      activeBoardInsertTarget.insertIndex === index + 1
-                    }
-                    insertIndex={index + 1}
-                    alwaysVisible={index === tierFilteredCards.length - 1}
-                    hideAction={
-                      suppressAddCardAffordances ||
-                      (!isCardDragging &&
+              }
+              isMobileViewport={isMobileViewport}
+              mobileArmed={
+                revealedMobileAddCardTarget?.columnId === column.id &&
+                revealedMobileAddCardTarget.insertIndex === 0
+              }
+              interactive={!disableAddAffordances && !suppressAddCardAffordances}
+              onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: 0 })}
+              onClick={() => onAddCard(column.id, 0)}
+            />
+            {tierFilteredCards.map((card, index) => (
+              <div
+                key={card.entryId}
+                className={clsx(
+                  "flex flex-col",
+                  collapseCards ? "gap-0" : "gap-1.5 sm:gap-3",
+                )}
+              >
+                <DraggableCard
+                  card={card}
+                  collapseCards={collapseCards}
+                  isDarkMode={isDarkMode}
+                  showSeries={showSeriesOnCards}
+                  showArtwork={showArtworkOnCards}
+                  showTierHighlights={showTierHighlights}
+                  frontFieldDefinitions={frontFieldDefinitions}
+                  rankBadge={
+                    isRankedColumn(column)
+                      ? {
+                          value: index + 1,
+                        }
+                      : null
+                  }
+                  onEdit={() => onEditCard(card)}
+                  mobileArtworkVariant={isMobileViewport ? "board" : undefined}
+                />
+                <AddCardRow
+                  columnId={column.id}
+                  isDarkMode={isDarkMode}
+                  isDragMode={isCardDragging}
+                  isGapSuppressed={isDragGapSuppressed}
+                  collapseCards={collapseCards}
+                  insertIndex={index + 1}
+                  alwaysVisible={index === tierFilteredCards.length - 1}
+                  hideAction={
+                    suppressAddCardAffordances ||
+                    (!isCardDragging &&
                       (isMenuOpen ||
                         isSortMenuOpen ||
                         isFilterMenuOpen ||
                         isMirrorMenuOpen ||
                         isMaintenanceMenuOpen))
-                    }
-                    isMobileViewport={isMobileViewport}
-                    mobileArmed={
-                      revealedMobileAddCardTarget?.columnId === column.id &&
-                      revealedMobileAddCardTarget.insertIndex === index + 1
-                    }
-                    interactive={!disableAddAffordances && !suppressAddCardAffordances}
-                    onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: index + 1 })}
-                    onClick={() => onAddCard(column.id, index + 1)}
-                  />
-                </div>
-              ))}
-            </>
-          </SortableContext>
+                  }
+                  isMobileViewport={isMobileViewport}
+                  mobileArmed={
+                    revealedMobileAddCardTarget?.columnId === column.id &&
+                    revealedMobileAddCardTarget.insertIndex === index + 1
+                  }
+                  interactive={!disableAddAffordances && !suppressAddCardAffordances}
+                  onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: index + 1 })}
+                  onClick={() => onAddCard(column.id, index + 1)}
+                />
+              </div>
+            ))}
+          </>
         )}
 
         {tierFilteredCards.length === 0 ? (
@@ -15482,7 +15509,6 @@ function AddCardRow({
   isDragMode = false,
   isGapSuppressed = false,
   collapseCards = false,
-  forceActive = false,
   insertIndex,
   alwaysVisible = false,
   hideAction = false,
@@ -15497,7 +15523,6 @@ function AddCardRow({
   isDragMode?: boolean;
   isGapSuppressed?: boolean;
   collapseCards?: boolean;
-  forceActive?: boolean;
   insertIndex: number;
   alwaysVisible?: boolean;
   hideAction?: boolean;
@@ -15526,7 +15551,7 @@ function AddCardRow({
 
     onClick();
   };
-  const showExpandedDropTarget = isDragMode && !isGapSuppressed && (isOver || forceActive);
+  const showExpandedDropTarget = isDragMode && !isGapSuppressed && isOver;
   const showTrelloStylePlaceholder = showExpandedDropTarget;
   const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
   const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
@@ -15585,7 +15610,11 @@ function AddCardRow({
         )}
         aria-hidden="true"
       >
-        <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+        <div
+          ref={setNodeRef}
+          data-insert-drop-id={makeInsertDropId(columnId, insertIndex)}
+          className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)}
+        />
         {showTrelloStylePlaceholder ? (
           <div
             aria-hidden="true"
@@ -15643,7 +15672,11 @@ function AddCardRow({
       type="button"
       aria-label="Add game here"
     >
-      <div ref={setNodeRef} className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)} />
+      <div
+        ref={setNodeRef}
+        data-insert-drop-id={makeInsertDropId(columnId, insertIndex)}
+        className={clsx("pointer-events-none absolute inset-x-0", dragHitAreaClass)}
+      />
       {showTrelloStylePlaceholder ? (
         <div
           aria-hidden="true"
@@ -15779,6 +15812,77 @@ function SortableCard({
           onEdit={onEdit}
         />
       </div>
+  );
+}
+
+function DraggableCard({
+  card,
+  collapseCards,
+  isDarkMode,
+  showSeries,
+  showArtwork,
+  showTierHighlights,
+  frontFieldDefinitions,
+  rankBadge,
+  secondaryRankBadge,
+  onEdit,
+  forceSquare = false,
+  compactImageOnly = false,
+  hideTextOverlay = false,
+  cardAspectRatio = "landscape",
+  mobileArtworkVariant,
+  clickToEdit = false,
+}: {
+  card: CardEntry;
+  collapseCards: boolean;
+  isDarkMode: boolean;
+  showSeries: boolean;
+  showArtwork: boolean;
+  showTierHighlights: boolean;
+  frontFieldDefinitions: BoardFieldDefinition[];
+  rankBadge: RankBadge | null;
+  secondaryRankBadge?: RankBadge | null;
+  onEdit: () => void;
+  forceSquare?: boolean;
+  compactImageOnly?: boolean;
+  hideTextOverlay?: boolean;
+  cardAspectRatio?: "portrait" | "square" | "landscape";
+  mobileArtworkVariant?: "board" | "tier-list";
+  clickToEdit?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: card.entryId,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={clsx(
+        "relative",
+        isDragging && "z-20 opacity-0 pointer-events-none",
+      )}
+    >
+      <CardTile
+        card={card}
+        collapseCards={collapseCards}
+        isDarkMode={isDarkMode}
+        showSeries={showSeries}
+        showArtwork={showArtwork}
+        showTierHighlights={showTierHighlights}
+        frontFieldDefinitions={frontFieldDefinitions}
+        rankBadge={rankBadge}
+        secondaryRankBadge={secondaryRankBadge}
+        isDragging={isDragging}
+        forceSquare={forceSquare}
+        compactImageOnly={compactImageOnly}
+        hideTextOverlay={hideTextOverlay}
+        cardAspectRatio={cardAspectRatio}
+        mobileArtworkVariant={mobileArtworkVariant}
+        clickToEdit={clickToEdit}
+        dragProps={{ ...attributes, ...listeners }}
+        onEdit={onEdit}
+      />
+    </div>
   );
 }
 

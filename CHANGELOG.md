@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-10
+
+- Switched kanban card insert targeting back to a true upper-half/lower-half split, so dragging over the bottom half of a card now reliably activates the placeholder below it.
+- Optimized kanban drag hit-testing to prefer the directly hovered card or insert gap before falling back to broader DOM scans, which should make long mobile mirror-column drags feel much lighter.
+- Disabled column scroll anchoring during card drags and boosted touch drag auto-scroll in kanban columns, which should reduce the large mid-drag list jumps and make held mobile auto-scroll more responsive.
+- Removed root-level kanban insert-target drag state so placeholder hover feedback no longer forces a whole-board React rerender on every move, which should make mobile card dragging much smoother and more accurate.
+- Tuned the kanban drag overlay to render slightly smaller and more translucent, and made touch auto-scroll accelerate more sharply as the held card approaches the screen edges.
+- Reconfigured kanban card dragging to use lightweight draggables plus explicit insert gaps instead of sortable sibling transforms, which should reduce the “drag through mud” feel in long mobile columns.
+
 ## 2026-04-09
 
 - Made kanban insert targeting treat the top third of every hovered card as the drop-above target, including the first card in a column.
