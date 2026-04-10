@@ -803,7 +803,7 @@ function openGoogleImageSearch(
   mode: ArtworkSearchMode = "image",
   artworkField: ArtworkFieldKind = "landscape",
 ) {
-  const orientationHint = artworkField === "portrait" ? "portrait poster" : "landscape wallpaper";
+  const orientationHint = artworkField === "portrait" ? "portrait wallpaper" : "landscape wallpaper";
   const query = `${title.trim()} ${orientationHint}`.trim();
 
   if (!query || typeof window === "undefined") {
@@ -7620,10 +7620,7 @@ function copyCardToDraft(card: CardEntry) {
                                 <div className="max-h-[min(68vh,560px)] overflow-y-auto p-3">
                                   <div className="mb-3 flex items-center justify-between gap-3 px-1">
                                     <div>
-                                      <p className={clsx("text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                                        Quick Add
-                                      </p>
-                                      <h3 className="mt-1 text-lg font-black">{`Add ${boardVocabulary.singular}`}</h3>
+                                      <h3 className="text-lg font-black">{`Add ${boardVocabulary.singular}`}</h3>
                                     </div>
                                     <button
                                       className={clsx(
@@ -7742,7 +7739,7 @@ function copyCardToDraft(card: CardEntry) {
                                               />
                                               <button
                                                 className={clsx(
-                                                  "absolute right-2 top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition",
+                                                  "absolute right-2 top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border transition",
                                                   isDarkMode
                                                     ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
