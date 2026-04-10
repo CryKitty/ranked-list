@@ -406,6 +406,7 @@ function seedTierListFromKanbanRankings(
   const excludedColumnIdSet = new Set(excludedColumnIds);
   const selectedSeries = options?.seriesFilter?.trim() ?? "";
   const selectedTierFilter = options?.tierFilter ?? "all";
+  const shouldFilterPool = Boolean(selectedSeries) || selectedTierFilter !== "all";
 
   if (rankedRows.length === 0) {
     return tierListView;
@@ -462,9 +463,11 @@ function seedTierListFromKanbanRankings(
     ];
   }
 
-  nextEntryIdsByRow[poolRowId] = (tierListView.entryIdsByRow[poolRowId] ?? []).filter(
-    (entryId) => !assignedEntryIds.has(entryId),
-  );
+  nextEntryIdsByRow[poolRowId] = shouldFilterPool
+    ? []
+    : (tierListView.entryIdsByRow[poolRowId] ?? []).filter(
+        (entryId) => !assignedEntryIds.has(entryId),
+      );
 
   return {
     ...tierListView,
@@ -633,7 +636,7 @@ function getTierListArtworkVariant(
   cardAspectRatio: "portrait" | "square" | "landscape",
   isMobileViewport: boolean,
 ): "tier-list" | undefined {
-  return isMobileViewport || cardAspectRatio === "portrait" || cardAspectRatio === "square"
+  return isMobileViewport || cardAspectRatio === "portrait"
     ? "tier-list"
     : undefined;
 }
@@ -733,6 +736,21 @@ function filterTierListViewByAllowedEntryIds(
       ]),
     ),
   } satisfies TierListViewState;
+}
+
+function getFullInsertIndexFromVisibleCards(
+  fullCards: CardEntry[],
+  visibleCards: CardEntry[],
+  visibleInsertIndex: number,
+) {
+  const nextVisibleCard = visibleCards[visibleInsertIndex];
+
+  if (!nextVisibleCard) {
+    return fullCards.length;
+  }
+
+  const fullIndex = fullCards.findIndex((card) => card.entryId === nextVisibleCard.entryId);
+  return fullIndex >= 0 ? fullIndex : fullCards.length;
 }
 
 function formatDateFieldValue(value: string, format: DateFieldFormat) {
@@ -1044,7 +1062,7 @@ function openGoogleImageSearch(
   artworkField: ArtworkFieldKind = "landscape",
   series = "",
 ) {
-  const queryParts = [title.trim(), series.trim()].filter(Boolean);
+  const queryParts = [title.trim(), series.trim(), mode === "image" ? "screenshot" : ""].filter(Boolean);
   const query = queryParts.join(" ");
   const exactPhrase = queryParts.map((part) => `"${part}"`).join(" ");
 
@@ -1744,7 +1762,7 @@ function HoverTooltip({
   scope?: string;
   disabled?: boolean;
   align?: "center" | "right";
-  placement?: "top" | "bottom";
+  placement?: "top" | "bottom" | "right";
   forceVisible?: boolean;
 }) {
   if (disabled) {
@@ -1767,11 +1785,15 @@ function HoverTooltip({
           : "group-hover:opacity-100";
 
   const alignClass =
-    align === "right"
+    placement === "right"
+      ? "translate-x-0"
+      : align === "right"
       ? "right-0 left-auto translate-x-0"
       : "left-1/2 -translate-x-1/2";
   const placementClass =
-    placement === "bottom"
+    placement === "right"
+      ? "left-[calc(100%+0.5rem)] top-1/2 -translate-y-1/2"
+      : placement === "bottom"
       ? "top-[calc(100%+0.5rem)]"
       : "bottom-[calc(100%+0.5rem)]";
 
@@ -4451,7 +4473,7 @@ export function RankboardApp() {
     lastBoardInsertTargetRef.current = null;
     setActiveDragEntryId(null);
 
-    if (filtering || !event.over) {
+    if ((filtering && activeBoardLayout !== "tier-list") || !event.over) {
       return;
     }
 
@@ -4482,7 +4504,19 @@ export function RankboardApp() {
       let destinationIndex = destinationEntryIds.length;
 
       if (parsedDropTarget) {
-        destinationIndex = parsedDropTarget.insertIndex;
+        if (filtering) {
+          const destinationFullCards = destinationEntryIds
+            .map((entryId) => tierListCardsByEntryId.get(entryId))
+            .filter((card): card is CardEntry => Boolean(card));
+          const destinationVisibleCards = filterCards(destinationFullCards, searchTerm, seriesFilter);
+          destinationIndex = getFullInsertIndexFromVisibleCards(
+            destinationFullCards,
+            destinationVisibleCards,
+            parsedDropTarget.insertIndex,
+          );
+        } else {
+          destinationIndex = parsedDropTarget.insertIndex;
+        }
       } else if (normalizedTierListView.rows.some((row) => row.id === overId)) {
         destinationIndex = destinationEntryIds.length;
       } else {
@@ -10214,6 +10248,11 @@ function copyCardToDraft(card: CardEntry) {
                                   : undefined
                             }
                             compactImageOnly={activeBoardLayout === "tier-list" && isMobileViewport}
+                            hideTextOverlay={
+                              activeBoardLayout === "tier-list" &&
+                              !isMobileViewport &&
+                              tierListCardAspectRatio === "portrait"
+                            }
                             cardAspectRatio={
                               activeBoardLayout === "tier-list"
                                 ? isMobileViewport
@@ -13154,6 +13193,7 @@ function copyCardToDraft(card: CardEntry) {
                           cardAspectRatio={isMobileViewport ? "portrait" : tierListCardAspectRatio}
                           forceSquare={!isMobileViewport && tierListCardAspectRatio === "square"}
                           mobileArtworkVariant={getTierListArtworkVariant(tierListCardAspectRatio, isMobileViewport)}
+                          hideTextOverlay={!isMobileViewport && tierListCardAspectRatio === "portrait"}
                           showDragCursor={false}
                         />
                       </div>
@@ -14808,6 +14848,7 @@ function TierListRow({
                       onEdit={() => onEditCard(card)}
                       mobileArtworkVariant={getTierListArtworkVariant(cardAspectRatio, isMobileViewport)}
                       compactImageOnly={isMobileViewport}
+                      hideTextOverlay={!isMobileViewport && cardAspectRatio === "portrait"}
                       cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
                       clickToEdit
                       containerClassName={getTierListCardContainerClass(cardAspectRatio, isMobileViewport)}
@@ -14848,6 +14889,7 @@ function TierListAddRowDivider({
   onArm?: () => void;
   onClick: () => void;
 }) {
+  const [isHovered, setIsHovered] = useState(false);
   const handleClick = () => {
     if (isMobileViewport && !mobileArmed) {
       onArm?.();
@@ -14858,9 +14900,17 @@ function TierListAddRowDivider({
   };
 
   return (
-    <div className="-my-[6px] grid grid-cols-[44px_minmax(0,1fr)] items-center">
+    <div
+      className="relative z-[220] -my-[10px] grid grid-cols-[44px_minmax(0,1fr)] items-center overflow-visible py-[10px]"
+      onPointerEnter={() => setIsHovered(true)}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== "touch") {
+          setIsHovered(false);
+        }
+      }}
+    >
       <div
-        className="group flex items-center justify-center"
+        className="group relative z-[230] flex items-center justify-center overflow-visible"
         data-mobile-inline-add-root="true"
         tabIndex={0}
         onClick={() => {
@@ -14869,11 +14919,11 @@ function TierListAddRowDivider({
           }
         }}
       >
-        <div className="group relative">
+        <div className="group relative overflow-visible">
           <button
             aria-label="Add row"
             className={clsx(
-              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
+              "relative z-[240] inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
               isDarkMode
                 ? "border-white/15 bg-slate-950/90 text-white hover:border-white/35 hover:bg-slate-900"
                 : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50",
@@ -14881,7 +14931,9 @@ function TierListAddRowDivider({
                 ? mobileArmed
                   ? "opacity-100 pointer-events-auto"
                   : "opacity-0 pointer-events-none"
-                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
+                : isHovered
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 pointer-events-none group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
             )}
             onClick={handleClick}
             type="button"
@@ -14889,7 +14941,12 @@ function TierListAddRowDivider({
             <Plus className="h-5 w-5" />
           </button>
           {!isMobileViewport || mobileArmed ? (
-            <HoverTooltip isDarkMode={isDarkMode} label={isMobileViewport ? "Add Row" : "Add Row"} />
+            <HoverTooltip
+              forceVisible={!isMobileViewport && isHovered}
+              isDarkMode={isDarkMode}
+              label={isMobileViewport ? "Add Row" : "Add Row"}
+              placement="right"
+            />
           ) : null}
         </div>
       </div>
@@ -15180,6 +15237,7 @@ function SortableCard({
   onEdit,
   forceSquare = false,
   compactImageOnly = false,
+  hideTextOverlay = false,
   cardAspectRatio = "landscape",
   mobileArtworkVariant,
   containerClassName,
@@ -15200,6 +15258,7 @@ function SortableCard({
   onEdit: () => void;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
+  hideTextOverlay?: boolean;
   cardAspectRatio?: "portrait" | "square" | "landscape";
   mobileArtworkVariant?: "board" | "tier-list";
   containerClassName?: string;
@@ -15260,6 +15319,7 @@ function SortableCard({
         isDragging={isDragging}
         forceSquare={forceSquare}
         compactImageOnly={compactImageOnly}
+        hideTextOverlay={hideTextOverlay}
         cardAspectRatio={cardAspectRatio}
         mobileArtworkVariant={mobileArtworkVariant}
         clickToEdit={clickToEdit}
@@ -15286,6 +15346,7 @@ function CardTile({
   clickToEdit = false,
   forceSquare = false,
   compactImageOnly = false,
+  hideTextOverlay = false,
   cardAspectRatio = "landscape",
   mobileArtworkVariant,
   showDragCursor = true,
@@ -15305,6 +15366,7 @@ function CardTile({
   clickToEdit?: boolean;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
+  hideTextOverlay?: boolean;
   cardAspectRatio?: "portrait" | "square" | "landscape";
   mobileArtworkVariant?: "board" | "tier-list";
   showDragCursor?: boolean;
@@ -15562,11 +15624,11 @@ function CardTile({
             />
           </>
         ) : null}
-        {!collapseCards && !compactImageOnly && hasArtwork ? (
+        {!collapseCards && !compactImageOnly && !hideTextOverlay && hasArtwork ? (
           <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
         ) : null}
 
-        {!collapseCards && !compactImageOnly ? (
+        {!collapseCards && !compactImageOnly && !hideTextOverlay ? (
         <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
           {rankBadge ? (
             <div
@@ -15625,7 +15687,7 @@ function CardTile({
               </div>
             </div>
           </div>
-        ) : compactImageOnly ? null : hasArtwork ? (
+        ) : compactImageOnly || hideTextOverlay ? null : hasArtwork ? (
           <div className="absolute left-0 right-0 bottom-0 p-2.5 sm:p-4">
             {displaySeries ? (
               <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-white">

@@ -354,9 +354,8 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                   <div className="flex flex-wrap content-start gap-2">
                     {cards.map((card) => {
                       const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
-                      const artworkUrl = isMobileViewport ||
-                        board.settings?.tierListCardAspectRatio === "portrait" ||
-                        board.settings?.tierListCardAspectRatio === "square"
+                      const isPortraitTierCard = !isMobileViewport && board.settings?.tierListCardAspectRatio === "portrait";
+                      const artworkUrl = isMobileViewport || isPortraitTierCard
                         ? card.mobileTierListImageUrl || card.imageUrl
                         : card.imageUrl;
 
@@ -370,7 +369,10 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(artworkUrl)} />
                             ) : null}
-                            <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
+                            {!isPortraitTierCard ? (
+                              <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
+                            ) : null}
+                            {!isPortraitTierCard ? (
                             <div className="absolute inset-x-0 bottom-0 p-3">
                               {displaySeries ? (
                                 <p className="mb-1 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">
@@ -379,6 +381,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                               ) : null}
                               <h3 className="truncate text-sm font-bold text-white sm:text-base">{displayTitle}</h3>
                             </div>
+                            ) : null}
                           </div>
                         </article>
                       );
