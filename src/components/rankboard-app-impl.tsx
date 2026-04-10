@@ -42,6 +42,7 @@ import {
   Gamepad2,
   Hash,
   Heart,
+  ImagePlus,
   ListOrdered,
   LoaderCircle,
   MoveVertical,
@@ -1754,6 +1755,7 @@ export function RankboardApp() {
   const [revealedMobileAddColumnIndex, setRevealedMobileAddColumnIndex] = useState<number | null>(null);
   const [revealedMobileAddCardTarget, setRevealedMobileAddCardTarget] = useState<MobileAddCardTarget | null>(null);
   const [revealedMobileAddTierRowIndex, setRevealedMobileAddTierRowIndex] = useState<number | null>(null);
+  const [mobileQuickAddArtworkMenuField, setMobileQuickAddArtworkMenuField] = useState<ArtworkFieldKind | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const boardIconUploadInputRef = useRef<HTMLInputElement | null>(null);
   const addArtworkInputRef = useRef<HTMLInputElement | null>(null);
@@ -1948,7 +1950,6 @@ export function RankboardApp() {
   );
   const seriesFieldLabel = seriesFieldDefinition?.label ?? "Series";
   const releaseYearFieldLabel = releaseYearFieldDefinition?.label ?? "Release Year";
-  const imageFieldLabel = imageFieldDefinition?.label ?? "Artwork";
   const notesFieldLabel = notesFieldDefinition?.label ?? "Notes";
   const boardIconKeysById = new Map<string, BoardIconKey>();
   const usedBoardIcons = new Set<BoardIconKey>();
@@ -4587,6 +4588,7 @@ export function RankboardApp() {
 
   function closeAddGameModal() {
     setIsMobileQuickAddPanelOpen(false);
+    setMobileQuickAddArtworkMenuField(null);
     setAddCardTarget(null);
     setDraft(initialDraft);
     setDraftDuplicateAction(null);
@@ -4601,10 +4603,18 @@ export function RankboardApp() {
     setIsTransferMenuOpen(false);
     setIsMobileQuickAddPanelOpen(false);
     setIsMobileQuickSharePanelOpen(false);
+    setMobileQuickAddArtworkMenuField(null);
   }
 
   function closeMobileActionsMenu() {
     mobileActionsCloseLockUntilRef.current = Date.now() + 250;
+    if (isMobileQuickAddPanelOpen) {
+      setAddCardTarget(null);
+      setDraft(initialDraft);
+      setDraftDuplicateAction(null);
+      setArtworkPicker(null);
+      setIsAddFieldSettingsOpen(false);
+    }
     resetMobileActionPanels();
     setIsMobileActionsOpen(false);
   }
@@ -4945,10 +4955,6 @@ function copyCardToDraft(card: CardEntry) {
     setEditingCardId((current) => (current === entryId ? null : current));
     setPendingMirrorDelete(null);
     queuePersistBoardState({ cardsByColumn: nextState });
-  }
-
-  function handleAutofillDraftImage(mode: ArtworkSearchMode = "image") {
-    openGoogleImageSearch(draft.title, mode);
   }
 
   function handleAutofillDraftImageForField(
@@ -7690,37 +7696,91 @@ function copyCardToDraft(card: CardEntry) {
                                     ) : null}
 
                                     {shouldShowImageField ? (
-                                      <div className="grid gap-2">
-                                        <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{imageFieldLabel}</span>
-                                        <input
-                                          className={clsx(
-                                            "rounded-2xl border px-4 py-3 outline-none transition",
-                                            isDarkMode
-                                              ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
-                                              : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                                          )}
-                                          placeholder="Image URL"
-                                          value={draft.imageUrl}
-                                          onChange={(event) => {
-                                            setDraftDuplicateAction(null);
-                                            setDraft((current) => ({
-                                              ...current,
-                                              imageUrl: event.target.value,
-                                              imageStoragePath: undefined,
-                                            }));
-                                          }}
-                                        />
-                                        <div className="grid grid-cols-3 gap-2">
-                                          <button className={clsx("rounded-2xl border px-3 py-2 text-xs font-semibold transition", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/35" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")} onClick={() => handleAutofillDraftImage("image")} type="button">
-                                            Image
-                                          </button>
-                                          <button className={clsx("rounded-2xl border px-3 py-2 text-xs font-semibold transition", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/35" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")} onClick={() => handleAutofillDraftImage("gif")} type="button">
-                                            GIF
-                                          </button>
-                                          <button className={clsx("rounded-2xl border px-3 py-2 text-xs font-semibold transition disabled:opacity-60", isDarkMode ? "border-white/10 bg-slate-950 text-slate-100 hover:border-white/35" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")} disabled={isUploadingArtwork} onClick={() => openArtworkUploadPicker("draft")} type="button">
-                                            Upload
-                                          </button>
-                                        </div>
+                                      <div className="grid gap-3 sm:grid-cols-2">
+                                        {([
+                                          {
+                                            field: "landscape" as const,
+                                            label: "Landscape Artwork",
+                                            placeholder: "Used for desktop and Kanban on mobile.",
+                                            value: draft.imageUrl,
+                                            onChange: (value: string) => {
+                                              setDraftDuplicateAction(null);
+                                              setDraft((current) => ({
+                                                ...current,
+                                                imageUrl: value,
+                                                imageStoragePath: undefined,
+                                              }));
+                                            },
+                                          },
+                                          {
+                                            field: "portrait" as const,
+                                            label: "Portrait Artwork",
+                                            placeholder: "Used for Tier List on mobile. Falls back to landscape.",
+                                            value: draft.mobileTierListImageUrl,
+                                            onChange: (value: string) => {
+                                              setDraftDuplicateAction(null);
+                                              setDraft((current) => ({
+                                                ...current,
+                                                mobileTierListImageUrl: value,
+                                              }));
+                                            },
+                                          },
+                                        ]).map((artworkField) => (
+                                          <div key={artworkField.field} className="grid gap-2">
+                                            <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{artworkField.label}</span>
+                                            <div className="relative">
+                                              <input
+                                                className={clsx(
+                                                  "w-full rounded-2xl border px-4 py-3 pr-14 outline-none transition",
+                                                  isDarkMode
+                                                    ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
+                                                    : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                                                )}
+                                                placeholder={artworkField.placeholder}
+                                                value={artworkField.value}
+                                                onChange={(event) => artworkField.onChange(event.target.value)}
+                                              />
+                                              <button
+                                                className={clsx(
+                                                  "absolute right-2 top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition",
+                                                  isDarkMode
+                                                    ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
+                                                    : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
+                                                )}
+                                                onClick={() =>
+                                                  setMobileQuickAddArtworkMenuField((current) =>
+                                                    current === artworkField.field ? null : artworkField.field,
+                                                  )
+                                                }
+                                                type="button"
+                                                aria-label={`Artwork options for ${artworkField.label}`}
+                                              >
+                                                <ImagePlus className="h-4.5 w-4.5" />
+                                              </button>
+                                              {mobileQuickAddArtworkMenuField === artworkField.field ? (
+                                                <div
+                                                  className={clsx(
+                                                    "absolute right-0 top-[calc(100%+0.55rem)] z-20 grid min-w-[9.5rem] gap-1 rounded-[20px] border p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)]",
+                                                    isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900",
+                                                  )}
+                                                >
+                                                  <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setMobileQuickAddArtworkMenuField(null); handleAutofillDraftImageForField(artworkField.field, "image"); }} type="button">
+                                                    <ImagePlus className="h-4 w-4" />
+                                                    Image
+                                                  </button>
+                                                  <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setMobileQuickAddArtworkMenuField(null); handleAutofillDraftImageForField(artworkField.field, "gif"); }} type="button">
+                                                    <Clapperboard className="h-4 w-4" />
+                                                    GIF
+                                                  </button>
+                                                  <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-60", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} disabled={isUploadingArtwork} onClick={() => { setMobileQuickAddArtworkMenuField(null); openArtworkUploadPicker("draft", artworkField.field); }} type="button">
+                                                    <Upload className="h-4 w-4" />
+                                                    Upload
+                                                  </button>
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                        ))}
                                       </div>
                                     ) : null}
 

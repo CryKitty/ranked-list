@@ -121,7 +121,7 @@ function ArtworkFieldInput({
         />
         <button
           className={clsx(
-            "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border transition",
+            "absolute right-2 top-1/2 inline-flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition",
             isDarkMode
               ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
               : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
@@ -130,7 +130,7 @@ function ArtworkFieldInput({
           type="button"
           aria-label={`Artwork options for ${label}`}
         >
-          <ChevronDown className={clsx("h-4 w-4 transition", isMenuOpen && "rotate-180")} />
+          <ImagePlus className="h-4.5 w-4.5" />
         </button>
         {isMenuOpen ? (
           <div
