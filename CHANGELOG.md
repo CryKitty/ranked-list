@@ -327,3 +327,4 @@
 - Shared boards now include a `Copy Board` action that opens Sorta with a personal editable copy of the shared board content.
 - Reworked custom board dragging again so the held card tracks immediately, board insert targeting resolves once per animation frame, and kanban drop zones use a strict midpoint split instead of the earlier mobile bias offsets.
 - Hardened mobile board dragging with an explicit non-passive touch-move path plus pointer capture so an active card drag keeps control of the gesture instead of collapsing back into native column scrolling.
+- Locked the mobile board lane and column scrollers during active card drags so touch gestures stop falling through to native scrolling while custom board autoscroll is running.

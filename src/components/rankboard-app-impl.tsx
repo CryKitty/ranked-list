@@ -10891,13 +10891,19 @@ function copyCardToDraft(card: CardEntry) {
                           paddingInline: mobileBoardLaneInset,
                           scrollPaddingInline: mobileBoardLaneInset,
                           touchAction: isCardDragging ? "none" : "pan-x pinch-zoom",
+                          overflowX: isCardDragging ? "hidden" : undefined,
                           overscrollBehaviorX: "contain",
                           overscrollBehaviorY: "none",
                           overscrollBehavior: "contain",
-                          WebkitOverflowScrolling: "touch",
+                          WebkitOverflowScrolling: isCardDragging ? "auto" : "touch",
                         }
                       : undefined
                   }
+                  onTouchMove={(event) => {
+                    if (isCardDragging && event.cancelable) {
+                      event.preventDefault();
+                    }
+                  }}
                 >
                   {columns.map((column, columnIndex) => {
                     const visibleCards = filterCards(
@@ -15267,7 +15273,12 @@ function BoardColumn({
           const node = columnScrollRef.current;
           const touch = event.touches[0] ?? event.changedTouches[0];
 
-          if (!isMobileViewport || isCardDragging || !node || !touch || !event.cancelable) {
+          if (!isMobileViewport || !node || !touch || !event.cancelable) {
+            return;
+          }
+
+          if (isCardDragging) {
+            event.preventDefault();
             return;
           }
 
@@ -15308,7 +15319,8 @@ function BoardColumn({
           touchAction: isCardDragging ? "none" : "auto",
           overscrollBehaviorY: "contain",
           overflowAnchor: "auto",
-          WebkitOverflowScrolling: columnCanScroll ? "touch" : "auto",
+          overflowY: isCardDragging ? "hidden" : undefined,
+          WebkitOverflowScrolling: isCardDragging ? "auto" : columnCanScroll ? "touch" : "auto",
         }}
       >
         {filtering || isTierFiltering ? (
