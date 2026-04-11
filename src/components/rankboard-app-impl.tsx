@@ -3197,17 +3197,47 @@ export function RankboardApp() {
       }
 
       if (customBoardDrag) {
-        dragPointerCoordsRef.current = {
+        updateCustomBoardDragPointer({
           x: event.clientX,
           y: event.clientY,
-        };
-        syncCustomBoardOverlayPosition();
-
-        if (!isDragGapSuppressed) {
-          scheduleBoardInsertRefresh();
-        }
+        });
 
         event.preventDefault();
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0] ?? event.changedTouches[0];
+      const pending = pendingBoardDragRef.current;
+
+      if (!touch) {
+        return;
+      }
+
+      if (pending && pending.pointerType !== "mouse") {
+        pending.latestX = touch.clientX;
+        pending.latestY = touch.clientY;
+
+        if (!pending.activated) {
+          const movedX = touch.clientX - pending.startX;
+          const movedY = touch.clientY - pending.startY;
+          const distance = Math.hypot(movedX, movedY);
+
+          if (distance >= 10) {
+            clearPendingBoardDrag();
+          }
+        }
+      }
+
+      if (customBoardDrag) {
+        updateCustomBoardDragPointer({
+          x: touch.clientX,
+          y: touch.clientY,
+        });
+
+        if (event.cancelable) {
+          event.preventDefault();
+        }
       }
     };
 
@@ -3239,11 +3269,13 @@ export function RankboardApp() {
     window.addEventListener("pointermove", handlePointerMove, { passive: false });
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerCancel);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerCancel);
+      window.removeEventListener("touchmove", handleTouchMove);
     };
   }, [activeBoardLayout, customBoardDrag, filtering, isDragGapSuppressed]);
 
@@ -4029,6 +4061,15 @@ export function RankboardApp() {
     overlayNode.style.transform = `translate3d(${pointerCoordinates.x - customBoardDrag.pointerOffsetX}px, ${pointerCoordinates.y - customBoardDrag.pointerOffsetY}px, 0)`;
   }
 
+  function updateCustomBoardDragPointer(pointerCoordinates: { x: number; y: number }) {
+    dragPointerCoordsRef.current = pointerCoordinates;
+    syncCustomBoardOverlayPosition();
+
+    if (!isDragGapSuppressed) {
+      scheduleBoardInsertRefresh();
+    }
+  }
+
   function scheduleBoardInsertRefresh() {
     if (boardInsertRefreshFrameRef.current) {
       return;
@@ -4200,6 +4241,13 @@ export function RankboardApp() {
       x: event.clientX,
       y: event.clientY,
     };
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore pointer-capture failures on browsers that reject touch capture here.
+      }
+    }
 
     const pointerType = (event.pointerType || "mouse") as "mouse" | "touch" | "pen";
     const pendingDrag = {
