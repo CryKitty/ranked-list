@@ -23,17 +23,94 @@ const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df
 
 function buildSharedBoardCopy(board: SavedBoard) {
   const shareSettings = board.settings?.publicShare;
+  const isTierListShare = shareSettings?.view === "tier-list";
   const selectedColumnIds =
-    shareSettings?.view !== "tier-list" && shareSettings?.columnIds && shareSettings.columnIds.length > 0
+    !isTierListShare && shareSettings?.columnIds && shareSettings.columnIds.length > 0
       ? shareSettings.columnIds
       : board.columns.map((column) => column.id);
   const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
   const tierFilter = shareSettings?.tierFilter ?? "all";
   const selectedSeries = shareSettings?.seriesFilter?.trim() ?? "";
   const selectedSearchTerm = shareSettings?.searchTerm?.trim() ?? "";
+  const nextColumns = selectedColumns.map((column) => ({
+    ...column,
+    mirrorsEntireBoard: false,
+    autoMirrorToColumnId: undefined,
+    excludedMirrorItemIds: [],
+    excludeFromBoardMirrors: false,
+    confirmMirrorClones: false,
+  }));
+
+  if (isTierListShare) {
+    const tierRows = board.settings?.tierListView?.rows ?? [];
+    const selectedTierRowIds =
+      shareSettings?.columnIds && shareSettings.columnIds.length > 0
+        ? shareSettings.columnIds
+        : tierRows.map((row) => row.id);
+    const tierCardsByEntryId = new Map<string, SavedBoard["cardsByColumn"][string][number]>();
+
+    for (const card of Object.values(board.cardsByColumn).flat()) {
+      if (card.mirroredFromEntryId || tierCardsByEntryId.has(card.entryId)) {
+        continue;
+      }
+
+      tierCardsByEntryId.set(card.entryId, card);
+    }
+
+    const nextRows = tierRows.filter((row) => selectedTierRowIds.includes(row.id));
+    const nextEntryIdsByRow = Object.fromEntries(
+      nextRows.map((row) => {
+        const scopedEntryIds = (board.settings?.tierListView?.entryIdsByRow[row.id] ?? [])
+          .map((entryId) => tierCardsByEntryId.get(entryId))
+          .filter((card): card is SavedBoard["cardsByColumn"][string][number] => Boolean(card))
+          .filter((card) => {
+            if (selectedSeries && card.series !== selectedSeries) {
+              return false;
+            }
+
+            return matchesCardSearch(card, selectedSearchTerm);
+          })
+          .filter((_, index) => matchesTierFilterByIndex(index, tierFilter))
+          .map((card) => card.entryId);
+
+        return [row.id, scopedEntryIds];
+      }),
+    ) as NonNullable<NonNullable<SavedBoard["settings"]>["tierListView"]>["entryIdsByRow"];
+    const allowedEntryIds = new Set<string>(Object.values(nextEntryIdsByRow).flat());
+
+    return {
+      ...board,
+      title: shareSettings?.title?.trim() || board.title,
+      columns: nextColumns,
+      cardsByColumn: Object.fromEntries(
+        nextColumns.map((column) => [
+          column.id,
+          (board.cardsByColumn[column.id] ?? [])
+            .filter((card) => allowedEntryIds.has(card.entryId))
+            .map((card) => ({
+              ...card,
+              mirroredFromEntryId: undefined,
+            })),
+        ]),
+      ) as SavedBoard["cardsByColumn"],
+      settings: board.settings
+        ? {
+            ...board.settings,
+            publicShare: undefined,
+            tierListView: board.settings.tierListView
+              ? {
+                  ...board.settings.tierListView,
+                  rows: nextRows,
+                  entryIdsByRow: nextEntryIdsByRow,
+                }
+              : board.settings.tierListView,
+          }
+        : board.settings,
+    } satisfies SavedBoard;
+  }
 
   const nextCardsByColumn = Object.fromEntries(
-    selectedColumns.map((column) => {
+    nextColumns.map((column) => {
       const scopedCards = (board.cardsByColumn[column.id] ?? []).filter((card) => {
         if (selectedSeries && card.series !== selectedSeries) {
           return false;
@@ -49,15 +126,6 @@ function buildSharedBoardCopy(board: SavedBoard) {
     }),
   ) as SavedBoard["cardsByColumn"];
 
-  const nextColumns = selectedColumns.map((column) => ({
-    ...column,
-    mirrorsEntireBoard: false,
-    autoMirrorToColumnId: undefined,
-    excludedMirrorItemIds: [],
-    excludeFromBoardMirrors: false,
-    confirmMirrorClones: false,
-  }));
-
   return {
     ...board,
     title: shareSettings?.title?.trim() || board.title,
@@ -71,6 +139,12 @@ function buildSharedBoardCopy(board: SavedBoard) {
         })),
       ]),
     ) as SavedBoard["cardsByColumn"],
+    settings: board.settings
+      ? {
+          ...board.settings,
+          publicShare: undefined,
+        }
+      : board.settings,
   } satisfies SavedBoard;
 }
 

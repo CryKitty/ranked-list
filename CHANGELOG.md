@@ -329,3 +329,6 @@
 - Hardened mobile board dragging with an explicit non-passive touch-move path plus pointer capture so an active card drag keeps control of the gesture instead of collapsing back into native column scrolling.
 - Locked the mobile board lane and column scrollers during active card drags so touch gestures stop falling through to native scrolling while custom board autoscroll is running.
 - Preserved the visible board-drop placeholder position when committing a card move so mid-column drops after autoscroll no longer jump the viewport a few cards away from the dropped card.
+- Smoothed tier-list dragging by falling back to the tracked live pointer for collision detection, keeping wrapped rows visually expanded while a dragged card hovers them, and surfacing row overflow/card-shape controls directly inside row settings.
+- Tightened the mobile Insert from Pool modal so it no longer encourages sideways scrolling, with narrower mobile sizing and wrapped pool-card text.
+- Hardened shared-board copying so tier-list shares only clone the rows/cards that were actually visible through the shared filter scope, preventing hidden cards from reappearing after Copy Board.

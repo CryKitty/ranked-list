@@ -10822,7 +10822,16 @@ function copyCardToDraft(card: CardEntry) {
                   return boardInsertCollision ?? [];
                 }
 
-                const pointerHits = pointerWithin(args);
+                const tierListArgs =
+                  activeBoardLayout === "tier-list" &&
+                  !args.pointerCoordinates &&
+                  dragPointerCoordsRef.current
+                    ? {
+                        ...args,
+                        pointerCoordinates: dragPointerCoordsRef.current,
+                      }
+                    : args;
+                const pointerHits = pointerWithin(tierListArgs);
                 if (pointerHits.length > 0) {
                   if (isDragGapSuppressed) {
                     return pointerHits.filter(
@@ -10835,7 +10844,7 @@ function copyCardToDraft(card: CardEntry) {
                   return insertHits.length > 0 ? insertHits : pointerHits;
                 }
 
-                return closestCorners(args);
+                return closestCorners(tierListArgs);
               }}
               onDragStart={({ active, activatorEvent }) => {
                 const activeId = String(active.id);
@@ -13377,6 +13386,16 @@ function copyCardToDraft(card: CardEntry) {
                   <Edit3 className="h-4 w-4" />
                   Rename Row
                 </button>
+                {activeBoardLayout === "tier-list" ? (
+                  <div
+                    className={clsx(
+                      "mt-1 grid gap-2 rounded-xl px-2 py-2",
+                      isDarkMode ? "bg-white/5" : "bg-slate-50",
+                    )}
+                  >
+                    {renderTierListCustomizationControls(true)}
+                  </div>
+                ) : null}
                 <button
                   className={clsx(
                     "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition",
@@ -13841,7 +13860,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(92vh,860px)] w-full max-w-lg flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:max-w-2xl",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14181,13 +14200,16 @@ function copyCardToDraft(card: CardEntry) {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
+              <div
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 pt-4"
+                style={{ touchAction: "pan-y", overscrollBehaviorX: "none" }}
+              >
                 <div className="grid gap-3">
                   {tierListPoolCards.map((card) => (
                     <button
                       key={card.entryId}
                       className={clsx(
-                        "flex items-center gap-4 rounded-[24px] border p-3 text-left transition",
+                        "flex min-w-0 items-center gap-3 overflow-hidden rounded-[24px] border p-3 text-left transition sm:gap-4",
                         isDarkMode
                           ? "border-white/10 bg-slate-950 hover:border-white/35"
                           : "border-slate-200 bg-white hover:border-slate-950",
@@ -14224,10 +14246,15 @@ function copyCardToDraft(card: CardEntry) {
                           showDragCursor={false}
                         />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-base font-bold">{card.title}</div>
+                      <div className="min-w-0 max-w-full flex-1">
+                        <div className="line-clamp-2 break-words text-base font-bold leading-5">{card.title}</div>
                         {card.series ? (
-                          <div className={clsx("mt-1 truncate text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                          <div
+                            className={clsx(
+                              "mt-1 line-clamp-2 break-words text-sm leading-5",
+                              isDarkMode ? "text-slate-300" : "text-slate-600",
+                            )}
+                          >
                             {card.series}
                           </div>
                         ) : null}
@@ -15621,6 +15648,7 @@ function TierListRow({
   const rowRailRef = useRef<HTMLDivElement | null>(null);
   const rowRailTouchRevealPendingRef = useRef(false);
   const [stableRowHeight, setStableRowHeight] = useState<number | null>(null);
+  const [dragWrapLockedHeight, setDragWrapLockedHeight] = useState<number | null>(null);
 
   useEffect(() => {
     if (isUnsortedRow) {
@@ -15665,6 +15693,46 @@ function TierListRow({
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isMobileViewport, isRowRailHovered]);
+
+  useEffect(() => {
+    if (
+      isUnsortedRow ||
+      rowOverflow !== "wrap" ||
+      !isAnyCardDragging ||
+      !isOver
+    ) {
+      setDragWrapLockedHeight(null);
+      return;
+    }
+
+    const node = rowLaneRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const updateLockedHeight = () => {
+      const nextHeight = node.offsetHeight;
+      const baselineHeight = stableRowHeight ?? nextHeight;
+      setDragWrapLockedHeight((current) => {
+        const nextLockedHeight = Math.max(current ?? 0, baselineHeight, nextHeight);
+        return current === nextLockedHeight ? current : nextLockedHeight;
+      });
+    };
+
+    updateLockedHeight();
+    const resizeObserver = new ResizeObserver(updateLockedHeight);
+    resizeObserver.observe(node);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isAnyCardDragging, isOver, isUnsortedRow, rowOverflow, stableRowHeight]);
+
+  const effectiveDragRowHeight =
+    !isUnsortedRow && isAnyCardDragging
+      ? Math.max(stableRowHeight ?? 0, dragWrapLockedHeight ?? 0)
+      : 0;
 
   return (
     <div className={clsx("rounded-[28px] p-[1px]", column.accent)}>
@@ -15866,7 +15934,11 @@ function TierListRow({
 
               onOpenAddChooser(column.id, cards.length);
             }}
-            style={!isUnsortedRow && isAnyCardDragging && stableRowHeight ? { minHeight: stableRowHeight } : undefined}
+            style={
+              !isUnsortedRow && isAnyCardDragging && effectiveDragRowHeight > 0
+                ? { minHeight: effectiveDragRowHeight }
+                : undefined
+            }
           >
             {cards.length === 0 ? (
               <button
