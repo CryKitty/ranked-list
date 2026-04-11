@@ -2100,6 +2100,8 @@ export function RankboardApp() {
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const lastBoardInsertTargetRef = useRef<{ columnId: string; insertIndex: number } | null>(null);
   const dragAutoScrollFrameRef = useRef<number | null>(null);
+  const boardInsertRefreshFrameRef = useRef<number | null>(null);
+  const customBoardDragOverlayRef = useRef<HTMLDivElement | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -3199,11 +3201,10 @@ export function RankboardApp() {
           x: event.clientX,
           y: event.clientY,
         };
+        syncCustomBoardOverlayPosition();
 
         if (!isDragGapSuppressed) {
-          applyActiveBoardInsertTarget(resolveBoardInsertTarget(dragPointerCoordsRef.current), {
-            syncVisualState: true,
-          });
+          scheduleBoardInsertRefresh();
         }
 
         event.preventDefault();
@@ -3247,7 +3248,7 @@ export function RankboardApp() {
   }, [activeBoardLayout, customBoardDrag, filtering, isDragGapSuppressed]);
 
   useEffect(() => {
-    if (!isCardDragging) {
+    if (!isCardDragging || activeBoardLayout === "board") {
       return;
     }
 
@@ -3278,7 +3279,7 @@ export function RankboardApp() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("touchmove", handleTouchMove);
     };
-  }, [isCardDragging]);
+  }, [activeBoardLayout, isCardDragging]);
 
   useEffect(() => {
     return () => {
@@ -3478,7 +3479,6 @@ export function RankboardApp() {
       }
     };
   }, [
-    activeBoardInsertTarget,
     activeBoardLayout,
     dragPointerKind,
     isCardDragging,
@@ -3486,6 +3486,23 @@ export function RankboardApp() {
     isMobileViewport,
     resolveBoardInsertTarget,
   ]);
+
+  useEffect(() => {
+    if (!customBoardDrag) {
+      return;
+    }
+
+    syncCustomBoardOverlayPosition();
+  }, [customBoardDrag]);
+
+  useEffect(() => {
+    return () => {
+      if (boardInsertRefreshFrameRef.current) {
+        window.cancelAnimationFrame(boardInsertRefreshFrameRef.current);
+        boardInsertRefreshFrameRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!freshColumnEditId || activeBoardLayout !== "board" || !boardLaneRef.current) {
@@ -4001,6 +4018,28 @@ export function RankboardApp() {
     pendingBoardDragRef.current = null;
   }
 
+  function syncCustomBoardOverlayPosition() {
+    const overlayNode = customBoardDragOverlayRef.current;
+    const pointerCoordinates = dragPointerCoordsRef.current;
+
+    if (!overlayNode || !pointerCoordinates || !customBoardDrag) {
+      return;
+    }
+
+    overlayNode.style.transform = `translate3d(${pointerCoordinates.x - customBoardDrag.pointerOffsetX}px, ${pointerCoordinates.y - customBoardDrag.pointerOffsetY}px, 0)`;
+  }
+
+  function scheduleBoardInsertRefresh() {
+    if (boardInsertRefreshFrameRef.current) {
+      return;
+    }
+
+    boardInsertRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      boardInsertRefreshFrameRef.current = null;
+      refreshBoardInsertTargetFromPointer();
+    });
+  }
+
   function beginCustomBoardDrag(pending: NonNullable<typeof pendingBoardDragRef.current>) {
     pending.activated = true;
     dragPointerCoordsRef.current = {
@@ -4025,6 +4064,9 @@ export function RankboardApp() {
       },
       { syncVisualState: true },
     );
+    window.requestAnimationFrame(() => {
+      syncCustomBoardOverlayPosition();
+    });
   }
 
   function commitBoardDrop(
@@ -4122,6 +4164,10 @@ export function RankboardApp() {
     const currentTarget = lastBoardInsertTargetRef.current;
 
     clearPendingBoardDrag();
+    if (boardInsertRefreshFrameRef.current) {
+      window.cancelAnimationFrame(boardInsertRefreshFrameRef.current);
+      boardInsertRefreshFrameRef.current = null;
+    }
     setIsCardDragging(false);
     setIsDragGapSuppressed(false);
     endDesktopAddCardCooldownWithDelay();
@@ -4292,10 +4338,7 @@ export function RankboardApp() {
     }
 
     const pointerX = pointerCoordinates.x;
-    const pointerY =
-      activeBoardLayout === "board" && dragPointerKind === "touch"
-        ? pointerCoordinates.y - 88
-        : pointerCoordinates.y;
+    const pointerY = pointerCoordinates.y;
     const elementsAtPoint = document.elementsFromPoint(
       pointerX,
       pointerY,
@@ -4377,10 +4420,7 @@ export function RankboardApp() {
 
       if (hoveredIndex >= 0) {
         const rect = hoveredCardElement.getBoundingClientRect();
-        const upperZoneBoundary =
-          dragPointerKind === "touch" && activeBoardLayout === "board"
-            ? rect.top + rect.height * 0.58
-            : rect.top + rect.height / 2;
+        const upperZoneBoundary = rect.top + rect.height / 2;
 
         return {
           columnId,
@@ -4430,10 +4470,7 @@ export function RankboardApp() {
 
     for (const [index, element] of cardElements.entries()) {
       const rect = element.getBoundingClientRect();
-      const upperZoneBoundary =
-        dragPointerKind === "touch" && activeBoardLayout === "board"
-          ? rect.top + rect.height * 0.58
-          : rect.top + rect.height / 2;
+      const upperZoneBoundary = rect.top + rect.height / 2;
 
       if (pointerY < upperZoneBoundary) {
         insertIndex = index;
@@ -11002,9 +11039,11 @@ function copyCardToDraft(card: CardEntry) {
                 ? activeBoardLayout === "board" && customBoardDrag && dragPointerCoordsRef.current
                   ? createPortal(
                       <div
+                        ref={customBoardDragOverlayRef}
                         className="pointer-events-none fixed left-0 top-0 z-[300]"
                         style={{
                           transform: `translate3d(${dragPointerCoordsRef.current.x - customBoardDrag.pointerOffsetX}px, ${dragPointerCoordsRef.current.y - customBoardDrag.pointerOffsetY}px, 0)`,
+                          willChange: "transform",
                         }}
                       >
                         <div className="pointer-events-none w-[224px] scale-[0.96] rotate-[1deg] opacity-65 shadow-[0_20px_38px_rgba(15,23,42,0.22)]">
