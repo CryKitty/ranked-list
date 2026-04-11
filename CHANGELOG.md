@@ -328,3 +328,4 @@
 - Reworked custom board dragging again so the held card tracks immediately, board insert targeting resolves once per animation frame, and kanban drop zones use a strict midpoint split instead of the earlier mobile bias offsets.
 - Hardened mobile board dragging with an explicit non-passive touch-move path plus pointer capture so an active card drag keeps control of the gesture instead of collapsing back into native column scrolling.
 - Locked the mobile board lane and column scrollers during active card drags so touch gestures stop falling through to native scrolling while custom board autoscroll is running.
+- Preserved the visible board-drop placeholder position when committing a card move so mid-column drops after autoscroll no longer jump the viewport a few cards away from the dropped card.

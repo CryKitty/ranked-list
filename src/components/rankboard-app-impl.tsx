@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
   AutoScrollActivator,
@@ -2102,6 +2102,11 @@ export function RankboardApp() {
   const dragAutoScrollFrameRef = useRef<number | null>(null);
   const boardInsertRefreshFrameRef = useRef<number | null>(null);
   const customBoardDragOverlayRef = useRef<HTMLDivElement | null>(null);
+  const pendingBoardDropViewportRestoreRef = useRef<{
+    columnId: string;
+    entryId: string;
+    gapTop: number;
+  } | null>(null);
   const columnMenuBoundaryRef = useRef<HTMLDivElement | null>(null);
   const previousSnapshotRef = useRef<BoardSnapshot | null>(null);
   const skipNextHistoryRef = useRef(true);
@@ -3536,6 +3541,41 @@ export function RankboardApp() {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    const pendingRestore = pendingBoardDropViewportRestoreRef.current;
+
+    if (!pendingRestore || activeBoardLayout !== "board") {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const scrollContainer = document.querySelector<HTMLElement>(
+        `[data-column-scroll-id="${pendingRestore.columnId}"]`,
+      );
+      const droppedCard = document.querySelector<HTMLElement>(
+        `[data-column-id="${pendingRestore.columnId}"] [data-card-entry-id="${pendingRestore.entryId}"]`,
+      );
+
+      if (!scrollContainer || !droppedCard) {
+        pendingBoardDropViewportRestoreRef.current = null;
+        return;
+      }
+
+      const scrollRect = scrollContainer.getBoundingClientRect();
+      const droppedCardRect = droppedCard.getBoundingClientRect();
+      const nextCardTop = droppedCardRect.top - scrollRect.top;
+      const delta = nextCardTop - pendingRestore.gapTop;
+
+      if (Math.abs(delta) > 1) {
+        scrollContainer.scrollTop += delta;
+      }
+
+      pendingBoardDropViewportRestoreRef.current = null;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeBoardLayout, cardsByColumn]);
+
   useEffect(() => {
     if (!freshColumnEditId || activeBoardLayout !== "board" || !boardLaneRef.current) {
       return;
@@ -4081,6 +4121,37 @@ export function RankboardApp() {
     });
   }
 
+  function prepareBoardDropViewportRestore(
+    activeId: string,
+    target: { columnId: string; insertIndex: number } | null,
+  ) {
+    pendingBoardDropViewportRestoreRef.current = null;
+
+    if (!target || typeof document === "undefined") {
+      return;
+    }
+
+    const scrollContainer = document.querySelector<HTMLElement>(
+      `[data-column-scroll-id="${target.columnId}"]`,
+    );
+    const insertGap = document.querySelector<HTMLElement>(
+      `[data-insert-drop-id="${makeInsertDropId(target.columnId, target.insertIndex)}"]`,
+    );
+
+    if (!scrollContainer || !insertGap) {
+      return;
+    }
+
+    const scrollRect = scrollContainer.getBoundingClientRect();
+    const gapRect = insertGap.getBoundingClientRect();
+
+    pendingBoardDropViewportRestoreRef.current = {
+      columnId: target.columnId,
+      entryId: activeId,
+      gapTop: gapRect.top - scrollRect.top,
+    };
+  }
+
   function beginCustomBoardDrag(pending: NonNullable<typeof pendingBoardDragRef.current>) {
     pending.activated = true;
     dragPointerCoordsRef.current = {
@@ -4221,6 +4292,7 @@ export function RankboardApp() {
     suppressBoardCardClickUntilRef.current = window.performance.now() + 250;
 
     if (commitDrop && currentDrag) {
+      prepareBoardDropViewportRestore(currentDrag.entryId, currentTarget);
       commitBoardDrop(currentDrag.entryId, currentTarget);
     }
   }
