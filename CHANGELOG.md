@@ -14,6 +14,7 @@
 - Kanban columns now also refresh that tracked insert target directly from scroll events during drag, and drag mode no longer disables overflow anchoring on the column scroller, which should help the viewport stay visually locked while the list auto-scrolls under your finger.
 - Kanban placeholder rendering now uses a single board-mode source of truth instead of combining tracked insert targets with droppable `isOver` state, which should stop the “two gaps at once” / split-target behavior during auto-scroll drags.
 - Kanban board rows now remove the actively dragged card from the rendered list and seed the active placeholder at that card’s original slot on pickup, so the source gap aligns with the same between-card target you expect when hovering the neighboring cards.
+- Kanban touch targeting now samples a bit above the raw finger point in board mode, so the upper-half “drop above this card” zone is easier to reach and better matches the held card’s visible position under your finger.
 
 ## 2026-04-09
 

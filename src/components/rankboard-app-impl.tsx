@@ -3995,9 +3995,14 @@ export function RankboardApp() {
       return null;
     }
 
+    const pointerX = pointerCoordinates.x;
+    const pointerY =
+      activeBoardLayout === "board" && dragPointerKind === "touch"
+        ? pointerCoordinates.y - 44
+        : pointerCoordinates.y;
     const elementsAtPoint = document.elementsFromPoint(
-      pointerCoordinates.x,
-      pointerCoordinates.y,
+      pointerX,
+      pointerY,
     );
     const columnElement = elementsAtPoint
       .map((element) => element.closest("[data-column-id]"))
@@ -4023,10 +4028,10 @@ export function RankboardApp() {
 
       const fallbackRect = fallbackScrollContainer.getBoundingClientRect();
       if (
-        pointerCoordinates.x >= fallbackRect.left &&
-        pointerCoordinates.x <= fallbackRect.right &&
-        pointerCoordinates.y >= fallbackRect.top - 64 &&
-        pointerCoordinates.y <= fallbackRect.bottom + 220
+        pointerX >= fallbackRect.left &&
+        pointerX <= fallbackRect.right &&
+        pointerY >= fallbackRect.top - 64 &&
+        pointerY <= fallbackRect.bottom + 220
       ) {
         return fallbackTarget;
       }
@@ -4050,10 +4055,10 @@ export function RankboardApp() {
 
     const scrollRect = scrollContainer.getBoundingClientRect();
     if (
-      pointerCoordinates.x < scrollRect.left ||
-      pointerCoordinates.x > scrollRect.right ||
-      pointerCoordinates.y < scrollRect.top - 64 ||
-      pointerCoordinates.y > scrollRect.bottom + 220
+      pointerX < scrollRect.left ||
+      pointerX > scrollRect.right ||
+      pointerY < scrollRect.top - 64 ||
+      pointerY > scrollRect.bottom + 220
     ) {
       return null;
     }
@@ -4080,7 +4085,7 @@ export function RankboardApp() {
 
         return {
           columnId,
-          insertIndex: pointerCoordinates.y < midpoint ? hoveredIndex : hoveredIndex + 1,
+          insertIndex: pointerY < midpoint ? hoveredIndex : hoveredIndex + 1,
         };
       }
     }
@@ -4113,12 +4118,12 @@ export function RankboardApp() {
     }
 
     const firstRect = cardElements[0].getBoundingClientRect();
-    if (pointerCoordinates.y <= firstRect.top) {
+    if (pointerY <= firstRect.top) {
       return { columnId, insertIndex: 0 };
     }
 
     const lastRect = cardElements[cardElements.length - 1].getBoundingClientRect();
-    if (pointerCoordinates.y >= lastRect.bottom) {
+    if (pointerY >= lastRect.bottom) {
       return { columnId, insertIndex: cardElements.length };
     }
 
@@ -4128,17 +4133,17 @@ export function RankboardApp() {
       const rect = element.getBoundingClientRect();
       const midpoint = rect.top + rect.height / 2;
 
-      if (pointerCoordinates.y < midpoint) {
+      if (pointerY < midpoint) {
         insertIndex = index;
         break;
       }
 
-      if (pointerCoordinates.y <= rect.bottom) {
+      if (pointerY <= rect.bottom) {
         insertIndex = index + 1;
         break;
       }
 
-      if (pointerCoordinates.y < rect.top) {
+      if (pointerY < rect.top) {
         insertIndex = index;
         break;
       }
