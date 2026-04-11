@@ -333,3 +333,4 @@
 - Tightened the mobile Insert from Pool modal so it no longer encourages sideways scrolling, with narrower mobile sizing and wrapped pool-card text.
 - Hardened shared-board copying so tier-list shares only clone the rows/cards that were actually visible through the shared filter scope, preventing hidden cards from reappearing after Copy Board.
 - Tightened tier-list drag targeting again with explicit row/card midpoint insert resolution, widened the effective row-hover zone that keeps wrapped rows expanded during drag, and guaranteed that copied shared tier lists always retain a Pool row at the bottom.
+- Fixed a tier-list drag crash regression by moving the active insert-target state sync out of collision detection and back into the normal drag-move path.

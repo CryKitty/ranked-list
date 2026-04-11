@@ -4769,7 +4769,6 @@ export function RankboardApp() {
     droppableContainers: Array<{ id: string | number }>,
   ) {
     const insertTarget = resolveTierListInsertTarget(pointerCoordinates);
-    setActiveTierListInsertTarget(insertTarget);
 
     if (!insertTarget) {
       return null;
@@ -11035,8 +11034,19 @@ function copyCardToDraft(card: CardEntry) {
                 setActiveDragEntryId(null);
               }}
               onDragMove={() => {
-                // Placeholder targeting is resolved from collision detection to avoid
-                // doing the same insert-target work multiple times per pointer move.
+                if (activeBoardLayout === "tier-list") {
+                  const pointerCoordinates = dragPointerCoordsRef.current;
+                  const nextTarget = pointerCoordinates
+                    ? resolveTierListInsertTarget(pointerCoordinates)
+                    : null;
+
+                  setActiveTierListInsertTarget((current) =>
+                    current?.columnId === nextTarget?.columnId &&
+                    current?.insertIndex === nextTarget?.insertIndex
+                      ? current
+                      : nextTarget,
+                  );
+                }
               }}
               onDragEnd={handleDragEnd}
             >
