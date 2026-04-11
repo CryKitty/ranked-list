@@ -15,6 +15,7 @@
 - Kanban placeholder rendering now uses a single board-mode source of truth instead of combining tracked insert targets with droppable `isOver` state, which should stop the “two gaps at once” / split-target behavior during auto-scroll drags.
 - Kanban board rows now remove the actively dragged card from the rendered list and seed the active placeholder at that card’s original slot on pickup, so the source gap aligns with the same between-card target you expect when hovering the neighboring cards.
 - Kanban touch targeting now samples a bit above the raw finger point in board mode, so the upper-half “drop above this card” zone is easier to reach and better matches the held card’s visible position under your finger.
+- Increased that board-mode touch bias further and expanded the effective upper-zone threshold slightly above a strict 50/50 split, so the mobile “drop above” target is easier to hit without having to drag unrealistically high over the card.
 
 ## 2026-04-09
 

@@ -3998,7 +3998,7 @@ export function RankboardApp() {
     const pointerX = pointerCoordinates.x;
     const pointerY =
       activeBoardLayout === "board" && dragPointerKind === "touch"
-        ? pointerCoordinates.y - 44
+        ? pointerCoordinates.y - 88
         : pointerCoordinates.y;
     const elementsAtPoint = document.elementsFromPoint(
       pointerX,
@@ -4081,11 +4081,14 @@ export function RankboardApp() {
 
       if (hoveredIndex >= 0) {
         const rect = hoveredCardElement.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
+        const upperZoneBoundary =
+          dragPointerKind === "touch" && activeBoardLayout === "board"
+            ? rect.top + rect.height * 0.58
+            : rect.top + rect.height / 2;
 
         return {
           columnId,
-          insertIndex: pointerY < midpoint ? hoveredIndex : hoveredIndex + 1,
+          insertIndex: pointerY < upperZoneBoundary ? hoveredIndex : hoveredIndex + 1,
         };
       }
     }
@@ -4131,9 +4134,12 @@ export function RankboardApp() {
 
     for (const [index, element] of cardElements.entries()) {
       const rect = element.getBoundingClientRect();
-      const midpoint = rect.top + rect.height / 2;
+      const upperZoneBoundary =
+        dragPointerKind === "touch" && activeBoardLayout === "board"
+          ? rect.top + rect.height * 0.58
+          : rect.top + rect.height / 2;
 
-      if (pointerY < midpoint) {
+      if (pointerY < upperZoneBoundary) {
         insertIndex = index;
         break;
       }
