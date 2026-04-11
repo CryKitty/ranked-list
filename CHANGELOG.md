@@ -16,6 +16,7 @@
 - Kanban board rows now remove the actively dragged card from the rendered list and seed the active placeholder at that card’s original slot on pickup, so the source gap aligns with the same between-card target you expect when hovering the neighboring cards.
 - Kanban touch targeting now samples a bit above the raw finger point in board mode, so the upper-half “drop above this card” zone is easier to reach and better matches the held card’s visible position under your finger.
 - Increased that board-mode touch bias further and expanded the effective upper-zone threshold slightly above a strict 50/50 split, so the mobile “drop above” target is easier to hit without having to drag unrealistically high over the card.
+- Rebuilt kanban board dragging around a custom pointer-driven model instead of the previous dnd-kit board-card path: board cards now use custom drag activation, a custom fixed-position overlay, explicit midpoint slot targeting, and custom drop commits while Tier List continues using the existing dnd-kit flow.
 
 ## 2026-04-09
 

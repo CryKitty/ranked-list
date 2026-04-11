@@ -11,7 +11,6 @@ import {
   TouchSensor,
   closestCorners,
   pointerWithin,
-  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
@@ -1955,6 +1954,13 @@ export function RankboardApp() {
     columnId: string;
     insertIndex: number;
   } | null>(null);
+  const [customBoardDrag, setCustomBoardDrag] = useState<{
+    entryId: string;
+    sourceColumnId: string;
+    sourceIndex: number;
+    pointerOffsetX: number;
+    pointerOffsetY: number;
+  } | null>(null);
   const [dragPointerKind, setDragPointerKind] = useState<"mouse" | "touch" | null>(null);
   const [isDragGapSuppressed, setIsDragGapSuppressed] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -2074,6 +2080,21 @@ export function RankboardApp() {
   const mobileQuickAddLandscapeArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const mobileQuickAddPortraitArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
+  const pendingBoardDragRef = useRef<{
+    entryId: string;
+    columnId: string;
+    sourceIndex: number;
+    pointerId: number;
+    pointerType: "mouse" | "touch" | "pen";
+    startX: number;
+    startY: number;
+    latestX: number;
+    latestY: number;
+    rect: DOMRect;
+    longPressTimeout: number | null;
+    activated: boolean;
+  } | null>(null);
+  const suppressBoardCardClickUntilRef = useRef(0);
   const dragGapSuppressTimeoutRef = useRef<number | null>(null);
   const desktopAddCardCooldownTimeoutRef = useRef<number | null>(null);
   const dragPointerCoordsRef = useRef<{ x: number; y: number } | null>(null);
@@ -3148,6 +3169,84 @@ export function RankboardApp() {
   }, [currentUser, hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, persistBoardState]);
 
   useEffect(() => {
+    if (activeBoardLayout !== "board") {
+      clearPendingBoardDrag();
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const pending = pendingBoardDragRef.current;
+
+      if (pending && pending.pointerId === event.pointerId) {
+        pending.latestX = event.clientX;
+        pending.latestY = event.clientY;
+
+        const movedX = event.clientX - pending.startX;
+        const movedY = event.clientY - pending.startY;
+        const distance = Math.hypot(movedX, movedY);
+
+        if (!pending.activated) {
+          if (pending.pointerType === "mouse" && distance >= 4) {
+            beginCustomBoardDrag(pending);
+          } else if (pending.pointerType !== "mouse" && distance >= 10) {
+            clearPendingBoardDrag();
+          }
+        }
+      }
+
+      if (customBoardDrag) {
+        dragPointerCoordsRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+        };
+
+        if (!isDragGapSuppressed) {
+          applyActiveBoardInsertTarget(resolveBoardInsertTarget(dragPointerCoordsRef.current), {
+            syncVisualState: true,
+          });
+        }
+
+        event.preventDefault();
+      }
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const pending = pendingBoardDragRef.current;
+
+      if (pending && pending.pointerId === event.pointerId && !pending.activated) {
+        clearPendingBoardDrag();
+        return;
+      }
+
+      if (customBoardDrag) {
+        finishCustomBoardDrag(true);
+      }
+    };
+
+    const handlePointerCancel = (event: PointerEvent) => {
+      const pending = pendingBoardDragRef.current;
+
+      if (pending && pending.pointerId === event.pointerId) {
+        clearPendingBoardDrag();
+      }
+
+      if (customBoardDrag) {
+        finishCustomBoardDrag(false);
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+    };
+  }, [activeBoardLayout, customBoardDrag, filtering, isDragGapSuppressed]);
+
+  useEffect(() => {
     if (!isCardDragging) {
       return;
     }
@@ -3890,6 +3989,203 @@ export function RankboardApp() {
         cardsByColumn[column.id]?.some((card) => card.entryId === entryId),
       )?.id ?? null
     );
+  }
+
+  function clearPendingBoardDrag() {
+    const pending = pendingBoardDragRef.current;
+
+    if (pending?.longPressTimeout) {
+      window.clearTimeout(pending.longPressTimeout);
+    }
+
+    pendingBoardDragRef.current = null;
+  }
+
+  function beginCustomBoardDrag(pending: NonNullable<typeof pendingBoardDragRef.current>) {
+    pending.activated = true;
+    dragPointerCoordsRef.current = {
+      x: pending.latestX,
+      y: pending.latestY,
+    };
+    setDragPointerKind(pending.pointerType === "mouse" ? "mouse" : "touch");
+    setIsCardDragging(true);
+    beginDesktopAddCardCooldown();
+    setActiveDragEntryId(pending.entryId);
+    setCustomBoardDrag({
+      entryId: pending.entryId,
+      sourceColumnId: pending.columnId,
+      sourceIndex: pending.sourceIndex,
+      pointerOffsetX: pending.latestX - pending.rect.left,
+      pointerOffsetY: pending.latestY - pending.rect.top,
+    });
+    applyActiveBoardInsertTarget(
+      {
+        columnId: pending.columnId,
+        insertIndex: pending.sourceIndex,
+      },
+      { syncVisualState: true },
+    );
+  }
+
+  function commitBoardDrop(
+    activeId: string,
+    target: { columnId: string; insertIndex: number } | null,
+  ) {
+    if (filtering || !target) {
+      return;
+    }
+
+    const sourceColumnId = findColumnIdForEntry(activeId);
+    const overColumnId = target.columnId;
+
+    if (!sourceColumnId || !overColumnId) {
+      return;
+    }
+
+    const sourceCards = cardsByColumn[sourceColumnId] ?? [];
+    const destinationCards = cardsByColumn[overColumnId] ?? [];
+    const sourceColumn = columns.find((column) => column.id === sourceColumnId);
+    const destinationColumn = columns.find((column) => column.id === overColumnId);
+    const sourceIndex = sourceCards.findIndex((card) => card.entryId === activeId);
+
+    if (sourceIndex < 0) {
+      return;
+    }
+
+    const movedCard = sourceCards[sourceIndex];
+    const destinationIndex = target.insertIndex;
+
+    if (sourceColumnId === overColumnId) {
+      if (sourceColumn && isColumnAutoSorted(sourceColumn)) {
+        return;
+      }
+
+      if (destinationIndex === sourceIndex) {
+        return;
+      }
+
+      pushBoardHistorySnapshot(null, "moved card");
+      skipNextHistoryRef.current = true;
+      const reorderedCards = [...sourceCards];
+      const [removedCard] = reorderedCards.splice(sourceIndex, 1);
+      reorderedCards.splice(destinationIndex, 0, removedCard);
+
+      const nextState = {
+        ...latestCardsByColumnRef.current,
+        [sourceColumnId]: reorderedCards,
+      };
+      setCardsByColumn((current) => ({
+        ...current,
+        [sourceColumnId]: reorderedCards,
+      }));
+      latestCardsByColumnRef.current = nextState;
+      queuePersistBoardState({
+        cardsByColumn: nextState,
+        debounceMs: 900,
+      });
+      return;
+    }
+
+    if (destinationColumn?.mirrorsEntireBoard && !movedCard.mirroredFromEntryId) {
+      return;
+    }
+
+    const nextSourceCards = sourceCards.filter((card) => card.entryId !== activeId);
+    const nextDestinationCards = [...destinationCards];
+    nextDestinationCards.splice(destinationIndex, 0, movedCard);
+    const normalizedDestinationCards =
+      destinationColumn ? applyColumnSortMode(destinationColumn, nextDestinationCards) : nextDestinationCards;
+
+    pushBoardHistorySnapshot(null, "moved card");
+    skipNextHistoryRef.current = true;
+    const nextState = syncBoardMirrorColumns(
+      columns,
+      reconcileMirrorForMove(
+        {
+          ...cardsByColumn,
+          [sourceColumnId]: nextSourceCards,
+          [overColumnId]: normalizedDestinationCards,
+        },
+        movedCard,
+        sourceColumnId,
+        overColumnId,
+      ),
+    );
+
+    latestCardsByColumnRef.current = nextState;
+    setCardsByColumn(nextState);
+    queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
+  }
+
+  function finishCustomBoardDrag(commitDrop: boolean) {
+    const currentDrag = customBoardDrag;
+    const currentTarget = lastBoardInsertTargetRef.current;
+
+    clearPendingBoardDrag();
+    setIsCardDragging(false);
+    setIsDragGapSuppressed(false);
+    endDesktopAddCardCooldownWithDelay();
+    setDragPointerKind(null);
+    dragPointerCoordsRef.current = null;
+    lastBoardInsertTargetRef.current = null;
+    setActiveBoardInsertTarget(null);
+    setCustomBoardDrag(null);
+    setActiveDragEntryId(null);
+    suppressBoardCardClickUntilRef.current = window.performance.now() + 250;
+
+    if (commitDrop && currentDrag) {
+      commitBoardDrop(currentDrag.entryId, currentTarget);
+    }
+  }
+
+  function startPendingBoardDrag(
+    entryId: string,
+    columnId: string,
+    sourceIndex: number,
+    event: React.PointerEvent<HTMLElement>,
+  ) {
+    if (activeBoardLayout !== "board" || filtering || event.button === 2) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    clearPendingBoardDrag();
+    dragPointerCoordsRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+
+    const pointerType = (event.pointerType || "mouse") as "mouse" | "touch" | "pen";
+    const pendingDrag = {
+      entryId,
+      columnId,
+      sourceIndex,
+      pointerId: event.pointerId,
+      pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+      latestX: event.clientX,
+      latestY: event.clientY,
+      rect,
+      longPressTimeout: null as number | null,
+      activated: false,
+    };
+
+    if (pointerType === "touch") {
+      pendingDrag.longPressTimeout = window.setTimeout(() => {
+        const latestPending = pendingBoardDragRef.current;
+        if (
+          latestPending &&
+          latestPending.entryId === entryId &&
+          latestPending.pointerId === event.pointerId &&
+          !latestPending.activated
+        ) {
+          beginCustomBoardDrag(latestPending);
+        }
+      }, 160);
+    }
+
+    pendingBoardDragRef.current = pendingDrag;
   }
 
   function captureDragPointer(event: Event) {
@@ -10557,6 +10853,8 @@ function copyCardToDraft(card: CardEntry) {
                           onSaveColumnEdit={() => saveEditingColumn(column.id)}
                           onEditCard={startEditingCard}
                           onAddCard={openAddGameModal}
+                          onStartBoardCardDrag={startPendingBoardDrag}
+                          suppressBoardCardClickUntil={suppressBoardCardClickUntilRef.current}
                           onOpenPairwiseQuiz={() => {
                             void openPairwiseQuiz(column.id);
                           }}
@@ -10700,10 +10998,35 @@ function copyCardToDraft(card: CardEntry) {
                   ) : null}
                 </div>
               )}
-              {typeof document !== "undefined"
-                ? createPortal(
-                    <DragOverlay dropAnimation={null}>
-                      {activeDragCard ? (
+              {typeof document !== "undefined" && activeDragCard
+                ? activeBoardLayout === "board" && customBoardDrag && dragPointerCoordsRef.current
+                  ? createPortal(
+                      <div
+                        className="pointer-events-none fixed left-0 top-0 z-[300]"
+                        style={{
+                          transform: `translate3d(${dragPointerCoordsRef.current.x - customBoardDrag.pointerOffsetX}px, ${dragPointerCoordsRef.current.y - customBoardDrag.pointerOffsetY}px, 0)`,
+                        }}
+                      >
+                        <div className="pointer-events-none w-[224px] scale-[0.96] rotate-[1deg] opacity-65 shadow-[0_20px_38px_rgba(15,23,42,0.22)]">
+                          <CardTile
+                            card={activeDragCard}
+                            collapseCards={activeBoardSettings.collapseCards}
+                            isDarkMode={isDarkMode}
+                            showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
+                            showArtwork={shouldShowArtworkOnCards}
+                            showTierHighlights={activeBoardSettings.showTierHighlights}
+                            frontFieldDefinitions={activeBoardFieldDefinitions}
+                            rankBadge={activeDragRankBadge}
+                            mobileArtworkVariant={isMobileViewport ? "board" : undefined}
+                            cardAspectRatio="landscape"
+                            showDragCursor={false}
+                          />
+                        </div>
+                      </div>,
+                      document.body,
+                    )
+                  : createPortal(
+                      <DragOverlay dropAnimation={null}>
                         <div
                           className={clsx(
                             "pointer-events-none scale-[0.96] rotate-[1deg] opacity-65 shadow-[0_20px_38px_rgba(15,23,42,0.22)]",
@@ -10744,10 +11067,9 @@ function copyCardToDraft(card: CardEntry) {
                             }
                           />
                         </div>
-                      ) : null}
-                    </DragOverlay>,
-                    document.body,
-                  )
+                      </DragOverlay>,
+                      document.body,
+                    )
                 : null}
             </DndContext>
           </section>
@@ -14018,6 +14340,8 @@ function BoardColumn({
   onSaveColumnEdit,
   onEditCard,
   onAddCard,
+  onStartBoardCardDrag,
+  suppressBoardCardClickUntil,
   onOpenPairwiseQuiz,
   onSortCards,
   isMenuOpen,
@@ -14085,6 +14409,13 @@ function BoardColumn({
   onSaveColumnEdit: () => void;
   onEditCard: (card: CardEntry) => void;
   onAddCard: (columnId: string, insertIndex: number) => void;
+  onStartBoardCardDrag: (
+    entryId: string,
+    columnId: string,
+    sourceIndex: number,
+    event: React.PointerEvent<HTMLElement>,
+  ) => void;
+  suppressBoardCardClickUntil: number;
   onOpenPairwiseQuiz: () => void;
   onSortCards: (
     columnId: string,
@@ -14970,6 +15301,8 @@ function BoardColumn({
               >
                 <DraggableCard
                   card={card}
+                  columnId={column.id}
+                  sourceIndex={index}
                   collapseCards={collapseCards}
                   isDarkMode={isDarkMode}
                   showSeries={showSeriesOnCards}
@@ -14984,6 +15317,8 @@ function BoardColumn({
                       : null
                   }
                   onEdit={() => onEditCard(card)}
+                  onStartDrag={onStartBoardCardDrag}
+                  suppressClickUntil={suppressBoardCardClickUntil}
                   mobileArtworkVariant={isMobileViewport ? "board" : undefined}
                 />
                 <AddCardRow
@@ -15903,6 +16238,8 @@ function SortableCard({
 
 function DraggableCard({
   card,
+  columnId,
+  sourceIndex,
   collapseCards,
   isDarkMode,
   showSeries,
@@ -15912,6 +16249,8 @@ function DraggableCard({
   rankBadge,
   secondaryRankBadge,
   onEdit,
+  onStartDrag,
+  suppressClickUntil,
   forceSquare = false,
   compactImageOnly = false,
   hideTextOverlay = false,
@@ -15920,6 +16259,8 @@ function DraggableCard({
   clickToEdit = false,
 }: {
   card: CardEntry;
+  columnId: string;
+  sourceIndex: number;
   collapseCards: boolean;
   isDarkMode: boolean;
   showSeries: boolean;
@@ -15929,6 +16270,13 @@ function DraggableCard({
   rankBadge: RankBadge | null;
   secondaryRankBadge?: RankBadge | null;
   onEdit: () => void;
+  onStartDrag: (
+    entryId: string,
+    columnId: string,
+    sourceIndex: number,
+    event: React.PointerEvent<HTMLElement>,
+  ) => void;
+  suppressClickUntil: number;
   forceSquare?: boolean;
   compactImageOnly?: boolean;
   hideTextOverlay?: boolean;
@@ -15936,17 +16284,19 @@ function DraggableCard({
   mobileArtworkVariant?: "board" | "tier-list";
   clickToEdit?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: card.entryId,
-  });
+  const isDragging = false;
 
   return (
     <div
-      ref={setNodeRef}
       className={clsx(
         "relative",
-        isDragging && "z-20 opacity-0 pointer-events-none",
       )}
+      onClickCapture={(event) => {
+        if (window.performance.now() < suppressClickUntil) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
       <CardTile
         card={card}
@@ -15965,7 +16315,9 @@ function DraggableCard({
         cardAspectRatio={cardAspectRatio}
         mobileArtworkVariant={mobileArtworkVariant}
         clickToEdit={clickToEdit}
-        dragProps={{ ...attributes, ...listeners }}
+        dragProps={{
+          onPointerDown: (event) => onStartDrag(card.entryId, columnId, sourceIndex, event),
+        }}
         onEdit={onEdit}
       />
     </div>
@@ -16179,6 +16531,7 @@ function CardTile({
         collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
       )}
       onPointerDown={(event) => {
+        dragProps?.onPointerDown?.(event);
         touchRevealPendingRef.current =
           !collapseCards && event.pointerType === "touch" && !showHoverActions;
       }}
