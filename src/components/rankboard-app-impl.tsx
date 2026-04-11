@@ -1954,6 +1954,10 @@ export function RankboardApp() {
     columnId: string;
     insertIndex: number;
   } | null>(null);
+  const [activeTierListInsertTarget, setActiveTierListInsertTarget] = useState<{
+    columnId: string;
+    insertIndex: number;
+  } | null>(null);
   const [customBoardDrag, setCustomBoardDrag] = useState<{
     entryId: string;
     sourceColumnId: string;
@@ -4667,6 +4671,130 @@ export function RankboardApp() {
     ];
   }
 
+  function resolveTierListInsertTarget(pointerCoordinates: { x: number; y: number }) {
+    if (typeof document === "undefined") {
+      return null;
+    }
+
+    const elementsAtPoint = document.elementsFromPoint(pointerCoordinates.x, pointerCoordinates.y);
+    const rowLane = elementsAtPoint
+      .map((element) => element.closest("[data-column-scroll-id]"))
+      .find(Boolean) as HTMLElement | null;
+    const rowId = rowLane?.dataset.columnScrollId;
+
+    if (!rowId) {
+      return null;
+    }
+
+    const directInsertTarget = elementsAtPoint
+      .map((element) => element.closest("[data-insert-drop-id]"))
+      .find(Boolean) as HTMLElement | null;
+    const directInsertId = directInsertTarget?.dataset.insertDropId;
+
+    if (directInsertId) {
+      const parsedDirectTarget = parseDropTargetId(directInsertId);
+
+      if (parsedDirectTarget?.columnId === rowId) {
+        return parsedDirectTarget;
+      }
+    }
+
+    const cardElements = Array.from(
+      rowLane.querySelectorAll<HTMLElement>("[data-card-entry-id]"),
+    ).filter((element) => element.getBoundingClientRect().width > 8);
+
+    if (cardElements.length === 0) {
+      return { columnId: rowId, insertIndex: 0 };
+    }
+
+    const hoveredCardElement = elementsAtPoint
+      .map((element) => element.closest("[data-card-entry-id]"))
+      .find(
+        (element) =>
+          element instanceof HTMLElement &&
+          rowLane.contains(element),
+      ) as HTMLElement | null;
+
+    if (hoveredCardElement?.dataset.cardEntryId) {
+      const hoveredIndex = cardElements.findIndex(
+        (element) => element.dataset.cardEntryId === hoveredCardElement.dataset.cardEntryId,
+      );
+
+      if (hoveredIndex >= 0) {
+        const rect = hoveredCardElement.getBoundingClientRect();
+        return {
+          columnId: rowId,
+          insertIndex:
+            pointerCoordinates.x < rect.left + rect.width / 2 ? hoveredIndex : hoveredIndex + 1,
+        };
+      }
+    }
+
+    const firstRect = cardElements[0].getBoundingClientRect();
+    if (
+      pointerCoordinates.y < firstRect.top ||
+      (pointerCoordinates.y <= firstRect.bottom && pointerCoordinates.x < firstRect.left)
+    ) {
+      return { columnId: rowId, insertIndex: 0 };
+    }
+
+    const lastRect = cardElements[cardElements.length - 1].getBoundingClientRect();
+    if (
+      pointerCoordinates.y > lastRect.bottom ||
+      (pointerCoordinates.y >= lastRect.top && pointerCoordinates.x > lastRect.right)
+    ) {
+      return { columnId: rowId, insertIndex: cardElements.length };
+    }
+
+    for (const [index, element] of cardElements.entries()) {
+      const rect = element.getBoundingClientRect();
+      if (pointerCoordinates.y < rect.top) {
+        return { columnId: rowId, insertIndex: index };
+      }
+
+      if (pointerCoordinates.y <= rect.bottom) {
+        return {
+          columnId: rowId,
+          insertIndex:
+            pointerCoordinates.x < rect.left + rect.width / 2 ? index : index + 1,
+        };
+      }
+    }
+
+    return { columnId: rowId, insertIndex: cardElements.length };
+  }
+
+  function getTierListInsertCollision(
+    pointerCoordinates: { x: number; y: number },
+    droppableContainers: Array<{ id: string | number }>,
+  ) {
+    const insertTarget = resolveTierListInsertTarget(pointerCoordinates);
+    setActiveTierListInsertTarget(insertTarget);
+
+    if (!insertTarget) {
+      return null;
+    }
+
+    const targetId = makeInsertDropId(insertTarget.columnId, insertTarget.insertIndex);
+    const droppableContainer = droppableContainers.find(
+      (container) => String(container.id) === targetId,
+    );
+
+    if (!droppableContainer) {
+      return null;
+    }
+
+    return [
+      {
+        id: droppableContainer.id,
+        data: {
+          droppableContainer,
+          value: 1,
+        },
+      },
+    ];
+  }
+
   function removeMirroredCard(
     nextState: Record<string, CardEntry[]>,
     sourceEntryId: string,
@@ -5165,6 +5293,7 @@ export function RankboardApp() {
     dragPointerCoordsRef.current = null;
     lastBoardInsertTargetRef.current = null;
     setActiveBoardInsertTarget(null);
+    setActiveTierListInsertTarget(null);
     setActiveDragEntryId(null);
 
     if ((filtering && activeBoardLayout !== "tier-list") || !event.over) {
@@ -10822,6 +10951,26 @@ function copyCardToDraft(card: CardEntry) {
                   return boardInsertCollision ?? [];
                 }
 
+                const tierListPointerCoordinates =
+                  activeBoardLayout === "tier-list"
+                    ? args.pointerCoordinates ?? dragPointerCoordsRef.current
+                    : null;
+
+                if (
+                  activeBoardLayout === "tier-list" &&
+                  tierListPointerCoordinates &&
+                  !isDragGapSuppressed
+                ) {
+                  const tierListInsertCollision = getTierListInsertCollision(
+                    tierListPointerCoordinates,
+                    args.droppableContainers as Array<{ id: string | number }>,
+                  );
+
+                  if (tierListInsertCollision) {
+                    return tierListInsertCollision;
+                  }
+                }
+
                 const tierListArgs =
                   activeBoardLayout === "tier-list" &&
                   !args.pointerCoordinates &&
@@ -10852,6 +11001,7 @@ function copyCardToDraft(card: CardEntry) {
                 beginDesktopAddCardCooldown();
                 captureDragPointer(activatorEvent);
                 lastBoardInsertTargetRef.current = null;
+                setActiveTierListInsertTarget(null);
                 if (activeBoardLayout === "board") {
                   const sourceColumnId = findColumnIdForEntry(activeId);
                   const sourceCards = sourceColumnId ? cardsByColumn[sourceColumnId] ?? [] : [];
@@ -10881,6 +11031,7 @@ function copyCardToDraft(card: CardEntry) {
                 dragPointerCoordsRef.current = null;
                 lastBoardInsertTargetRef.current = null;
                 setActiveBoardInsertTarget(null);
+                setActiveTierListInsertTarget(null);
                 setActiveDragEntryId(null);
               }}
               onDragMove={() => {
@@ -10935,6 +11086,7 @@ function copyCardToDraft(card: CardEntry) {
                           onEditCard={startEditingCard}
                           isAnyCardDragging={isCardDragging}
                           isDragGapSuppressed={isDragGapSuppressed}
+                          isActiveDragTarget={activeTierListInsertTarget?.columnId === row.id}
                           cardAspectRatio={tierListCardAspectRatio}
                           rowOverflow={tierListRowOverflow}
                           showArtworkOnCards={shouldShowArtworkOnCards}
@@ -15610,6 +15762,7 @@ function TierListRow({
   onDragScrollActivity,
   isAnyCardDragging,
   isDragGapSuppressed,
+  isActiveDragTarget,
   cardAspectRatio,
   rowOverflow,
 }: {
@@ -15635,6 +15788,7 @@ function TierListRow({
   onDragScrollActivity: () => void;
   isAnyCardDragging: boolean;
   isDragGapSuppressed: boolean;
+  isActiveDragTarget: boolean;
   cardAspectRatio: "portrait" | "square" | "landscape";
   rowOverflow: "wrap" | "scroll";
 }) {
@@ -15699,7 +15853,7 @@ function TierListRow({
       isUnsortedRow ||
       rowOverflow !== "wrap" ||
       !isAnyCardDragging ||
-      !isOver
+      !isActiveDragTarget
     ) {
       setDragWrapLockedHeight(null);
       return;
@@ -15727,7 +15881,7 @@ function TierListRow({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [isAnyCardDragging, isOver, isUnsortedRow, rowOverflow, stableRowHeight]);
+  }, [isActiveDragTarget, isAnyCardDragging, isUnsortedRow, rowOverflow, stableRowHeight]);
 
   const effectiveDragRowHeight =
     !isUnsortedRow && isAnyCardDragging
@@ -16144,6 +16298,7 @@ function TierListInsertSlot({
       <div
         ref={setNodeRef}
         data-tier-insert-slot="true"
+        data-insert-drop-id={makeInsertDropId(columnId, insertIndex)}
         className={clsx(
           "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-[24px] border transition-[background-color,border-color,box-shadow,width] duration-150 ease-out",
           heightClass,

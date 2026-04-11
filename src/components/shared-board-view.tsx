@@ -21,6 +21,14 @@ import type { BoardFieldDefinition, SavedBoard } from "@/lib/types";
 const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
 const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%)";
 
+function findSharedTierListPoolRow(rows: NonNullable<NonNullable<SavedBoard["settings"]>["tierListView"]>["rows"]) {
+  return (
+    rows.find((row) => row.title.trim().toLowerCase() === "pool") ??
+    rows[rows.length - 1] ??
+    null
+  );
+}
+
 function buildSharedBoardCopy(board: SavedBoard) {
   const shareSettings = board.settings?.publicShare;
   const isTierListShare = shareSettings?.view === "tier-list";
@@ -57,9 +65,14 @@ function buildSharedBoardCopy(board: SavedBoard) {
       tierCardsByEntryId.set(card.entryId, card);
     }
 
+    const poolRow = findSharedTierListPoolRow(tierRows);
     const nextRows = tierRows.filter((row) => selectedTierRowIds.includes(row.id));
+    const nextRowsWithPool =
+      poolRow && !nextRows.some((row) => row.id === poolRow.id)
+        ? [...nextRows, poolRow]
+        : nextRows;
     const nextEntryIdsByRow = Object.fromEntries(
-      nextRows.map((row) => {
+      nextRowsWithPool.map((row) => {
         const scopedEntryIds = (board.settings?.tierListView?.entryIdsByRow[row.id] ?? [])
           .map((entryId) => tierCardsByEntryId.get(entryId))
           .filter((card): card is SavedBoard["cardsByColumn"][string][number] => Boolean(card))
@@ -100,7 +113,7 @@ function buildSharedBoardCopy(board: SavedBoard) {
             tierListView: board.settings.tierListView
               ? {
                   ...board.settings.tierListView,
-                  rows: nextRows,
+                  rows: nextRowsWithPool,
                   entryIdsByRow: nextEntryIdsByRow,
                 }
               : board.settings.tierListView,

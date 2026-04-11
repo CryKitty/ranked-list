@@ -332,3 +332,4 @@
 - Smoothed tier-list dragging by falling back to the tracked live pointer for collision detection, keeping wrapped rows visually expanded while a dragged card hovers them, and surfacing row overflow/card-shape controls directly inside row settings.
 - Tightened the mobile Insert from Pool modal so it no longer encourages sideways scrolling, with narrower mobile sizing and wrapped pool-card text.
 - Hardened shared-board copying so tier-list shares only clone the rows/cards that were actually visible through the shared filter scope, preventing hidden cards from reappearing after Copy Board.
+- Tightened tier-list drag targeting again with explicit row/card midpoint insert resolution, widened the effective row-hover zone that keeps wrapped rows expanded during drag, and guaranteed that copied shared tier lists always retain a Pool row at the bottom.
