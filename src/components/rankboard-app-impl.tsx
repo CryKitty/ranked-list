@@ -1085,6 +1085,14 @@ function buildGoogleImageSearchUrl(
   return url.toString();
 }
 
+function openUrlInNewTab(url: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.open(url, "_blank");
+}
+
 async function openArtworkLookup(
   title: string,
   mode: ArtworkSearchMode = "image",
@@ -1095,42 +1103,34 @@ async function openArtworkLookup(
 ) {
   const trimmedTitle = title.trim();
   const trimmedSeries = series.trim();
+  const isGameBoard = shouldUseGamesDbLookup(boardTitle, boardSettings);
 
   if (!trimmedTitle || typeof window === "undefined") {
     return;
   }
 
-  const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
-  const openFallback = (url: string) => {
-    if (popup && !popup.closed) {
-      popup.location.replace(url);
-      return;
-    }
-
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-
   if (mode === "gif") {
     const gifQuery = [trimmedTitle, trimmedSeries].filter(Boolean).join(" ");
     const url = new URL(`https://tenor.com/search/${encodeURIComponent(gifQuery)}-gifs`);
-    openFallback(url.toString());
+    openUrlInNewTab(url.toString());
     return;
   }
 
-  const googleQuery = shouldUseGamesDbLookup(boardTitle, boardSettings)
+  const googleQuery = isGameBoard
     ? [trimmedTitle, trimmedSeries, "screenshot"].filter(Boolean).join(" ")
     : `${trimmedTitle} wallpaper`;
   const googleUrl = buildGoogleImageSearchUrl(googleQuery, artworkField);
 
   if (!googleUrl) {
-    popup?.close();
     return;
   }
 
-  if (!shouldUseGamesDbLookup(boardTitle, boardSettings)) {
-    openFallback(googleUrl);
+  if (mode !== "auto" || !isGameBoard) {
+    openUrlInNewTab(googleUrl);
     return;
   }
+
+  const popup = window.open("", "_blank");
 
   try {
     const response = await fetch(
@@ -1148,14 +1148,22 @@ async function openArtworkLookup(
     const imageUrl = payload.imageUrl?.trim();
 
     if (imageUrl) {
-      openFallback(imageUrl);
+      if (popup && !popup.closed) {
+        popup.location.href = imageUrl;
+      } else {
+        openUrlInNewTab(imageUrl);
+      }
       return;
     }
   } catch (error) {
     console.error(error);
   }
 
-  openFallback(googleUrl);
+  if (popup && !popup.closed) {
+    popup.location.href = googleUrl;
+  } else {
+    openUrlInNewTab(googleUrl);
+  }
 }
 
 function createCardDraft(card: CardEntry): CardEditorDraft {
@@ -2280,6 +2288,7 @@ export function RankboardApp() {
       ? normalizedTierListView.rows.map((row) => ({ id: row.id, title: row.title }))
       : columns.filter((column) => !column.mirrorsEntireBoard);
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
+  const supportsAutoArtworkLookup = shouldUseGamesDbLookup(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeMobileActionsSubmenu =
     isMobileQuickAddPanelOpen
@@ -9600,6 +9609,12 @@ function copyCardToDraft(card: CardEntry) {
                                                     <ImagePlus className="h-4 w-4" />
                                                     Image
                                                   </button>
+                                                  {supportsAutoArtworkLookup ? (
+                                                    <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setMobileQuickAddArtworkMenuField(null); handleAutofillDraftImageForField(artworkField.field, "auto"); }} type="button">
+                                                      <WandSparkles className="h-4 w-4" />
+                                                      Auto
+                                                    </button>
+                                                  ) : null}
                                                   <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setMobileQuickAddArtworkMenuField(null); handleAutofillDraftImageForField(artworkField.field, "gif"); }} type="button">
                                                     <Clapperboard className="h-4 w-4" />
                                                     GIF
@@ -11577,6 +11592,7 @@ function copyCardToDraft(card: CardEntry) {
               current ? { ...current, notes: value } : current,
             )
           }
+          onOpenAutoSearch={supportsAutoArtworkLookup ? (field) => autofillEditingCardImageForField(field, "auto") : undefined}
           onOpenGifSearch={(field) => autofillEditingCardImageForField(field, "gif")}
           onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
@@ -11702,6 +11718,7 @@ function copyCardToDraft(card: CardEntry) {
               notes: value,
             }))
           }
+          onOpenAutoSearch={supportsAutoArtworkLookup ? (field) => handleAutofillDraftImageForField(field, "auto") : undefined}
           onOpenGifSearch={(field) => handleAutofillDraftImageForField(field, "gif")}
           onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}
