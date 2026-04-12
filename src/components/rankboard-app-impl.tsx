@@ -984,6 +984,9 @@ function mergeBoardsWithActiveSnapshot(
   activeBoardId: string,
   columns: ColumnDefinition[],
   cardsByColumn: Record<string, CardEntry[]>,
+  options?: {
+    touchUpdatedAt?: boolean;
+  },
 ) {
   return boards.map((board) =>
     board.id === activeBoardId
@@ -991,7 +994,7 @@ function mergeBoardsWithActiveSnapshot(
           ...board,
           columns,
           cardsByColumn,
-          updatedAt: new Date().toISOString(),
+          updatedAt: options?.touchUpdatedAt ? new Date().toISOString() : board.updatedAt,
         }
       : board,
   );
@@ -2495,6 +2498,7 @@ export function RankboardApp() {
       options?.activeBoardId ?? latestActiveBoardIdRef.current,
       options?.columns ?? latestColumnsRef.current,
       options?.cardsByColumn ?? latestCardsByColumnRef.current,
+      { touchUpdatedAt: true },
     );
   }, []);
 
@@ -11428,7 +11432,7 @@ function copyCardToDraft(card: CardEntry) {
                                   ? "board"
                                   : undefined
                             }
-                            compactImageOnly={activeBoardLayout === "tier-list" && isMobileViewport}
+                            compactImageOnly={false}
                             hideTextOverlay={false}
                             cardAspectRatio={
                               activeBoardLayout === "tier-list"
@@ -14440,7 +14444,7 @@ function copyCardToDraft(card: CardEntry) {
                           forceSquare={!isMobileViewport && tierListCardAspectRatio === "square"}
                           mobileArtworkVariant={getTierListArtworkVariant(tierListCardAspectRatio, isMobileViewport)}
                           hideTextOverlay={false}
-                          compactImageOnly={isMobileViewport}
+                          compactImageOnly={false}
                           showDragCursor={false}
                         />
                       </div>
@@ -16181,7 +16185,7 @@ function TierListRow({
                       rankBadge={null}
                       onEdit={() => onEditCard(card)}
                       mobileArtworkVariant={getTierListArtworkVariant(cardAspectRatio, isMobileViewport)}
-                      compactImageOnly={isMobileViewport}
+                      compactImageOnly={false}
                       hideTextOverlay={false}
                       cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
                       clickToEdit

@@ -441,8 +441,8 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                   <div className="flex flex-wrap content-start gap-2">
                     {cards.map((card) => {
                       const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
-                      const isPortraitTierCard = !isMobileViewport && board.settings?.tierListCardAspectRatio === "portrait";
-                      const hideTextOverlay = isMobileViewport;
+                      const isPortraitTierCard = isMobileViewport || board.settings?.tierListCardAspectRatio === "portrait";
+                      const hideTextOverlay = false;
                       const artworkUrl = isMobileViewport || isPortraitTierCard
                         ? card.mobileTierListImageUrl || card.imageUrl
                         : card.imageUrl;
