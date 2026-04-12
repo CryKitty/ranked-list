@@ -1052,6 +1052,66 @@ function readBoardsFromBackupRow(data: {
   return null;
 }
 
+function readLocalBoardsSnapshot() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+
+    if (!storedValue) {
+      return null;
+    }
+
+    const parsedState = JSON.parse(storedValue) as
+      | {
+          version?: number;
+          activeBoardId?: string;
+          boards?: SavedBoard[];
+        }
+      | {
+          columns?: ColumnDefinition[];
+          cardsByColumn?: Record<string, CardEntry[]>;
+        };
+
+    if ("boards" in parsedState && Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
+      const boards = parsedState.boards.map((board) => normalizeSavedBoard(board));
+      const activeBoardId =
+        parsedState.activeBoardId && boards.some((board) => board.id === parsedState.activeBoardId)
+          ? parsedState.activeBoardId
+          : boards[0]?.id ?? null;
+
+      return activeBoardId
+        ? {
+            boards,
+            activeBoardId,
+          }
+        : null;
+    }
+
+    const legacyColumns = "columns" in parsedState ? parsedState.columns : undefined;
+    const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
+
+    if (legacyColumns && legacyCards) {
+      const migratedBoard: SavedBoard = {
+        ...createEmptyBoard("Sorta"),
+        columns: legacyColumns,
+        cardsByColumn: legacyCards,
+      };
+
+      return {
+        boards: [migratedBoard],
+        activeBoardId: migratedBoard.id,
+      };
+    }
+  } catch {
+    // Ignore bad local cache data and fall back to an empty signed-out board.
+  }
+
+  return null;
+}
+
 function buildGoogleImageSearchUrl(
   title: string,
   artworkField: ArtworkFieldKind,
@@ -2387,20 +2447,31 @@ export function RankboardApp() {
   }
 
   const resetToSignedOutBoard = useCallback(() => {
-    const signedOutBoard = createEmptyBoard("Sorta");
+    const localSnapshot = readLocalBoardsSnapshot();
+    const signedOutBoards = localSnapshot?.boards ?? [createEmptyBoard("Sorta")];
+    const signedOutActiveBoardId =
+      localSnapshot?.activeBoardId && signedOutBoards.some((board) => board.id === localSnapshot.activeBoardId)
+        ? localSnapshot.activeBoardId
+        : signedOutBoards[0]?.id ?? "";
+    const signedOutBoard =
+      signedOutBoards.find((board) => board.id === signedOutActiveBoardId) ?? signedOutBoards[0];
+
+    if (!signedOutBoard) {
+      return;
+    }
 
     skipNextHistoryRef.current = true;
     previousSnapshotRef.current = {
       columns: signedOutBoard.columns,
       cardsByColumn: signedOutBoard.cardsByColumn,
     };
-    latestBoardsRef.current = [signedOutBoard];
-    latestActiveBoardIdRef.current = signedOutBoard.id;
+    latestBoardsRef.current = signedOutBoards;
+    latestActiveBoardIdRef.current = signedOutActiveBoardId;
     latestColumnsRef.current = signedOutBoard.columns;
     latestCardsByColumnRef.current = signedOutBoard.cardsByColumn;
 
-    setBoards([signedOutBoard]);
-    setActiveBoardId(signedOutBoard.id);
+    setBoards(signedOutBoards);
+    setActiveBoardId(signedOutActiveBoardId);
     setColumns(signedOutBoard.columns);
     setCardsByColumn(signedOutBoard.cardsByColumn);
     setHistory([]);
@@ -2429,12 +2500,6 @@ export function RankboardApp() {
     setLastSavedAt(null);
     setSaveState("idle");
     setSaveErrorMessage(null);
-
-    try {
-      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
-    } catch {
-      // Ignore storage failures during sign out reset.
-    }
   }, []);
 
   const writeLocalBackupSnapshot = useCallback((snapshot: BoardBackupSnapshot) => {
@@ -2811,15 +2876,6 @@ export function RankboardApp() {
     }
 
     if (authEnabled && currentUser && !hasLoadedRemoteState) {
-      return;
-    }
-
-    if (authEnabled && !isAuthLoading && !currentUser) {
-      try {
-        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
-      } catch {
-        // Ignore local storage cleanup failures.
-      }
       return;
     }
 
