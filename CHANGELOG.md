@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-04-12
+
+- Changed image-search handoffs so non-game boards now search Google Images with `title + wallpaper` while preserving the existing tall/wide aspect filters.
+- Added a server-side [`TheGamesDB` lookup route](/Users/avarycooney/Documents/Rankr/src/app/api/gamesdb/route.ts) that game-style boards can use to open a best-fit cover image before falling back to Google screenshots.
+- Restored text overlays on desktop portrait Tier List cards in both the main app and shared view, with smaller type so repeated-cover lists like album tracks remain legible.
+
 ## 2026-04-10
 
 - Switched kanban card insert targeting back to a true upper-half/lower-half split, so dragging over the bottom half of a card now reliably activates the placeholder below it.

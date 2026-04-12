@@ -1049,35 +1049,113 @@ function readBoardsFromBackupRow(data: {
   return null;
 }
 
-function openGoogleImageSearch(
-  title: string,
-  mode: ArtworkSearchMode = "image",
-  artworkField: ArtworkFieldKind = "landscape",
-  series = "",
+function shouldUseGamesDbLookup(boardTitle: string, boardSettings?: Partial<BoardSettings>) {
+  const customLabel = boardSettings?.cardLabel?.trim();
+  const fallbackLabel = deriveDefaultCardLabel(boardTitle);
+  const normalizedLabel = normalizeTitleForComparison(customLabel || fallbackLabel);
+  const normalizedTitle = normalizeTitleForComparison(boardTitle);
+
+  return (
+    normalizedLabel === "game" ||
+    normalizedLabel === "video game" ||
+    /\b(game|games|video game|video games|gaming)\b/.test(normalizedTitle)
+  );
+}
+
+function buildGoogleImageSearchUrl(
+  query: string,
+  artworkField: ArtworkFieldKind,
 ) {
-  const queryParts = [title.trim(), series.trim(), mode === "image" ? "screenshot" : ""].filter(Boolean);
-  const query = queryParts.join(" ");
+  const trimmedQuery = query.trim();
+
+  if (!trimmedQuery) {
+    return null;
+  }
+
+  const queryParts = trimmedQuery.split(/\s+/);
   const exactPhrase = queryParts.map((part) => `"${part}"`).join(" ");
-
-  if (!query || typeof window === "undefined") {
-    return;
-  }
-
-  if (mode === "gif") {
-    const url = new URL(`https://tenor.com/search/${encodeURIComponent(query)}-gifs`);
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-    return;
-  }
-
   const url = new URL("https://www.google.com/search");
   url.searchParams.set("as_st", "y");
-  url.searchParams.set("as_epq", exactPhrase || query);
+  url.searchParams.set("as_epq", exactPhrase || trimmedQuery);
   url.searchParams.set("tbm", "isch");
   url.searchParams.set("udm", "2");
   url.searchParams.set("imgar", artworkField === "portrait" ? "t" : "w");
   url.searchParams.set("tbs", artworkField === "portrait" ? "iar:t" : "iar:w");
 
-  window.open(url.toString(), "_blank", "noopener,noreferrer");
+  return url.toString();
+}
+
+async function openArtworkLookup(
+  title: string,
+  mode: ArtworkSearchMode = "image",
+  artworkField: ArtworkFieldKind = "landscape",
+  series = "",
+  boardTitle = "",
+  boardSettings?: Partial<BoardSettings>,
+) {
+  const trimmedTitle = title.trim();
+  const trimmedSeries = series.trim();
+
+  if (!trimmedTitle || typeof window === "undefined") {
+    return;
+  }
+
+  const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+  const openFallback = (url: string) => {
+    if (popup && !popup.closed) {
+      popup.location.replace(url);
+      return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  if (mode === "gif") {
+    const gifQuery = [trimmedTitle, trimmedSeries].filter(Boolean).join(" ");
+    const url = new URL(`https://tenor.com/search/${encodeURIComponent(gifQuery)}-gifs`);
+    openFallback(url.toString());
+    return;
+  }
+
+  const googleQuery = shouldUseGamesDbLookup(boardTitle, boardSettings)
+    ? [trimmedTitle, trimmedSeries, "screenshot"].filter(Boolean).join(" ")
+    : `${trimmedTitle} wallpaper`;
+  const googleUrl = buildGoogleImageSearchUrl(googleQuery, artworkField);
+
+  if (!googleUrl) {
+    popup?.close();
+    return;
+  }
+
+  if (!shouldUseGamesDbLookup(boardTitle, boardSettings)) {
+    openFallback(googleUrl);
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `/api/gamesdb?title=${encodeURIComponent(trimmedTitle)}&artworkField=${encodeURIComponent(artworkField)}`,
+      {
+        method: "GET",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("TheGamesDB lookup failed.");
+    }
+
+    const payload = (await response.json()) as { imageUrl?: string | null };
+    const imageUrl = payload.imageUrl?.trim();
+
+    if (imageUrl) {
+      openFallback(imageUrl);
+      return;
+    }
+  } catch (error) {
+    console.error(error);
+  }
+
+  openFallback(googleUrl);
 }
 
 function createCardDraft(card: CardEntry): CardEditorDraft {
@@ -6281,7 +6359,14 @@ function copyCardToDraft(card: CardEntry) {
     artworkField: ArtworkFieldKind,
     mode: ArtworkSearchMode = "image",
   ) {
-    openGoogleImageSearch(draft.title, mode, artworkField, draft.series);
+    void openArtworkLookup(
+      draft.title,
+      mode,
+      artworkField,
+      draft.series,
+      activeBoard.title,
+      activeBoardSettings,
+    );
   }
 
   function openArtworkUploadPicker(target: "draft" | "edit", field: ArtworkFieldKind = "landscape") {
@@ -6570,7 +6655,14 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    openGoogleImageSearch(editingCardDraft.title, mode, artworkField, editingCardDraft.series);
+    void openArtworkLookup(
+      editingCardDraft.title,
+      mode,
+      artworkField,
+      editingCardDraft.series,
+      activeBoard.title,
+      activeBoardSettings,
+    );
   }
 
   function selectArtworkOption(imageUrl: string) {
@@ -11389,11 +11481,7 @@ function copyCardToDraft(card: CardEntry) {
                                   : undefined
                             }
                             compactImageOnly={activeBoardLayout === "tier-list" && isMobileViewport}
-                            hideTextOverlay={
-                              activeBoardLayout === "tier-list" &&
-                              !isMobileViewport &&
-                              tierListCardAspectRatio === "portrait"
-                            }
+                            hideTextOverlay={false}
                             cardAspectRatio={
                               activeBoardLayout === "tier-list"
                                 ? isMobileViewport
@@ -14403,7 +14491,7 @@ function copyCardToDraft(card: CardEntry) {
                           cardAspectRatio={isMobileViewport ? "portrait" : tierListCardAspectRatio}
                           forceSquare={!isMobileViewport && tierListCardAspectRatio === "square"}
                           mobileArtworkVariant={getTierListArtworkVariant(tierListCardAspectRatio, isMobileViewport)}
-                          hideTextOverlay={!isMobileViewport && tierListCardAspectRatio === "portrait"}
+                          hideTextOverlay={false}
                           compactImageOnly={isMobileViewport}
                           showDragCursor={false}
                         />
@@ -16146,7 +16234,7 @@ function TierListRow({
                       onEdit={() => onEditCard(card)}
                       mobileArtworkVariant={getTierListArtworkVariant(cardAspectRatio, isMobileViewport)}
                       compactImageOnly={isMobileViewport}
-                      hideTextOverlay={!isMobileViewport && cardAspectRatio === "portrait"}
+                      hideTextOverlay={false}
                       cardAspectRatio={isMobileViewport ? "portrait" : cardAspectRatio}
                       clickToEdit
                       containerClassName={getTierListCardContainerClass(cardAspectRatio, isMobileViewport)}
@@ -16783,6 +16871,7 @@ function CardTile({
         : card.imageUrl?.trim() || "";
   const hasArtwork = showArtwork && Boolean(selectedImageUrl);
   const imageSource = hasArtwork ? getArtworkDisplayUrl(selectedImageUrl) : "";
+  const isPortraitOverlay = !compactImageOnly && !hideTextOverlay && cardAspectRatio === "portrait";
   const shouldPrioritizeImage =
     !isDragging && (rankBadge?.value ?? secondaryRankBadge?.value ?? Number.POSITIVE_INFINITY) <= 2;
   const frontChips = frontFieldDefinitions
@@ -17028,7 +17117,12 @@ function CardTile({
           </>
         ) : null}
         {!collapseCards && !compactImageOnly && !hideTextOverlay && hasArtwork ? (
-          <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent" />
+          <div
+            className={clsx(
+              "absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/38 to-transparent",
+              isPortraitOverlay ? "h-[74%]" : "h-[64%]",
+            )}
+          />
         ) : null}
 
         {!collapseCards && !compactImageOnly && !hideTextOverlay ? (
@@ -17091,16 +17185,30 @@ function CardTile({
             </div>
           </div>
         ) : compactImageOnly || hideTextOverlay ? null : hasArtwork ? (
-          <div className="absolute left-0 right-0 bottom-0 p-2.5 sm:p-4">
+          <div className={clsx("absolute left-0 right-0 bottom-0", isPortraitOverlay ? "p-2.5" : "p-2.5 sm:p-4")}>
             {displaySeries ? (
-              <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+              <p
+                className={clsx(
+                  "truncate font-semibold uppercase text-white",
+                  isPortraitOverlay ? "mb-0.5 text-[9px] tracking-[0.14em]" : "mb-1 text-[11px] tracking-[0.18em]",
+                )}
+              >
                 {displaySeries}
               </p>
             ) : null}
-            <h3 className={clsx("truncate font-bold text-white", forceSquare ? "mt-0.5 text-base sm:text-lg" : "text-lg sm:text-xl")}>
+            <h3
+              className={clsx(
+                "font-bold text-white",
+                isPortraitOverlay
+                  ? "line-clamp-3 text-[13px] leading-[1.05]"
+                  : forceSquare
+                    ? "mt-0.5 text-base sm:text-lg"
+                    : "text-lg sm:text-xl",
+              )}
+            >
               {displayTitle}
             </h3>
-            {card.notes ? (
+            {card.notes && !isPortraitOverlay ? (
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-200">{card.notes}</p>
             ) : null}
           </div>

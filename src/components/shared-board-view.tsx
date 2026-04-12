@@ -442,7 +442,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                     {cards.map((card) => {
                       const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
                       const isPortraitTierCard = !isMobileViewport && board.settings?.tierListCardAspectRatio === "portrait";
-                      const hideTextOverlay = isMobileViewport || isPortraitTierCard;
+                      const hideTextOverlay = isMobileViewport;
                       const artworkUrl = isMobileViewport || isPortraitTierCard
                         ? card.mobileTierListImageUrl || card.imageUrl
                         : card.imageUrl;
@@ -458,16 +458,16 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                               <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(artworkUrl)} />
                             ) : null}
                             {!hideTextOverlay ? (
-                              <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
+                              <div className={clsx("absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent", isPortraitTierCard ? "h-[78%]" : "h-[70%]")} />
                             ) : null}
                             {!hideTextOverlay ? (
-                            <div className="absolute inset-x-0 bottom-0 p-3">
+                            <div className={clsx("absolute inset-x-0 bottom-0", isPortraitTierCard ? "p-2.5" : "p-3")}>
                               {displaySeries ? (
-                                <p className="mb-1 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">
+                                <p className={clsx("truncate font-semibold uppercase text-white/90", isPortraitTierCard ? "mb-0.5 text-[8px] tracking-[0.12em]" : "mb-1 text-[10px] tracking-[0.16em]")}>
                                   {displaySeries}
                                 </p>
                               ) : null}
-                              <h3 className="truncate text-sm font-bold text-white sm:text-base">{displayTitle}</h3>
+                              <h3 className={clsx("font-bold text-white", isPortraitTierCard ? "line-clamp-3 text-[12px] leading-[1.05]" : "truncate text-sm sm:text-base")}>{displayTitle}</h3>
                             </div>
                             ) : null}
                           </div>

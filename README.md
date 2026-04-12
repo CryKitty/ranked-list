@@ -18,7 +18,7 @@
 - `Next.js` for the frontend.
 - `@dnd-kit` for drag and drop.
 - `Supabase` for auth, Postgres, and storage once configured.
-- `RAWG` optionally for better automatic game artwork lookups.
+- `TheGamesDB` optionally for game artwork lookup handoffs.
 - `Vercel` for deployment.
 
 ## Local Development
@@ -44,7 +44,7 @@ The import currently maps Trello lists to columns and Trello cards to Rankboard 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local`.
 3. Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-4. Optional: add `NEXT_PUBLIC_RAWG_API_KEY` for improved automatic game artwork results.
+4. Optional: add `THEGAMESDB_API_KEY` for game-cover lookup handoffs from the image search buttons.
 5. Run the SQL in [supabase/schema.sql](/Users/avarycooney/Documents/Rankr/supabase/schema.sql) in the Supabase SQL editor.
 
 Until those environment variables are set, the app saves locally in the browser on the current device. With Supabase configured, users can sign in with Google or Apple and sync their board state across devices.
