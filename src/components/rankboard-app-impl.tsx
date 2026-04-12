@@ -2684,8 +2684,8 @@ export function RankboardApp() {
     }
 
     pendingPersistDelayRef.current = 0;
-    setPersistRequestId((current) => current + 1);
-  }, [authEnabled, currentUser, supabase]);
+    void persistBoardState(pendingPersistOptionsRef.current ?? undefined);
+  }, [authEnabled, currentUser, persistBoardState, supabase]);
 
   function findDuplicateCard(
     title: string,
@@ -2946,8 +2946,8 @@ export function RankboardApp() {
 
     writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
     if (authEnabled && currentUser) {
-      setLastSavedAt(new Date().toISOString());
-      if (saveState !== "saving") {
+      if (saveState !== "saving" && saveState !== "saved") {
+        setLastSavedAt(new Date().toISOString());
         setSaveState("saved-local");
       }
       return;
