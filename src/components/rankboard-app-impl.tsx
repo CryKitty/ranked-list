@@ -1050,20 +1050,23 @@ function readBoardsFromBackupRow(data: {
 }
 
 function buildGoogleImageSearchUrl(
-  query: string,
+  title: string,
   artworkField: ArtworkFieldKind,
+  supplementalQuery = "wallpaper",
 ) {
-  const trimmedQuery = query.trim();
+  const trimmedTitle = title.trim();
+  const trimmedSupplementalQuery = supplementalQuery.trim();
 
-  if (!trimmedQuery) {
+  if (!trimmedTitle) {
     return null;
   }
 
-  const queryParts = trimmedQuery.split(/\s+/);
-  const exactPhrase = queryParts.map((part) => `"${part}"`).join(" ");
   const url = new URL("https://www.google.com/search");
   url.searchParams.set("as_st", "y");
-  url.searchParams.set("as_epq", exactPhrase || trimmedQuery);
+  url.searchParams.set("as_epq", trimmedTitle);
+  if (trimmedSupplementalQuery) {
+    url.searchParams.set("as_q", trimmedSupplementalQuery);
+  }
   url.searchParams.set("tbm", "isch");
   url.searchParams.set("udm", "2");
   url.searchParams.set("imgar", artworkField === "portrait" ? "t" : "w");
@@ -1100,8 +1103,7 @@ async function openArtworkLookup(
     return;
   }
 
-  const googleQuery = `${trimmedTitle} wallpaper`;
-  const googleUrl = buildGoogleImageSearchUrl(googleQuery, artworkField);
+  const googleUrl = buildGoogleImageSearchUrl(trimmedTitle, artworkField, "wallpaper");
 
   if (!googleUrl) {
     return;
@@ -5541,9 +5543,9 @@ export function RankboardApp() {
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? draft.title).trim() || `Untitled ${boardVocabulary.singular}`;
     const series = String(formData.get("series") ?? draft.series).trim();
-    const imageUrl = draft.imageUrl.trim();
-    const mobileBoardImageUrl = draft.mobileBoardImageUrl.trim();
-    const mobileTierListImageUrl = draft.mobileTierListImageUrl.trim();
+    const imageUrl = String(formData.get("imageUrl") ?? draft.imageUrl).trim();
+    const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? draft.mobileBoardImageUrl).trim();
+    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? draft.mobileTierListImageUrl).trim();
     const notes = String(formData.get("notes") ?? draft.notes).trim();
     const releaseYear = String(formData.get("releaseYear") ?? draft.releaseYear).trim();
     const columnId = String(formData.get("columnId") ?? draft.columnId).trim();
@@ -6527,9 +6529,9 @@ function copyCardToDraft(card: CardEntry) {
 
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? editingCardDraft.title).trim() || `Untitled ${boardVocabulary.singular}`;
-    const imageUrl = editingCardDraft.imageUrl.trim();
-    const mobileBoardImageUrl = editingCardDraft.mobileBoardImageUrl.trim();
-    const mobileTierListImageUrl = editingCardDraft.mobileTierListImageUrl.trim();
+    const imageUrl = String(formData.get("imageUrl") ?? editingCardDraft.imageUrl).trim();
+    const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? editingCardDraft.mobileBoardImageUrl).trim();
+    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? editingCardDraft.mobileTierListImageUrl).trim();
     const imageStoragePath = editingCardDraft.imageStoragePath;
     const series = String(formData.get("series") ?? editingCardDraft.series).trim();
     const releaseYear = String(formData.get("releaseYear") ?? editingCardDraft.releaseYear).trim();
