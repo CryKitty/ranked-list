@@ -2996,12 +2996,15 @@ export function RankboardApp() {
     setBoards((current) =>
       current.map((board) =>
         board.id === activeBoardId
-          ? {
-              ...board,
-              columns,
-              cardsByColumn,
-              updatedAt: new Date().toISOString(),
-            }
+          ? JSON.stringify(board.columns) === JSON.stringify(columns) &&
+            JSON.stringify(board.cardsByColumn) === JSON.stringify(cardsByColumn)
+            ? board
+            : {
+                ...board,
+                columns,
+                cardsByColumn,
+                updatedAt: new Date().toISOString(),
+              }
           : board,
       ),
     );

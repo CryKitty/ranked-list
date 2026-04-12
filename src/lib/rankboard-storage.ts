@@ -7,7 +7,7 @@ export const THEME_STORAGE_KEY = "rankboard-theme-v1";
 export const LAST_ACTIVE_BOARD_KEY = "rankboard-last-active-board-v1";
 
 export function getUserBoardCacheKey(userId: string) {
-  return `rankboard-user-${userId}-v1`;
+  return `rankboard-user-${userId}-v2`;
 }
 
 export function getLastActiveBoardStorageKey(userId?: string | null) {
