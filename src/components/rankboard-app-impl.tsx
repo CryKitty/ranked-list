@@ -2946,7 +2946,7 @@ export function RankboardApp() {
 
     writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
     if (authEnabled && currentUser) {
-      if (saveState !== "saving" && saveState !== "saved") {
+      if (saveState === "idle" || saveState === "pending" || saveState === "saved-local") {
         setLastSavedAt(new Date().toISOString());
         setSaveState("saved-local");
       }
