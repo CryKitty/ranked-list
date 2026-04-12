@@ -1814,11 +1814,15 @@ function getSaveStatusLabel(saveState: SaveState, localOnly = false) {
   }
 
   if (saveState === "saved") {
-    return localOnly ? "Saved locally" : "Saved";
+    return "Synced";
+  }
+
+  if (saveState === "saved-local") {
+    return localOnly ? "Saved locally" : "Saved locally";
   }
 
   if (saveState === "saving") {
-    return "Saving";
+    return "Syncing";
   }
 
   return "Pending";
@@ -1834,9 +1838,15 @@ function getSaveStatusTitle(
     return saveErrorMessage ?? "Changes could not be saved.";
   }
 
+  if (saveState === "saved-local") {
+    return localOnly
+      ? `Saved on this device only. Log in to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
+      : `Saved on this device. Sync to the server is still pending. Last saved ${formatLastSavedAt(lastSavedAt)}`;
+  }
+
   return localOnly
     ? `Saved on this device only. Log in to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
-    : `Last saved ${formatLastSavedAt(lastSavedAt)}`;
+    : `Synced with the server. Last saved ${formatLastSavedAt(lastSavedAt)}`;
 }
 
 function SaveStatusIcon({
@@ -1852,6 +1862,10 @@ function SaveStatusIcon({
 
   if (saveState === "saved") {
     return <CheckCheck className="h-4 w-4" />;
+  }
+
+  if (saveState === "saved-local") {
+    return <Check className="h-4 w-4" />;
   }
 
   if (saveState === "pending") {
@@ -1941,6 +1955,7 @@ function SaveStatusButton({
   isMobileViewport = false,
   requiresLogin = false,
   onRequireLogin,
+  onSyncNow,
 }: {
   isDarkMode: boolean;
   isPersisting: boolean;
@@ -1951,6 +1966,7 @@ function SaveStatusButton({
   isMobileViewport?: boolean;
   requiresLogin?: boolean;
   onRequireLogin?: () => void;
+  onSyncNow?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
@@ -1990,6 +2006,9 @@ function SaveStatusButton({
             setIsTooltipOpen((current) => !current);
             onRequireLogin?.();
             return;
+          }
+          if (saveState === "saved-local" || saveState === "pending" || saveState === "error" || saveState === "offline") {
+            onSyncNow?.();
           }
           if (isMobileViewport) {
             setIsTooltipOpen((current) => !current);
@@ -2654,6 +2673,20 @@ export function RankboardApp() {
     }
   }, [buildEffectiveBoardsSnapshot, buildPersistedColumnsPayload, currentUser, supabase, writeLocalBackupSnapshot]);
 
+  const requestImmediateServerSync = useCallback(() => {
+    if (authEnabled && !currentUser) {
+      setIsSaveLoginModalOpen(true);
+      return;
+    }
+
+    if (!supabase || !currentUser) {
+      return;
+    }
+
+    pendingPersistDelayRef.current = 0;
+    setPersistRequestId((current) => current + 1);
+  }, [authEnabled, currentUser, supabase]);
+
   function findDuplicateCard(
     title: string,
     preferredColumnId?: string,
@@ -2912,11 +2945,19 @@ export function RankboardApp() {
     }
 
     writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
+    if (authEnabled && currentUser) {
+      setLastSavedAt(new Date().toISOString());
+      if (saveState !== "saving") {
+        setSaveState("saved-local");
+      }
+      return;
+    }
+
     if (!authEnabled || !currentUser) {
       setLastSavedAt(new Date().toISOString());
-      setSaveState("saved");
+      setSaveState("saved-local");
     }
-  }, [activeBoardId, authEnabled, boards, cardsByColumn, columns, currentUser, hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, writeLocalBackupSnapshot]);
+  }, [activeBoardId, authEnabled, boards, cardsByColumn, columns, currentUser, hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, saveState, writeLocalBackupSnapshot]);
 
   useEffect(() => {
     if (!hasLoadedPersistedState) {
@@ -10702,6 +10743,7 @@ function copyCardToDraft(card: CardEntry) {
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
+                      onSyncNow={requestImmediateServerSync}
                       requiresLogin={authEnabled && !currentUser}
                       saveErrorMessage={saveErrorMessage}
                       saveState={saveState}
@@ -11012,6 +11054,7 @@ function copyCardToDraft(card: CardEntry) {
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
+                      onSyncNow={requestImmediateServerSync}
                       requiresLogin={authEnabled && !currentUser}
                       saveErrorMessage={saveErrorMessage}
                       saveState={saveState}

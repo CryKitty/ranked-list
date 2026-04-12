@@ -133,7 +133,7 @@ export type SavedBoard = BoardSnapshot & {
   updatedAt: string;
 };
 
-export type SaveState = "idle" | "pending" | "saving" | "saved" | "error" | "offline";
+export type SaveState = "idle" | "pending" | "saving" | "saved-local" | "saved" | "error" | "offline";
 
 export type NormalizedBoardRow = {
   id: string;
