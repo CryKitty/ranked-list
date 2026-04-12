@@ -17,7 +17,6 @@
   - [`/Users/avarycooney/Documents/Rankr/src/lib/supabase/server.ts`](/Users/avarycooney/Documents/Rankr/src/lib/supabase/server.ts)
 - Normalized board persistence: [`/Users/avarycooney/Documents/Rankr/src/lib/normalized-board-store.ts`](/Users/avarycooney/Documents/Rankr/src/lib/normalized-board-store.ts)
 - Image optimization: [`/Users/avarycooney/Documents/Rankr/src/lib/image-processing.ts`](/Users/avarycooney/Documents/Rankr/src/lib/image-processing.ts)
-- Game artwork lookup route: [`/Users/avarycooney/Documents/Rankr/src/app/api/gamesdb/route.ts`](/Users/avarycooney/Documents/Rankr/src/app/api/gamesdb/route.ts)
 - Schema: [`/Users/avarycooney/Documents/Rankr/supabase/schema.sql`](/Users/avarycooney/Documents/Rankr/supabase/schema.sql)
 
 ## Persistence Model
@@ -102,7 +101,7 @@
 - Manual artwork URLs are still supported.
 - Uploads are optimized client-side where possible, then sent to the `board-artwork` Supabase Storage bucket.
 - Card media uses blurred loading transitions to reduce harsh pop-in.
-- Image lookup handoffs now branch by board/card type: game-style boards can ask the server-side `TheGamesDB` route for a best-fit cover first, while non-game boards open Google Images with a simpler `title + wallpaper` query and the existing tall/wide aspect filters.
+- Image lookup handoffs now use Google Images with a simpler `title + wallpaper` query while keeping the existing tall/wide aspect filters.
 - On mobile, artwork helper buttons are intentionally stacked below the URL field so the URL input remains usable.
 - Artwork upload handlers should only update the active add/edit draft and cleanup picker UI; they should not implicitly close the surrounding card modal.
 - Successful upload cleanup should only run after a real upload success, so failed uploads do not leave the editor in a misleading saved/closed state.

@@ -213,7 +213,7 @@ export type PendingPairwiseQuizResume = {
   progress: PairwiseQuizProgress;
 };
 
-export type ArtworkSearchMode = "image" | "gif" | "auto";
+export type ArtworkSearchMode = "image" | "gif";
 
 export type BoardBackupSnapshot = {
   savedAt: string;

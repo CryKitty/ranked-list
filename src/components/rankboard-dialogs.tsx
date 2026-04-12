@@ -18,7 +18,6 @@ import {
   Settings2,
   Share2,
   Sparkles,
-  WandSparkles,
   Trash2,
   Upload,
   X,
@@ -75,7 +74,6 @@ function ArtworkFieldInput({
   onChange,
   onPaste,
   onOpenImageSearch,
-  onOpenAutoSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
 }: {
@@ -89,7 +87,6 @@ function ArtworkFieldInput({
   onChange: (value: string) => void;
   onPaste: (input: HTMLInputElement | null) => void;
   onOpenImageSearch: () => void;
-  onOpenAutoSearch?: () => void;
   onOpenGifSearch: () => void;
   onOpenUploadPicker: () => void;
 }) {
@@ -176,12 +173,6 @@ function ArtworkFieldInput({
               <ImagePlus className="h-4 w-4" />
               Image
             </button>
-            {onOpenAutoSearch ? (
-              <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setIsMenuOpen(false); onOpenAutoSearch(); }} type="button">
-                <WandSparkles className="h-4 w-4" />
-                Auto
-              </button>
-            ) : null}
             <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setIsMenuOpen(false); onOpenGifSearch(); }} type="button">
               <Clapperboard className="h-4 w-4" />
               GIF
@@ -458,7 +449,6 @@ export function EditCardDialog({
   onImageUrlChange,
   onMobileTierListImageUrlChange,
   onOpenImageSearch,
-  onOpenAutoSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
   onPasteArtwork,
@@ -508,7 +498,6 @@ export function EditCardDialog({
   onImageUrlChange: (value: string) => void;
   onMobileTierListImageUrlChange: (value: string) => void;
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
-  onOpenAutoSearch?: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
   onPasteArtwork: (field: ArtworkFieldKind, input: HTMLInputElement | null) => void;
@@ -639,7 +628,6 @@ export function EditCardDialog({
                 label="Landscape Artwork"
                 name="imageUrl"
                 onChange={onImageUrlChange}
-                onOpenAutoSearch={onOpenAutoSearch ? () => onOpenAutoSearch("landscape") : undefined}
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
@@ -653,7 +641,6 @@ export function EditCardDialog({
                 menuPlacement="up"
                 name="mobileTierListImageUrl"
                 onChange={onMobileTierListImageUrlChange}
-                onOpenAutoSearch={onOpenAutoSearch ? () => onOpenAutoSearch("portrait") : undefined}
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
@@ -813,7 +800,6 @@ export function AddCardDialog({
   onImageUrlChange,
   onMobileTierListImageUrlChange,
   onOpenImageSearch,
-  onOpenAutoSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
   onPasteArtwork,
@@ -861,7 +847,6 @@ export function AddCardDialog({
   onImageUrlChange: (value: string) => void;
   onMobileTierListImageUrlChange: (value: string) => void;
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
-  onOpenAutoSearch?: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
   onPasteArtwork: (field: ArtworkFieldKind, input: HTMLInputElement | null) => void;
@@ -979,7 +964,6 @@ export function AddCardDialog({
                 label="Landscape Artwork"
                 name="imageUrl"
                 onChange={onImageUrlChange}
-                onOpenAutoSearch={onOpenAutoSearch ? () => onOpenAutoSearch("landscape") : undefined}
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
@@ -993,7 +977,6 @@ export function AddCardDialog({
                 menuPlacement="up"
                 name="mobileTierListImageUrl"
                 onChange={onMobileTierListImageUrlChange}
-                onOpenAutoSearch={onOpenAutoSearch ? () => onOpenAutoSearch("portrait") : undefined}
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}

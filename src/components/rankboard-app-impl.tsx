@@ -1049,19 +1049,6 @@ function readBoardsFromBackupRow(data: {
   return null;
 }
 
-function shouldUseGamesDbLookup(boardTitle: string, boardSettings?: Partial<BoardSettings>) {
-  const customLabel = boardSettings?.cardLabel?.trim();
-  const fallbackLabel = deriveDefaultCardLabel(boardTitle);
-  const normalizedLabel = normalizeTitleForComparison(customLabel || fallbackLabel);
-  const normalizedTitle = normalizeTitleForComparison(boardTitle);
-
-  return (
-    normalizedLabel === "game" ||
-    normalizedLabel === "video game" ||
-    /\b(game|games|video game|video games|gaming)\b/.test(normalizedTitle)
-  );
-}
-
 function buildGoogleImageSearchUrl(
   query: string,
   artworkField: ArtworkFieldKind,
@@ -1098,12 +1085,9 @@ async function openArtworkLookup(
   mode: ArtworkSearchMode = "image",
   artworkField: ArtworkFieldKind = "landscape",
   series = "",
-  boardTitle = "",
-  boardSettings?: Partial<BoardSettings>,
 ) {
   const trimmedTitle = title.trim();
   const trimmedSeries = series.trim();
-  const isGameBoard = shouldUseGamesDbLookup(boardTitle, boardSettings);
 
   if (!trimmedTitle || typeof window === "undefined") {
     return;
@@ -1116,54 +1100,14 @@ async function openArtworkLookup(
     return;
   }
 
-  const googleQuery = isGameBoard
-    ? [trimmedTitle, trimmedSeries, "screenshot"].filter(Boolean).join(" ")
-    : `${trimmedTitle} wallpaper`;
+  const googleQuery = `${trimmedTitle} wallpaper`;
   const googleUrl = buildGoogleImageSearchUrl(googleQuery, artworkField);
 
   if (!googleUrl) {
     return;
   }
 
-  if (mode !== "auto" || !isGameBoard) {
-    openUrlInNewTab(googleUrl);
-    return;
-  }
-
-  const popup = window.open("", "_blank");
-
-  try {
-    const response = await fetch(
-      `/api/gamesdb?title=${encodeURIComponent(trimmedTitle)}&artworkField=${encodeURIComponent(artworkField)}`,
-      {
-        method: "GET",
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error("TheGamesDB lookup failed.");
-    }
-
-    const payload = (await response.json()) as { imageUrl?: string | null };
-    const imageUrl = payload.imageUrl?.trim();
-
-    if (imageUrl) {
-      if (popup && !popup.closed) {
-        popup.location.href = imageUrl;
-      } else {
-        openUrlInNewTab(imageUrl);
-      }
-      return;
-    }
-  } catch (error) {
-    console.error(error);
-  }
-
-  if (popup && !popup.closed) {
-    popup.location.href = googleUrl;
-  } else {
-    openUrlInNewTab(googleUrl);
-  }
+  openUrlInNewTab(googleUrl);
 }
 
 function createCardDraft(card: CardEntry): CardEditorDraft {
@@ -1799,13 +1743,13 @@ function formatLastSavedAt(savedAt: string | null) {
   }).format(new Date(savedAt));
 }
 
-function getSaveStatusLabel(saveState: SaveState) {
+function getSaveStatusLabel(saveState: SaveState, localOnly = false) {
   if (saveState === "error" || saveState === "offline") {
     return "Needs attention";
   }
 
   if (saveState === "saved") {
-    return "Saved";
+    return localOnly ? "Saved locally" : "Saved";
   }
 
   if (saveState === "saving") {
@@ -1815,12 +1759,19 @@ function getSaveStatusLabel(saveState: SaveState) {
   return "Pending";
 }
 
-function getSaveStatusTitle(saveState: SaveState, lastSavedAt: string | null, saveErrorMessage: string | null) {
+function getSaveStatusTitle(
+  saveState: SaveState,
+  lastSavedAt: string | null,
+  saveErrorMessage: string | null,
+  localOnly = false,
+) {
   if (saveState === "error" || saveState === "offline") {
     return saveErrorMessage ?? "Changes could not be saved.";
   }
 
-  return `Last saved ${formatLastSavedAt(lastSavedAt)}`;
+  return localOnly
+    ? `Saved on this device only. Log in to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
+    : `Last saved ${formatLastSavedAt(lastSavedAt)}`;
 }
 
 function SaveStatusIcon({
@@ -1939,7 +1890,7 @@ function SaveStatusButton({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipLabel = requiresLogin
-    ? "Log in to save this board"
+    ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage, true)
     : saveState === "error" || saveState === "offline"
       ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)
       : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
@@ -1971,6 +1922,7 @@ function SaveStatusButton({
         )}
         onClick={() => {
           if (requiresLogin) {
+            setIsTooltipOpen((current) => !current);
             onRequireLogin?.();
             return;
           }
@@ -1983,7 +1935,7 @@ function SaveStatusButton({
             setIsTooltipOpen(false);
           }
         }}
-        title={isMobileViewport ? undefined : getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)}
+        title={isMobileViewport ? undefined : requiresLogin ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage, true) : getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)}
         type="button"
       >
         <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
@@ -2288,7 +2240,6 @@ export function RankboardApp() {
       ? normalizedTierListView.rows.map((row) => ({ id: row.id, title: row.title }))
       : columns.filter((column) => !column.mirrorsEntireBoard);
   const boardVocabulary = getBoardVocabularyWithSettings(activeBoardTitle, activeBoardSettings);
-  const supportsAutoArtworkLookup = shouldUseGamesDbLookup(activeBoardTitle, activeBoardSettings);
   const activeBoardKind = getBoardKind(activeBoardTitle);
   const activeMobileActionsSubmenu =
     isMobileQuickAddPanelOpen
@@ -6368,14 +6319,7 @@ function copyCardToDraft(card: CardEntry) {
     artworkField: ArtworkFieldKind,
     mode: ArtworkSearchMode = "image",
   ) {
-    void openArtworkLookup(
-      draft.title,
-      mode,
-      artworkField,
-      draft.series,
-      activeBoard.title,
-      activeBoardSettings,
-    );
+    void openArtworkLookup(draft.title, mode, artworkField, draft.series);
   }
 
   function openArtworkUploadPicker(target: "draft" | "edit", field: ArtworkFieldKind = "landscape") {
@@ -6664,14 +6608,7 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    void openArtworkLookup(
-      editingCardDraft.title,
-      mode,
-      artworkField,
-      editingCardDraft.series,
-      activeBoard.title,
-      activeBoardSettings,
-    );
+    void openArtworkLookup(editingCardDraft.title, mode, artworkField, editingCardDraft.series);
   }
 
   function selectArtworkOption(imageUrl: string) {
@@ -9609,12 +9546,6 @@ function copyCardToDraft(card: CardEntry) {
                                                     <ImagePlus className="h-4 w-4" />
                                                     Image
                                                   </button>
-                                                  {supportsAutoArtworkLookup ? (
-                                                    <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setMobileQuickAddArtworkMenuField(null); handleAutofillDraftImageForField(artworkField.field, "auto"); }} type="button">
-                                                      <WandSparkles className="h-4 w-4" />
-                                                      Auto
-                                                    </button>
-                                                  ) : null}
                                                   <button className={clsx("flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={() => { setMobileQuickAddArtworkMenuField(null); handleAutofillDraftImageForField(artworkField.field, "gif"); }} type="button">
                                                     <Clapperboard className="h-4 w-4" />
                                                     GIF
@@ -11592,7 +11523,6 @@ function copyCardToDraft(card: CardEntry) {
               current ? { ...current, notes: value } : current,
             )
           }
-          onOpenAutoSearch={supportsAutoArtworkLookup ? (field) => autofillEditingCardImageForField(field, "auto") : undefined}
           onOpenGifSearch={(field) => autofillEditingCardImageForField(field, "gif")}
           onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
@@ -11718,7 +11648,6 @@ function copyCardToDraft(card: CardEntry) {
               notes: value,
             }))
           }
-          onOpenAutoSearch={supportsAutoArtworkLookup ? (field) => handleAutofillDraftImageForField(field, "auto") : undefined}
           onOpenGifSearch={(field) => handleAutofillDraftImageForField(field, "gif")}
           onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}

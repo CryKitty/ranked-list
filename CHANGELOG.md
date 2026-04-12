@@ -2,10 +2,9 @@
 
 ## 2026-04-12
 
-- Split artwork lookup actions back apart so game-style boards now show `Image`, `Auto`, `GIF`, and `Upload`, with `Auto` reserved for the TheGamesDB handoff and normal `Image` staying on the Google flow.
-- Fixed the artwork-lookup popup handoff so normal image/gif searches no longer strand an `about:blank` tab while the async `Auto` lookup resolves.
+- Removed the experimental `Auto` / TheGamesDB artwork lookup path and returned the artwork menus to `Image`, `GIF`, and `Upload`.
+- Fixed the artwork-lookup handoff so image and GIF searches no longer strand an `about:blank` tab.
 - Changed image-search handoffs so non-game boards now search Google Images with `title + wallpaper` while preserving the existing tall/wide aspect filters.
-- Added a server-side [`TheGamesDB` lookup route](/Users/avarycooney/Documents/Rankr/src/app/api/gamesdb/route.ts) that game-style boards can use to open a best-fit cover image before falling back to Google screenshots.
 - Restored text overlays on desktop portrait Tier List cards in both the main app and shared view, with smaller type so repeated-cover lists like album tracks remain legible.
 
 ## 2026-04-10
