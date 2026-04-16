@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-16
+
+- Reworked public sharing into a stable live-link model: sharing now reuses the board's existing public slug instead of rotating to a fresh temporary link.
+- Simplified shared-board configuration so the public link stays a read-only view of the live board itself, with column or tier-row selection still controlling what is visible.
+- Removed share-specific title and filter overrides from the public page, so shared views now always reflect the source board title and current live card set.
+- Added a prompt when creating a new column on an already shared board so the owner can immediately choose whether that column should be visible in the shared view.
+
 ## 2026-04-12
 
 - Removed the experimental `Auto` / TheGamesDB artwork lookup path and returned the artwork menus to `Image`, `GIF`, and `Upload`.

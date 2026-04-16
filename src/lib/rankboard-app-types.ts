@@ -66,16 +66,12 @@ export type RankBadge = {
   value: number;
 };
 
-export type TierFilter = ShareTierFilter;
-
 export type ShareDraft = {
   view: BoardLayout;
   columnIds: string[];
-  tierFilter: ShareTierFilter;
-  seriesFilter: string;
-  searchTerm: string;
-  title: string;
 };
+
+export type TierFilter = ShareTierFilter;
 
 export type DuplicateCleanupSuggestion = {
   id: string;

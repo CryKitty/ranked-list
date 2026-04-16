@@ -74,7 +74,7 @@
 - Active-board preference now also falls back across both user-scoped and generic last-board storage keys to reduce “refresh opened the wrong board” regressions.
 - During authenticated remote merge, a temporary signed-out `Sorta` starter board should be discarded once real saved boards are available so mobile auth handoff does not keep a stray blank board.
 - Shared-board reads now fetch the published board row plus its columns/items/entries directly, rather than loading all boards for the owner and then selecting one.
-- Shared boards can now override their display/browser title through `board.settings.publicShare.title` without renaming the source board.
+- Shared boards now always use the source board title, so the public link stays a true read-only view of the live board.
 
 ## Column Modes
 
@@ -185,7 +185,7 @@
   - add card
   - edit card
 - share configuration
-- [`/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx`](/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx) owns read-only published board rendering, including share-scoped filtering, theme persistence for the share page, and the `Copy Board` bootstrap flow back into the main app.
+- [`/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx`](/Users/avarycooney/Documents/Rankr/src/components/shared-board-view.tsx) owns read-only published board rendering, including share-scoped column/row selection, theme persistence for the share page, and the `Copy Board` bootstrap flow back into the main app.
 - [`/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts`](/Users/avarycooney/Documents/Rankr/src/lib/rankboard-display.ts) now centralizes display-oriented pure helpers that are intentionally shared across the main app, dialogs, and share page:
   - series label normalization for filters
   - title comparison helpers
@@ -211,31 +211,26 @@
 - Switch-style toggles are the preferred design language for binary settings.
 - Column-level ranking and persistent sort modes now use the same visual toggle model as field/front-display controls.
 
-## Public Sharing v1
+## Public Sharing
 
 - Boards can now be marked public and assigned a read-only share slug.
 - Public links render through [`/Users/avarycooney/Documents/Rankr/src/app/share/[slug]/page.tsx`](/Users/avarycooney/Documents/Rankr/src/app/share/[slug]/page.tsx).
-- Share publication is now driven through a configuration modal instead of a bare button.
+- Share publication is driven through a configuration modal instead of a bare button.
 - The chosen share configuration is stored in `board.settings.publicShare`:
+  - `view`
   - `columnIds`
-  - `tierFilter`
-  - `seriesFilter`
-  - `searchTerm`
-  - `title`
-  - `expiresAt`
-- Shared links remain read-only, but they no longer have to expose the entire board. The share page now filters the board down to the chosen columns and any requested tier/series/search view.
-- Tier filtering in the shared page is applied after the selected series/search scope has narrowed the column, so `Top 15` means the top 15 cards of the published filtered view rather than the top 15 of the raw underlying column.
-- Shared links should self-expire after 24 hours. The server loader rejects expired links using both `last_published_at` and the explicit `settings.publicShare.expiresAt` guard.
-- Re-publishing a share now issues a fresh slug instead of silently reusing the old one, which makes `Refresh Link` visibly produce a new link and restart the expiry window.
+- Shared links remain read-only, but they now stay tied to the live board instead of generating a filtered snapshot with its own title or expiry window.
+- Once a board has a public slug, later share updates keep reusing that same slug so the public URL stays stable.
+- The share modal now focuses on choosing which columns or tier rows are visible in the public view, while the cards, title, and ongoing edits remain live reflections of the source board.
+- When a new board column is created on an already shared board, the owner gets an immediate choice about whether that column should also appear in the public view.
 - The share page must keep cards `shrink-0` inside the shared column scrollers so large boards do not collapse into unreadable strips.
-- The share modal itself should behave like a constrained sheet: scrollable body inside the viewport, persistent action row, and tighter desktop filter widths so the controls stay inside the dialog.
+- The share modal itself should behave like a constrained sheet: scrollable body inside the viewport and a persistent action row so the controls stay inside the dialog.
 - Other tall form-heavy dialogs should follow that same constrained-sheet pattern on mobile so header/body content can scroll without pushing the action controls off-screen.
 - The shared board renderer should mirror the main-board display rules closely:
   - same tier badge/border coloring
   - same series/title reduction logic
   - same horizontal snap scrolling across columns
-- Since refreshed shares now generate a new slug, old share links effectively self-terminate as soon as the replacement link is published.
-- The shared header is now intentionally compact: `Sorta Share:` label, active filter chips, board title, and a `Join` CTA on the same line when space allows.
+- The shared header is now intentionally compact: board title plus a `Join` CTA on the same line when space allows.
 - The `Join` CTA links to `/?new=1`, and the main app consumes that query by opening the new-board modal once and then clearing the query string.
 - The new-board modal should encourage signed-out users to log in if they want board creation to persist across devices.
 - The board-setup modal now supports both `Kanban Board` and `Tier List` creation up front, and on mobile its body scrolls within the viewport while the action buttons remain visible.
@@ -304,6 +299,6 @@
 - Pairwise quiz progress is now stored in `pairwise_quiz_progress` per owner/board/column when possible, with local browser storage used only as a fallback so save-and-resume can survive across devices.
 - Card-front artwork gradients remain slightly shortened from the original design, but were later increased again after the first reduction proved too shallow in practice.
 - Shared boards now expose a `Copy Board` action that serializes the shared snapshot into local storage and hands it off to the main app, where a fresh board copy is created with regenerated board/column/card IDs.
-- Shared-board copying now serializes only the published share view (selected columns plus applied tier/series/search filters), so a copied board never reveals cards or columns that were not part of the shared link.
+- Shared-board copying now serializes only the published share scope (selected columns or rows), so a copied board never reveals columns or rows that were not part of the shared link.
 - Shared-board copies also strip live mirror behavior and `mirroredFromEntryId` links, turning the published result into a static editable snapshot so mirror-column order stays exactly as shared.
 - Column action menus intentionally sit above the inline add affordances in stacking order, so hovered `+` controls never cover an active submenu.

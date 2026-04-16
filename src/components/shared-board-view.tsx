@@ -9,8 +9,6 @@ import { getArtworkDisplayUrl } from "@/lib/artwork-url";
 import {
   getDisplayCardText,
   getTierKey,
-  matchesCardSearch,
-  matchesTierFilterByIndex,
 } from "@/lib/rankboard-display";
 import {
   SHARED_BOARD_TEMPLATE_STORAGE_KEY,
@@ -37,9 +35,6 @@ function buildSharedBoardCopy(board: SavedBoard) {
       ? shareSettings.columnIds
       : board.columns.map((column) => column.id);
   const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
-  const tierFilter = shareSettings?.tierFilter ?? "all";
-  const selectedSeries = shareSettings?.seriesFilter?.trim() ?? "";
-  const selectedSearchTerm = shareSettings?.searchTerm?.trim() ?? "";
   const nextColumns = selectedColumns.map((column) => ({
     ...column,
     mirrorsEntireBoard: false,
@@ -76,14 +71,6 @@ function buildSharedBoardCopy(board: SavedBoard) {
         const scopedEntryIds = (board.settings?.tierListView?.entryIdsByRow[row.id] ?? [])
           .map((entryId) => tierCardsByEntryId.get(entryId))
           .filter((card): card is SavedBoard["cardsByColumn"][string][number] => Boolean(card))
-          .filter((card) => {
-            if (selectedSeries && card.series !== selectedSeries) {
-              return false;
-            }
-
-            return matchesCardSearch(card, selectedSearchTerm);
-          })
-          .filter((_, index) => matchesTierFilterByIndex(index, tierFilter))
           .map((card) => card.entryId);
 
         return [row.id, scopedEntryIds];
@@ -93,7 +80,7 @@ function buildSharedBoardCopy(board: SavedBoard) {
 
     return {
       ...board,
-      title: shareSettings?.title?.trim() || board.title,
+      title: board.title,
       columns: nextColumns,
       cardsByColumn: Object.fromEntries(
         nextColumns.map((column) => [
@@ -124,24 +111,16 @@ function buildSharedBoardCopy(board: SavedBoard) {
 
   const nextCardsByColumn = Object.fromEntries(
     nextColumns.map((column) => {
-      const scopedCards = (board.cardsByColumn[column.id] ?? []).filter((card) => {
-        if (selectedSeries && card.series !== selectedSeries) {
-          return false;
-        }
-
-        return matchesCardSearch(card, selectedSearchTerm);
-      });
-
       return [
         column.id,
-        scopedCards.filter((_, index) => matchesTierFilterByIndex(index, tierFilter)),
+        board.cardsByColumn[column.id] ?? [],
       ] as const;
     }),
   ) as SavedBoard["cardsByColumn"];
 
   return {
     ...board,
-    title: shareSettings?.title?.trim() || board.title,
+    title: board.title,
     columns: nextColumns,
     cardsByColumn: Object.fromEntries(
       Object.entries(nextCardsByColumn).map(([columnId, cards]) => [
@@ -260,7 +239,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
 
   const shareSettings = board.settings?.publicShare;
   const isTierListShare = shareSettings?.view === "tier-list";
-  const sharedTitle = shareSettings?.title?.trim() || board.title;
+  const sharedTitle = board.title;
   const selectedColumnIds =
     !isTierListShare && shareSettings?.columnIds && shareSettings.columnIds.length > 0
       ? shareSettings.columnIds
@@ -277,9 +256,6 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
     [isTierListShare, shareSettings, tierRows],
   );
   const selectedColumns = board.columns.filter((column) => selectedColumnIds.includes(column.id));
-  const tierFilter = shareSettings?.tierFilter ?? "all";
-  const selectedSeries = shareSettings?.seriesFilter?.trim() ?? "";
-  const selectedSearchTerm = shareSettings?.searchTerm?.trim() ?? "";
   const seriesFieldDefinition = (board.settings?.fieldDefinitions ?? []).find(
     (field: BoardFieldDefinition) => field.builtInKey === "series",
   );
@@ -298,19 +274,12 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   const scopedColumns = useMemo(
     () =>
       selectedColumns.map((column) => {
-        const scopedCards = (board.cardsByColumn[column.id] ?? []).filter((card) => {
-          if (selectedSeries && card.series !== selectedSeries) {
-            return false;
-          }
-          return matchesCardSearch(card, selectedSearchTerm);
-        });
-
         return {
           column,
-          cards: scopedCards.filter((_, index) => matchesTierFilterByIndex(index, tierFilter)),
+          cards: board.cardsByColumn[column.id] ?? [],
         };
       }),
-    [board.cardsByColumn, selectedColumns, selectedSearchTerm, selectedSeries, tierFilter],
+    [board.cardsByColumn, selectedColumns],
   );
   const tierCardsByEntryId = useMemo(() => {
     const entries = new Map<string, SavedBoard["cardsByColumn"][string][number]>();
@@ -332,25 +301,14 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
         .map((row) => {
           const cards = (board.settings?.tierListView?.entryIdsByRow[row.id] ?? [])
             .map((entryId) => tierCardsByEntryId.get(entryId))
-            .filter((card): card is SavedBoard["cardsByColumn"][string][number] => Boolean(card))
-            .filter((card) => {
-              if (selectedSeries && card.series !== selectedSeries) {
-                return false;
-              }
-
-              return matchesCardSearch(card, selectedSearchTerm);
-            })
-            .filter((_, index) => matchesTierFilterByIndex(index, tierFilter));
+            .filter((card): card is SavedBoard["cardsByColumn"][string][number] => Boolean(card));
 
           return { row, cards };
         }),
     [
       board.settings?.tierListView?.entryIdsByRow,
-      selectedSearchTerm,
-      selectedSeries,
       selectedTierRowIds,
       tierCardsByEntryId,
-      tierFilter,
       tierRows,
     ],
   );

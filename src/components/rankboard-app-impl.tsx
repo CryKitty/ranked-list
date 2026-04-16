@@ -186,10 +186,6 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   publicShare: {
     view: "board",
     columnIds: [],
-    tierFilter: "all",
-    seriesFilter: "",
-    searchTerm: "",
-    expiresAt: null,
   },
   pairwiseQuizProgressByColumn: {},
   showSeriesOnCards: false,
@@ -618,11 +614,6 @@ function normalizePublicShareSettings(settings?: Partial<BoardSettings>["publicS
   return {
     view: normalizeBoardLayout(settings?.view),
     columnIds: settings?.columnIds ?? [],
-    tierFilter: settings?.tierFilter ?? "all",
-    seriesFilter: settings?.seriesFilter ?? "",
-    searchTerm: settings?.searchTerm ?? "",
-    title: settings?.title ?? "",
-    expiresAt: settings?.expiresAt ?? null,
   };
 }
 
@@ -1337,11 +1328,8 @@ function cloneBoardFromTemplate(board: SavedBoard): SavedBoard {
     settings: {
       ...board.settings,
       publicShare: {
+        view: board.settings?.publicShare?.view ?? "board",
         columnIds: [],
-        tierFilter: "all",
-        seriesFilter: "",
-        searchTerm: "",
-        expiresAt: null,
       },
     },
     columns: nextColumns,
@@ -2109,10 +2097,6 @@ export function RankboardApp() {
   const [shareDraft, setShareDraft] = useState<ShareDraft>({
     view: "board",
     columnIds: [],
-    tierFilter: "all",
-    seriesFilter: "",
-    searchTerm: "",
-    title: "",
   });
   const [copiedShareUrl, setCopiedShareUrl] = useState<string | null>(null);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
@@ -6908,27 +6892,69 @@ function copyCardToDraft(card: CardEntry) {
   function addColumnAt(insertIndex: number) {
     const nextIndex = columns.length + 1;
     const newColumn = createColumnDefinition(nextIndex);
-
-    setColumns((current) => {
-      const nextColumns = [...current];
-      nextColumns.splice(Math.max(0, Math.min(insertIndex, nextColumns.length)), 0, newColumn);
-      return nextColumns;
-    });
-    setCardsByColumn((current) => ({
-      ...current,
+    const normalizedInsertIndex = Math.max(0, Math.min(insertIndex, columns.length));
+    const nextColumns = [...columns];
+    nextColumns.splice(normalizedInsertIndex, 0, newColumn);
+    const nextCardsByColumn = {
+      ...cardsByColumn,
       [newColumn.id]: [],
-    }));
+    };
+    const shouldOfferShareInclusion =
+      activeBoard.isPublic &&
+      activeBoard.publicSlug &&
+      normalizePublicShareSettings(activeBoardSettings.publicShare).view === "board" &&
+      typeof window !== "undefined";
+    const includeInSharedView = shouldOfferShareInclusion
+      ? window.confirm("Include this new column in the shared board too?")
+      : false;
+    const nextBoards = latestBoardsRef.current.map((board) => {
+      if (board.id !== activeBoardId) {
+        return board;
+      }
+
+      const currentShare = normalizePublicShareSettings(board.settings?.publicShare);
+      const nextShareColumnIds =
+        includeInSharedView && !currentShare.columnIds.includes(newColumn.id)
+          ? [...currentShare.columnIds, newColumn.id]
+          : currentShare.columnIds;
+
+      return {
+        ...board,
+        columns: nextColumns,
+        cardsByColumn: nextCardsByColumn,
+        settings: {
+          ...board.settings,
+          publicShare: {
+            ...currentShare,
+            columnIds: nextShareColumnIds,
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    latestBoardsRef.current = nextBoards;
+    latestColumnsRef.current = nextColumns;
+    latestCardsByColumnRef.current = nextCardsByColumn;
+    setBoards(nextBoards);
+    setColumns(nextColumns);
+    setCardsByColumn(nextCardsByColumn);
+    if (includeInSharedView) {
+      setShareDraft((current) => (
+        current.view === "board" && !current.columnIds.includes(newColumn.id)
+          ? { ...current, columnIds: [...current.columnIds, newColumn.id] }
+          : current
+      ));
+    }
     setFreshColumnEditId(newColumn.id);
     setEditingColumnId(newColumn.id);
     setEditingColumnDraft({
       title: newColumn.title,
     });
     queuePersistBoardState({
-      columns: [...columns.slice(0, Math.max(0, Math.min(insertIndex, columns.length))), newColumn, ...columns.slice(Math.max(0, Math.min(insertIndex, columns.length)))],
-      cardsByColumn: {
-        ...cardsByColumn,
-        [newColumn.id]: [],
-      },
+      boards: nextBoards,
+      columns: nextColumns,
+      cardsByColumn: nextCardsByColumn,
     });
   }
 
@@ -7541,17 +7567,16 @@ function copyCardToDraft(card: CardEntry) {
         existingShare.view === nextShareView && existingShare.columnIds.length > 0
           ? existingShare.columnIds.filter((columnId) => nextShareOptions.some((item) => item.id === columnId))
           : nextShareOptions.map((item) => item.id),
-      tierFilter:
-        existingShare.view === nextShareView ? existingShare.tierFilter : "all",
-      seriesFilter: seriesFilter,
-      searchTerm: effectiveSearchTerm,
-      title: existingShare.title || activeBoardTitle,
     } satisfies ShareDraft;
+  }
+
+  function getShareUrlForSlug(slug: string) {
+    return typeof window !== "undefined" ? `${window.location.origin}/share/${slug}` : slug;
   }
 
   function openShareModal() {
     setShareDraft(buildShareDraftFromCurrentView());
-    setCopiedShareUrl(null);
+    setCopiedShareUrl(activeBoard.isPublic && activeBoard.publicSlug ? getShareUrlForSlug(activeBoard.publicSlug) : null);
     setIsShareModalOpen(true);
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
@@ -7559,7 +7584,7 @@ function copyCardToDraft(card: CardEntry) {
 
   function openMobileQuickSharePanel() {
     setShareDraft(buildShareDraftFromCurrentView());
-    setCopiedShareUrl(null);
+    setCopiedShareUrl(activeBoard.isPublic && activeBoard.publicSlug ? getShareUrlForSlug(activeBoard.publicSlug) : null);
     setIsMobileSearchMenuOpen(false);
     setIsCustomizationMenuOpen(false);
     setIsMaintenanceMenuOpen(false);
@@ -7578,17 +7603,11 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   async function shareActiveBoard() {
-    const nextSlug = `${slugify(activeBoardTitle) || "board"}-${crypto.randomUUID().slice(0, 8)}`;
+    const nextSlug = activeBoard.publicSlug ?? `${slugify(activeBoardTitle) || "board"}-${crypto.randomUUID().slice(0, 8)}`;
     const nextPublishedAt = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const normalizedShareDraft = {
       view: shareDraft.view,
       columnIds: shareDraft.columnIds.filter((columnId) => shareOptions.some((item) => item.id === columnId)),
-      tierFilter: shareDraft.tierFilter,
-      seriesFilter: shareDraft.seriesFilter,
-      searchTerm: shareDraft.searchTerm.trim(),
-      title: shareDraft.title.trim() || activeBoardTitle,
-      expiresAt,
     };
     const nextBoards = latestBoardsRef.current.map((board) =>
       board.id === activeBoardId
@@ -7605,7 +7624,7 @@ function copyCardToDraft(card: CardEntry) {
           }
         : board,
     );
-    const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/share/${nextSlug}` : nextSlug;
+    const shareUrl = getShareUrlForSlug(nextSlug);
 
     latestBoardsRef.current = nextBoards;
     setBoards(nextBoards);
@@ -10141,96 +10160,6 @@ function copyCardToDraft(card: CardEntry) {
                                         })}
                                       </div>
                                     </div>
-                                    <label className="grid gap-2">
-                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Shared title</span>
-                                      <input
-                                        className={clsx(
-                                          "rounded-2xl border px-4 py-3 outline-none transition",
-                                          isDarkMode
-                                            ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
-                                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                                        )}
-                                        placeholder={activeBoardTitle}
-                                        value={shareDraft.title}
-                                        onChange={(event) => setShareDraft((current) => ({ ...current, title: event.target.value }))}
-                                      />
-                                    </label>
-
-                                    <label className="grid gap-2">
-                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Search</span>
-                                      <input
-                                        className={clsx(
-                                          "rounded-2xl border px-4 py-3 outline-none transition",
-                                          isDarkMode
-                                            ? "border-white/10 bg-slate-950/70 text-white placeholder:text-slate-500 focus:border-white/40"
-                                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                                        )}
-                                        placeholder="Optional title or series filter"
-                                        value={shareDraft.searchTerm}
-                                        onChange={(event) => setShareDraft((current) => ({ ...current, searchTerm: event.target.value }))}
-                                      />
-                                    </label>
-
-                                    <label className="grid gap-2">
-                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Series</span>
-                                      <select
-                                        className={clsx(
-                                          "rounded-2xl border px-4 py-3 outline-none transition",
-                                          isDarkMode
-                                            ? "border-white/10 bg-slate-950/70 text-white focus:border-white/40"
-                                            : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
-                                        )}
-                                        value={shareDraft.seriesFilter}
-                                        onChange={(event) => setShareDraft((current) => ({ ...current, seriesFilter: event.target.value }))}
-                                      >
-                                        <option value="">All series</option>
-                                        {allSeries.map((series) => (
-                                          <option key={series} value={series}>
-                                            {series}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-
-                                    <div className="grid gap-2">
-                                      <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Cards</span>
-                                      <div className="flex flex-wrap gap-2">
-                                        {[
-                                          ["all", "All"],
-                                          ["top10", "Top 10"],
-                                          ["top15", "Top 15"],
-                                          ["top20", "Top 20"],
-                                          ["top30", "Top 30"],
-                                        ].map(([tierValue, label]) => {
-                                          const enabled = shareDraft.tierFilter === tierValue;
-                                          return (
-                                            <button
-                                              key={tierValue}
-                                              className={clsx(
-                                                "rounded-full border px-3 py-2 text-xs font-semibold transition",
-                                                enabled
-                                                  ? isDarkMode
-                                                    ? "border-white/35 bg-white text-slate-950"
-                                                    : "border-slate-950 bg-slate-950 text-white"
-                                                  : isDarkMode
-                                                    ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/30"
-                                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
-                                              )}
-                                              onClick={() =>
-                                                setShareDraft((current) => ({
-                                                  ...current,
-                                                  tierFilter: tierValue as ShareDraft["tierFilter"],
-                                                }))
-                                              }
-                                              type="button"
-                                            >
-                                              {label}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-
                                     <div className="grid gap-2">
                                       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{shareOptionLabel}</span>
                                       <div className="grid gap-2">
@@ -10271,7 +10200,7 @@ function copyCardToDraft(card: CardEntry) {
 
                                     {copiedShareUrl ? (
                                       <div className={clsx("rounded-2xl border px-4 py-3", isDarkMode ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-emerald-300 bg-emerald-50 text-emerald-900")}>
-                                        <p className="text-sm font-semibold">Share link copied</p>
+                                        <p className="text-sm font-semibold">Live share link copied</p>
                                         <p className="mt-1 break-all text-xs opacity-80">{copiedShareUrl}</p>
                                       </div>
                                     ) : null}
@@ -10290,7 +10219,7 @@ function copyCardToDraft(card: CardEntry) {
                                     }}
                                     type="button"
                                   >
-                                    {copiedShareUrl ? "Refresh Link" : "Create Link"}
+                                    {activeBoard.isPublic && activeBoard.publicSlug ? "Update Shared Board" : "Create Link"}
                                   </button>
                                   <button
                                     className={clsx(
@@ -11906,17 +11835,13 @@ function copyCardToDraft(card: CardEntry) {
         ) : null}
 
         <ShareBoardDialog
-          allSeries={allSeries}
           boardTitle={activeBoardTitle}
-          sharedTitle={shareDraft.title}
           columns={shareOptions}
           copiedShareUrl={copiedShareUrl}
+          hasExistingShare={Boolean(activeBoard.isPublic && activeBoard.publicSlug)}
           isDarkMode={isDarkMode}
           isOpen={isShareModalOpen}
-          searchTerm={shareDraft.searchTerm}
           selectedColumnIds={shareDraft.columnIds}
-          selectedSeriesFilter={shareDraft.seriesFilter}
-          selectedTierFilter={shareDraft.tierFilter}
           shareView={shareDraft.view}
           onClose={() => setIsShareModalOpen(false)}
           onCopyAgain={() => {
@@ -11924,9 +11849,6 @@ function copyCardToDraft(card: CardEntry) {
               void copyShareUrlToClipboard(copiedShareUrl);
             }
           }}
-          onSearchChange={(value) => setShareDraft((current) => ({ ...current, searchTerm: value }))}
-          onSharedTitleChange={(value) => setShareDraft((current) => ({ ...current, title: value }))}
-          onSeriesChange={(series) => setShareDraft((current) => ({ ...current, seriesFilter: series }))}
           onShareViewChange={(view) =>
             setShareDraft((current) => {
               const nextOptions = view === "tier-list" ? normalizedTierListView.rows : columns;
@@ -11946,7 +11868,6 @@ function copyCardToDraft(card: CardEntry) {
           onSubmit={() => {
             void shareActiveBoard();
           }}
-          onTierChange={(tier) => setShareDraft((current) => ({ ...current, tierFilter: tier }))}
           onToggleColumn={(columnId) =>
             setShareDraft((current) => ({
               ...current,

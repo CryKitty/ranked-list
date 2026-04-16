@@ -20,7 +20,7 @@ export async function generateMetadata({
   }
 
   const board = await loadPublicBoardBySlug(supabase, slug);
-  const title = board?.settings?.publicShare?.title?.trim() || board?.title || "Sorta Share";
+  const title = board?.title || "Sorta Share";
 
   return {
     title,
