@@ -6,6 +6,7 @@
 - Simplified shared-board configuration so the public link stays a read-only view of the live board itself, with column or tier-row selection still controlling what is visible.
 - Removed share-specific title and filter overrides from the public page, so shared views now always reflect the source board title and current live card set.
 - Added a prompt when creating a new column on an already shared board so the owner can immediately choose whether that column should be visible in the shared view.
+- Replaced that new-column share prompt's browser confirm with a native in-app modal, so the include/private choice now matches the rest of the app's UI.
 
 ## 2026-04-12
 

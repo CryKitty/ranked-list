@@ -142,6 +142,11 @@ export type PendingColumnDelete = {
   title: string;
 };
 
+export type PendingSharedColumnInclude = {
+  column: ColumnDefinition;
+  insertIndex: number;
+};
+
 export type TierRowOptionsState = {
   rowId: string;
   anchorRect: DOMRect;

@@ -109,6 +109,7 @@ import {
   PendingMirrorDelete,
   PendingMirrorLinkSuggestion,
   PendingPairwiseQuizResume,
+  PendingSharedColumnInclude,
   RankBadge,
   SeriesScrapeSuggestion,
   ShareDraft,
@@ -2151,6 +2152,7 @@ export function RankboardApp() {
     title: string;
   } | null>(null);
   const [pendingColumnDelete, setPendingColumnDelete] = useState<PendingColumnDelete | null>(null);
+  const [pendingSharedColumnInclude, setPendingSharedColumnInclude] = useState<PendingSharedColumnInclude | null>(null);
   const [isResetTierListConfirmOpen, setIsResetTierListConfirmOpen] = useState(false);
   const [tierRowOptionsState, setTierRowOptionsState] = useState<TierRowOptionsState | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
@@ -2379,6 +2381,7 @@ export function RankboardApp() {
     Boolean(pendingMirrorLinkSuggestions) ||
     Boolean(pendingCardDelete) ||
     Boolean(pendingColumnDelete) ||
+    Boolean(pendingSharedColumnInclude) ||
     isResetTierListConfirmOpen ||
     Boolean(pairwiseQuizState) ||
     Boolean(pairwiseQuizReview) ||
@@ -6889,9 +6892,11 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMenuId(null);
   }
 
-  function addColumnAt(insertIndex: number) {
-    const nextIndex = columns.length + 1;
-    const newColumn = createColumnDefinition(nextIndex);
+  function finalizeAddColumn(
+    newColumn: ColumnDefinition,
+    insertIndex: number,
+    includeInSharedView: boolean,
+  ) {
     const normalizedInsertIndex = Math.max(0, Math.min(insertIndex, columns.length));
     const nextColumns = [...columns];
     nextColumns.splice(normalizedInsertIndex, 0, newColumn);
@@ -6899,14 +6904,6 @@ function copyCardToDraft(card: CardEntry) {
       ...cardsByColumn,
       [newColumn.id]: [],
     };
-    const shouldOfferShareInclusion =
-      activeBoard.isPublic &&
-      activeBoard.publicSlug &&
-      normalizePublicShareSettings(activeBoardSettings.publicShare).view === "board" &&
-      typeof window !== "undefined";
-    const includeInSharedView = shouldOfferShareInclusion
-      ? window.confirm("Include this new column in the shared board too?")
-      : false;
     const nextBoards = latestBoardsRef.current.map((board) => {
       if (board.id !== activeBoardId) {
         return board;
@@ -6956,6 +6953,25 @@ function copyCardToDraft(card: CardEntry) {
       columns: nextColumns,
       cardsByColumn: nextCardsByColumn,
     });
+  }
+
+  function addColumnAt(insertIndex: number) {
+    const nextIndex = columns.length + 1;
+    const newColumn = createColumnDefinition(nextIndex);
+    const shouldOfferShareInclusion =
+      activeBoard.isPublic &&
+      activeBoard.publicSlug &&
+      normalizePublicShareSettings(activeBoardSettings.publicShare).view === "board";
+
+    if (shouldOfferShareInclusion) {
+      setPendingSharedColumnInclude({
+        column: newColumn,
+        insertIndex,
+      });
+      return;
+    }
+
+    finalizeAddColumn(newColumn, insertIndex, false);
   }
 
   function deleteColumn(columnId: string) {
@@ -13756,6 +13772,100 @@ function copyCardToDraft(card: CardEntry) {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
                   onClick={() => setPendingColumnDelete(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingSharedColumnInclude ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingSharedColumnInclude(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900 text-slate-100"
+                  : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+                    Add to shared board?
+                  </h2>
+                  <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                    <strong>{pendingSharedColumnInclude.column.title}</strong> is ready to add. Should it also appear in the live shared board?
+                  </p>
+                </div>
+                <button
+                  className={clsx(
+                    "rounded-full p-2 transition",
+                    isDarkMode
+                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  )}
+                  onClick={() => setPendingSharedColumnInclude(null)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-950 text-white hover:bg-slate-800",
+                  )}
+                  onClick={() => {
+                    finalizeAddColumn(
+                      pendingSharedColumnInclude.column,
+                      pendingSharedColumnInclude.insertIndex,
+                      true,
+                    );
+                    setPendingSharedColumnInclude(null);
+                  }}
+                  type="button"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Include in Shared Board
+                </button>
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "bg-slate-800 text-white hover:bg-slate-700"
+                      : "bg-slate-100 text-slate-900 hover:bg-slate-200",
+                  )}
+                  onClick={() => {
+                    finalizeAddColumn(
+                      pendingSharedColumnInclude.column,
+                      pendingSharedColumnInclude.insertIndex,
+                      false,
+                    );
+                    setPendingSharedColumnInclude(null);
+                  }}
+                  type="button"
+                >
+                  Keep Private
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode
+                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                  )}
+                  onClick={() => setPendingSharedColumnInclude(null)}
                   type="button"
                 >
                   Cancel
