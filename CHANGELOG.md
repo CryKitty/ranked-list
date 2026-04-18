@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-04-17
+
+- Swapped Compact View card text order so the series line now appears above the title while keeping the existing shared title/series normalization rules.
+- Moved Tier List row-label edit actions out of the narrow left rail and into a floating stack beside it, so `Save` and `Cancel` remain fully visible on mobile.
+
 ## 2026-04-16
 
 - Reworked public sharing into a stable live-link model: sharing now reuses the board's existing public slug instead of rotating to a fresh temporary link.

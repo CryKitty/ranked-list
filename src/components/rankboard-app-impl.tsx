@@ -15986,6 +15986,8 @@ function TierListRow({
   const rowRailTouchRevealPendingRef = useRef(false);
   const [stableRowHeight, setStableRowHeight] = useState<number | null>(null);
   const [dragWrapLockedHeight, setDragWrapLockedHeight] = useState<number | null>(null);
+  const shouldLockDragWrapHeight =
+    !isUnsortedRow && rowOverflow === "wrap" && isAnyCardDragging && isActiveDragTarget;
 
   useEffect(() => {
     if (isUnsortedRow) {
@@ -16032,13 +16034,7 @@ function TierListRow({
   }, [isMobileViewport, isRowRailHovered]);
 
   useEffect(() => {
-    if (
-      isUnsortedRow ||
-      rowOverflow !== "wrap" ||
-      !isAnyCardDragging ||
-      !isActiveDragTarget
-    ) {
-      setDragWrapLockedHeight(null);
+    if (!shouldLockDragWrapHeight) {
       return;
     }
 
@@ -16064,7 +16060,21 @@ function TierListRow({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [isActiveDragTarget, isAnyCardDragging, isUnsortedRow, rowOverflow, stableRowHeight]);
+  }, [shouldLockDragWrapHeight, stableRowHeight]);
+
+  useEffect(() => {
+    if (shouldLockDragWrapHeight || dragWrapLockedHeight === null) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setDragWrapLockedHeight(null);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [dragWrapLockedHeight, shouldLockDragWrapHeight]);
 
   const effectiveDragRowHeight =
     !isUnsortedRow && isAnyCardDragging
@@ -16136,7 +16146,7 @@ function TierListRow({
                     }
                   }}
                 />
-                <div className="absolute bottom-0 left-1/2 flex -translate-x-1/2 gap-1">
+                <div className="absolute left-full top-1/2 z-10 ml-2 flex -translate-y-1/2 flex-col gap-1.5">
                   <button
                     className={clsx(
                       "inline-flex items-center gap-2 rounded-full px-2 py-1 text-[10px] font-semibold",
@@ -17252,19 +17262,20 @@ function CardTile({
                   ) : null}
                 </div>
                 <div className="min-w-0 flex-1 text-center">
-                  <h3
-                    className={clsx(
-                      "line-clamp-2 text-[13px] font-bold leading-[1.05]",
-                      collapsedTitleClass,
-                    )}
-                  >
-                    {displayTitle}
-                  </h3>
                   {displaySeries ? (
                     <p className={clsx("mt-0.5 line-clamp-1 text-[10px] font-semibold leading-none", collapsedSeriesClass)}>
                       {displaySeries}
                     </p>
                   ) : null}
+                  <h3
+                    className={clsx(
+                      "line-clamp-2 text-[13px] font-bold leading-[1.05]",
+                      displaySeries ? "mt-1" : "",
+                      collapsedTitleClass,
+                    )}
+                  >
+                    {displayTitle}
+                  </h3>
                 </div>
               </div>
             </div>
