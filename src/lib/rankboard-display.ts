@@ -66,6 +66,10 @@ function getSequelMarkerWithSubtitle(value: string) {
   };
 }
 
+function isSingleLetterSuffix(value: string) {
+  return /^[a-z]$/i.test(value.trim());
+}
+
 export function getDisplayCardText(title: string, series: string, showSeries: boolean) {
   const trimmedTitle = title.trim();
   const trimmedSeries = series.trim();
@@ -128,11 +132,25 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
     };
   }
 
+  if (isSingleLetterSuffix(strippedTitle)) {
+    return {
+      displayTitle: trimmedTitle,
+      displaySeries: "",
+    };
+  }
+
   const sequelMarkerWithSubtitle = getSequelMarkerWithSubtitle(strippedTitle);
   if (sequelMarkerWithSubtitle) {
     return {
       displayTitle: sequelMarkerWithSubtitle.subtitle,
       displaySeries: `${trimmedSeries} ${sequelMarkerWithSubtitle.marker}`.trim(),
+    };
+  }
+
+  if (strippedTitle && strippedTitle.length < trimmedTitle.length) {
+    return {
+      displayTitle: strippedTitle,
+      displaySeries: trimmedSeries,
     };
   }
 
