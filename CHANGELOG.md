@@ -12,6 +12,7 @@
 - Restored `Save & Continue Later` for the single-card rank quiz and made saved quiz resumes remember whether they belong to a whole-column quiz or an individual card placement.
 - Reworked quiz progress meters to use an estimated comparison-based completion model instead of simple card counts, which better matches the binary-insertion quiz flow.
 - Stopped bypassing the artwork proxy for Trello-hosted images, and added a signed-in background localization pass that copies legacy Trello hotlinks into the Supabase artwork bucket when possible.
+- Refined shared card title/series reduction so colon-separated entries can surface the full pre-colon portion as the visible series label, while plain sequel-number titles like `Final Fantasy VII` keep their full title instead of being treated like subtitles.
 
 ## 2026-04-17
 

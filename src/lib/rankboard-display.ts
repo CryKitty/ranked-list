@@ -27,6 +27,16 @@ export function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function isStandaloneSequelMarker(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return false;
+  }
+
+  return /^(?:(?:part|episode|season|vol(?:ume)?)\s+)?(?:\d+|[ivxlcdm]+)$/i.test(trimmed);
+}
+
 export function getDisplayCardText(title: string, series: string, showSeries: boolean) {
   const trimmedTitle = title.trim();
   const trimmedSeries = series.trim();
@@ -48,8 +58,34 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
     };
   }
 
+  const colonParts = trimmedTitle.split(":");
+  if (colonParts.length > 1) {
+    const beforeColon = colonParts[0]?.trim() ?? "";
+    const afterColon = colonParts.slice(1).join(":").trim();
+    const normalizedBeforeColon = normalizeTitleForComparison(beforeColon);
+
+    if (
+      afterColon &&
+      normalizedBeforeColon &&
+      (normalizedBeforeColon === normalizedSeries ||
+        normalizedBeforeColon.startsWith(`${normalizedSeries} `))
+    ) {
+      return {
+        displayTitle: afterColon,
+        displaySeries: beforeColon,
+      };
+    }
+  }
+
   const prefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}(?:\\s*[:\\-–—]\\s*|\\s+)`, "i");
   const strippedTitle = trimmedTitle.replace(prefixPattern, "").trim();
+
+  if (isStandaloneSequelMarker(strippedTitle)) {
+    return {
+      displayTitle: trimmedTitle,
+      displaySeries: "",
+    };
+  }
 
   if (strippedTitle && strippedTitle.length < trimmedTitle.length) {
     return {
