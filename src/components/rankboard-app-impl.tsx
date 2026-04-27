@@ -2089,6 +2089,7 @@ export function RankboardApp() {
   const [isMobileBoardRenameArmed, setIsMobileBoardRenameArmed] = useState(false);
   const [isHeaderSeriesMenuOpen, setIsHeaderSeriesMenuOpen] = useState(false);
   const [isMobileSearchMenuOpen, setIsMobileSearchMenuOpen] = useState(false);
+  const [mobileFilterTrayMode, setMobileFilterTrayMode] = useState<"search" | "series" | null>(null);
   const [isCustomizationMenuOpen, setIsCustomizationMenuOpen] = useState(false);
   const [isMaintenanceMenuOpen, setIsMaintenanceMenuOpen] = useState(false);
   const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false);
@@ -2242,6 +2243,17 @@ export function RankboardApp() {
 
   const effectiveSearchTerm = debouncedSearchTerm.trim();
   const filtering = effectiveSearchTerm.length > 0 || seriesFilter.length > 0;
+  const hasActiveSearchInput = searchTerm.trim().length > 0 || effectiveSearchTerm.length > 0;
+  const activeMobileFilterTrayMode =
+    mobileFilterTrayMode === "search" && hasActiveSearchInput
+      ? "search"
+      : mobileFilterTrayMode === "series" && seriesFilter.length > 0
+        ? "series"
+        : hasActiveSearchInput
+          ? "search"
+          : seriesFilter.length > 0
+            ? "series"
+            : null;
   const mobileBoardLaneInset = "1rem";
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -5885,6 +5897,15 @@ export function RankboardApp() {
     }
     resetMobileActionPanels();
     setIsMobileActionsOpen(false);
+  }
+
+  function commitMobileSearchInteraction(mode: "search" | "series") {
+    setMobileFilterTrayMode(mode);
+    setIsHeaderSeriesMenuOpen(false);
+    if (mode === "search") {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }
+    closeMobileActionsMenu();
   }
 
   function getFocusedAddDestinationId() {
@@ -10033,7 +10054,16 @@ function copyCardToDraft(card: CardEntry) {
                                   )}
                                   placeholder="Search title or series"
                                   value={searchTerm}
-                                  onChange={(event) => setSearchTerm(event.target.value)}
+                                  onChange={(event) => {
+                                    setMobileFilterTrayMode("search");
+                                    setSearchTerm(event.target.value);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" && searchTerm.trim().length > 0) {
+                                      event.preventDefault();
+                                      commitMobileSearchInteraction("search");
+                                    }
+                                  }}
                                 />
                                 {searchTerm ? (
                                   <button
@@ -10059,7 +10089,7 @@ function copyCardToDraft(card: CardEntry) {
                                 menuPlacement="up"
                                 onSelect={(series) => {
                                   setSeriesFilter(series);
-                                  setIsHeaderSeriesMenuOpen(false);
+                                  commitMobileSearchInteraction("series");
                                 }}
                                 onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
                               />
@@ -11596,7 +11626,7 @@ function copyCardToDraft(card: CardEntry) {
             >
               <div className="flex items-center justify-between gap-3">
                 <p className={clsx("text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                  Filtering
+                  {activeMobileFilterTrayMode === "series" ? "Series Filter" : "Search"}
                 </p>
                 <button
                   className={clsx(
@@ -11604,8 +11634,11 @@ function copyCardToDraft(card: CardEntry) {
                     isDarkMode ? "text-slate-400 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
                   )}
                   onClick={() => {
-                    setSearchTerm("");
-                    setSeriesFilter("");
+                    if (activeMobileFilterTrayMode === "series") {
+                      setSeriesFilter("");
+                    } else {
+                      setSearchTerm("");
+                    }
                     setIsHeaderSeriesMenuOpen(false);
                   }}
                   type="button"
@@ -11613,47 +11646,54 @@ function copyCardToDraft(card: CardEntry) {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="mt-3 space-y-3">
-                <div className="relative">
-                  <input
-                    className={clsx(
-                      "w-full rounded-2xl border py-3 pl-4 pr-11 outline-none transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
-                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
-                    )}
-                    placeholder="Search title or series"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
+              <div className="mt-3">
+                {activeMobileFilterTrayMode === "series" ? (
+                  <SeriesFilterButton
+                    allSeries={allSeries}
+                    currentSeriesFilter={seriesFilter}
+                    isDarkMode={isDarkMode}
+                    isOpen={isHeaderSeriesMenuOpen}
+                    menuPlacement="up"
+                    onSelect={(series) => {
+                      setSeriesFilter(series);
+                      setMobileFilterTrayMode("series");
+                      setIsHeaderSeriesMenuOpen(false);
+                    }}
+                    onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
                   />
-                  {searchTerm ? (
-                    <button
-                      aria-label="Clear search"
+                ) : (
+                  <div className="relative">
+                    <input
                       className={clsx(
-                        "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition",
+                        "w-full rounded-2xl border py-3 pl-4 pr-11 outline-none transition",
                         isDarkMode
-                          ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                          ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
                       )}
-                      onClick={() => setSearchTerm("")}
-                      type="button"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                </div>
-                <SeriesFilterButton
-                  allSeries={allSeries}
-                  currentSeriesFilter={seriesFilter}
-                  isDarkMode={isDarkMode}
-                  isOpen={isHeaderSeriesMenuOpen}
-                  menuPlacement="up"
-                  onSelect={(series) => {
-                    setSeriesFilter(series);
-                    setIsHeaderSeriesMenuOpen(false);
-                  }}
-                  onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
-                />
+                      placeholder="Search title or series"
+                      value={searchTerm}
+                      onChange={(event) => {
+                        setMobileFilterTrayMode("search");
+                        setSearchTerm(event.target.value);
+                      }}
+                    />
+                    {searchTerm ? (
+                      <button
+                        aria-label="Clear search"
+                        className={clsx(
+                          "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition",
+                          isDarkMode
+                            ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                        )}
+                        onClick={() => setSearchTerm("")}
+                        type="button"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -12733,9 +12773,7 @@ function copyCardToDraft(card: CardEntry) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className={clsx("text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                    {pairwiseQuizState.mode === "card" && pairwiseQuizState.candidateCard
-                      ? `Where should ${pairwiseQuizState.candidateCard.title} rank?`
-                      : "Which ranks higher?"}
+                    Which do you like more?
                   </h2>
                 </div>
                 <button
@@ -12772,12 +12810,13 @@ function copyCardToDraft(card: CardEntry) {
                         isDarkMode={isDarkMode}
                         showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
                         showArtwork={shouldShowArtworkOnCards}
-                        showTierHighlights={activeBoardSettings.showTierHighlights}
-                        frontFieldDefinitions={activeBoardFieldDefinitions}
-                        rankBadge={null}
-                        compactImageOnly={false}
-                        showDragCursor={false}
-                      />
+                      showTierHighlights={activeBoardSettings.showTierHighlights}
+                      frontFieldDefinitions={activeBoardFieldDefinitions}
+                      rankBadge={null}
+                      compactImageOnly={false}
+                      allowOuterButtonClick
+                      showDragCursor={false}
+                    />
                     </button>
                   ) : null,
                 )}
@@ -12790,11 +12829,13 @@ function copyCardToDraft(card: CardEntry) {
                       Progress
                     </span>
                     <span className={clsx("text-sm font-semibold", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      {`${pairwiseQuizState.sortedCards.length} / ${
-                        pairwiseQuizState.sortedCards.length +
-                        pairwiseQuizState.remainingCards.length +
-                        (pairwiseQuizState.candidateCard ? 1 : 0)
-                      } placed`}
+                      {pairwiseQuizState.mode === "card"
+                        ? `${pairwiseQuizState.comparisons} / ${Math.max(pairwiseQuizState.sortedCards.length, 1)} comparisons`
+                        : `${pairwiseQuizState.sortedCards.length} / ${
+                            pairwiseQuizState.sortedCards.length +
+                            pairwiseQuizState.remainingCards.length +
+                            (pairwiseQuizState.candidateCard ? 1 : 0)
+                          } placed`}
                     </span>
                   </div>
                   <div className={clsx("mt-2 h-2 overflow-hidden rounded-full", isDarkMode ? "bg-white/10" : "bg-slate-200")}>
@@ -12802,14 +12843,16 @@ function copyCardToDraft(card: CardEntry) {
                       className={clsx("h-full rounded-full transition-all", isDarkMode ? "bg-white" : "bg-slate-950")}
                       style={{
                         width: `${
-                          ((pairwiseQuizState.sortedCards.length /
-                            Math.max(
-                              pairwiseQuizState.sortedCards.length +
-                                pairwiseQuizState.remainingCards.length +
-                                (pairwiseQuizState.candidateCard ? 1 : 0),
-                              1,
-                            )) *
-                            100)
+                          (pairwiseQuizState.mode === "card"
+                            ? (pairwiseQuizState.comparisons /
+                                Math.max(pairwiseQuizState.sortedCards.length, 1))
+                            : (pairwiseQuizState.sortedCards.length /
+                                Math.max(
+                                  pairwiseQuizState.sortedCards.length +
+                                    pairwiseQuizState.remainingCards.length +
+                                    (pairwiseQuizState.candidateCard ? 1 : 0),
+                                  1,
+                                ))) * 100
                         }%`,
                       }}
                     />
@@ -12829,25 +12872,23 @@ function copyCardToDraft(card: CardEntry) {
                   >
                     Back
                   </button>
-                  <button
-                    className={clsx(
-                      "rounded-2xl border px-4 py-3 font-semibold transition",
-                      isDarkMode
-                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                    )}
-                    disabled={isSavingPairwiseQuiz || pairwiseQuizState.mode === "card"}
-                    onClick={() => {
-                      void savePairwiseQuizForLater();
-                    }}
-                    type="button"
-                  >
-                    {pairwiseQuizState.mode === "card"
-                      ? "Finish to Save"
-                      : isSavingPairwiseQuiz
-                        ? "Saving..."
-                        : "Save & Continue Later"}
-                  </button>
+                  {pairwiseQuizState.mode !== "card" ? (
+                    <button
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 font-semibold transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      disabled={isSavingPairwiseQuiz}
+                      onClick={() => {
+                        void savePairwiseQuizForLater();
+                      }}
+                      type="button"
+                    >
+                      {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
+                    </button>
+                  ) : null}
                   <button
                     className={clsx(
                       "rounded-2xl border px-4 py-3 font-semibold transition",
@@ -17167,6 +17208,7 @@ function CardTile({
   cardAspectRatio = "landscape",
   mobileArtworkVariant,
   showDragCursor = true,
+  allowOuterButtonClick = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -17187,6 +17229,7 @@ function CardTile({
   cardAspectRatio?: "portrait" | "square" | "landscape";
   mobileArtworkVariant?: "board" | "tier-list";
   showDragCursor?: boolean;
+  allowOuterButtonClick?: boolean;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
@@ -17357,9 +17400,12 @@ function CardTile({
       onPointerDown={(event) => {
         dragProps?.onPointerDown?.(event);
         touchRevealPendingRef.current =
-          !collapseCards && event.pointerType === "touch" && !showHoverActions;
+          !allowOuterButtonClick && !collapseCards && event.pointerType === "touch" && !showHoverActions;
       }}
       onClick={(event) => {
+        if (allowOuterButtonClick) {
+          return;
+        }
         event.stopPropagation();
         if (collapseCards) {
           setShowCollapsedActions(true);

@@ -5,8 +5,10 @@
 - Added a per-card `Rank by Quiz` action to the edit dialog for ranked columns, so a single card can be re-placed with pairwise comparisons without rerunning the whole column quiz.
 - Upgraded the manual move/rank modal to show the destination as `#/total` and preview which neighboring cards the selected rank would land between.
 - Hid kanban columns that have no visible cards while search or filters are active, and added a persistent floating mobile filter tray so active search/filter state stays easy to adjust or clear.
+- Mobile search/filter submission now closes the action sheet immediately, and the floating mobile tray now only shows the active search mode instead of both controls at once.
 - Disabled edit-card saves while artwork uploads are still in flight, which should prevent the first replacement attempt from being lost behind an unfinished upload.
 - Disabled card text selection and touch callouts so long-press drag initiation no longer highlights card text on mobile.
+- Fixed the single-card rank quiz so comparison cards are tappable, its prompt is shorter, and its progress/save affordances no longer use the full-column quiz copy.
 
 ## 2026-04-17
 
