@@ -27,6 +27,8 @@ export type TierListViewState = {
 export type PairwiseQuizProgress = {
   columnId: string;
   columnTitle: string;
+  mode?: "column" | "card";
+  focusEntryId?: string | null;
   sortedCards: CardEntry[];
   remainingCards: CardEntry[];
   candidateCard: CardEntry | null;

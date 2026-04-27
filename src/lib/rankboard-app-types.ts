@@ -183,6 +183,8 @@ export type TierListConversionState = {
 export type PairwiseQuizState = {
   columnId: string;
   columnTitle: string;
+  mode?: "column" | "card";
+  focusEntryId?: string | null;
   sortedCards: CardEntry[];
   remainingCards: CardEntry[];
   candidateCard: CardEntry | null;
@@ -204,6 +206,8 @@ export type PairwiseQuizState = {
 export type PairwiseQuizReview = {
   columnId: string;
   columnTitle: string;
+  mode?: "column" | "card";
+  focusEntryId?: string | null;
   rankedCards: CardEntry[];
   comparisons: number;
 };

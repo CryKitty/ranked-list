@@ -312,6 +312,7 @@ export function EditCardDialog({
   activeBoardFieldDefinitions,
   editingDuplicateAction,
   mirroredSiblingColumnTitle,
+  canRankByQuiz,
   onClose,
   onOpenSibling,
   onSubmit,
@@ -330,6 +331,7 @@ export function EditCardDialog({
   onCustomFieldChange,
   onResolveDuplicate,
   onMove,
+  onRankByQuiz,
   onCopy,
   onDelete,
   onToggleFieldSettings,
@@ -361,6 +363,7 @@ export function EditCardDialog({
     };
   } | null;
   mirroredSiblingColumnTitle?: string | null;
+  canRankByQuiz: boolean;
   onClose: () => void;
   onOpenSibling?: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -379,6 +382,7 @@ export function EditCardDialog({
   onCustomFieldChange: (fieldId: string, value: string, type: BoardFieldDefinition["type"], dateFormat?: BoardFieldDefinition["dateFormat"]) => void;
   onResolveDuplicate: (action: "discard" | "update" | "duplicate") => void;
   onMove: () => void;
+  onRankByQuiz: () => void;
   onCopy: () => void;
   onDelete: () => void;
   onToggleFieldSettings: () => void;
@@ -600,9 +604,16 @@ export function EditCardDialog({
           ))}
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <button className={clsx("inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition", isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800")} type="submit">
+            <button
+              className={clsx(
+                "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+                isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
+              )}
+              disabled={isUploadingArtwork}
+              type="submit"
+            >
               <Save className="h-4 w-4" />
-              Save Changes
+              {isUploadingArtwork ? "Uploading Artwork..." : "Save Changes"}
             </button>
             {editingDuplicateAction ? (
               <div className={clsx("flex min-w-full flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm", isDarkMode ? "border-amber-400/30 bg-amber-400/10 text-amber-100" : "border-amber-300 bg-amber-50 text-amber-900")}>
@@ -619,7 +630,15 @@ export function EditCardDialog({
               Cancel
             </button>
             <div className="relative flex flex-wrap gap-3">
-              <HoverLabelIconButton icon={<MoveVertical className="h-4 w-4" />} isDarkMode={isDarkMode} label="Move" onClick={onMove} />
+              <HoverLabelIconButton icon={<MoveVertical className="h-4 w-4" />} isDarkMode={isDarkMode} label="Move / Rank" onClick={onMove} />
+              {canRankByQuiz ? (
+                <HoverLabelIconButton
+                  icon={<span className="inline-flex h-4 w-4 items-center justify-center text-sm font-semibold leading-none">?</span>}
+                  isDarkMode={isDarkMode}
+                  label="Rank by Quiz"
+                  onClick={onRankByQuiz}
+                />
+              ) : null}
               <HoverLabelIconButton icon={<Copy className="h-4 w-4" />} isDarkMode={isDarkMode} label="Copy" onClick={onCopy} />
               <HoverLabelIconButton icon={<Trash2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Delete" onClick={onDelete} />
               <HoverLabelIconButton icon={<Settings2 className="h-4 w-4" />} isDarkMode={isDarkMode} label="Fields" onClick={onToggleFieldSettings} />

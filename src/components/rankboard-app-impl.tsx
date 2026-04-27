@@ -2363,6 +2363,7 @@ export function RankboardApp() {
     openColumnMirrorMenuId !== null ||
     openColumnColumnsMenuId !== null ||
     openColumnMaintenanceMenuId !== null;
+  const moveCardPreview = getMoveCardPreview(moveCardState);
   const hasOpenModal =
     (Boolean(addCardTarget) && !isMobileQuickAddPanelOpen) ||
     Boolean(editingCardId && editingCardDraft) ||
@@ -6101,6 +6102,29 @@ export function RankboardApp() {
     });
   }
 
+  function getMoveCardPreview(state: MoveCardState | null) {
+    if (!state || activeBoardLayout === "tier-list") {
+      return null;
+    }
+
+    const targetCardsBase =
+      state.targetColumnId === state.sourceColumnId
+        ? (cardsByColumn[state.sourceColumnId] ?? []).filter((card) => card.entryId !== state.entryId)
+        : [...(cardsByColumn[state.targetColumnId] ?? [])];
+    const finalCount = targetCardsBase.length + 1;
+    const requestedRank = Number.parseInt(state.targetRank, 10);
+    const insertIndex = Number.isFinite(requestedRank)
+      ? Math.max(0, Math.min(targetCardsBase.length, requestedRank - 1))
+      : targetCardsBase.length;
+
+    return {
+      finalCount,
+      insertIndex,
+      beforeCard: targetCardsBase[insertIndex - 1] ?? null,
+      afterCard: targetCardsBase[insertIndex] ?? null,
+    };
+  }
+
 function copyCardToDraft(card: CardEntry) {
     const sourceColumnId = findColumnIdForEntry(card.entryId) ?? columns.find((column) => !column.mirrorsEntireBoard)?.id ?? "";
     setDraft({
@@ -6613,6 +6637,12 @@ function copyCardToDraft(card: CardEntry) {
 
   function handleEditingCardSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isUploadingArtwork) {
+      setSaveState("error");
+      setSaveErrorMessage("Wait for the artwork upload to finish before saving.");
+      return;
+    }
 
     if (!editingCardDraft || !editingCardItemId) {
       return;
@@ -7174,6 +7204,8 @@ function copyCardToDraft(card: CardEntry) {
     return {
       columnId,
       columnTitle,
+      mode: "column",
+      focusEntryId: null,
       sortedCards,
       remainingCards: nextRemainingCards,
       candidateCard,
@@ -7188,6 +7220,8 @@ function copyCardToDraft(card: CardEntry) {
   function clonePairwiseQuizState(progress: PairwiseQuizProgress): PairwiseQuizState {
     return {
       ...progress,
+      mode: progress.mode ?? "column",
+      focusEntryId: progress.focusEntryId ?? null,
       sortedCards: [...progress.sortedCards],
       remainingCards: [...progress.remainingCards],
       candidateCard: progress.candidateCard ? { ...progress.candidateCard } : null,
@@ -7350,6 +7384,16 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
+    if (pairwiseQuizState.mode === "card") {
+      setPairwiseQuizSavedNotice("Single-card quiz placement is only saved when you finish it.");
+      window.setTimeout(() => {
+        setPairwiseQuizSavedNotice((current) =>
+          current === "Single-card quiz placement is only saved when you finish it." ? null : current,
+        );
+      }, 2600);
+      return;
+    }
+
     const nextProgress = {
       ...pairwiseQuizState,
       sortedCards: [...pairwiseQuizState.sortedCards],
@@ -7425,6 +7469,8 @@ function copyCardToDraft(card: CardEntry) {
           setPairwiseQuizReview({
             columnId: current.columnId,
             columnTitle: current.columnTitle,
+            mode: current.mode ?? "column",
+            focusEntryId: current.focusEntryId ?? null,
             rankedCards: nextSortedCards,
             comparisons: nextComparisons,
           });
@@ -7510,6 +7556,46 @@ function copyCardToDraft(card: CardEntry) {
       boards: latestBoardsRef.current,
       activeBoardId,
       cardsByColumn: nextCardsByColumn,
+    });
+  }
+
+  function startPairwiseCardPlacementQuiz(card: CardEntry) {
+    const columnId = findColumnIdForEntry(card.entryId);
+
+    if (!columnId) {
+      return;
+    }
+
+    const column = columns.find((item) => item.id === columnId);
+    const comparisonCards = (cardsByColumn[columnId] ?? []).filter(
+      (columnCard) => columnCard.entryId !== card.entryId,
+    );
+
+    if (!column || comparisonCards.length === 0) {
+      return;
+    }
+
+    cancelEditingCard();
+    setPairwiseQuizReview(null);
+    setPendingPairwiseQuizResume(null);
+    setOpenColumnMenuId(null);
+    setOpenColumnSortMenuId(null);
+    setOpenColumnFilterMenuId(null);
+    setOpenColumnMirrorMenuId(null);
+    setOpenColumnMaintenanceMenuId(null);
+    setPairwiseQuizState({
+      columnId,
+      columnTitle: column.title,
+      mode: "card",
+      focusEntryId: card.entryId,
+      sortedCards: comparisonCards,
+      remainingCards: [],
+      candidateCard: card,
+      low: 0,
+      high: comparisonCards.length,
+      compareIndex: Math.floor(comparisonCards.length / 2),
+      comparisons: 0,
+      history: [],
     });
   }
 
@@ -11498,9 +11584,96 @@ function copyCardToDraft(card: CardEntry) {
           </section>
         </section>
 
+        {isMobileViewport && (searchTerm.trim().length > 0 || seriesFilter.length > 0) ? (
+          <div className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[125] flex max-w-[calc(100vw-2rem)] justify-end lg:hidden">
+            <div
+              className={clsx(
+                "pointer-events-auto w-[min(calc(100vw-2rem),320px)] rounded-[24px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                isDarkMode
+                  ? "border-white/10 bg-slate-900/94 text-slate-100"
+                  : "border-white/80 bg-white/94 text-slate-900",
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className={clsx("text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                  Filtering
+                </p>
+                <button
+                  className={clsx(
+                    "inline-flex h-8 w-8 items-center justify-center rounded-full transition",
+                    isDarkMode ? "text-slate-400 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                  )}
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSeriesFilter("");
+                    setIsHeaderSeriesMenuOpen(false);
+                  }}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="relative">
+                  <input
+                    className={clsx(
+                      "w-full rounded-2xl border py-3 pl-4 pr-11 outline-none transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500 focus:border-white/40"
+                        : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                    )}
+                    placeholder="Search title or series"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
+                  {searchTerm ? (
+                    <button
+                      aria-label="Clear search"
+                      className={clsx(
+                        "absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition",
+                        isDarkMode
+                          ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                      )}
+                      onClick={() => setSearchTerm("")}
+                      type="button"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <SeriesFilterButton
+                  allSeries={allSeries}
+                  currentSeriesFilter={seriesFilter}
+                  isDarkMode={isDarkMode}
+                  isOpen={isHeaderSeriesMenuOpen}
+                  menuPlacement="up"
+                  onSelect={(series) => {
+                    setSeriesFilter(series);
+                    setIsHeaderSeriesMenuOpen(false);
+                  }}
+                  onToggle={() => setIsHeaderSeriesMenuOpen((current) => !current)}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <EditCardDialog
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
           boardSingular={boardVocabulary.singular}
+          canRankByQuiz={Boolean(
+            editingCardId &&
+              (() => {
+                const editingColumnId = findColumnIdForEntry(editingCardId);
+                const editingColumn = columns.find((column) => column.id === editingColumnId);
+                return (
+                  editingColumn &&
+                  isRankedColumn(editingColumn) &&
+                  (cardsByColumn[editingColumn.id] ?? []).length > 1
+                );
+              })(),
+          )}
           currentCardIsMirrored={getCardLinkedSiblings(cardsByColumn, editingCardId).length > 0}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
           editArtworkInputRef={editArtworkInputRef}
@@ -11569,6 +11742,16 @@ function copyCardToDraft(card: CardEntry) {
               : null;
             if (currentCard) {
               openMoveCardModal(currentCard);
+            }
+          }}
+          onRankByQuiz={() => {
+            const currentCard = editingCardId
+              ? Object.values(cardsByColumn)
+                  .flat()
+                  .find((card) => card.entryId === editingCardId)
+              : null;
+            if (currentCard) {
+              startPairwiseCardPlacementQuiz(currentCard);
             }
           }}
           onNotesChange={(value) =>
@@ -12550,7 +12733,9 @@ function copyCardToDraft(card: CardEntry) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className={clsx("text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Which ranks higher?
+                    {pairwiseQuizState.mode === "card" && pairwiseQuizState.candidateCard
+                      ? `Where should ${pairwiseQuizState.candidateCard.title} rank?`
+                      : "Which ranks higher?"}
                   </h2>
                 </div>
                 <button
@@ -12651,13 +12836,17 @@ function copyCardToDraft(card: CardEntry) {
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
-                    disabled={isSavingPairwiseQuiz}
+                    disabled={isSavingPairwiseQuiz || pairwiseQuizState.mode === "card"}
                     onClick={() => {
                       void savePairwiseQuizForLater();
                     }}
                     type="button"
                   >
-                    {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
+                    {pairwiseQuizState.mode === "card"
+                      ? "Finish to Save"
+                      : isSavingPairwiseQuiz
+                        ? "Saving..."
+                        : "Save & Continue Later"}
                   </button>
                   <button
                     className={clsx(
@@ -12694,10 +12883,12 @@ function copyCardToDraft(card: CardEntry) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Review results
+                    {pairwiseQuizReview.mode === "card" ? "Review placement" : "Review results"}
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    The quiz finished in {pairwiseQuizReview.comparisons} comparisons. Tweak the order if you want, then save or cancel.
+                    {pairwiseQuizReview.mode === "card"
+                      ? `This card placement took ${pairwiseQuizReview.comparisons} comparisons. Tweak the order if you want, then save or cancel.`
+                      : `The quiz finished in ${pairwiseQuizReview.comparisons} comparisons. Tweak the order if you want, then save or cancel.`}
                   </p>
                 </div>
                 <button
@@ -14364,21 +14555,58 @@ function copyCardToDraft(card: CardEntry) {
                 {activeBoardLayout !== "tier-list" ? (
                   <label className="grid gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Rank</span>
-                    <input
+                    <div
                       className={clsx(
-                        "rounded-2xl border px-4 py-3 outline-none transition",
+                        "flex items-center gap-3 rounded-2xl border px-4 py-3 transition",
                         isDarkMode
-                          ? "border-white/10 bg-slate-950 text-white placeholder:text-slate-500 focus:border-white/40"
-                          : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-slate-950",
+                          ? "border-white/10 bg-slate-950 text-white focus-within:border-white/40"
+                          : "border-slate-200 bg-white text-slate-950 focus-within:border-slate-950",
                       )}
-                      inputMode="numeric"
-                      value={moveCardState.targetRank}
-                      onChange={(event) =>
-                        setMoveCardState((current) =>
-                          current ? { ...current, targetRank: event.target.value.replace(/[^\d]/g, "") } : current,
+                    >
+                      <span className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", isDarkMode ? "text-slate-500" : "text-slate-400")}>#</span>
+                      <input
+                        className={clsx(
+                          "min-w-0 flex-1 bg-transparent outline-none",
+                          isDarkMode ? "placeholder:text-slate-500" : "placeholder:text-slate-400",
+                        )}
+                        inputMode="numeric"
+                        placeholder="1"
+                        value={moveCardState.targetRank}
+                        onChange={(event) =>
+                          setMoveCardState((current) =>
+                            current ? { ...current, targetRank: event.target.value.replace(/[^\d]/g, "") } : current,
+                          )
+                        }
+                      />
+                      <span className={clsx("text-sm font-semibold", isDarkMode ? "text-slate-300" : "text-slate-500")}>
+                        / {moveCardPreview?.finalCount ?? 1}
+                      </span>
+                    </div>
+                    <div
+                      className={clsx(
+                        "rounded-2xl border px-4 py-3 text-sm leading-6",
+                        isDarkMode ? "border-white/10 bg-slate-950/60 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
+                      )}
+                    >
+                      {moveCardPreview ? (
+                        moveCardPreview.beforeCard && moveCardPreview.afterCard ? (
+                          <span>
+                            This will land between <strong>{moveCardPreview.beforeCard.title}</strong> and{" "}
+                            <strong>{moveCardPreview.afterCard.title}</strong>.
+                          </span>
+                        ) : moveCardPreview.afterCard ? (
+                          <span>
+                            This will move to the top, above <strong>{moveCardPreview.afterCard.title}</strong>.
+                          </span>
+                        ) : moveCardPreview.beforeCard ? (
+                          <span>
+                            This will move to the bottom, below <strong>{moveCardPreview.beforeCard.title}</strong>.
+                          </span>
+                        ) : (
+                          <span>This will be the only card in this column.</span>
                         )
-                      }
-                    />
+                      ) : null}
+                    </div>
                   </label>
                 ) : null}
               </div>
@@ -15026,6 +15254,10 @@ function BoardColumn({
       resizeObserver.disconnect();
     };
   }, [tierFilteredCards.length, isMobileViewport, filtering, activeTierFilter, currentSeriesFilter, collapseCards, showArtworkOnCards, showSeriesOnCards]);
+
+  if ((filtering || isTierFiltering) && tierFilteredCards.length === 0) {
+    return null;
+  }
 
   return (
     <div
@@ -17162,6 +17394,9 @@ function CardTile({
         contentVisibility: "auto",
         containIntrinsicSize: collapseCards ? "54px" : "180px",
         touchAction: isDragging ? "none" : "manipulation",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
       }}
     >
         <div

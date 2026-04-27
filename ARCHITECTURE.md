@@ -86,6 +86,8 @@
 - A-Z / Z-A are persistent modes rather than one-shot actions, and sorted columns auto-place cards by title.
 - A-Z / Z-A title sorting should ignore leading sortable articles like `The` and `A`, while still using the full title as a tie-breaker.
 - Column filter UI can drive both tier filters and the shared board-level series filter from inside the column menu.
+- The edit-card dialog can also launch a single-card pairwise placement quiz for ranked columns, which compares just that card against the rest of the column and saves the resulting full column order when confirmed.
+- The manual move/rank modal now frames rank as `#/total` for the destination column and previews the neighboring cards the move would land between before the user saves.
 
 ## Board Layouts
 
@@ -105,6 +107,7 @@
 - On mobile, artwork helper buttons are intentionally stacked below the URL field so the URL input remains usable.
 - Artwork upload handlers should only update the active add/edit draft and cleanup picker UI; they should not implicitly close the surrounding card modal.
 - Successful upload cleanup should only run after a real upload success, so failed uploads do not leave the editor in a misleading saved/closed state.
+- Edit-card saves should not commit while an artwork upload is still in flight, so the first replacement attempt cannot race ahead of the updated draft values.
 
 ## Key UI Conventions
 
@@ -132,6 +135,8 @@
 - Active series filters can now be cleared inline from the filter control itself rather than only by manually selecting `All series`.
 - The shared header/action series filter menus should close when clicking elsewhere, matching the rest of the app’s in-UI menu behavior.
 - On filtered/search views, cards should still be editable even though ranking interactions are suppressed.
+- In filtered/search views, kanban columns that would render zero visible cards should collapse out entirely instead of showing empty shells.
+- On mobile while a search or series filter is active, a floating bottom-right filter tray should stay visible so the user can adjust or clear the active view without reopening the broader action sheet.
 - Board-level destructive actions live under Maintenance and use in-app confirmation modals instead of browser confirms.
 - The mobile action-sheet Maintenance panel should expose the same board-layout conversion action as the desktop maintenance menu.
 - `Customization` now also hosts the board-view toggle between `Kanban` and `Tier List`.
@@ -139,6 +144,7 @@
 - In auth-enabled signed-out sessions, a welcome modal now appears before normal editing flow, gives a short three-step onboarding rundown, encourages login for saving/sharing, and lets `Get Started` reset the user onto a fresh local board.
 - Mobile column reordering now has menu-based left/right actions in addition to desktop drag behavior.
 - Mobile quick-add should prefer the column currently centered in the horizontal lane.
+- Card tiles should disable text selection and touch callouts so long-press drag activation does not also highlight card text on mobile.
 - Boards can override the noun used for cards with `settings.cardLabel`, and `Add ...` UI should prefer that over title heuristics.
 - Collapsed cards still use their own compact visual treatment, but they should now reuse the same series/title text derivation as full cards rather than dropping the series line entirely.
 - Tier logic now includes `Top 30` in both the main board and shared board rendering paths, with its own emerald accent treatment.
