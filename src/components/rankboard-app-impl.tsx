@@ -81,7 +81,7 @@ import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoar
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
-import { getArtworkDisplayUrl, getArtworkProxyUrl } from "@/lib/artwork-url";
+import { getArtworkDisplayUrl, getArtworkProxyUrl, isTrelloHostedArtworkUrl } from "@/lib/artwork-url";
 import {
   compareTitlesForDisplay,
   getDisplayCardText,
@@ -969,6 +969,10 @@ function getFilenameFromRemoteImageUrl(url: string) {
   }
 
   return `imported-artwork-${crypto.randomUUID()}.jpg`;
+}
+
+function isLocalizableRemoteArtworkUrl(value: string) {
+  return isTrelloHostedArtworkUrl(value);
 }
 
 function mergeBoardsWithActiveSnapshot(
@@ -2240,6 +2244,7 @@ export function RankboardApp() {
   const recentBackupSnapshotsRef = useRef<BoardBackupSnapshot[]>([]);
   const isSigningOutRef = useRef(false);
   const hasAutoOpenedBoardSetupRef = useRef(false);
+  const artworkLocalizationSignatureByBoardRef = useRef<Record<string, string>>({});
 
   const effectiveSearchTerm = debouncedSearchTerm.trim();
   const filtering = effectiveSearchTerm.length > 0 || seriesFilter.length > 0;
@@ -4040,6 +4045,142 @@ export function RankboardApp() {
 
     return () => window.clearTimeout(timeout);
   }, [currentUser, hasLoadedRemoteState, persistBoardState, persistRequestId, supabase]);
+
+  useEffect(() => {
+    if (!supabase || !currentUser || !hasLoadedRemoteState || isSigningOutRef.current) {
+      return;
+    }
+
+    const candidates = Object.entries(cardsByColumn).flatMap(([columnId, columnCards]) =>
+      columnCards.flatMap((card) => {
+        const tasks: Array<{
+          columnId: string;
+          entryId: string;
+          field: "imageUrl" | "mobileTierListImageUrl";
+          url: string;
+        }> = [];
+
+        if (isLocalizableRemoteArtworkUrl(card.imageUrl) && !card.imageStoragePath) {
+          tasks.push({
+            columnId,
+            entryId: card.entryId,
+            field: "imageUrl",
+            url: card.imageUrl,
+          });
+        }
+
+        if (
+          isLocalizableRemoteArtworkUrl(card.mobileTierListImageUrl ?? "") &&
+          card.mobileTierListImageUrl?.trim() !== card.imageUrl.trim()
+        ) {
+          tasks.push({
+            columnId,
+            entryId: card.entryId,
+            field: "mobileTierListImageUrl",
+            url: card.mobileTierListImageUrl ?? "",
+          });
+        }
+
+        return tasks;
+      }),
+    );
+
+    const signature = candidates
+      .map((candidate) => `${candidate.entryId}:${candidate.field}:${candidate.url}`)
+      .sort()
+      .join("|");
+
+    if (!signature || artworkLocalizationSignatureByBoardRef.current[activeBoardId] === signature) {
+      return;
+    }
+
+    artworkLocalizationSignatureByBoardRef.current[activeBoardId] = signature;
+    let cancelled = false;
+
+    const localizeArtwork = async () => {
+      let nextCardsByColumn: Record<string, CardEntry[]> | null = null;
+
+      for (const candidate of candidates) {
+        if (cancelled) {
+          return;
+        }
+
+        try {
+          const response = await fetch(getArtworkProxyUrl(candidate.url), {
+            credentials: "same-origin",
+          });
+
+          if (!response.ok) {
+            continue;
+          }
+
+          const artworkBlob = await response.blob();
+
+          if (!artworkBlob.type.startsWith("image/")) {
+            continue;
+          }
+
+          const uploaded = await uploadArtworkToStorage(
+            supabase,
+            currentUser.id,
+            artworkBlob,
+            getFilenameFromRemoteImageUrl(candidate.url),
+          );
+
+          const sourceState = nextCardsByColumn ?? latestCardsByColumnRef.current;
+          const sourceCards = sourceState[candidate.columnId] ?? [];
+          const sourceIndex = sourceCards.findIndex((card) => card.entryId === candidate.entryId);
+
+          if (sourceIndex < 0) {
+            continue;
+          }
+
+          const sourceCard = sourceCards[sourceIndex];
+          const replacementUrl = uploaded.publicUrl;
+          const updatedCard =
+            candidate.field === "imageUrl"
+              ? {
+                  ...sourceCard,
+                  imageUrl: replacementUrl,
+                  imageStoragePath: uploaded.path,
+                }
+              : {
+                  ...sourceCard,
+                  mobileTierListImageUrl: replacementUrl,
+                };
+
+          if (
+            sourceCard.imageUrl === updatedCard.imageUrl &&
+            sourceCard.mobileTierListImageUrl === updatedCard.mobileTierListImageUrl &&
+            sourceCard.imageStoragePath === updatedCard.imageStoragePath
+          ) {
+            continue;
+          }
+
+          const nextColumnCards = [...sourceCards];
+          nextColumnCards[sourceIndex] = updatedCard;
+          nextCardsByColumn = {
+            ...sourceState,
+            [candidate.columnId]: nextColumnCards,
+          };
+        } catch {
+          continue;
+        }
+      }
+
+      if (!cancelled && nextCardsByColumn) {
+        latestCardsByColumnRef.current = nextCardsByColumn;
+        setCardsByColumn(nextCardsByColumn);
+        queuePersistBoardState({ cardsByColumn: nextCardsByColumn });
+      }
+    };
+
+    void localizeArtwork();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBoardId, cardsByColumn, currentUser, hasLoadedRemoteState, queuePersistBoardState, supabase]);
 
   useEffect(() => {
     if (!isActionsMenuOpen) {
@@ -9095,7 +9236,7 @@ function copyCardToDraft(card: CardEntry) {
               columnCards.map(async (card) => {
                 const remoteImageUrl = card.imageUrl.trim();
 
-                if (!remoteImageUrl || card.imageStoragePath) {
+                if (!remoteImageUrl || card.imageStoragePath || !isLocalizableRemoteArtworkUrl(remoteImageUrl)) {
                   return card;
                 }
 

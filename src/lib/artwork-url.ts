@@ -12,6 +12,25 @@ const supabaseHostname = (() => {
   }
 })();
 
+function isHostnameInSet(hostname: string, domains: string[]) {
+  return domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+}
+
+export function isTrelloHostedArtworkUrl(input: string) {
+  const value = input.trim();
+
+  if (!value) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return isHostnameInSet(parsed.hostname, ["trello.com", "trellocdn.com", "atlassian.com"]);
+  } catch {
+    return false;
+  }
+}
+
 export function getArtworkDisplayUrl(input: string) {
   const value = input.trim();
 
@@ -32,10 +51,6 @@ export function getArtworkDisplayUrl(input: string) {
     const parsed = new URL(value);
 
     if (!["http:", "https:"].includes(parsed.protocol)) {
-      return value;
-    }
-
-    if (parsed.hostname === "trello.com" || parsed.hostname.endsWith(".trello.com")) {
       return value;
     }
 

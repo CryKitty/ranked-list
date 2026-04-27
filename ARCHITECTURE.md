@@ -103,11 +103,13 @@
 - Manual artwork URLs are still supported.
 - Uploads are optimized client-side where possible, then sent to the `board-artwork` Supabase Storage bucket.
 - Card media uses blurred loading transitions to reduce harsh pop-in.
+- External artwork rendering should route through `/api/artwork` unless the URL is already local/app-scoped or already hosted in the project’s Supabase bucket, which helps buffer third-party hotlink limits like Trello’s.
 - Image lookup handoffs now use Google Images with a simpler `title + wallpaper` query while keeping the existing tall/wide aspect filters.
 - On mobile, artwork helper buttons are intentionally stacked below the URL field so the URL input remains usable.
 - Artwork upload handlers should only update the active add/edit draft and cleanup picker UI; they should not implicitly close the surrounding card modal.
 - Successful upload cleanup should only run after a real upload success, so failed uploads do not leave the editor in a misleading saved/closed state.
 - Edit-card saves should not commit while an artwork upload is still in flight, so the first replacement attempt cannot race ahead of the updated draft values.
+- Signed-in Trello imports should immediately try to copy Trello-hosted artwork into the `board-artwork` bucket, and signed-in boards with legacy Trello hotlinks should also attempt the same localization in the background after hydration.
 
 ## Key UI Conventions
 
