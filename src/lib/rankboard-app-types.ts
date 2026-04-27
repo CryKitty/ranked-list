@@ -215,6 +215,9 @@ export type PairwiseQuizReview = {
 export type PendingPairwiseQuizResume = {
   columnId: string;
   columnTitle: string;
+  startMode: "column" | "card";
+  focusEntryId?: string | null;
+  focusCardTitle?: string | null;
   progress: PairwiseQuizProgress;
 };
 

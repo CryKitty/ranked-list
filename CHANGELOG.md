@@ -9,6 +9,8 @@
 - Disabled edit-card saves while artwork uploads are still in flight, which should prevent the first replacement attempt from being lost behind an unfinished upload.
 - Disabled card text selection and touch callouts so long-press drag initiation no longer highlights card text on mobile.
 - Fixed the single-card rank quiz so comparison cards are tappable, its prompt is shorter, and its progress/save affordances no longer use the full-column quiz copy.
+- Restored `Save & Continue Later` for the single-card rank quiz and made saved quiz resumes remember whether they belong to a whole-column quiz or an individual card placement.
+- Reworked quiz progress meters to use an estimated comparison-based completion model instead of simple card counts, which better matches the binary-insertion quiz flow.
 
 ## 2026-04-17
 

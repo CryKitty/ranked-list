@@ -2376,6 +2376,9 @@ export function RankboardApp() {
     openColumnColumnsMenuId !== null ||
     openColumnMaintenanceMenuId !== null;
   const moveCardPreview = getMoveCardPreview(moveCardState);
+  const pairwiseQuizProgressMetrics = pairwiseQuizState
+    ? getPairwiseQuizProgressMetrics(pairwiseQuizState)
+    : null;
   const hasOpenModal =
     (Boolean(addCardTarget) && !isMobileQuickAddPanelOpen) ||
     Boolean(editingCardId && editingCardDraft) ||
@@ -7238,6 +7241,67 @@ function copyCardToDraft(card: CardEntry) {
     } satisfies PairwiseQuizState;
   }
 
+  function estimateBinaryInsertionComparisons(rangeLength: number) {
+    return Math.max(0, Math.ceil(Math.log2(Math.max(rangeLength, 0) + 1)));
+  }
+
+  function getPairwiseQuizProgressMetrics(state: PairwiseQuizState) {
+    const currentCandidateRemainingComparisons = state.candidateCard
+      ? estimateBinaryInsertionComparisons(state.high - state.low)
+      : 0;
+    const futureRemainingComparisons = Array.from(
+      { length: state.remainingCards.length },
+      (_, index) =>
+        estimateBinaryInsertionComparisons(
+          state.sortedCards.length + 1 + index,
+        ),
+    ).reduce((sum, value) => sum + value, 0);
+    const totalEstimatedComparisons =
+      state.comparisons + currentCandidateRemainingComparisons + futureRemainingComparisons;
+    const progressRatio =
+      totalEstimatedComparisons > 0 ? state.comparisons / totalEstimatedComparisons : 1;
+
+    return {
+      completedComparisons: state.comparisons,
+      totalEstimatedComparisons,
+      remainingEstimatedComparisons:
+        currentCandidateRemainingComparisons + futureRemainingComparisons,
+      progressRatio,
+    };
+  }
+
+  function buildCardPlacementQuizState(card: CardEntry) {
+    const columnId = findColumnIdForEntry(card.entryId);
+
+    if (!columnId) {
+      return null;
+    }
+
+    const column = columns.find((item) => item.id === columnId);
+    const comparisonCards = (cardsByColumn[columnId] ?? []).filter(
+      (columnCard) => columnCard.entryId !== card.entryId,
+    );
+
+    if (!column || comparisonCards.length === 0) {
+      return null;
+    }
+
+    return {
+      columnId,
+      columnTitle: column.title,
+      mode: "card",
+      focusEntryId: card.entryId,
+      sortedCards: comparisonCards,
+      remainingCards: [],
+      candidateCard: card,
+      low: 0,
+      high: comparisonCards.length,
+      compareIndex: Math.floor(comparisonCards.length / 2),
+      comparisons: 0,
+      history: [],
+    } satisfies PairwiseQuizState;
+  }
+
   function clonePairwiseQuizState(progress: PairwiseQuizProgress): PairwiseQuizState {
     return {
       ...progress,
@@ -7380,6 +7444,9 @@ function copyCardToDraft(card: CardEntry) {
       setPendingPairwiseQuizResume({
         columnId,
         columnTitle: column.title,
+        startMode: "column",
+        focusEntryId: savedProgress.focusEntryId ?? null,
+        focusCardTitle: savedProgress.candidateCard?.title ?? null,
         progress: savedProgress,
       });
       setPairwiseQuizReview(null);
@@ -7402,16 +7469,6 @@ function copyCardToDraft(card: CardEntry) {
 
   async function savePairwiseQuizForLater() {
     if (!pairwiseQuizState) {
-      return;
-    }
-
-    if (pairwiseQuizState.mode === "card") {
-      setPairwiseQuizSavedNotice("Single-card quiz placement is only saved when you finish it.");
-      window.setTimeout(() => {
-        setPairwiseQuizSavedNotice((current) =>
-          current === "Single-card quiz placement is only saved when you finish it." ? null : current,
-        );
-      }, 2600);
       return;
     }
 
@@ -7580,44 +7637,39 @@ function copyCardToDraft(card: CardEntry) {
     });
   }
 
-  function startPairwiseCardPlacementQuiz(card: CardEntry) {
-    const columnId = findColumnIdForEntry(card.entryId);
+  async function startPairwiseCardPlacementQuiz(card: CardEntry) {
+    const nextState = buildCardPlacementQuizState(card);
 
-    if (!columnId) {
-      return;
-    }
-
-    const column = columns.find((item) => item.id === columnId);
-    const comparisonCards = (cardsByColumn[columnId] ?? []).filter(
-      (columnCard) => columnCard.entryId !== card.entryId,
-    );
-
-    if (!column || comparisonCards.length === 0) {
+    if (!nextState) {
       return;
     }
 
     cancelEditingCard();
     setPairwiseQuizReview(null);
-    setPendingPairwiseQuizResume(null);
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
     setOpenColumnFilterMenuId(null);
     setOpenColumnMirrorMenuId(null);
     setOpenColumnMaintenanceMenuId(null);
-    setPairwiseQuizState({
-      columnId,
-      columnTitle: column.title,
-      mode: "card",
-      focusEntryId: card.entryId,
-      sortedCards: comparisonCards,
-      remainingCards: [],
-      candidateCard: card,
-      low: 0,
-      high: comparisonCards.length,
-      compareIndex: Math.floor(comparisonCards.length / 2),
-      comparisons: 0,
-      history: [],
-    });
+
+    const savedProgress = await loadSavedPairwiseQuizProgress(nextState.columnId);
+
+    if (savedProgress?.mode === "card" && savedProgress.focusEntryId === card.entryId) {
+      setPendingPairwiseQuizResume({
+        columnId: nextState.columnId,
+        columnTitle: nextState.columnTitle,
+        startMode: "card",
+        focusEntryId: card.entryId,
+        focusCardTitle: card.title,
+        progress: savedProgress,
+      });
+      setPairwiseQuizState(null);
+      return;
+    }
+
+    void persistPairwiseQuizProgress(nextState.columnId, null);
+    setPendingPairwiseQuizResume(null);
+    setPairwiseQuizState(nextState);
   }
 
   function exportActiveBoardAsJson() {
@@ -11791,7 +11843,7 @@ function copyCardToDraft(card: CardEntry) {
                   .find((card) => card.entryId === editingCardId)
               : null;
             if (currentCard) {
-              startPairwiseCardPlacementQuiz(currentCard);
+              void startPairwiseCardPlacementQuiz(currentCard);
             }
           }}
           onNotesChange={(value) =>
@@ -12697,7 +12749,9 @@ function copyCardToDraft(card: CardEntry) {
                     Continue where you left off?
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    {`You have saved quiz progress for ${pendingPairwiseQuizResume.columnTitle}.`}
+                    {pendingPairwiseQuizResume.startMode === "card"
+                      ? `You have saved placement quiz progress for ${pendingPairwiseQuizResume.focusCardTitle ?? "this card"} in ${pendingPairwiseQuizResume.columnTitle}.`
+                      : `You have saved quiz progress for ${pendingPairwiseQuizResume.columnTitle}.`}
                   </p>
                 </div>
                 <button
@@ -12734,7 +12788,22 @@ function copyCardToDraft(card: CardEntry) {
                       ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                   )}
-                  onClick={() => startPairwiseQuizFromScratch(pendingPairwiseQuizResume.columnId)}
+                  onClick={() => {
+                    if (pendingPairwiseQuizResume.startMode === "card" && pendingPairwiseQuizResume.focusEntryId) {
+                      const card = Object.values(cardsByColumn)
+                        .flat()
+                        .find((item) => item.entryId === pendingPairwiseQuizResume.focusEntryId);
+                      if (card) {
+                        void persistPairwiseQuizProgress(pendingPairwiseQuizResume.columnId, null);
+                        setPendingPairwiseQuizResume(null);
+                        setPairwiseQuizReview(null);
+                        setPairwiseQuizState(buildCardPlacementQuizState(card));
+                        return;
+                      }
+                    }
+
+                    startPairwiseQuizFromScratch(pendingPairwiseQuizResume.columnId);
+                  }}
                   type="button"
                 >
                   Start From Scratch
@@ -12829,34 +12898,26 @@ function copyCardToDraft(card: CardEntry) {
                       Progress
                     </span>
                     <span className={clsx("text-sm font-semibold", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      {pairwiseQuizState.mode === "card"
-                        ? `${pairwiseQuizState.comparisons} / ${Math.max(pairwiseQuizState.sortedCards.length, 1)} comparisons`
-                        : `${pairwiseQuizState.sortedCards.length} / ${
-                            pairwiseQuizState.sortedCards.length +
-                            pairwiseQuizState.remainingCards.length +
-                            (pairwiseQuizState.candidateCard ? 1 : 0)
-                          } placed`}
+                      {pairwiseQuizProgressMetrics
+                        ? `${pairwiseQuizProgressMetrics.completedComparisons} of about ${Math.max(pairwiseQuizProgressMetrics.totalEstimatedComparisons, 1)} comparisons`
+                        : "Starting quiz..."}
                     </span>
                   </div>
                   <div className={clsx("mt-2 h-2 overflow-hidden rounded-full", isDarkMode ? "bg-white/10" : "bg-slate-200")}>
                     <div
                       className={clsx("h-full rounded-full transition-all", isDarkMode ? "bg-white" : "bg-slate-950")}
                       style={{
-                        width: `${
-                          (pairwiseQuizState.mode === "card"
-                            ? (pairwiseQuizState.comparisons /
-                                Math.max(pairwiseQuizState.sortedCards.length, 1))
-                            : (pairwiseQuizState.sortedCards.length /
-                                Math.max(
-                                  pairwiseQuizState.sortedCards.length +
-                                    pairwiseQuizState.remainingCards.length +
-                                    (pairwiseQuizState.candidateCard ? 1 : 0),
-                                  1,
-                                ))) * 100
-                        }%`,
+                        width: `${(pairwiseQuizProgressMetrics?.progressRatio ?? 0) * 100}%`,
                       }}
                     />
                   </div>
+                  {pairwiseQuizProgressMetrics ? (
+                    <p className={clsx("mt-2 text-xs", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                      {pairwiseQuizProgressMetrics.remainingEstimatedComparisons > 0
+                        ? `${pairwiseQuizProgressMetrics.remainingEstimatedComparisons} estimated comparison${pairwiseQuizProgressMetrics.remainingEstimatedComparisons === 1 ? "" : "s"} left.`
+                        : "Final choice coming up."}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -12872,23 +12933,21 @@ function copyCardToDraft(card: CardEntry) {
                   >
                     Back
                   </button>
-                  {pairwiseQuizState.mode !== "card" ? (
-                    <button
-                      className={clsx(
-                        "rounded-2xl border px-4 py-3 font-semibold transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      disabled={isSavingPairwiseQuiz}
-                      onClick={() => {
-                        void savePairwiseQuizForLater();
-                      }}
-                      type="button"
-                    >
-                      {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
-                    </button>
-                  ) : null}
+                  <button
+                    className={clsx(
+                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      isDarkMode
+                        ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    )}
+                    disabled={isSavingPairwiseQuiz}
+                    onClick={() => {
+                      void savePairwiseQuizForLater();
+                    }}
+                    type="button"
+                  >
+                    {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
+                  </button>
                   <button
                     className={clsx(
                       "rounded-2xl border px-4 py-3 font-semibold transition",
