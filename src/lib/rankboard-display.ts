@@ -67,7 +67,8 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
     if (
       afterColon &&
       normalizedBeforeColon &&
-      (normalizedBeforeColon === normalizedSeries ||
+      (!normalizedSeries ||
+        normalizedBeforeColon === normalizedSeries ||
         normalizedBeforeColon.startsWith(`${normalizedSeries} `))
     ) {
       return {

@@ -13,6 +13,7 @@
 - Reworked quiz progress meters to use an estimated comparison-based completion model instead of simple card counts, which better matches the binary-insertion quiz flow.
 - Stopped bypassing the artwork proxy for Trello-hosted images, and added a signed-in background localization pass that copies legacy Trello hotlinks into the Supabase artwork bucket when possible.
 - Refined shared card title/series reduction so colon-separated entries can surface the full pre-colon portion as the visible series label, while plain sequel-number titles like `Final Fantasy VII` keep their full title instead of being treated like subtitles.
+- Expanded that colon split behavior to non-series titles too, so standalone titles like `RAIDOU Remastered: The Mystery of the Soulless Army` can render their pre-colon text on the series line and keep the subtitle on the title line.
 
 ## 2026-04-17
 
