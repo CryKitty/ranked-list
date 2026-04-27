@@ -41,6 +41,27 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
   const trimmedTitle = title.trim();
   const trimmedSeries = series.trim();
 
+  const colonParts = trimmedTitle.split(":");
+  if (showSeries && colonParts.length > 1) {
+    const beforeColon = colonParts[0]?.trim() ?? "";
+    const afterColon = colonParts.slice(1).join(":").trim();
+    const normalizedBeforeColon = normalizeTitleForComparison(beforeColon);
+    const normalizedSeries = normalizeTitleForComparison(trimmedSeries);
+
+    if (
+      afterColon &&
+      normalizedBeforeColon &&
+      (!normalizedSeries ||
+        normalizedBeforeColon === normalizedSeries ||
+        normalizedBeforeColon.startsWith(`${normalizedSeries} `))
+    ) {
+      return {
+        displayTitle: afterColon,
+        displaySeries: beforeColon,
+      };
+    }
+  }
+
   if (!showSeries || !trimmedSeries) {
     return {
       displayTitle: trimmedTitle,
@@ -56,26 +77,6 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
       displayTitle: trimmedTitle,
       displaySeries: "",
     };
-  }
-
-  const colonParts = trimmedTitle.split(":");
-  if (colonParts.length > 1) {
-    const beforeColon = colonParts[0]?.trim() ?? "";
-    const afterColon = colonParts.slice(1).join(":").trim();
-    const normalizedBeforeColon = normalizeTitleForComparison(beforeColon);
-
-    if (
-      afterColon &&
-      normalizedBeforeColon &&
-      (!normalizedSeries ||
-        normalizedBeforeColon === normalizedSeries ||
-        normalizedBeforeColon.startsWith(`${normalizedSeries} `))
-    ) {
-      return {
-        displayTitle: afterColon,
-        displaySeries: beforeColon,
-      };
-    }
   }
 
   const prefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}(?:\\s*[:\\-–—]\\s*|\\s+)`, "i");
