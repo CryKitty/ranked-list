@@ -37,6 +37,35 @@ function isStandaloneSequelMarker(value: string) {
   return /^(?:(?:part|episode|season|vol(?:ume)?)\s+)?(?:\d+|[ivxlcdm]+)$/i.test(trimmed);
 }
 
+function getSequelMarkerWithSubtitle(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const match = trimmed.match(
+    /^(?:(part|episode|season|vol(?:ume)?)\s+)?(\d+|[ivxlcdm]+)\s+(.+)$/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const [, label, marker, subtitle] = match;
+  const normalizedMarker = [label, marker].filter(Boolean).join(" ").trim();
+  const trimmedSubtitle = subtitle?.trim() ?? "";
+
+  if (!normalizedMarker || !trimmedSubtitle) {
+    return null;
+  }
+
+  return {
+    marker: normalizedMarker,
+    subtitle: trimmedSubtitle,
+  };
+}
+
 export function getDisplayCardText(title: string, series: string, showSeries: boolean) {
   const trimmedTitle = title.trim();
   const trimmedSeries = series.trim();
@@ -79,8 +108,18 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
     };
   }
 
-  const prefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}(?:\\s*[:\\-–—]\\s*|\\s+)`, "i");
-  const strippedTitle = trimmedTitle.replace(prefixPattern, "").trim();
+  const punctuationPrefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}\\s*[:\\-–—]\\s*`, "i");
+  const punctuationStrippedTitle = trimmedTitle.replace(punctuationPrefixPattern, "").trim();
+
+  if (punctuationStrippedTitle && punctuationStrippedTitle.length < trimmedTitle.length) {
+    return {
+      displayTitle: punctuationStrippedTitle,
+      displaySeries: trimmedSeries,
+    };
+  }
+
+  const whitespacePrefixPattern = new RegExp(`^${escapeRegExp(trimmedSeries)}\\s+`, "i");
+  const strippedTitle = trimmedTitle.replace(whitespacePrefixPattern, "").trim();
 
   if (isStandaloneSequelMarker(strippedTitle)) {
     return {
@@ -89,10 +128,11 @@ export function getDisplayCardText(title: string, series: string, showSeries: bo
     };
   }
 
-  if (strippedTitle && strippedTitle.length < trimmedTitle.length) {
+  const sequelMarkerWithSubtitle = getSequelMarkerWithSubtitle(strippedTitle);
+  if (sequelMarkerWithSubtitle) {
     return {
-      displayTitle: strippedTitle,
-      displaySeries: trimmedSeries,
+      displayTitle: sequelMarkerWithSubtitle.subtitle,
+      displaySeries: `${trimmedSeries} ${sequelMarkerWithSubtitle.marker}`.trim(),
     };
   }
 
