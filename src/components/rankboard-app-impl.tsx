@@ -4127,7 +4127,8 @@ export function RankboardApp() {
             getFilenameFromRemoteImageUrl(candidate.url),
           );
 
-          const sourceState = nextCardsByColumn ?? latestCardsByColumnRef.current;
+          const sourceState: Record<string, CardEntry[]> =
+            nextCardsByColumn ?? latestCardsByColumnRef.current;
           const sourceCards = sourceState[candidate.columnId] ?? [];
           const sourceIndex = sourceCards.findIndex((card) => card.entryId === candidate.entryId);
 
