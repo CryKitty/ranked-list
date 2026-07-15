@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-15
+
+- Hardened normalized board sync so current card placements are upserted without first deleting every placement row, and deferred removed item, column, and board cleanup until replacement placements have saved successfully.
+- Increased per-board recovery history from 20 to 100 snapshots and stopped identical inactive-board snapshots from consuming recovery slots during saves on another board.
+
 ## 2026-04-27
 
 - Added a per-card `Rank by Quiz` action to the edit dialog for ranked columns, so a single card can be re-placed with pairwise comparisons without rerunning the whole column quiz.

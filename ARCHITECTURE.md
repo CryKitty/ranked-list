@@ -51,8 +51,9 @@
 - During an active session, the in-browser board state is treated as authoritative.
 - The app writes `board_states` backup snapshots first, then tries to repair/update normalized rows.
 - If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
-- After normalized rows save successfully, the app writes per-board rows to `board_snapshots` and prunes each board to the latest 20 snapshots.
+- After normalized rows save successfully, the app writes per-board rows to `board_snapshots` and prunes each board to the latest 100 materially distinct snapshots; unchanged inactive boards do not consume additional retention slots during another board's save.
 - Remote save requests are serialized so rapid edits cannot let an older in-flight normalized/snapshot save land after a newer card edit.
+- Normalized card placement sync upserts the desired placements before pruning removed items, columns, or boards; it must never clear an entire board's placements as an intermediate state.
 - Local storage keeps a fast cache plus recent backup snapshots.
 - Pairwise quiz progress is now stored per `owner_id + board_client_id + column_client_id` in `pairwise_quiz_progress`, with local storage retained only as a fallback/recovery layer.
 - `column_entries` are now rewritten per board sync pass instead of incrementally upserted by stale IDs, which reduces the prior `409` conflict path.

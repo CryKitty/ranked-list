@@ -14,7 +14,7 @@ import type {
 } from "./types";
 
 export const ARTWORK_BUCKET = "board-artwork";
-export const BOARD_SNAPSHOT_RETENTION_LIMIT = 20;
+export const BOARD_SNAPSHOT_RETENTION_LIMIT = 100;
 
 type SupabaseLike = Pick<SupabaseClient, "from" | "storage">;
 type BoardSnapshotInsert = {
@@ -271,10 +271,6 @@ export async function syncNormalizedBoards(
     .filter((row) => !boards.some((board) => board.id === row.client_id))
     .map((row) => row.id);
 
-  if (removedBoardIds.length > 0) {
-    await supabase.from("boards").delete().in("id", removedBoardIds);
-  }
-
   for (const board of boards) {
     const boardDbId = boardIdByClientId.get(board.id) ?? existingBoardIdByClientId.get(board.id);
 
@@ -318,10 +314,6 @@ export async function syncNormalizedBoards(
     const removedColumnIds = existingColumnsRows
       .filter((row) => !board.columns.some((column) => column.id === row.client_id))
       .map((row) => row.id);
-
-    if (removedColumnIds.length > 0) {
-      await supabase.from("columns").delete().in("id", removedColumnIds);
-    }
 
     const uniqueItems = new Map<string, CardEntry>();
     Object.values(board.cardsByColumn).flat().forEach((card) => {
@@ -371,10 +363,6 @@ export async function syncNormalizedBoards(
       .filter((row) => !uniqueItems.has(row.client_id))
       .map((row) => row.id);
 
-    if (removedItemIds.length > 0) {
-      await supabase.from("items").delete().in("id", removedItemIds);
-    }
-
     const columnDbIds = Array.from(columnDbIdByClientId.values());
     const { data: existingEntries, error: existingEntriesError } = columnDbIds.length
       ? await supabase
@@ -403,11 +391,16 @@ export async function syncNormalizedBoards(
       })).filter((entry) => Boolean(entry.item_id));
     });
 
-    if (columnDbIds.length > 0) {
+    const currentEntryIds = new Set(entryPayload.map((entry) => entry.client_id));
+    const removedEntryIds = existingEntryRows
+      .filter((row) => !currentEntryIds.has(row.client_id))
+      .map((row) => row.id);
+
+    if (removedEntryIds.length > 0) {
       const { error: deleteEntriesError } = await supabase
         .from("column_entries")
         .delete()
-        .in("column_id", columnDbIds);
+        .in("id", removedEntryIds);
 
       if (deleteEntriesError) {
         throw deleteEntriesError;
@@ -415,22 +408,46 @@ export async function syncNormalizedBoards(
     }
 
     if (entryPayload.length > 0) {
-      const { error: insertEntriesError } = await supabase
+      const { error: upsertEntriesError } = await supabase
         .from("column_entries")
-        .insert(entryPayload);
+        .upsert(entryPayload, { onConflict: "client_id" });
 
-      if (insertEntriesError) {
-        throw insertEntriesError;
+      if (upsertEntriesError) {
+        throw upsertEntriesError;
       }
     }
 
-    const currentEntryIds = new Set(entryPayload.map((entry) => entry.client_id));
-    const removedEntryIds = existingEntryRows
-      .filter((row) => !currentEntryIds.has(row.client_id))
-      .map((row) => row.id);
+    if (removedItemIds.length > 0) {
+      const { error: deleteItemsError } = await supabase
+        .from("items")
+        .delete()
+        .in("id", removedItemIds);
 
-    if (removedEntryIds.length > 0) {
-      await supabase.from("column_entries").delete().in("id", removedEntryIds);
+      if (deleteItemsError) {
+        throw deleteItemsError;
+      }
+    }
+
+    if (removedColumnIds.length > 0) {
+      const { error: deleteColumnsError } = await supabase
+        .from("columns")
+        .delete()
+        .in("id", removedColumnIds);
+
+      if (deleteColumnsError) {
+        throw deleteColumnsError;
+      }
+    }
+  }
+
+  if (removedBoardIds.length > 0) {
+    const { error: deleteBoardsError } = await supabase
+      .from("boards")
+      .delete()
+      .in("id", removedBoardIds);
+
+    if (deleteBoardsError) {
+      throw deleteBoardsError;
     }
   }
 }
@@ -463,23 +480,42 @@ export async function saveBoardSnapshots(
     ]),
   );
   const createdAt = new Date().toISOString();
-  const snapshotPayload = boards
-    .map((board) => {
+  const snapshotPayload: BoardSnapshotInsert[] = [];
+
+  for (const board of boards) {
       const boardDbId = boardDbIdByClientId.get(board.id);
 
       if (!boardDbId) {
-        return null;
+        continue;
       }
 
-      return {
+      const { data: latestSnapshotRow, error: latestSnapshotError } = await supabase
+        .from("board_snapshots")
+        .select("snapshot")
+        .eq("owner_id", user.id)
+        .eq("board_id", boardDbId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestSnapshotError) {
+        throw latestSnapshotError;
+      }
+
+      const latestSnapshot = (latestSnapshotRow as { snapshot?: SavedBoard } | null)?.snapshot;
+
+      if (latestSnapshot && JSON.stringify(latestSnapshot) === JSON.stringify(board)) {
+        continue;
+      }
+
+      snapshotPayload.push({
         owner_id: user.id,
         board_id: boardDbId,
         board_client_id: board.id,
         snapshot: board,
         created_at: createdAt,
-      };
-    })
-    .filter((payload): payload is BoardSnapshotInsert => Boolean(payload));
+      });
+  }
 
   if (snapshotPayload.length === 0) {
     return;
