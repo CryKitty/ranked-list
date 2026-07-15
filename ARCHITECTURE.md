@@ -57,6 +57,7 @@
 - History undo and restore both save the resulting board as a new snapshot, so recovery actions remain reversible and never rewrite prior history.
 - The save-status checkmark is also the compact History entry point: activating it requests an immediate sync and opens the active board's change list without consuming another header slot.
 - Remote save requests are serialized so rapid edits cannot let an older in-flight normalized/snapshot save land after a newer card edit.
+- Ordinary remote save requests use a shared 15-second trailing idle window, capped at 60 seconds from the first unsaved edit, so editing bursts become one Supabase sync while the immediate local cache remains the crash-recovery layer. Explicit sync and safety-critical structural operations still save immediately.
 - Normalized card placement sync upserts the desired placements before pruning removed items, columns, or boards; it must never clear an entire board's placements as an intermediate state.
 - Local storage keeps a fast cache plus recent backup snapshots.
 - Pairwise quiz progress is now stored per `owner_id + board_client_id + column_client_id` in `pairwise_quiz_progress`, with local storage retained only as a fallback/recovery layer.

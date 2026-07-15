@@ -1775,6 +1775,9 @@ type PersistBoardStateOptions = {
   debounceMs?: number;
 };
 
+const REMOTE_PERSIST_IDLE_DELAY_MS = 15_000;
+const REMOTE_PERSIST_MAX_WAIT_MS = 60_000;
+
 function mergePersistOptions(
   current: PersistBoardStateOptions | null,
   incoming?: PersistBoardStateOptions,
@@ -2251,7 +2254,9 @@ export function RankboardApp() {
   const boardTitleHeaderRef = useRef<HTMLDivElement | null>(null);
   const latestActiveBoardIdRef = useRef(activeBoardId);
   const pendingPersistOptionsRef = useRef<PersistBoardStateOptions | null>(null);
-  const pendingPersistDelayRef = useRef<number>(120);
+  const pendingPersistDelayRef = useRef<number>(REMOTE_PERSIST_IDLE_DELAY_MS);
+  const pendingPersistStartedAtRef = useRef<number | null>(null);
+  const pendingPersistGenerationRef = useRef(0);
   const isRemotePersistInFlightRef = useRef(false);
   const hasQueuedPersistAfterCurrentRef = useRef(false);
   const recentBackupSnapshotsRef = useRef<BoardBackupSnapshot[]>([]);
@@ -2611,7 +2616,18 @@ export function RankboardApp() {
 
   const queuePersistBoardState = useCallback((options?: PersistBoardStateOptions) => {
     pendingPersistOptionsRef.current = options ?? null;
-    pendingPersistDelayRef.current = options?.debounceMs ?? 120;
+    const now = Date.now();
+    const pendingStartedAt = pendingPersistStartedAtRef.current ?? now;
+    pendingPersistStartedAtRef.current = pendingStartedAt;
+    const remainingMaxWait = Math.max(
+      0,
+      REMOTE_PERSIST_MAX_WAIT_MS - (now - pendingStartedAt),
+    );
+    pendingPersistDelayRef.current = Math.min(
+      options?.debounceMs ?? REMOTE_PERSIST_IDLE_DELAY_MS,
+      remainingMaxWait,
+    );
+    pendingPersistGenerationRef.current += 1;
     setSaveState("pending");
     setPersistRequestId((current) => current + 1);
   }, []);
@@ -2626,10 +2642,13 @@ export function RankboardApp() {
         pendingPersistOptionsRef.current,
         options,
       );
+      pendingPersistDelayRef.current = 0;
       hasQueuedPersistAfterCurrentRef.current = true;
       setSaveState("pending");
       return;
     }
+
+    pendingPersistStartedAtRef.current = null;
 
     const nextBoards = buildEffectiveBoardsSnapshot(options);
     const nextActiveBoardId = options?.activeBoardId ?? latestActiveBoardIdRef.current;
@@ -2706,8 +2725,12 @@ export function RankboardApp() {
       return;
     }
 
+    const pendingOptions = pendingPersistOptionsRef.current ?? undefined;
+    pendingPersistOptionsRef.current = null;
     pendingPersistDelayRef.current = 0;
-    void persistBoardState(pendingPersistOptionsRef.current ?? undefined);
+    pendingPersistStartedAtRef.current = null;
+    pendingPersistGenerationRef.current += 1;
+    void persistBoardState(pendingOptions);
   }, [authEnabled, currentUser, persistBoardState, supabase]);
 
   function findDuplicateCard(
@@ -2969,7 +2992,7 @@ export function RankboardApp() {
 
     writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
     if (authEnabled && currentUser) {
-      if (saveState === "idle" || saveState === "pending" || saveState === "saved-local") {
+      if (saveState === "idle" || saveState === "saved-local") {
         setLastSavedAt(new Date().toISOString());
         setSaveState("saved-local");
       }
@@ -4052,7 +4075,11 @@ export function RankboardApp() {
       return;
     }
 
+    const persistGeneration = pendingPersistGenerationRef.current;
     const timeout = window.setTimeout(() => {
+      if (persistGeneration !== pendingPersistGenerationRef.current) {
+        return;
+      }
       const nextPersistOptions = pendingPersistOptionsRef.current;
       pendingPersistOptionsRef.current = null;
       void persistBoardState(nextPersistOptions ?? undefined);
@@ -4543,7 +4570,6 @@ export function RankboardApp() {
       latestCardsByColumnRef.current = nextState;
       queuePersistBoardState({
         cardsByColumn: nextState,
-        debounceMs: 900,
       });
       return;
     }
@@ -4576,7 +4602,7 @@ export function RankboardApp() {
 
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
-    queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
+    queuePersistBoardState({ cardsByColumn: nextState });
   }
 
   function finishCustomBoardDrag(commitDrop: boolean) {
@@ -5428,7 +5454,6 @@ export function RankboardApp() {
       queuePersistBoardState({
         columns: nextColumnsSnapshot ?? undefined,
         cardsByColumn: nextCardsSnapshot,
-        debounceMs: 250,
       });
     }
   }
@@ -5759,7 +5784,6 @@ export function RankboardApp() {
       latestCardsByColumnRef.current = nextState;
       queuePersistBoardState({
         cardsByColumn: nextState,
-        debounceMs: 900,
       });
 
       return;
@@ -5794,7 +5818,7 @@ export function RankboardApp() {
 
     latestCardsByColumnRef.current = nextState;
     setCardsByColumn(nextState);
-    queuePersistBoardState({ cardsByColumn: nextState, debounceMs: 900 });
+    queuePersistBoardState({ cardsByColumn: nextState });
   }
 
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
