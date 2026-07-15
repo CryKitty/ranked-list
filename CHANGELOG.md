@@ -10,6 +10,7 @@
 - Removed the History modal description, separated card titles from column names, filtered no-op snapshots, and replaced generic board updates with specific column, layout, display, sharing, icon, and ranking-quiz summaries.
 - Reconstructed the Games “Favorites of All Time” ranking from the July 12 recovery checkpoint while preserving the current card records.
 - Queued ordinary board edits into one remote save after 15 seconds of inactivity, with a 60-second maximum wait during continuous editing; local recovery caching and explicit/safety-critical saves remain immediate.
+- Widened the desktop Move Card modal and made its column, rank, and neighboring-card preview regions shrink and wrap safely around long card titles while retaining the compact single-column mobile layout.
 
 ## 2026-04-27
 

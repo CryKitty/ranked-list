@@ -14884,24 +14884,24 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-xl rounded-[32px] border p-5 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:max-w-3xl sm:p-7",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
+              <h2 className={clsx("break-words text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
                 Move {moveCardState.title}
               </h2>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2">
+              <div className="mt-6 grid gap-4 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] sm:gap-5">
+                <label className="grid min-w-0 gap-2">
                   <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>
                     {activeBoardLayout === "tier-list" ? "Row" : "Column"}
                   </span>
                   <select
                     className={clsx(
-                      "rounded-2xl border px-4 py-3 outline-none transition",
+                      "w-full min-w-0 rounded-2xl border px-4 py-3 outline-none transition",
                       isDarkMode
                         ? "border-white/10 bg-slate-950 text-white focus:border-white/40"
                         : "border-slate-200 bg-white text-slate-950 focus:border-slate-950",
@@ -14921,7 +14921,7 @@ function copyCardToDraft(card: CardEntry) {
                   </select>
                 </label>
                 {activeBoardLayout !== "tier-list" ? (
-                  <label className="grid gap-2">
+                  <label className="grid min-w-0 content-start gap-2">
                     <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>Rank</span>
                     <div
                       className={clsx(
@@ -14952,7 +14952,7 @@ function copyCardToDraft(card: CardEntry) {
                     </div>
                     <div
                       className={clsx(
-                        "rounded-2xl border px-4 py-3 text-sm leading-6",
+                        "min-w-0 break-words rounded-2xl border px-4 py-3 text-sm leading-6",
                         isDarkMode ? "border-white/10 bg-slate-950/60 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-600",
                       )}
                     >
