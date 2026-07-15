@@ -45,14 +45,9 @@ export function BoardHistoryDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-500/20 p-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <Clock3 className="h-5 w-5" />
-              <h2 className="text-2xl font-black">Board history</h2>
-            </div>
-            <p className={clsx("mt-2 text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-              The latest 30 saved changes for this board. Undo keeps later unrelated edits when possible; restore replaces the board with the earlier checkpoint.
-            </p>
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-5 w-5" />
+            <h2 className="text-2xl font-black">Board history</h2>
           </div>
           <button className={clsx("rounded-full p-2", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")} onClick={onClose} type="button">
             <X className="h-5 w-5" />
@@ -92,7 +87,7 @@ export function BoardHistoryDialog({
                         {entry.summaries.map((summary) => (
                           <li key={summary.id} className="text-sm font-semibold">
                             {summary.label}
-                            {summary.detail ? <span className={clsx("ml-2 font-normal", isDarkMode ? "text-slate-400" : "text-slate-500")}>{summary.detail}</span> : null}
+                            {summary.detail ? <span className={clsx("font-normal", isDarkMode ? "text-slate-400" : "text-slate-500")}> · {summary.detail}</span> : null}
                           </li>
                         ))}
                       </ul>
@@ -132,4 +127,3 @@ export function BoardHistoryDialog({
     </div>
   );
 }
-

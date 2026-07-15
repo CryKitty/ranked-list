@@ -6,6 +6,9 @@
 - Increased per-board recovery history from 20 to 100 snapshots and stopped identical inactive-board snapshots from consuming recovery slots during saves on another board.
 - Added a per-board History dialog that turns saved snapshots into human-readable additions, removals, edits, moves, and settings changes, showing the latest 30 saved changes.
 - Added confirmed recovery actions for conflict-aware single-change undo and full restore-to-before checkpoints; both save a new snapshot so recovery remains reversible.
+- Moved History under the save-status checkmark so one compact control now requests a sync and opens the per-board change list on both mobile and desktop.
+- Removed the History modal description, separated card titles from column names, filtered no-op snapshots, and replaced generic board updates with specific column, layout, display, sharing, icon, and ranking-quiz summaries.
+- Reconstructed the Games “Favorites of All Time” ranking from the July 12 recovery checkpoint while preserving the current card records.
 
 ## 2026-04-27
 

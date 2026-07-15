@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CardEntry, SavedBoard } from "@/lib/types";
 
 export const BOARD_CHANGE_HISTORY_LIMIT = 30;
+const BOARD_CHANGE_HISTORY_SCAN_LIMIT = 100;
 
 export type BoardChangeSummary = {
   id: string;
@@ -55,6 +56,17 @@ function flattenCards(board: SavedBoard) {
 
 function columnTitle(board: SavedBoard, columnId: string) {
   return board.columns.find((column) => column.id === columnId)?.title ?? "Unknown column";
+}
+
+function changedSettingKeys(before: SavedBoard, after: SavedBoard) {
+  const keys = new Set([...Object.keys(before.settings ?? {}), ...Object.keys(after.settings ?? {})]);
+  return [...keys].filter(
+    (key) =>
+      !sameValue(
+        before.settings?.[key as keyof typeof before.settings],
+        after.settings?.[key as keyof typeof after.settings],
+      ),
+  );
 }
 
 export function describeBoardChange(before: SavedBoard, after: SavedBoard): BoardChangeSummary[] {
@@ -137,6 +149,17 @@ export function describeBoardChange(before: SavedBoard, after: SavedBoard): Boar
     const previous = beforeColumns.get(column.id);
     return previous && previous.title !== column.title;
   });
+  const editedColumns = after.columns.filter((column) => {
+    const previous = beforeColumns.get(column.id);
+    if (!previous) {
+      return false;
+    }
+    const { title: previousTitle, ...previousRest } = previous;
+    const { title: nextTitle, ...nextRest } = column;
+    void previousTitle;
+    void nextTitle;
+    return !sameValue(previousRest, nextRest);
+  });
 
   if (addedColumns.length) {
     summaries.push({
@@ -159,16 +182,71 @@ export function describeBoardChange(before: SavedBoard, after: SavedBoard): Boar
       label: `Renamed column: ${beforeColumns.get(column.id)?.title} → ${column.title}`,
     });
   }
+  for (const column of editedColumns) {
+    summaries.push({
+      id: `edited-column-${column.id}`,
+      kind: "board",
+      label: `Updated column: ${column.title}`,
+    });
+  }
+  if (
+    addedColumns.length === 0 &&
+    removedColumns.length === 0 &&
+    !sameValue(before.columns.map((column) => column.id), after.columns.map((column) => column.id))
+  ) {
+    summaries.push({ id: "reordered-columns", kind: "moved", label: "Reordered columns" });
+  }
   if (before.title !== after.title) {
     summaries.push({ id: "renamed-board", kind: "board", label: `Renamed board: ${before.title} → ${after.title}` });
   }
-  if (!sameValue(before.settings, after.settings)) {
-    summaries.push({ id: "board-settings", kind: "board", label: "Updated board settings" });
+  const settingKeys = changedSettingKeys(before, after);
+  if (settingKeys.some((key) => ["boardIconKey", "boardIconUrl"].includes(key))) {
+    summaries.push({ id: "board-icon", kind: "board", label: "Changed board icon" });
+  }
+  if (settingKeys.includes("cardLabel")) {
+    summaries.push({ id: "card-label", kind: "board", label: "Changed card label" });
+  }
+  if (
+    settingKeys.some((key) =>
+      [
+        "boardLayout",
+        "tierListCardAspectRatio",
+        "tierListRowOverflow",
+        "tierListExcludedColumnIds",
+        "tierListAutoSeedExcludedColumnIds",
+        "tierListView",
+      ].includes(key),
+    )
+  ) {
+    summaries.push({ id: "board-layout", kind: "board", label: "Updated board layout" });
+  }
+  if (
+    settingKeys.some((key) =>
+      [
+        "showSeriesOnCards",
+        "collapseCards",
+        "showTierHighlights",
+        "includeSeriesField",
+        "includeReleaseYearField",
+        "includeImageField",
+        "includeNotesField",
+        "fieldDefinitions",
+        "restoreShowSeriesOnExpand",
+        "restoreCollapseCardsOnBoard",
+        "restoreTierHighlightsOnBoard",
+      ].includes(key),
+    )
+  ) {
+    summaries.push({ id: "card-display", kind: "board", label: "Updated card display settings" });
+  }
+  if (settingKeys.includes("publicShare") || before.isPublic !== after.isPublic || before.publicSlug !== after.publicSlug) {
+    summaries.push({ id: "sharing", kind: "board", label: "Updated sharing settings" });
+  }
+  if (settingKeys.includes("pairwiseQuizProgressByColumn")) {
+    summaries.push({ id: "ranking-quiz", kind: "board", label: "Updated ranking quiz progress" });
   }
 
-  return summaries.length > 0
-    ? summaries
-    : [{ id: "board-updated", kind: "board", label: "Updated board" }];
+  return summaries;
 }
 
 export async function loadBoardChangeHistory(
@@ -183,23 +261,31 @@ export async function loadBoardChangeHistory(
     .eq("owner_id", userId)
     .eq("board_client_id", boardClientId)
     .order("created_at", { ascending: false })
-    .limit(limit + 1);
+    .limit(Math.max(limit + 1, BOARD_CHANGE_HISTORY_SCAN_LIMIT + 1));
 
   if (error) {
     throw error;
   }
 
   const rows = (data ?? []) as SnapshotRow[];
-  return rows.slice(0, -1).map((row, index) => {
-    const before = rows[index + 1].snapshot;
-    return {
-      id: row.id,
-      createdAt: row.created_at,
-      before,
-      after: row.snapshot,
-      summaries: describeBoardChange(before, row.snapshot),
-    };
-  });
+  return rows
+    .slice(0, -1)
+    .flatMap((row, index) => {
+      const before = rows[index + 1].snapshot;
+      const summaries = describeBoardChange(before, row.snapshot);
+      return summaries.length > 0
+        ? [
+            {
+              id: row.id,
+              createdAt: row.created_at,
+              before,
+              after: row.snapshot,
+              summaries,
+            },
+          ]
+        : [];
+    })
+    .slice(0, limit);
 }
 
 function insertAt<T>(items: T[], index: number, item: T) {

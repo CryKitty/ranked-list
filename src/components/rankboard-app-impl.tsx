@@ -36,7 +36,6 @@ import {
   CheckCheck,
   CircleDashed,
   Clapperboard,
-  Clock3,
   ClipboardPaste,
   Edit3,
   Filter,
@@ -1955,7 +1954,7 @@ function SaveStatusButton({
   isMobileViewport = false,
   requiresLogin = false,
   onRequireLogin,
-  onSyncNow,
+  onSyncAndOpenHistory,
 }: {
   isDarkMode: boolean;
   isPersisting: boolean;
@@ -1966,7 +1965,7 @@ function SaveStatusButton({
   isMobileViewport?: boolean;
   requiresLogin?: boolean;
   onRequireLogin?: () => void;
-  onSyncNow?: () => void;
+  onSyncAndOpenHistory?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
@@ -1975,6 +1974,9 @@ function SaveStatusButton({
     : saveState === "error" || saveState === "offline"
       ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)
       : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
+  const actionLabel = requiresLogin
+    ? tooltipLabel
+    : `${tooltipLabel}. Sync now and view board history.`;
 
   useEffect(() => {
     if (!isMobileViewport || !isTooltipOpen) {
@@ -1994,7 +1996,7 @@ function SaveStatusButton({
   return (
     <div ref={rootRef} className={clsx("relative shrink-0", className)}>
       <button
-        aria-label={tooltipLabel}
+        aria-label={actionLabel}
         className={clsx(
           "group/save inline-flex h-11 w-11 items-center justify-center rounded-2xl transition",
           isDarkMode
@@ -2007,19 +2009,15 @@ function SaveStatusButton({
             onRequireLogin?.();
             return;
           }
-          if (saveState === "saved-local" || saveState === "pending" || saveState === "error" || saveState === "offline") {
-            onSyncNow?.();
-          }
-          if (isMobileViewport) {
-            setIsTooltipOpen((current) => !current);
-          }
+          setIsTooltipOpen(false);
+          onSyncAndOpenHistory?.();
         }}
         onBlur={() => {
           if (isMobileViewport) {
             setIsTooltipOpen(false);
           }
         }}
-        title={isMobileViewport ? undefined : requiresLogin ? getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage, true) : getSaveStatusTitle(saveState, lastSavedAt, saveErrorMessage)}
+        title={isMobileViewport ? undefined : actionLabel}
         type="button"
       >
         <SaveStatusIcon isPersisting={isPersisting} saveState={saveState} />
@@ -2027,7 +2025,7 @@ function SaveStatusButton({
           align="right"
           forceVisible={isMobileViewport && isTooltipOpen}
           isDarkMode={isDarkMode}
-          label={tooltipLabel}
+          label={actionLabel}
           placement={isMobileViewport ? "bottom" : "top"}
           scope="save"
         />
@@ -8014,6 +8012,11 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
+  async function syncAndOpenBoardHistory() {
+    requestImmediateServerSync();
+    await openBoardHistory();
+  }
+
   function commitBoardHistoryState(nextBoard: SavedBoard, notice: string) {
     const nextBoards = latestBoardsRef.current.map((board) =>
       board.id === activeBoardId ? nextBoard : board,
@@ -11093,22 +11096,6 @@ function copyCardToDraft(card: CardEntry) {
                         />
                       </button>
                     </div>
-                    <div className="relative shrink-0">
-                      <button
-                        aria-label="Board history"
-                        className={clsx(
-                          "group/history inline-flex h-[44px] w-[44px] items-center justify-center rounded-2xl border transition",
-                          isDarkMode
-                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                        )}
-                        onClick={() => void openBoardHistory()}
-                        type="button"
-                      >
-                        <Clock3 className="h-4 w-4" />
-                        <HoverTooltip isDarkMode={isDarkMode} label="History" placement="bottom" scope="mobile-history" />
-                      </button>
-                    </div>
                     <SaveStatusButton
                       className="lg:hidden"
                       isDarkMode={isDarkMode}
@@ -11116,7 +11103,7 @@ function copyCardToDraft(card: CardEntry) {
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
-                      onSyncNow={requestImmediateServerSync}
+                      onSyncAndOpenHistory={() => void syncAndOpenBoardHistory()}
                       requiresLogin={authEnabled && !currentUser}
                       saveErrorMessage={saveErrorMessage}
                       saveState={saveState}
@@ -11177,19 +11164,6 @@ function copyCardToDraft(card: CardEntry) {
                     >
                       <RotateCcw className="h-4 w-4" />
                       <span>Undo</span>
-                    </button>
-                    <button
-                      className={clsx(
-                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
-                        isDarkMode
-                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
-                      )}
-                      onClick={() => void openBoardHistory()}
-                      type="button"
-                    >
-                      <Clock3 className="h-4 w-4" />
-                      <span>History</span>
                     </button>
                     <div className="relative" data-actions-menu-root="true">
                       <button
@@ -11440,7 +11414,7 @@ function copyCardToDraft(card: CardEntry) {
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
-                      onSyncNow={requestImmediateServerSync}
+                      onSyncAndOpenHistory={() => void syncAndOpenBoardHistory()}
                       requiresLogin={authEnabled && !currentUser}
                       saveErrorMessage={saveErrorMessage}
                       saveState={saveState}
