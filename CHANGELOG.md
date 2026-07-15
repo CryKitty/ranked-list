@@ -4,6 +4,8 @@
 
 - Hardened normalized board sync so current card placements are upserted without first deleting every placement row, and deferred removed item, column, and board cleanup until replacement placements have saved successfully.
 - Increased per-board recovery history from 20 to 100 snapshots and stopped identical inactive-board snapshots from consuming recovery slots during saves on another board.
+- Added a per-board History dialog that turns saved snapshots into human-readable additions, removals, edits, moves, and settings changes, showing the latest 30 saved changes.
+- Added confirmed recovery actions for conflict-aware single-change undo and full restore-to-before checkpoints; both save a new snapshot so recovery remains reversible.
 
 ## 2026-04-27
 

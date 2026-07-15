@@ -31,6 +31,8 @@
   - `board_states`
 - Per-board recovery history:
   - `board_snapshots`
+  - the signed-in board-history dialog reads the latest 31 snapshots for the active board and derives up to 30 human-readable change sets client-side
+  - isolated undo applies the inverse of a selected change where the current card/column still matches that saved change, while checkpoint restore replaces the active board with the snapshot immediately before it
 - Durable quiz progress:
   - `pairwise_quiz_progress`
 - Active board preference:
@@ -52,6 +54,7 @@
 - The app writes `board_states` backup snapshots first, then tries to repair/update normalized rows.
 - If normalized writes fail, the backup snapshot is still considered a successful save for recovery purposes.
 - After normalized rows save successfully, the app writes per-board rows to `board_snapshots` and prunes each board to the latest 100 materially distinct snapshots; unchanged inactive boards do not consume additional retention slots during another board's save.
+- History undo and restore both save the resulting board as a new snapshot, so recovery actions remain reversible and never rewrite prior history.
 - Remote save requests are serialized so rapid edits cannot let an older in-flight normalized/snapshot save land after a newer card edit.
 - Normalized card placement sync upserts the desired placements before pruning removed items, columns, or boards; it must never clear an entire board's placements as an intermediate state.
 - Local storage keeps a fast cache plus recent backup snapshots.

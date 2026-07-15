@@ -36,6 +36,7 @@ import {
   CheckCheck,
   CircleDashed,
   Clapperboard,
+  Clock3,
   ClipboardPaste,
   Edit3,
   Filter,
@@ -77,11 +78,17 @@ import {
   MenuSectionButton,
   ToggleSwitch,
 } from "@/components/rankboard-fields";
+import { BoardHistoryDialog } from "@/components/board-history-dialog";
 import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { optimizeImageFile } from "@/lib/image-processing";
 import { getArtworkDisplayUrl, getArtworkProxyUrl, isTrelloHostedArtworkUrl } from "@/lib/artwork-url";
+import {
+  loadBoardChangeHistory,
+  undoBoardChange,
+  type BoardChangeRecord,
+} from "@/lib/board-change-history";
 import {
   compareTitlesForDisplay,
   getDisplayCardText,
@@ -2130,6 +2137,14 @@ export function RankboardApp() {
   const [isEditingBoardTitle, setIsEditingBoardTitle] = useState(false);
   const [boardTitleDraft, setBoardTitleDraft] = useState("");
   const [history, setHistory] = useState<BoardHistoryEntry[]>([]);
+  const [isBoardHistoryOpen, setIsBoardHistoryOpen] = useState(false);
+  const [boardChangeHistory, setBoardChangeHistory] = useState<BoardChangeRecord[]>([]);
+  const [isBoardChangeHistoryLoading, setIsBoardChangeHistoryLoading] = useState(false);
+  const [boardChangeHistoryError, setBoardChangeHistoryError] = useState<string | null>(null);
+  const [pendingBoardHistoryAction, setPendingBoardHistoryAction] = useState<{
+    mode: "undo" | "restore";
+    change: BoardChangeRecord;
+  } | null>(null);
   const [mobileUndoNotice, setMobileUndoNotice] = useState<string | null>(null);
   const [draftDuplicateAction, setDraftDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
@@ -2393,6 +2408,8 @@ export function RankboardApp() {
     isSaveLoginModalOpen ||
     isCreateBoardModalOpen ||
     isBoardIconModalOpen ||
+    isBoardHistoryOpen ||
+    Boolean(pendingBoardHistoryAction) ||
     isDuplicateCleanupModalOpen ||
     isTitleTidyModalOpen ||
     isSeriesScrapeModalOpen ||
@@ -7974,6 +7991,88 @@ function copyCardToDraft(card: CardEntry) {
     queuePersistBoardState();
   }
 
+  async function openBoardHistory() {
+    setIsActionsMenuOpen(false);
+    setIsMobileActionsOpen(false);
+    setIsBoardHistoryOpen(true);
+    setBoardChangeHistoryError(null);
+
+    if (!supabase || !currentUser) {
+      setBoardChangeHistory([]);
+      setBoardChangeHistoryError("Log in to view synced board history.");
+      return;
+    }
+
+    setIsBoardChangeHistoryLoading(true);
+    try {
+      const entries = await loadBoardChangeHistory(supabase, currentUser.id, activeBoardId);
+      setBoardChangeHistory(entries);
+    } catch (error) {
+      setBoardChangeHistoryError(error instanceof Error ? error.message : "Board history could not be loaded.");
+    } finally {
+      setIsBoardChangeHistoryLoading(false);
+    }
+  }
+
+  function commitBoardHistoryState(nextBoard: SavedBoard, notice: string) {
+    const nextBoards = latestBoardsRef.current.map((board) =>
+      board.id === activeBoardId ? nextBoard : board,
+    );
+
+    pushBoardHistorySnapshot(
+      { columns: latestColumnsRef.current, cardsByColumn: latestCardsByColumnRef.current },
+      notice,
+    );
+    latestBoardsRef.current = nextBoards;
+    setBoards(nextBoards);
+    skipNextHistoryRef.current = true;
+    setColumns(nextBoard.columns);
+    skipNextHistoryRef.current = true;
+    setCardsByColumn(nextBoard.cardsByColumn);
+    setIsBoardHistoryOpen(false);
+    setPendingBoardHistoryAction(null);
+    setMobileUndoNotice(notice);
+    queuePersistBoardState({
+      boards: nextBoards,
+      activeBoardId,
+      columns: nextBoard.columns,
+      cardsByColumn: nextBoard.cardsByColumn,
+    });
+  }
+
+  function confirmBoardHistoryAction() {
+    if (!pendingBoardHistoryAction) {
+      return;
+    }
+
+    const currentBoard: SavedBoard = {
+      ...activeBoard,
+      columns: latestColumnsRef.current,
+      cardsByColumn: latestCardsByColumnRef.current,
+    };
+
+    if (pendingBoardHistoryAction.mode === "restore") {
+      commitBoardHistoryState(
+        {
+          ...pendingBoardHistoryAction.change.before,
+          id: activeBoardId,
+          createdAt: activeBoard.createdAt,
+          updatedAt: new Date().toISOString(),
+        },
+        "Restored earlier board version",
+      );
+      return;
+    }
+
+    const result = undoBoardChange(currentBoard, pendingBoardHistoryAction.change);
+    commitBoardHistoryState(
+      result.board,
+      result.conflicts > 0
+        ? `Undid change; kept ${result.conflicts} newer conflicting edit${result.conflicts === 1 ? "" : "s"}`
+        : "Undid saved change",
+    );
+  }
+
   function switchBoard(boardId: string) {
     const nextBoard = boards.find((board) => board.id === boardId);
 
@@ -10994,6 +11093,22 @@ function copyCardToDraft(card: CardEntry) {
                         />
                       </button>
                     </div>
+                    <div className="relative shrink-0">
+                      <button
+                        aria-label="Board history"
+                        className={clsx(
+                          "group/history inline-flex h-[44px] w-[44px] items-center justify-center rounded-2xl border transition",
+                          isDarkMode
+                            ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                        )}
+                        onClick={() => void openBoardHistory()}
+                        type="button"
+                      >
+                        <Clock3 className="h-4 w-4" />
+                        <HoverTooltip isDarkMode={isDarkMode} label="History" placement="bottom" scope="mobile-history" />
+                      </button>
+                    </div>
                     <SaveStatusButton
                       className="lg:hidden"
                       isDarkMode={isDarkMode}
@@ -11062,6 +11177,19 @@ function copyCardToDraft(card: CardEntry) {
                     >
                       <RotateCcw className="h-4 w-4" />
                       <span>Undo</span>
+                    </button>
+                    <button
+                      className={clsx(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold transition",
+                        isDarkMode
+                          ? "border-white/10 bg-slate-950/60 text-slate-100 hover:border-white/40"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                      )}
+                      onClick={() => void openBoardHistory()}
+                      type="button"
+                    >
+                      <Clock3 className="h-4 w-4" />
+                      <span>History</span>
                     </button>
                     <div className="relative" data-actions-menu-root="true">
                       <button
@@ -15072,6 +15200,67 @@ function copyCardToDraft(card: CardEntry) {
                     </div>
                   ) : null}
                 </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <BoardHistoryDialog
+          entries={boardChangeHistory}
+          error={boardChangeHistoryError}
+          isDarkMode={isDarkMode}
+          isLoading={isBoardChangeHistoryLoading}
+          isOpen={isBoardHistoryOpen}
+          onClose={() => setIsBoardHistoryOpen(false)}
+          onRestore={(change) => setPendingBoardHistoryAction({ mode: "restore", change })}
+          onUndo={(change) => setPendingBoardHistoryAction({ mode: "undo", change })}
+        />
+
+        {pendingBoardHistoryAction ? (
+          <div
+            className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+            onClick={() => setPendingBoardHistoryAction(null)}
+          >
+            <div
+              className={clsx(
+                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(15,23,42,0.35)]",
+                isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
+              )}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 className="text-2xl font-black">
+                {pendingBoardHistoryAction.mode === "undo" ? "Undo this saved change?" : "Restore this earlier version?"}
+              </h2>
+              <p className={clsx("mt-3 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
+                {pendingBoardHistoryAction.mode === "undo"
+                  ? "Sorta will reverse this change while preserving newer unrelated edits when possible. Any conflicts will be left untouched."
+                  : "Sorta will replace this board with the checkpoint from immediately before the selected change. Your current version will be saved as a new history entry first."}
+              </p>
+              <div className="mt-4 rounded-2xl bg-slate-500/10 p-4 text-sm font-semibold">
+                {pendingBoardHistoryAction.change.summaries[0]?.label ?? "Board update"}
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold",
+                    isDarkMode ? "bg-white text-slate-950" : "bg-slate-950 text-white",
+                  )}
+                  onClick={confirmBoardHistoryAction}
+                  type="button"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {pendingBoardHistoryAction.mode === "undo" ? "Undo Change" : "Restore Board"}
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold",
+                    isDarkMode ? "border-white/10" : "border-slate-200",
+                  )}
+                  onClick={() => setPendingBoardHistoryAction(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
