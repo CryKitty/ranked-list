@@ -17324,7 +17324,7 @@ function AddCardRow({
     <button
       data-mobile-inline-add-root="true"
       className={clsx(
-        "group relative z-[15] flex w-full items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
+        "group relative z-[15] flex w-full appearance-none items-center justify-center gap-3 overflow-visible transition-[height,opacity] duration-150 ease-out hover:opacity-100 focus:opacity-100 focus:outline-none",
         isDarkMode ? "text-slate-300" : "text-slate-400",
         isDragMode
           ? isGapSuppressed
