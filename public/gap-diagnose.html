@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorta gap diagnosis — real app</title>
+<style>
+  body { margin: 0; background: #0b1020; color: #e2e8f0; font-family: -apple-system, system-ui, sans-serif; padding: 14px; }
+  h1 { font-size: 16px; margin: 0 0 6px; }
+  p { font-size: 12px; color: #94a3b8; margin: 0 0 10px; }
+  #results { background: #111a30; border: 1px solid #26355c; border-radius: 12px; padding: 12px; font: 12px/1.6 monospace; white-space: pre-wrap; }
+  iframe { display: block; margin-top: 14px; border: 2px solid #334155; border-radius: 10px; background: #fff; }
+</style>
+</head>
+<body>
+<h1>Sorta gap diagnosis — real app, seeded board</h1>
+<p>Seeds localStorage, loads the real app in a 390px iframe below, measures the live DOM. No console needed.</p>
+<div id="results">starting…</div>
+<script>
+(function () {
+  var results = document.getElementById('results');
+  function say(t) { results.textContent = t; }
+  var SEED = {"version":1,"activeBoardId":"board-test","boards":[{"id":"board-test","title":"Games","settings":{},"columns":[{"id":"col-mirror","title":"Favorites of All Time","description":"","type":"ranked","accent":"from-amber-300 via-orange-400 to-rose-500","mirrorsEntireBoard":true},{"id":"col-normal","title":"To Play","description":"","type":"ranked","accent":"from-cyan-300 via-sky-400 to-blue-500","dontRank":true},{"id":"col-ranked","title":"Ranked Ones","description":"","type":"ranked","accent":"from-emerald-300 via-green-400 to-teal-500"}],"cardsByColumn":{"col-mirror":[],"col-normal":[{"entryId":"entry-n1","itemId":"item-n1","title":"Normal One","imageUrl":"https://picsum.photos/seed/n1/800/450","series":"","customFieldValues":{}},{"entryId":"entry-n2","itemId":"item-n2","title":"Normal Two","imageUrl":"https://picsum.photos/seed/n2/800/450","series":"","customFieldValues":{}}],"col-ranked":[{"entryId":"entry-r1","itemId":"item-r1","title":"Ranked One","imageUrl":"https://picsum.photos/seed/r1/800/450","series":"","customFieldValues":{}},{"entryId":"entry-r2","itemId":"item-r2","title":"Ranked Two","imageUrl":"https://picsum.photos/seed/r2/800/450","series":"","customFieldValues":{}},{"entryId":"entry-r3","itemId":"item-r3","title":"Ranked Three","imageUrl":"https://picsum.photos/seed/r3/800/450","series":"","customFieldValues":{}}]},"createdAt":"2026-11-18T00:00:00.000Z","updatedAt":"2026-11-18T00:00:00.000Z"}]};
+  try { localStorage.setItem('rankboard-state-v1', JSON.stringify(SEED)); } catch (e) { say('seed failed: ' + e.message); return; }
+
+  var frame = document.createElement('iframe');
+  frame.width = 390; frame.height = 844;
+  frame.src = '/';
+  document.body.appendChild(frame);
+
+  function r(n) { return Math.round(n * 10) / 10; }
+
+  function measure(win, label) {
+    var doc = win.document;
+    var out = [];
+    out.push('##### ' + label + ' #####');
+    out.push('innerW=' + win.innerWidth + ' innerH=' + win.innerHeight);
+    function scrollOf(el) {
+      var n = el;
+      while (n && !(n.classList && n.classList.contains('overflow-y-auto'))) n = n.parentElement;
+      return n;
+    }
+    var byScroll = new Map();
+    doc.querySelectorAll('article[data-card-entry-id]').forEach(function (a) {
+      var s = scrollOf(a);
+      if (!s) return;
+      if (!byScroll.has(s)) byScroll.set(s, []);
+      byScroll.get(s).push(a);
+    });
+    out.push('columns with cards: ' + byScroll.size);
+    byScroll.forEach(function (cards, scroll) {
+      var hdr = scroll.parentElement && scroll.parentElement.querySelector('h1,h2,h3,[class*="font-display"]');
+      out.push('=== COLUMN: ' + (hdr ? hdr.textContent.trim().slice(0, 40) : '(unknown)') + ' ===');
+      var scs = win.getComputedStyle(scroll);
+      out.push('scroll rowGap=' + scs.rowGap + ' display=' + scs.display + ' flexDir=' + scs.flexDirection + ' clientW=' + scroll.clientWidth);
+      // dump the direct children chain of the scroll container (first column only, once)
+      out.push('-- scroll children --');
+      Array.prototype.forEach.call(scroll.children, function (ch, ci) {
+        out.push('child[' + ci + '] <' + ch.tagName.toLowerCase() + '> h=' + r(ch.getBoundingClientRect().height) +
+          ' class=' + (ch.className && ch.className.baseVal !== undefined ? '' : String(ch.className).slice(0, 90)));
+        Array.prototype.forEach.call(ch.children || [], function (gc, gi) {
+          out.push('  gc[' + gi + '] <' + gc.tagName.toLowerCase() + '> h=' + r(gc.getBoundingClientRect().height) +
+            ' addRoot=' + (gc.getAttribute && gc.getAttribute('data-mobile-inline-add-root') || '') +
+            ' cardId=' + (gc.getAttribute && gc.getAttribute('data-card-entry-id') || ''));
+        });
+      });
+      for (var i = 0; i < cards.length; i++) {
+        var a = cards[i];
+        var cs = win.getComputedStyle(a);
+        out.push('card[' + i + '] h=' + r(a.getBoundingClientRect().height) +
+          ' cv=' + cs.contentVisibility + ' cis=' + cs.containIntrinsicSize);
+        if (i + 1 < cards.length) {
+          out.push('  GAP to next = ' + r(cards[i + 1].getBoundingClientRect().top - a.getBoundingClientRect().bottom));
+        }
+      }
+      scroll.querySelectorAll('[data-mobile-inline-add-root]').forEach(function (row, i) {
+        var cs2 = win.getComputedStyle(row);
+        var child = row.querySelector('span');
+        out.push('addRow[' + i + '] tag=' + row.tagName + ' rectH=' + r(row.getBoundingClientRect().height) +
+          ' computedH=' + cs2.height + ' minH=' + cs2.minHeight + ' opacity=' + cs2.opacity +
+          ' childSpanH=' + (child ? r(child.getBoundingClientRect().height) : 'none'));
+      });
+    });
+    return out.join('\n');
+  }
+
+  var tries = 0;
+  var timer = setInterval(function () {
+    tries++;
+    var win;
+    try { win = frame.contentWindow; } catch (e) { }
+    if (!win || !win.document) { if (tries > 40) { clearInterval(timer); say('iframe never became readable'); } return; }
+    var cards = win.document.querySelectorAll('article[data-card-entry-id]');
+    if (cards.length >= 5 || tries > 40) {
+      clearInterval(timer);
+      setTimeout(function () {
+        try {
+          var first = measure(win, 'PASS 1 (as loaded)');
+          // scroll every column to the bottom so offscreen cards render, then re-measure
+          win.document.querySelectorAll('.overflow-y-auto').forEach(function (s) { s.scrollTop = s.scrollHeight; });
+          setTimeout(function () {
+            var second = '';
+            try { second = measure(win, 'PASS 2 (after scroll to bottom)'); } catch (e) { second = 'pass2 error: ' + e.message; }
+            say(first + '\n\n' + second);
+          }, 900);
+        } catch (e) { say('measure error: ' + e.message); }
+      }, 1200);
+    }
+  }, 500);
+})();
+</script>
+</body>
+</html>
