@@ -1114,7 +1114,7 @@ function readLocalBoardsSnapshot() {
   return null;
 }
 
-function buildGoogleImageSearchUrl(
+function buildImageSearchUrl(
   title: string,
   artworkField: ArtworkFieldKind,
   supplementalQuery = "wallpaper",
@@ -1126,16 +1126,17 @@ function buildGoogleImageSearchUrl(
     return null;
   }
 
-  const url = new URL("https://www.google.com/search");
-  url.searchParams.set("as_st", "y");
-  url.searchParams.set("as_epq", trimmedTitle);
-  if (trimmedSupplementalQuery) {
-    url.searchParams.set("as_q", trimmedSupplementalQuery);
-  }
-  url.searchParams.set("tbm", "isch");
-  url.searchParams.set("udm", "2");
-  url.searchParams.set("imgar", artworkField === "portrait" ? "t" : "w");
-  url.searchParams.set("tbs", artworkField === "portrait" ? "iar:t" : "iar:w");
+  // Bing Images, not Google: on iOS every google.com/search link is claimed
+  // by the Google app via universal links, so artwork lookups kept getting
+  // hijacked out of Safari. Bing's image search is not app-claimed and opens
+  // in the browser as expected.
+  const query = [trimmedTitle, trimmedSupplementalQuery].filter(Boolean).join(" ");
+  const url = new URL("https://www.bing.com/images/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set(
+    "qft",
+    artworkField === "portrait" ? "+filterui:aspect-tall" : "+filterui:aspect-wide",
+  );
 
   return url.toString();
 }
@@ -1168,13 +1169,13 @@ async function openArtworkLookup(
     return;
   }
 
-  const googleUrl = buildGoogleImageSearchUrl(trimmedTitle, artworkField, "wallpaper");
+  const imageSearchUrl = buildImageSearchUrl(trimmedTitle, artworkField, "wallpaper");
 
-  if (!googleUrl) {
+  if (!imageSearchUrl) {
     return;
   }
 
-  openUrlInNewTab(googleUrl);
+  openUrlInNewTab(imageSearchUrl);
 }
 
 function createCardDraft(card: CardEntry): CardEditorDraft {
