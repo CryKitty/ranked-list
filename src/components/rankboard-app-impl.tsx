@@ -77,6 +77,7 @@ import {
   MenuSectionButton,
   ToggleSwitch,
 } from "@/components/rankboard-fields";
+import { VisualThemeControl } from "@/components/visual-theme-control";
 import { BoardHistoryDialog } from "@/components/board-history-dialog";
 import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
@@ -206,8 +207,6 @@ const DEFAULT_BOARD_SETTINGS: BoardSettings = {
   restoreShowSeriesOnExpand: false,
 };
 
-const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
-const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%)";
 
 function createStarterBoardSnapshot(): BoardSnapshot {
   const starterColumnId = makeId("column");
@@ -2380,7 +2379,7 @@ export function RankboardApp() {
       : "border-white/80 bg-white/96 text-slate-900",
   );
   const mobileActionPopoverClassName = clsx(
-    "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] overflow-hidden rounded-[28px] border shadow-[0_24px_60px_rgba(19,27,68,0.24)] [translate:-50%_0] backdrop-blur",
+    "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),340px)] overflow-hidden rounded-(--sorta-radius-28) border shadow-[0_24px_60px_rgba(19,27,68,0.24)] [translate:-50%_0] backdrop-blur",
     "motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
     isDarkMode
       ? "border-white/10 bg-slate-900/95 text-slate-100"
@@ -3191,12 +3190,6 @@ export function RankboardApp() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
-    const nextBackground = isDarkMode ? DARK_APP_BACKGROUND : LIGHT_APP_BACKGROUND;
-    const nextBackgroundColor = isDarkMode ? "#020617" : "#fff8ef";
-    document.documentElement.style.background = nextBackground;
-    document.documentElement.style.backgroundColor = nextBackgroundColor;
-    document.body.style.background = nextBackground;
-    document.body.style.backgroundColor = nextBackgroundColor;
     const themeColorMeta = document.querySelector("meta[name='theme-color']");
     themeColorMeta?.setAttribute("content", isDarkMode ? "#1f2937" : "#fff4d6");
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
@@ -10449,7 +10442,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isCustomizationMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] [translate:-50%_0] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] [translate:-50%_0] space-y-1 rounded-(--sorta-radius-24) border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -10721,7 +10714,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isMaintenanceMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] [translate:-50%_0] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),290px)] [translate:-50%_0] space-y-1 rounded-(--sorta-radius-24) border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -10802,7 +10795,7 @@ function copyCardToDraft(card: CardEntry) {
                           {isTransferMenuOpen ? (
                             <div
                               className={clsx(
-                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] [translate:-50%_0] space-y-1 rounded-[24px] border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
+                                "absolute bottom-[calc(100%+0.8rem)] left-1/2 z-[110] w-[min(calc(100vw-2.2rem),280px)] [translate:-50%_0] space-y-1 rounded-(--sorta-radius-24) border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur motion-safe:animate-[mobile-action-panel-rise_240ms_cubic-bezier(0.22,1,0.36,1)]",
                                 isDarkMode
                                   ? "border-white/10 bg-slate-900/95 text-slate-100"
                                   : "border-white/80 bg-white/95 text-slate-900",
@@ -10811,6 +10804,7 @@ function copyCardToDraft(card: CardEntry) {
                             <p className={clsx("px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.22em]", isDarkMode ? "text-slate-400" : "text-slate-500")}>
                               Settings
                             </p>
+                            <VisualThemeControl />
                             <button
                               className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
                               onClick={() => {
@@ -10900,7 +10894,7 @@ function copyCardToDraft(card: CardEntry) {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-[32px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur -mt-[30px] sm:-mt-[2vh] sm:p-4",
+              "sorta-board-surface relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-(--sorta-radius-32) border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur -mt-[30px] sm:-mt-[2vh] sm:p-4",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -11062,7 +11056,7 @@ function copyCardToDraft(card: CardEntry) {
                       >
                         <h1
                           className={clsx(
-                            "min-w-0 truncate text-2xl font-black transition-all duration-200 ease-out sm:text-3xl",
+                            "sorta-board-title min-w-0 truncate text-2xl font-black transition-all duration-200 ease-out sm:text-3xl",
                             starterBoardTitlePhase === "exit" && "-translate-x-3 opacity-0",
                             starterBoardTitlePhase === "enter" && "translate-x-3 opacity-0",
                             isDarkMode ? "text-white" : "text-slate-950",
@@ -11217,6 +11211,7 @@ function copyCardToDraft(card: CardEntry) {
                               : "border-slate-200 bg-white/95 text-slate-700",
                           )}
                         >
+                          <VisualThemeControl />
                           <button
                             className={clsx(
                               "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
@@ -11939,7 +11934,7 @@ function copyCardToDraft(card: CardEntry) {
           <div className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[125] flex max-w-[calc(100vw-2rem)] justify-end lg:hidden">
             <div
               className={clsx(
-                "pointer-events-auto w-[min(calc(100vw-2rem),320px)] rounded-[24px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
+                "pointer-events-auto w-[min(calc(100vw-2rem),320px)] rounded-(--sorta-radius-24) border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur",
                 isDarkMode
                   ? "border-white/10 bg-slate-900/94 text-slate-100"
                   : "border-white/80 bg-white/94 text-slate-900",
@@ -12288,7 +12283,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -12323,7 +12318,7 @@ function copyCardToDraft(card: CardEntry) {
                   <button
                     key={imageUrl}
                     className={clsx(
-                      "overflow-hidden rounded-[24px] border text-left transition hover:-translate-y-0.5",
+                      "overflow-hidden rounded-(--sorta-radius-24) border text-left transition hover:-translate-y-0.5",
                       isDarkMode ? "border-white/10 bg-slate-950/60" : "border-slate-200 bg-slate-50",
                     )}
                     onClick={() => selectArtworkOption(imageUrl)}
@@ -12350,7 +12345,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-(--sorta-radius-32) border shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -12445,7 +12440,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-[760px] rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:min-w-[680px]",
+                "w-full max-w-[760px] rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog) sm:min-w-[680px]",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -12523,7 +12518,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-2xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -12596,7 +12591,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-3xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -12820,7 +12815,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-2xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -12912,7 +12907,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-2xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-2xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13005,7 +13000,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex w-full max-w-xl flex-col rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex w-full max-w-xl flex-col rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13101,7 +13096,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-[656px] flex-col overflow-hidden rounded-[32px] border p-4 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-6",
+                "flex max-h-[88vh] w-full max-w-[656px] flex-col overflow-hidden rounded-(--sorta-radius-32) border p-4 shadow-(--sorta-shadow-dialog) sm:p-6",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13134,7 +13129,7 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[303px] overflow-visible rounded-[28px] border border-transparent p-2 text-left transition sm:max-w-[332px] md:max-w-[363px]",
+                        "mx-auto w-full max-w-[303px] overflow-visible rounded-(--sorta-radius-28) border border-transparent p-2 text-left transition sm:max-w-[332px] md:max-w-[363px]",
                         isDarkMode
                           ? "text-white hover:border-white/60"
                           : "text-slate-950 hover:border-slate-300",
@@ -13242,7 +13237,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-4xl flex-col rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[88vh] w-full max-w-4xl flex-col rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13382,7 +13377,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-[520px] rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-[520px] rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13544,7 +13539,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-3xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13651,7 +13646,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-3xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-3xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13815,7 +13810,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-4xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -13986,7 +13981,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-4xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-4xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14220,7 +14215,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14289,7 +14284,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14348,7 +14343,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14442,7 +14437,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14493,7 +14488,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14569,7 +14564,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[min(88vh,720px)] w-full max-w-2xl flex-col rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(88vh,720px)] w-full max-w-2xl flex-col rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14755,7 +14750,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[min(92vh,860px)] w-full max-w-lg flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:max-w-2xl",
+                "flex max-h-[min(92vh,860px)] w-full max-w-lg flex-col overflow-hidden rounded-(--sorta-radius-32) border shadow-(--sorta-shadow-dialog) sm:max-w-2xl",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -14885,7 +14880,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-5 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:max-w-3xl sm:p-7",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-5 shadow-(--sorta-shadow-dialog) sm:max-w-3xl sm:p-7",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -15017,7 +15012,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-lg rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "w-full max-w-lg rounded-(--sorta-radius-32) border p-6 shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -15033,7 +15028,7 @@ function copyCardToDraft(card: CardEntry) {
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <button
                   className={clsx(
-                    "flex min-h-[136px] flex-col items-start justify-between rounded-[28px] border p-5 text-left transition",
+                    "flex min-h-[136px] flex-col items-start justify-between rounded-(--sorta-radius-28) border p-5 text-left transition",
                     isDarkMode
                       ? "border-white/10 bg-slate-950 hover:border-white/35"
                       : "border-slate-200 bg-white hover:border-slate-950",
@@ -15055,7 +15050,7 @@ function copyCardToDraft(card: CardEntry) {
                 </button>
                 <button
                   className={clsx(
-                    "flex min-h-[136px] flex-col items-start justify-between rounded-[28px] border p-5 text-left transition",
+                    "flex min-h-[136px] flex-col items-start justify-between rounded-(--sorta-radius-28) border p-5 text-left transition",
                     tierListPoolCards.length === 0
                       ? "cursor-not-allowed opacity-45"
                       : isDarkMode
@@ -15105,7 +15100,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+                "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-(--sorta-radius-32) border shadow-(--sorta-shadow-dialog)",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
@@ -15141,7 +15136,7 @@ function copyCardToDraft(card: CardEntry) {
                     <button
                       key={card.entryId}
                       className={clsx(
-                        "flex min-w-0 items-center gap-3 overflow-hidden rounded-[24px] border p-3 text-left transition sm:gap-4",
+                        "flex min-w-0 items-center gap-3 overflow-hidden rounded-(--sorta-radius-24) border p-3 text-left transition sm:gap-4",
                         isDarkMode
                           ? "border-white/10 bg-slate-950 hover:border-white/35"
                           : "border-slate-200 bg-white hover:border-slate-950",
@@ -15194,7 +15189,7 @@ function copyCardToDraft(card: CardEntry) {
                     </button>
                   ))}
                   {tierListPoolCards.length === 0 ? (
-                    <div className={clsx("rounded-[24px] border px-4 py-5 text-sm", isDarkMode ? "border-white/10 bg-slate-950 text-slate-300" : "border-slate-200 bg-white text-slate-600")}>
+                    <div className={clsx("rounded-(--sorta-radius-24) border px-4 py-5 text-sm", isDarkMode ? "border-white/10 bg-slate-950 text-slate-300" : "border-slate-200 bg-white text-slate-600")}>
                       Pool is empty.
                     </div>
                   ) : null}
@@ -15222,7 +15217,7 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "w-full max-w-xl rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(15,23,42,0.35)]",
+                "w-full max-w-xl rounded-(--sorta-radius-32) border p-6 shadow-[0_30px_80px_rgba(15,23,42,0.35)]",
                 isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
               )}
               onClick={(event) => event.stopPropagation()}
@@ -15290,7 +15285,7 @@ function AddColumnButton({
       className={clsx(
         inline
           ? "group relative z-[20] flex min-h-[min(82dvh,940px)] w-8 shrink-0 snap-start items-center justify-center overflow-visible transition sm:min-h-[720px] sm:w-4 sm:snap-align-none"
-          : "group relative z-[20] flex min-h-[min(82dvh,940px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-[28px] border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
+          : "group relative z-[20] flex min-h-[min(82dvh,940px)] w-[92px] shrink-0 snap-start items-center justify-center rounded-(--sorta-radius-28) border border-dashed transition sm:min-h-[720px] sm:snap-align-none",
         isDarkMode
           ? inline
             ? "text-white"
@@ -15694,12 +15689,12 @@ function BoardColumn({
       data-column-id={column.id}
       ref={setNodeRef}
       className={clsx(
-        "relative z-10 flex shrink-0 flex-col rounded-[28px] border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
+        "relative z-10 flex shrink-0 flex-col rounded-(--sorta-radius-28) border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
         isMobileViewport
           ? "h-[min(calc(var(--app-height)-7.65rem),922px)] min-h-[min(calc(var(--app-height)-7.65rem),862px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(calc(100vw-2rem),348px)] snap-start" : "w-[320px] snap-start",
-        isDarkMode ? "bg-slate-950 text-white" : "bg-[#fff7f0] text-slate-950",
+        isDarkMode ? "bg-slate-950 text-white" : "bg-(--sorta-paper) text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
         isDarkMode
@@ -16744,7 +16739,7 @@ function TierListRow({
       : 0;
 
   return (
-    <div className={clsx("rounded-[28px] p-[1px]", column.accent)}>
+    <div className={clsx("rounded-(--sorta-radius-28) p-[1px]", column.accent)}>
       <div className="grid grid-cols-[44px_minmax(0,1fr)] items-stretch">
       <div className={clsx("rounded-l-[28px] rounded-r-none bg-gradient-to-b p-[1px]", column.accent)}>
         <div
@@ -16907,7 +16902,7 @@ function TierListRow({
         data-column-id={column.id}
         className={clsx(
           "min-w-0 rounded-r-[28px] rounded-l-none border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.12)]",
-          isDarkMode ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-[#fff7f0] text-slate-950",
+          isDarkMode ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-(--sorta-paper) text-slate-950",
           isOver && (isDarkMode ? "border-white/80" : "border-slate-950"),
         )}
       >
@@ -17155,7 +17150,7 @@ function TierListInsertSlot({
         data-tier-insert-slot="true"
         data-insert-drop-id={makeInsertDropId(columnId, insertIndex)}
         className={clsx(
-          "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-[24px] border transition-[background-color,border-color,box-shadow,width] duration-150 ease-out",
+          "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-(--sorta-radius-24) border transition-[background-color,border-color,box-shadow,width] duration-150 ease-out",
           heightClass,
           showPlaceholder ? placeholderWidthClass : hitAreaWidthClass,
           showPlaceholder
@@ -17228,7 +17223,7 @@ function AddCardRow({
     (visualTargetOnly ? forceActive : isOver || forceActive);
   const showTrelloStylePlaceholder = showExpandedDropTarget;
   const placeholderHeightClass = collapseCards ? "h-[52px]" : "h-[172px]";
-  const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-[24px]";
+  const placeholderInsetClass = collapseCards ? "inset-y-0.5 rounded-[14px]" : "inset-y-1 rounded-(--sorta-radius-24)";
   const restingRowHeightClass = collapseCards ? "h-0" : "h-4";
   const alwaysVisibleRowHeightClass = collapseCards ? "h-0" : "h-8";
   const desktopRestingClass = alwaysVisible
@@ -17784,7 +17779,7 @@ function CardTile({
         !collapseCards && "bg-slate-900",
         collapseCards ? "border-slate-950" : tierBorderClass,
         isDragging && "shadow-[0_26px_50px_rgba(15,23,42,0.28)]",
-        collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
+        collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-(--sorta-radius-28)",
       )}
       onPointerDown={(event) => {
         dragProps?.onPointerDown?.(event);
@@ -17847,7 +17842,7 @@ function CardTile({
                   : cardAspectRatio === "portrait"
                     ? "aspect-[2/3]"
                     : "aspect-[1.9/1] sm:aspect-video",
-            collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-[28px]",
+            collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-(--sorta-radius-28)",
           )}
         style={
           collapseCards

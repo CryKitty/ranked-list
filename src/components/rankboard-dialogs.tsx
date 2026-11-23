@@ -398,7 +398,7 @@ export function EditCardDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "relative flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          "relative flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-(--sorta-radius-32) border sorta-dialog shadow-(--sorta-shadow-dialog)",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
@@ -773,7 +773,7 @@ export function AddCardDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          "flex max-h-[min(92vh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-(--sorta-radius-32) border sorta-dialog shadow-(--sorta-shadow-dialog)",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
@@ -1088,7 +1088,7 @@ export function ShareBoardDialog({
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "relative flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-visible rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+          "relative flex max-h-[min(92vh,860px)] w-full max-w-3xl flex-col overflow-visible rounded-(--sorta-radius-32) border p-6 sorta-dialog shadow-(--sorta-shadow-dialog)",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
@@ -1287,7 +1287,7 @@ export function WelcomeDialog({
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div
         className={clsx(
-          "max-h-[min(92vh,860px)] w-full max-w-2xl overflow-y-auto rounded-[32px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:p-8",
+          "max-h-[min(92vh,860px)] w-full max-w-2xl overflow-y-auto rounded-(--sorta-radius-32) border p-6 sorta-dialog shadow-(--sorta-shadow-dialog) sm:p-8",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
       >
@@ -1419,7 +1419,7 @@ export function BoardSetupDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <form
         className={clsx(
-          "flex max-h-[min(92vh,860px)] w-full max-w-[760px] flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(19,27,68,0.24)] sm:min-w-[680px]",
+          "flex max-h-[min(92vh,860px)] w-full max-w-[760px] flex-col overflow-hidden rounded-(--sorta-radius-32) border sorta-dialog shadow-(--sorta-shadow-dialog) sm:min-w-[680px]",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Space_Grotesk } from "next/font/google";
+import { Fraunces, Newsreader, Source_Sans_3, Space_Grotesk } from "next/font/google";
+import { visualThemeInitScript } from "@/lib/visual-theme";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -10,6 +11,18 @@ const spaceGrotesk = Space_Grotesk({
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
+});
+
+const sourceSans = Source_Sans_3({
+  variable: "--font-source-sans",
+  subsets: ["latin"],
+  preload: false,
+});
+
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -33,8 +46,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${fraunces.variable} h-full antialiased`}
+      data-theme="classic"
+      suppressHydrationWarning
+      className={`${spaceGrotesk.variable} ${fraunces.variable} ${sourceSans.variable} ${newsreader.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: visualThemeInitScript }} />
+      </head>
       <body className="min-h-full flex flex-col bg-slate-950">{children}</body>
     </html>
   );

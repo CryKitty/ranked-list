@@ -405,7 +405,7 @@ export function FieldDefinitionManager({
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setPendingFieldRemoval(null)}>
           <div
             className={clsx(
-              "w-full max-w-md rounded-[28px] border p-6 shadow-[0_30px_80px_rgba(19,27,68,0.24)]",
+              "w-full max-w-md rounded-(--sorta-radius-28) border p-6 shadow-(--sorta-shadow-dialog)",
               isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
             )}
             onClick={(event) => event.stopPropagation()}
