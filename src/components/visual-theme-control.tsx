@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import {
+  DEFAULT_VISUAL_THEME,
   parseVisualTheme,
   VISUAL_THEME_CHANGE_EVENT,
   VISUAL_THEME_STORAGE_KEY,
@@ -28,7 +29,7 @@ function selectTheme(theme: VisualTheme) {
 }
 
 export function VisualThemeControl() {
-  const theme = useSyncExternalStore(subscribe, getTheme, () => "classic");
+  const theme = useSyncExternalStore(subscribe, getTheme, () => DEFAULT_VISUAL_THEME);
 
   return (
     <fieldset className="sorta-theme-control">
