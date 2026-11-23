@@ -9450,14 +9450,24 @@ function copyCardToDraft(card: CardEntry) {
         isDarkMode ? "bg-transparent text-slate-100" : "bg-transparent text-slate-950",
       )}
     >
-      <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
+      <main
+        className={clsx(
+          "mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8",
+          activeBoardLayout === "board" && "max-sm:h-full",
+        )}
+      >
         <datalist id="series-suggestions">
           {allSeries.map((series) => (
             <option key={series} value={series} />
           ))}
         </datalist>
 
-        <section className="grid min-h-0 w-full min-w-0 gap-3 sm:gap-4">
+        <section
+          className={clsx(
+            "grid min-h-0 w-full min-w-0 gap-3 sm:gap-4",
+            activeBoardLayout === "board" && "max-sm:flex-1 max-sm:grid-rows-[auto_minmax(0,1fr)]",
+          )}
+        >
           <div className="hidden">
             <div className="flex flex-col items-center gap-4">
               <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-[1fr_260px_auto_auto] sm:gap-4">
@@ -11648,7 +11658,7 @@ function copyCardToDraft(card: CardEntry) {
                   className={clsx(
                     "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
                     isMobileViewport
-                      ? clsx("gap-4 px-0", isCardDragging ? "snap-none" : "snap-x snap-mandatory")
+                      ? clsx("gap-4 px-0 max-sm:min-h-0 max-sm:flex-1", isCardDragging ? "snap-none" : "snap-x snap-mandatory")
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
                   )}
                   style={
@@ -15691,7 +15701,7 @@ function BoardColumn({
       className={clsx(
         "relative z-10 flex shrink-0 flex-col rounded-(--sorta-radius-28) border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
         isMobileViewport
-          ? "h-[min(calc(var(--app-height)-7.65rem),922px)] min-h-[min(calc(var(--app-height)-7.65rem),862px)]"
+          ? "max-sm:h-full"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(calc(100vw-2rem),348px)] snap-start max-sm:max-w-full" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-(--sorta-paper) text-slate-950",
@@ -15724,10 +15734,10 @@ function BoardColumn({
         }}
         onDragEnd={() => onColumnDragStart(null)}
       >
-        <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
+        <div className={clsx("sorta-column-title-frame rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
           <div
             className={clsx(
-              "rounded-[21px] p-4 backdrop-blur",
+              "sorta-column-title-card rounded-[21px] p-4 backdrop-blur",
               isDarkMode ? "bg-slate-950/96" : "bg-white/95",
               !isEditingColumn && "cursor-grab active:cursor-grabbing",
             )}

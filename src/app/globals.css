@@ -44,6 +44,8 @@ html[data-theme="polished"] {
   --sorta-shadow-board: 0 1px 3px rgb(22 42 29 / 9%), 0 10px 36px rgb(22 42 29 / 11%);
   --sorta-board-surface: rgb(248 251 255 / 77%);
   --sorta-board-gap: 1.25rem;
+  --sorta-column-title-fill: var(--sorta-paper);
+  --sorta-column-title-border: #b4c8e1;
   --sorta-title-ink: #284f83;
   --sorta-title-rule: linear-gradient(90deg, #b5783c, transparent);
   --sorta-control-track: rgb(40 79 131 / 10%);
@@ -71,6 +73,8 @@ html[data-theme="polished"].dark {
   --sorta-shadow-dialog: 0 1px 3px rgb(0 0 0 / 24%), 0 20px 56px rgb(0 0 0 / 48%);
   --sorta-shadow-board: 0 1px 3px rgb(0 0 0 / 22%), 0 10px 36px rgb(0 0 0 / 32%);
   --sorta-board-surface: rgb(186 213 255 / 6%);
+  --sorta-column-title-fill: #172b47;
+  --sorta-column-title-border: #344e72;
   --sorta-title-ink: #b6d0f5;
   --sorta-title-rule: linear-gradient(90deg, #d9a76c, transparent);
   --sorta-control-track: rgb(186 213 255 / 9%);
@@ -156,6 +160,14 @@ h3 {
   border-color: transparent;
   background: var(--sorta-board-surface);
   box-shadow: var(--sorta-shadow-board);
+}
+
+[data-theme="polished"] .sorta-column-title-frame {
+  background: var(--sorta-column-title-border);
+}
+
+[data-theme="polished"] .sorta-column-title-card {
+  background: var(--sorta-column-title-fill);
 }
 
 [data-theme="polished"] .sorta-board-title {
