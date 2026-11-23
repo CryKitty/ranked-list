@@ -9450,7 +9450,12 @@ function copyCardToDraft(card: CardEntry) {
         isDarkMode ? "bg-transparent text-slate-100" : "bg-transparent text-slate-950",
       )}
     >
-      <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
+      <main
+        className={clsx(
+          "mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8",
+          activeBoardLayout === "board" && "max-sm:h-full",
+        )}
+      >
         <datalist id="series-suggestions">
           {allSeries.map((series) => (
             <option key={series} value={series} />
