@@ -1,5 +1,6 @@
 "use client";
 
+import { VisualThemeControl } from "@/components/visual-theme-control";
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
@@ -16,8 +17,6 @@ import {
 } from "@/lib/rankboard-storage";
 import type { BoardFieldDefinition, SavedBoard } from "@/lib/types";
 
-const DARK_APP_BACKGROUND = "radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%)";
-const LIGHT_APP_BACKGROUND = "radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%)";
 
 function findSharedTierListPoolRow(rows: NonNullable<NonNullable<SavedBoard["settings"]>["tierListView"]>["rows"]) {
   return (
@@ -165,12 +164,6 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
-    const nextBackground = isDarkMode ? DARK_APP_BACKGROUND : LIGHT_APP_BACKGROUND;
-    const nextBackgroundColor = isDarkMode ? "#020617" : "#fff8ef";
-    document.documentElement.style.background = nextBackground;
-    document.documentElement.style.backgroundColor = nextBackgroundColor;
-    document.body.style.background = nextBackground;
-    document.body.style.backgroundColor = nextBackgroundColor;
     const themeColorMeta = document.querySelector("meta[name='theme-color']");
     themeColorMeta?.setAttribute("content", isDarkMode ? "#1f2937" : "#fff4d6");
     window.localStorage.setItem(SHARED_THEME_STORAGE_KEY, isDarkMode ? "dark" : "light");
@@ -269,7 +262,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
 
   const columnShellClass = isDarkMode
     ? "border-slate-800 bg-slate-950 text-white"
-    : "border-slate-200 bg-[#fff7f0] text-slate-950";
+    : "border-slate-200 bg-(--sorta-paper) text-slate-950";
   const mobileBoardLaneInset = "clamp(0.25rem, 4vw, 1rem)";
   const scopedColumns = useMemo(
     () =>
@@ -321,7 +314,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
       )}
     >
       <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-3 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
-        <header className={clsx("rounded-[28px] border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
+        <header className={clsx("rounded-(--sorta-radius-28) border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
           <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:text-left">
             <div className="flex min-w-0 items-center justify-center gap-3 sm:max-w-[min(100%,48rem)]">
               <h1 className={clsx("min-w-0 break-words text-3xl font-black leading-tight sm:text-4xl", isDarkMode ? "text-white" : "text-slate-950")}>
@@ -329,6 +322,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
               </h1>
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+              <VisualThemeControl />
               <button
                 className={clsx(
                   "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
@@ -391,11 +385,11 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
         >
           {isTierListShare ? scopedTierRows.map(({ row, cards }) => {
             return (
-              <div key={row.id} className={clsx("grid w-full grid-cols-[44px_minmax(0,1fr)] gap-px rounded-[28px] p-[1px]", row.accent)}>
+              <div key={row.id} className={clsx("grid w-full grid-cols-[44px_minmax(0,1fr)] gap-px rounded-(--sorta-radius-28) p-[1px]", row.accent)}>
                 <div className={clsx("flex min-h-[142px] items-center justify-center rounded-l-[27px] bg-gradient-to-br px-2 py-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]", row.accent)}>
                   <span className="text-center text-lg font-black leading-none">{row.title}</span>
                 </div>
-                <div className={clsx("min-h-[142px] rounded-r-[27px] border p-3", isDarkMode ? "border-slate-800 bg-slate-950/95" : "border-slate-200 bg-[#fff7f0]")}>
+                <div className={clsx("min-h-[142px] rounded-r-[27px] border p-3", isDarkMode ? "border-slate-800 bg-slate-950/95" : "border-slate-200 bg-(--sorta-paper)")}>
                   <div className="flex flex-wrap content-start gap-2">
                     {cards.map((card) => {
                       const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
@@ -433,7 +427,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                       );
                     })}
                     {cards.length === 0 ? (
-                      <div className={clsx("flex min-h-28 flex-1 items-center justify-center rounded-[24px] border border-dashed px-4 text-center text-sm", isDarkMode ? "border-white/10 bg-white/[0.02] text-slate-400" : "border-slate-300 bg-white/70 text-slate-500")}>
+                      <div className={clsx("flex min-h-28 flex-1 items-center justify-center rounded-(--sorta-radius-24) border border-dashed px-4 text-center text-sm", isDarkMode ? "border-white/10 bg-white/[0.02] text-slate-400" : "border-slate-300 bg-white/70 text-slate-500")}>
                         Nothing in this shared row.
                       </div>
                     ) : null}
@@ -446,7 +440,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
               <div
                 key={column.id}
                 className={clsx(
-                  "flex shrink-0 snap-start flex-col rounded-[28px] border p-2.5 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:p-3",
+                  "flex shrink-0 snap-start flex-col rounded-(--sorta-radius-28) border p-2.5 shadow-[0_24px_44px_rgba(15,23,42,0.18)] sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:p-3",
                   isMobileViewport
                     ? "h-[min(calc(var(--app-height)-9.45rem),882px)] min-h-[min(calc(var(--app-height)-9.45rem),822px)] w-[min(88vw,348px)] snap-center"
                     : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)] w-[320px]",
@@ -485,7 +479,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                     return (
                       <article
                         key={card.entryId}
-                        className={clsx("mx-1 shrink-0 overflow-hidden rounded-[28px] border bg-slate-900 sm:mx-0", tierBorderClass)}
+                        className={clsx("mx-1 shrink-0 overflow-hidden rounded-(--sorta-radius-28) border bg-slate-900 sm:mx-0", tierBorderClass)}
                       >
                         <div className="relative aspect-video bg-slate-900">
                           {card.imageUrl ? (
@@ -526,7 +520,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                   {cards.length === 0 ? (
                     <div
                       className={clsx(
-                        "flex min-h-32 items-center justify-center rounded-[24px] border border-dashed px-4 text-center text-sm",
+                        "flex min-h-32 items-center justify-center rounded-(--sorta-radius-24) border border-dashed px-4 text-center text-sm",
                         isDarkMode
                           ? "border-white/10 bg-white/[0.02] text-slate-400"
                           : "border-slate-300 bg-white/70 text-slate-500",

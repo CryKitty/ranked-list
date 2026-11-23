@@ -39,7 +39,7 @@ export function BoardHistoryDialog({
     <div className="fixed inset-0 z-[420] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={clsx(
-          "flex max-h-[min(760px,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-[32px] border shadow-[0_30px_80px_rgba(15,23,42,0.35)]",
+          "flex max-h-[min(760px,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-(--sorta-radius-32) border shadow-[0_30px_80px_rgba(15,23,42,0.35)]",
           isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-white/70 bg-white text-slate-950",
         )}
         onClick={(event) => event.stopPropagation()}
