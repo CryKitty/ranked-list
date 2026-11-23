@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Newsreader, Source_Sans_3, Space_Grotesk } from "next/font/google";
-import { visualThemeInitScript } from "@/lib/visual-theme";
+import { DEFAULT_VISUAL_THEME, visualThemeInitScript } from "@/lib/visual-theme";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -46,7 +46,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="classic"
+      data-theme={DEFAULT_VISUAL_THEME}
       suppressHydrationWarning
       className={`${spaceGrotesk.variable} ${fraunces.variable} ${sourceSans.variable} ${newsreader.variable} h-full antialiased`}
     >

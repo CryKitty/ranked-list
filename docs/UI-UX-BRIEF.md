@@ -11,3 +11,5 @@ De-stock the foundation: default shadcn is its own AI look. Always customize the
 One-Standout Rule: per view, ONE memorable component (sourced or inspired from Magic UI, Aceternity UI, 21st.dev, RareUI, Beautiful UI); everything else quiet and consistent.
 
 Taste details: ease-out for enter animations (never ease-in); semi-transparent shadows instead of solid borders.
+
+Polished is the default appearance. Light mode uses pale paper-blue and soft blue-grey surfaces with navy ink. Dark mode uses deep navy and blue-black surfaces with cool blue-grey text. Both modes share a steel-blue accent and retain the copper rule beneath the board title. Visitors can choose Classic in the Appearance toggle, and their saved preference takes precedence.
