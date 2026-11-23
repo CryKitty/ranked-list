@@ -9457,7 +9457,12 @@ function copyCardToDraft(card: CardEntry) {
           ))}
         </datalist>
 
-        <section className="grid min-h-0 w-full min-w-0 gap-3 sm:gap-4">
+        <section
+          className={clsx(
+            "grid min-h-0 w-full min-w-0 gap-3 sm:gap-4",
+            activeBoardLayout === "board" && "max-sm:flex-1 max-sm:grid-rows-[auto_minmax(0,1fr)]",
+          )}
+        >
           <div className="hidden">
             <div className="flex flex-col items-center gap-4">
               <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-[1fr_260px_auto_auto] sm:gap-4">
