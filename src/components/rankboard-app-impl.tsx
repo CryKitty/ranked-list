@@ -10953,8 +10953,8 @@ function copyCardToDraft(card: CardEntry) {
                   </button>
                 </div>
               ) : (
-                <div className="group flex min-w-0 items-center justify-between gap-4">
-                  <div ref={boardTitleHeaderRef} className="flex min-w-0 items-center gap-3">
+                <div className="group flex min-w-0 items-center justify-between gap-2 sm:gap-4">
+                  <div ref={boardTitleHeaderRef} className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <div className="group/boards relative shrink-0" data-board-switcher-root="true">
                       <button
                         aria-label="Switch board"
@@ -11056,7 +11056,7 @@ function copyCardToDraft(card: CardEntry) {
                       >
                         <h1
                           className={clsx(
-                            "sorta-board-title min-w-0 truncate text-2xl font-black transition-all duration-200 ease-out sm:text-3xl",
+                            "sorta-board-title min-w-0 wrap-anywhere text-2xl font-black transition-all duration-200 ease-out sm:truncate sm:text-3xl",
                             starterBoardTitlePhase === "exit" && "-translate-x-3 opacity-0",
                             starterBoardTitlePhase === "enter" && "translate-x-3 opacity-0",
                             isDarkMode ? "text-white" : "text-slate-950",
@@ -15693,7 +15693,7 @@ function BoardColumn({
         isMobileViewport
           ? "h-[min(calc(var(--app-height)-7.65rem),922px)] min-h-[min(calc(var(--app-height)-7.65rem),862px)]"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
-        isMobileViewport ? "w-[min(calc(100vw-2rem),348px)] snap-start" : "w-[320px] snap-start",
+        isMobileViewport ? "w-[min(calc(100vw-2rem),348px)] snap-start max-sm:max-w-full" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-(--sorta-paper) text-slate-950",
         !isDarkMode && "shadow-none",
         draggingColumnId === column.id && "opacity-60",
