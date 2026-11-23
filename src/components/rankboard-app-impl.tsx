@@ -11648,7 +11648,7 @@ function copyCardToDraft(card: CardEntry) {
                   className={clsx(
                     "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
                     isMobileViewport
-                      ? clsx("gap-4 px-0", isCardDragging ? "snap-none" : "snap-x snap-mandatory")
+                      ? clsx("gap-4 px-0 max-sm:min-h-0 max-sm:flex-1", isCardDragging ? "snap-none" : "snap-x snap-mandatory")
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
                   )}
                   style={
@@ -15691,7 +15691,7 @@ function BoardColumn({
       className={clsx(
         "relative z-10 flex shrink-0 flex-col rounded-(--sorta-radius-28) border p-2.5 sm:h-[min(78vh,920px)] sm:min-h-[720px] sm:snap-align-none sm:p-3",
         isMobileViewport
-          ? "h-[min(calc(var(--app-height)-7.65rem),922px)] min-h-[min(calc(var(--app-height)-7.65rem),862px)]"
+          ? "max-sm:h-full"
           : "h-[min(82dvh,980px)] min-h-[min(82dvh,940px)]",
         isMobileViewport ? "w-[min(calc(100vw-2rem),348px)] snap-start max-sm:max-w-full" : "w-[320px] snap-start",
         isDarkMode ? "bg-slate-950 text-white" : "bg-(--sorta-paper) text-slate-950",
@@ -15724,10 +15724,10 @@ function BoardColumn({
         }}
         onDragEnd={() => onColumnDragStart(null)}
       >
-        <div className={clsx("rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
+        <div className={clsx("sorta-column-title-frame rounded-[22px] bg-gradient-to-br p-[1px]", column.accent)}>
           <div
             className={clsx(
-              "rounded-[21px] p-4 backdrop-blur",
+              "sorta-column-title-card rounded-[21px] p-4 backdrop-blur",
               isDarkMode ? "bg-slate-950/96" : "bg-white/95",
               !isEditingColumn && "cursor-grab active:cursor-grabbing",
             )}
