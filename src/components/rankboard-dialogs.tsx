@@ -66,13 +66,47 @@ export function ArtworkPasteDialog({
   isDarkMode,
   onClose,
   onPaste,
+  onHarvest,
 }: {
   isDarkMode: boolean;
   onClose: () => void;
-  onPaste: (event: ClipboardEvent<HTMLDivElement>) => void;
+  onPaste: (event: ClipboardEvent<HTMLDivElement>) => boolean;
+  onHarvest: (artwork: string | File) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pasteZoneRef = useRef<HTMLDivElement>(null);
+  const harvestingRef = useRef(false);
+
+  function finishPaste(zone: HTMLDivElement) {
+    zone.replaceChildren();
+    onClose();
+  }
+
+  async function harvestPaste(zone: HTMLDivElement) {
+    if (!zone.isConnected || harvestingRef.current) return;
+
+    const image = zone.querySelector("img");
+    const value = image ? image.getAttribute("src")?.trim() : zone.textContent?.trim();
+    if (!value) return;
+
+    harvestingRef.current = true;
+    try {
+      if (image && /^(blob:|data:)/i.test(value)) {
+        const blob = await fetch(value)
+          .then((response) => response.ok ? response.blob() : null)
+          .catch(() => null);
+        if (!blob || !zone.isConnected) return;
+        onHarvest(new File([blob], "clipboard-image", { type: blob.type }));
+      } else if (!image || /^https?:\/\//i.test(value)) {
+        onHarvest(value);
+      } else {
+        return;
+      }
+      finishPaste(zone);
+    } finally {
+      harvestingRef.current = false;
+    }
+  }
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -105,7 +139,16 @@ export function ArtworkPasteDialog({
           isDarkMode ? "border-white/20 bg-slate-950" : "border-slate-300 bg-slate-50",
         )}
         contentEditable
-        onPaste={onPaste}
+        onInput={(event) => void harvestPaste(event.currentTarget)}
+        onPaste={(event) => {
+          const zone = event.currentTarget;
+          if (onPaste(event)) {
+            finishPaste(zone);
+          } else {
+            // Let Safari insert the clipboard contents before inspecting the zone.
+            requestAnimationFrame(() => void harvestPaste(zone));
+          }
+        }}
         role="textbox"
       />
       <button

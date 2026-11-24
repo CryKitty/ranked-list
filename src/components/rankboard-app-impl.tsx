@@ -12244,11 +12244,12 @@ function copyCardToDraft(card: CardEntry) {
           <ArtworkPasteDialog
             isDarkMode={isDarkMode}
             onClose={() => setArtworkPasteSheet(null)}
-            onPaste={(event) => {
-              if (handleArtworkPasteEvent(artworkPasteSheet.target, event, artworkPasteSheet.field)) {
-                setArtworkPasteSheet(null);
+            onPaste={(event) => handleArtworkPasteEvent(artworkPasteSheet.target, event, artworkPasteSheet.field)}
+            onHarvest={(artwork) => {
+              if (typeof artwork === "string") {
+                applyDraftArtwork(artworkPasteSheet.target, artworkPasteSheet.field, artwork);
               } else {
-                event.preventDefault();
+                void applyPastedArtworkImage(artworkPasteSheet.target, artworkPasteSheet.field, artwork);
               }
             }}
           />
