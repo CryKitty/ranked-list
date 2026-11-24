@@ -13347,40 +13347,24 @@ function copyCardToDraft(card: CardEntry) {
           >
             <div
               className={clsx(
-                "flex max-h-[88vh] w-full max-w-[656px] flex-col overflow-hidden rounded-(--sorta-radius-32) border p-4 shadow-(--sorta-shadow-dialog) sm:p-6",
+                "flex max-h-[min(88dvh,calc(100dvh-2rem))] max-md:h-[88dvh] w-full max-w-[656px] flex-col overflow-hidden rounded-(--sorta-radius-32) border p-4 shadow-(--sorta-shadow-dialog) sm:p-6",
                 isDarkMode
                   ? "border-white/10 bg-slate-900 text-slate-100"
                   : "border-white/70 bg-white text-slate-950",
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className={clsx("text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Which do you like more?
-                  </h2>
-                </div>
-                <button
-                  className={clsx(
-                    "rounded-full p-2 transition",
-                    isDarkMode
-                      ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                  )}
-                  onClick={() => setPairwiseQuizState(null)}
-                  type="button"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+              <h2 className={clsx("shrink-0 text-2xl font-black sm:text-3xl", isDarkMode ? "text-white" : "text-slate-950")}>
+                Which do you like more?
+              </h2>
 
-              <div className="mt-4 grid flex-1 content-start justify-items-center gap-3 overflow-y-auto px-2 pt-2 pr-1 md:mt-6 md:grid-cols-2 md:gap-4">
+              <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 md:mt-6 md:grid md:grid-cols-2 md:content-start md:justify-items-center md:gap-4 md:overflow-y-auto md:px-2 md:pt-2 md:pr-1">
                 {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
                   card ? (
                     <button
                       key={`${card.entryId}-${index}`}
                       className={clsx(
-                        "mx-auto w-full max-w-[303px] overflow-visible rounded-(--sorta-radius-28) border border-transparent p-2 text-left transition sm:max-w-[332px] md:max-w-[363px]",
+                        "mx-auto w-full max-w-[303px] overflow-visible rounded-(--sorta-radius-28) border border-transparent text-left transition max-md:flex max-md:min-h-0 max-md:flex-1 sm:max-w-[332px] md:max-w-[363px] md:p-2",
                         isDarkMode
                           ? "text-white hover:border-white/60"
                           : "text-slate-950 hover:border-slate-300",
@@ -13394,13 +13378,13 @@ function copyCardToDraft(card: CardEntry) {
                         isDarkMode={isDarkMode}
                         showSeries={Boolean(seriesFieldDefinition?.showOnCardFront)}
                         showArtwork={shouldShowArtworkOnCards}
-                      showTierHighlights={activeBoardSettings.showTierHighlights}
-                      frontFieldDefinitions={activeBoardFieldDefinitions}
-                      rankBadge={null}
-                      compactImageOnly={false}
-                      allowOuterButtonClick
-                      showDragCursor={false}
-                    />
+                        showTierHighlights={activeBoardSettings.showTierHighlights}
+                        frontFieldDefinitions={activeBoardFieldDefinitions}
+                        rankBadge={null}
+                        fillQuizRowOnMobile
+                        allowOuterButtonClick
+                        showDragCursor={false}
+                      />
                     </button>
                   ) : null,
                 )}
@@ -13426,31 +13410,25 @@ function copyCardToDraft(card: CardEntry) {
                       }}
                     />
                   </div>
-                  {pairwiseQuizProgressMetrics ? (
-                    <p className={clsx("mt-2 text-xs", isDarkMode ? "text-slate-400" : "text-slate-500")}>
-                      {pairwiseQuizProgressMetrics.remainingEstimatedComparisons > 0
-                        ? `${pairwiseQuizProgressMetrics.remainingEstimatedComparisons} estimated comparison${pairwiseQuizProgressMetrics.remainingEstimatedComparisons === 1 ? "" : "s"} left.`
-                        : "Final choice coming up."}
-                    </p>
-                  ) : null}
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex max-w-full flex-auto flex-nowrap items-center gap-2">
                   <button
                     className={clsx(
-                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      "grid size-11 shrink-0 place-items-center rounded-2xl border transition",
                       isDarkMode
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40 disabled:border-white/10 disabled:text-slate-500"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950 disabled:border-slate-200 disabled:text-slate-400",
                     )}
+                    aria-label="Back"
                     disabled={pairwiseQuizState.history.length === 0}
                     onClick={undoPairwiseChoice}
                     type="button"
                   >
-                    Back
+                    <ArrowLeft aria-hidden="true" className="size-5" />
                   </button>
                   <button
                     className={clsx(
-                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      "h-11 flex-1 whitespace-nowrap rounded-2xl border px-2 font-semibold transition max-[360px]:text-xs",
                       isDarkMode
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -13465,15 +13443,16 @@ function copyCardToDraft(card: CardEntry) {
                   </button>
                   <button
                     className={clsx(
-                      "rounded-2xl border px-4 py-3 font-semibold transition",
+                      "grid size-11 shrink-0 place-items-center rounded-2xl border transition",
                       isDarkMode
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
+                    aria-label="Cancel"
                     onClick={() => setPairwiseQuizState(null)}
                     type="button"
                   >
-                    Cancel
+                    <X aria-hidden="true" className="size-5" />
                   </button>
                 </div>
               </div>
@@ -17942,6 +17921,7 @@ function CardTile({
   mobileArtworkVariant,
   showDragCursor = true,
   allowOuterButtonClick = false,
+  fillQuizRowOnMobile = false,
 }: {
   card: CardEntry;
   collapseCards: boolean;
@@ -17963,6 +17943,7 @@ function CardTile({
   mobileArtworkVariant?: "board" | "tier-list";
   showDragCursor?: boolean;
   allowOuterButtonClick?: boolean;
+  fillQuizRowOnMobile?: boolean;
 }) {
   const tierKey = showTierHighlights ? getTierKey(rankBadge?.value ?? null) : null;
   const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeries);
@@ -18183,6 +18164,7 @@ function CardTile({
                   : cardAspectRatio === "portrait"
                     ? "aspect-[2/3]"
                     : "aspect-[1.9/1] sm:aspect-video",
+            fillQuizRowOnMobile && "max-md:aspect-auto max-md:min-h-0",
             collapseCards ? "rounded-[14px]" : compactImageOnly ? "rounded-[14px]" : "rounded-(--sorta-radius-28)",
           )}
         style={
@@ -18301,6 +18283,7 @@ function CardTile({
             <h3
               className={clsx(
                 "font-bold text-white",
+                fillQuizRowOnMobile && "max-md:line-clamp-2",
                 isPortraitOverlay
                   ? "line-clamp-3 text-[13px] leading-[1.05]"
                   : forceSquare
