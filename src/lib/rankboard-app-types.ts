@@ -180,36 +180,10 @@ export type TierListConversionState = {
   selectedColumnIds: string[];
 };
 
-export type PairwiseQuizState = {
-  columnId: string;
-  columnTitle: string;
-  mode?: "column" | "card";
-  focusEntryId?: string | null;
-  sortedCards: CardEntry[];
-  remainingCards: CardEntry[];
-  candidateCard: CardEntry | null;
-  low: number;
-  high: number;
-  compareIndex: number;
-  comparisons: number;
-  history: Array<{
-    sortedCards: CardEntry[];
-    remainingCards: CardEntry[];
-    candidateCard: CardEntry | null;
-    low: number;
-    high: number;
-    compareIndex: number;
-    comparisons: number;
-  }>;
-};
+export type PairwiseQuizState = PairwiseQuizProgress;
 
 export type PairwiseQuizReview = {
-  columnId: string;
-  columnTitle: string;
-  mode?: "column" | "card";
-  focusEntryId?: string | null;
   rankedCards: CardEntry[];
-  comparisons: number;
 };
 
 export type PendingPairwiseQuizResume = {
