@@ -79,7 +79,7 @@ import {
 } from "@/components/rankboard-fields";
 import { VisualThemeControl } from "@/components/visual-theme-control";
 import { BoardHistoryDialog } from "@/components/board-history-dialog";
-import { AddCardDialog, BoardSetupDialog, EditCardDialog, ArtworkPasteDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
+import { AddCardDialog, ArtworkPasteDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { driveRequest, signInWithGoogle, useDriveSync } from "@/lib/drive-client";

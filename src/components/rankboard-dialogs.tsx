@@ -94,6 +94,7 @@ export function ArtworkPasteDialog({
         event.preventDefault();
         onClose();
       }}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       <p id="artwork-paste-prompt" className="mb-2 text-sm font-semibold">Paste here</p>
       <div
