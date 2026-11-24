@@ -6802,50 +6802,66 @@ function copyCardToDraft(card: CardEntry) {
     field: ArtworkFieldKind,
     input: HTMLInputElement | null,
   ) {
-    setArtworkPasteError(null);
-    async function readArtwork() {
-      const clipboard = navigator.clipboard;
-      const read = clipboard?.read;
-      const items = read ? await read.call(clipboard).catch(() => []) : [];
-      for (const item of items) {
-        const imageType = item.types.find((type) => type.startsWith("image/"));
-        if (imageType) {
-          const image = await item.getType(imageType);
-          return new File([image], "clipboard-image", { type: imageType });
-        }
-      }
+    const previousInputMode = input?.inputMode ?? "";
 
-      for (const item of items) {
-        if (!item.types.includes("text/plain")) continue;
-        const value = await item.getType("text/plain").then((blob) => blob.text()).catch(() => "");
-        if (value.trim()) return value.trim();
-      }
-
-      const readText = clipboard?.readText;
-      return readText ? (await readText.call(clipboard).catch(() => "")).trim() : undefined;
+    if (input) {
+      input.inputMode = "none";
+      input.focus({ preventScroll: true });
+      input.select();
     }
 
-    let timeoutId: number | undefined;
+    setArtworkPasteError(null);
     try {
-      const timeout = new Promise<undefined>((resolve) => {
-        timeoutId = window.setTimeout(resolve, 2500);
-      });
-      const value = await Promise.race([readArtwork(), timeout]);
-      if (value instanceof File) {
-        void applyPastedArtworkImage(target, field, value);
-      } else if (value) {
-        applyDraftArtwork(target, field, value);
-      } else {
-        input?.focus();
+      try {
+        const clipboard = navigator.clipboard;
+        const text = (await clipboard?.readText?.().catch(() => ""))?.trim();
+        if (text) {
+          applyDraftArtwork(target, field, text);
+          return;
+        }
+
+        const items = await clipboard?.read?.().catch(() => []) ?? [];
+        for (const item of items) {
+          if (!item.types.includes("text/plain")) continue;
+          const value = await item.getType("text/plain").then((blob) => blob.text()).catch(() => "");
+          if (value.trim()) {
+            applyDraftArtwork(target, field, value.trim());
+            return;
+          }
+        }
+
+        for (const item of items) {
+          const imageType = item.types.find((type) => type.startsWith("image/"));
+          if (!imageType) continue;
+          const image = await item.getType(imageType).catch(() => null);
+          if (image) {
+            void applyPastedArtworkImage(target, field, new File([image], "clipboard-image", { type: imageType }));
+            return;
+          }
+        }
+      } catch {
+        // Try native paste with the artwork input still focused and selected.
+      }
+
+      let pasted = false;
+      try {
+        pasted = Boolean(input && document.execCommand?.("paste"));
+      } catch {
+        // Native paste can be blocked by the browser.
+      }
+      if (!pasted) {
         setArtworkPasteError({
           target,
           message: "Clipboard could not be read here. Paste into the artwork field instead.",
         });
       }
-    } catch {
-      setArtworkPasteError({ target, message: "Clipboard artwork could not be pasted." });
     } finally {
-      window.clearTimeout(timeoutId);
+      if (input) {
+        window.setTimeout(() => {
+          input.blur();
+          input.inputMode = previousInputMode;
+        }, 0);
+      }
     }
   }
 
@@ -9683,9 +9699,10 @@ function copyCardToDraft(card: CardEntry) {
                     <span>Settings</span>
                   </button>
                   {isActionsMenuOpen ? (
-                    <div
+                    <ViewportMenuPanel
+                      data-actions-menu-root="true"
                       className={clsx(
-                        "absolute right-0 z-[260] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                        "z-[260] min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                         isDarkMode
                           ? "border-white/10 bg-slate-950/95 text-slate-100"
                           : "border-slate-200 bg-white/95 text-slate-700",
@@ -9939,7 +9956,7 @@ function copyCardToDraft(card: CardEntry) {
                           Sign in with Google
                         </button>
                       ) : null}
-                    </div>
+                    </ViewportMenuPanel>
                   ) : null}
                 </div>
               </div>
@@ -11127,9 +11144,11 @@ function copyCardToDraft(card: CardEntry) {
                       </button>
                       <HoverTooltip isDarkMode={isDarkMode} label="Boards" scope="boards" />
                       {isBoardsMenuOpen ? (
-                        <div
+                        <ViewportMenuPanel
+                          data-board-switcher-root="true"
+                          align="left"
                           className={clsx(
-                            "absolute left-0 top-full z-[270] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                            "z-[270] min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                             isDarkMode
                               ? "border-white/10 bg-slate-950/95 text-slate-100"
                               : "border-slate-200 bg-white/95 text-slate-700",
@@ -11188,7 +11207,7 @@ function copyCardToDraft(card: CardEntry) {
                               </button>
                             ) : null}
                           </div>
-                        </div>
+                        </ViewportMenuPanel>
                       ) : null}
                     </div>
                     <div className="group/rename flex min-w-0 items-center gap-2">
@@ -11350,9 +11369,10 @@ function copyCardToDraft(card: CardEntry) {
                         <span>Settings</span>
                       </button>
                       {isActionsMenuOpen ? (
-                        <div
+                        <ViewportMenuPanel
+                          data-actions-menu-root="true"
                           className={clsx(
-                            "absolute right-0 z-[260] mt-2 min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
+                            "z-[260] min-w-[220px] rounded-3xl border p-2 shadow-[0_24px_60px_rgba(19,27,68,0.2)] backdrop-blur",
                             isDarkMode
                               ? "border-white/10 bg-slate-950/95 text-slate-100"
                               : "border-slate-200 bg-white/95 text-slate-700",
@@ -11571,7 +11591,7 @@ function copyCardToDraft(card: CardEntry) {
                               Sign in with Google
                             </button>
                           ) : null}
-                        </div>
+                        </ViewportMenuPanel>
                       ) : null}
                     </div>
                     <SaveStatusButton
@@ -15646,6 +15666,92 @@ function SeriesFilterButton({
   );
 }
 
+function ViewportMenuPanel({
+  align = "right",
+  children,
+  className,
+  ...rootMarker
+}: {
+  align?: "left" | "right";
+} & React.HTMLAttributes<HTMLDivElement>) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current?.parentElement;
+    const panel = panelRef.current;
+    if (!anchor || !panel) return;
+
+    const viewport = window.visualViewport;
+    const margin = 16;
+    const gap = 8;
+    const naturalHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
+
+    function positionPanel() {
+      if (!anchor || !panel) return;
+      const bounds = anchor.getBoundingClientRect();
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const top = viewportTop + margin;
+      const bottom = viewportTop + viewportHeight - margin;
+      const left = viewportLeft + margin;
+      const right = viewportLeft + viewportWidth - margin;
+
+      if (!bounds.width || !bounds.height || bounds.bottom <= top || bounds.top >= bottom ||
+          bounds.right <= left || bounds.left >= right) {
+        panel.style.visibility = "hidden";
+        return;
+      }
+
+      const below = Math.max(top, bounds.bottom + gap);
+      const above = Math.min(bottom, bounds.top - gap);
+      const spaceBelow = bottom - below;
+      const spaceAbove = above - top;
+      const opensUp = spaceBelow < naturalHeight && spaceAbove > spaceBelow;
+
+      panel.style.maxHeight = `min(calc(100dvh - ${2 * margin}px), ${Math.max(0, opensUp ? spaceAbove : spaceBelow)}px)`;
+      panel.style.maxWidth = `${right - left}px`;
+      const panelWidth = panel.offsetWidth;
+      const alignedLeft = align === "left" ? bounds.left : bounds.right - panelWidth;
+      panel.style.left = `${Math.max(left, Math.min(alignedLeft, right - panelWidth))}px`;
+      panel.style.top = `${opensUp ? above : below}px`;
+      panel.style.transform = opensUp ? "translateY(-100%)" : "";
+      panel.style.visibility = "visible";
+    }
+
+    positionPanel();
+    window.addEventListener("scroll", positionPanel, true);
+    window.addEventListener("resize", positionPanel);
+    viewport?.addEventListener("scroll", positionPanel);
+    viewport?.addEventListener("resize", positionPanel);
+
+    return () => {
+      window.removeEventListener("scroll", positionPanel, true);
+      window.removeEventListener("resize", positionPanel);
+      viewport?.removeEventListener("scroll", positionPanel);
+      viewport?.removeEventListener("resize", positionPanel);
+    };
+  }, [align]);
+
+  return (
+    <>
+      <span ref={anchorRef} hidden />
+      {createPortal(
+        <div
+          {...rootMarker}
+          ref={panelRef}
+          className={clsx("invisible fixed top-0 left-0 overflow-y-auto overscroll-contain", className)}
+        >
+          {children}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function BoardColumn({
   column,
   fullCards,
@@ -15976,9 +16082,10 @@ function BoardColumn({
                     />
                   </div>
                   {isMenuOpen ? (
-                    <div
+                    <ViewportMenuPanel
+                      data-column-menu-root="true"
                       className={clsx(
-                        "absolute right-0 top-12 z-[120] flex w-56 flex-col rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
+                        "z-[120] w-56 rounded-2xl border p-2 shadow-[0_18px_40px_rgba(15,23,42,0.24)]",
                         isDarkMode
                           ? "border-white/10 bg-slate-900"
                           : "border-slate-200 bg-white",
@@ -16494,7 +16601,7 @@ function BoardColumn({
                         <Trash2 className="h-4 w-4" />
                         Delete column
                       </button>
-                    </div>
+                    </ViewportMenuPanel>
                   ) : null}
                 </div>
               </>
