@@ -5,7 +5,6 @@
 :root {
   --background: #fff8ef;
   --foreground: #101828;
-  --sorta-canvas: radial-gradient(circle at top, #fff7e8 0%, #fff1df 24%, #fff4e8 56%, #fff8f3 100%);
   --sorta-font-body: var(--font-space-grotesk);
   --sorta-font-display: var(--font-fraunces);
   --sorta-paper: #fff7f0;
@@ -21,7 +20,6 @@
 
 html.dark {
   --background: #020617;
-  --sorta-canvas: radial-gradient(circle at top, #1f2937 0%, #111827 35%, #020617 100%);
   --sorta-control-track: rgb(255 255 255 / 9%);
   --sorta-control-selected: rgb(255 255 255 / 16%);
   --sorta-control-focus: #93c5fd;
@@ -30,7 +28,6 @@ html.dark {
 html[data-theme="polished"] {
   --background: #e5edf7;
   --foreground: #172b47;
-  --sorta-canvas: linear-gradient(150deg, #f4f8fd, var(--background) 62%, #d7e5f5);
   --sorta-font-body: var(--font-source-sans);
   --sorta-font-display: var(--font-newsreader);
   --sorta-paper: #edf4fc;
@@ -69,7 +66,6 @@ html[data-theme="polished"] {
 html[data-theme="polished"].dark {
   --background: #0c1b34;
   --foreground: #e4edf8;
-  --sorta-canvas: linear-gradient(150deg, #1b3558, var(--background) 64%, #070f21);
   --sorta-shadow-dialog: 0 1px 3px rgb(0 0 0 / 24%), 0 20px 56px rgb(0 0 0 / 48%);
   --sorta-shadow-board: 0 1px 3px rgb(0 0 0 / 22%), 0 10px 36px rgb(0 0 0 / 32%);
   --sorta-board-surface: rgb(186 213 255 / 6%);
@@ -101,17 +97,6 @@ html {
 
 html {
   background-color: var(--background);
-}
-
-html::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: var(--sorta-canvas);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
 }
 
 body {

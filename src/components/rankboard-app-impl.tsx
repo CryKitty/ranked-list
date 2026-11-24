@@ -2632,9 +2632,11 @@ export function RankboardApp() {
     const localBoards = latestBoardsRef.current;
     const activeId = latestActiveBoardIdRef.current;
     const localById = new Map(localBoards.map((board) => [board.id, board]));
-    const remoteIds = new Set(remoteBoards.map((board) => board.id));
+    const remoteIds = new Set<string>();
     const imports = new Map<string, SavedBoard>();
     for (const board of remoteBoards) {
+      if (isEphemeralStarterBoard(board)) continue;
+      remoteIds.add(board.id);
       const local = localById.get(board.id);
       if (!local || Date.parse(board.updatedAt) > Date.parse(local.updatedAt)) {
         imports.set(board.id, normalizeSavedBoard({ ...board, importedFromDrive: true }));
@@ -2925,14 +2927,14 @@ export function RankboardApp() {
               : nextBoards[0].id;
           const storedActiveBoard =
             nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
+          const retainedBoards = nextBoards.filter((board) => !isDisposableDriveStarter(board));
           const replacement = isDisposableDriveStarter(storedActiveBoard)
-            ? nextBoards.filter((board) => !isDisposableDriveStarter(board))
-                .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0]
+            ? [...retainedBoards].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0]
             : undefined;
           const nextActiveBoard = replacement ?? storedActiveBoard;
 
           skipNextHistoryRef.current = true;
-          setBoards(replacement ? nextBoards.filter((board) => board.id !== storedActiveBoard.id) : nextBoards);
+          setBoards(retainedBoards.length > 0 ? retainedBoards : nextBoards);
           setActiveBoardId(nextActiveBoard.id);
           setColumns(nextActiveBoard.columns);
           setCardsByColumn(nextActiveBoard.cardsByColumn);
@@ -3225,6 +3227,7 @@ export function RankboardApp() {
 
     const root = document.documentElement;
     const visualViewport = window.visualViewport;
+    const widthQuery = window.matchMedia("(min-width: 640px)");
 
     const syncAppHeight = () => {
       if (isMobileViewport && isMobileActionsOpenRef.current) {
@@ -3237,20 +3240,16 @@ export function RankboardApp() {
 
     syncAppHeight();
 
-    if (!isMobileViewport) {
-      return () => {
-        root.style.setProperty("--app-height", "100dvh");
-      };
-    }
-
     visualViewport?.addEventListener("resize", syncAppHeight);
     window.addEventListener("resize", syncAppHeight);
     window.addEventListener("orientationchange", syncAppHeight);
+    widthQuery.addEventListener("change", syncAppHeight);
 
     return () => {
       visualViewport?.removeEventListener("resize", syncAppHeight);
       window.removeEventListener("resize", syncAppHeight);
       window.removeEventListener("orientationchange", syncAppHeight);
+      widthQuery.removeEventListener("change", syncAppHeight);
       root.style.setProperty("--app-height", "100dvh");
     };
   }, [isMobileViewport]);
@@ -9528,13 +9527,13 @@ function copyCardToDraft(card: CardEntry) {
   const content = (
     <div
       className={clsx(
-        "h-[var(--app-height)] overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-[var(--app-height)] sm:overflow-visible",
+        "h-dvh overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-dvh sm:overflow-visible",
         isDarkMode ? "bg-transparent text-slate-100" : "bg-transparent text-slate-950",
       )}
     >
       <main
         className={clsx(
-          "mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8",
+          "mx-auto flex h-dvh min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-dvh sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8",
           activeBoardLayout === "board" && "max-sm:h-full",
         )}
       >

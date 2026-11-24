@@ -60,8 +60,8 @@ export async function GET(request: NextRequest, { params }: Context) {
       if (!file) return error("Drive image was not found.", 404);
       const etag = `"${hash}"`;
       const headers = {
-        // The browser can reuse bytes after the server verifies the session and file.
-        "Cache-Control": "private, no-cache",
+        // Image bytes are immutable for a given SHA-256 hash.
+        "Cache-Control": "private, max-age=31536000, immutable",
         ETag: etag,
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
