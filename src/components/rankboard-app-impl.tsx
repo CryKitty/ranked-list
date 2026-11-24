@@ -6763,35 +6763,66 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
+  async function applyPastedArtworkImage(
+    target: "draft" | "edit",
+    field: ArtworkFieldKind,
+    file: File,
+  ) {
+    setArtworkPasteError(null);
+    try {
+      const optimized = await optimizeImageFile(file);
+      applyDraftArtwork(target, field, await blobToDataUrl(optimized.file));
+    } catch (error) {
+      setArtworkPasteError({
+        target,
+        message: error instanceof Error ? error.message : "Clipboard artwork could not be processed.",
+      });
+    }
+  }
+
+  function handleArtworkPasteEvent(target: "draft" | "edit", event: React.ClipboardEvent) {
+    const { files, items } = event.clipboardData;
+    const file = Array.from(files).find((file) => file.type.startsWith("image/"))
+      ?? Array.from(items)
+        .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+        .map((item) => item.getAsFile())
+        .find((file) => file !== null);
+    if (!file) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const field = event.target instanceof HTMLInputElement && event.target.name === "mobileTierListImageUrl"
+      ? "portrait"
+      : "landscape";
+    void applyPastedArtworkImage(target, field, file);
+  }
+
+  async function pasteArtworkFromClipboard(
+    target: "draft" | "edit",
+    field: ArtworkFieldKind,
+    input: HTMLInputElement | null,
+  ) {
     setArtworkPasteError(null);
     async function readArtwork() {
       const clipboard = navigator.clipboard;
-      const items = await clipboard?.read?.().catch(() => []);
-      if (items) {
-        for (const item of items) {
-          if (!item.types.includes("text/plain")) continue;
-          const value = await item.getType("text/plain").then((blob) => blob.text()).catch(() => "");
-          if (value.trim()) return value.trim();
-        }
-
-        const imageItem = items.find((item) => item.types.some((type) => type.startsWith("image/")));
-        const imageType = imageItem?.types.find((type) => type.startsWith("image/"));
-        if (imageItem && imageType) {
-          try {
-            const image = await imageItem.getType(imageType);
-            const optimized = await optimizeImageFile(new File([image], "clipboard-image", { type: imageType }));
-            return await blobToDataUrl(optimized.file);
-          } catch (error) {
-            const text = await clipboard.readText?.().catch(() => "");
-            if (text?.trim()) return text.trim();
-            throw error;
-          }
+      const read = clipboard?.read;
+      const items = read ? await read.call(clipboard).catch(() => []) : [];
+      for (const item of items) {
+        const imageType = item.types.find((type) => type.startsWith("image/"));
+        if (imageType) {
+          const image = await item.getType(imageType);
+          return new File([image], "clipboard-image", { type: imageType });
         }
       }
 
-      const text = await clipboard?.readText?.().catch(() => "");
-      return text?.trim();
+      for (const item of items) {
+        if (!item.types.includes("text/plain")) continue;
+        const value = await item.getType("text/plain").then((blob) => blob.text()).catch(() => "");
+        if (value.trim()) return value.trim();
+      }
+
+      const readText = clipboard?.readText;
+      return readText ? (await readText.call(clipboard).catch(() => "")).trim() : undefined;
     }
 
     let timeoutId: number | undefined;
@@ -6800,13 +6831,19 @@ function copyCardToDraft(card: CardEntry) {
         timeoutId = window.setTimeout(resolve, 2500);
       });
       const value = await Promise.race([readArtwork(), timeout]);
-      if (value) {
+      if (value instanceof File) {
+        void applyPastedArtworkImage(target, field, value);
+      } else if (value) {
         applyDraftArtwork(target, field, value);
       } else {
-        setArtworkPasteError({ target, message: "Tap and hold the artwork field, then choose Paste." });
+        input?.focus();
+        setArtworkPasteError({
+          target,
+          message: "Clipboard could not be read here. Paste into the artwork field instead.",
+        });
       }
     } catch {
-      setArtworkPasteError({ target, message: "Clipboard artwork could not be pasted. Tap and hold the artwork field, then choose Paste." });
+      setArtworkPasteError({ target, message: "Clipboard artwork could not be pasted." });
     } finally {
       window.clearTimeout(timeoutId);
     }
@@ -8051,15 +8088,18 @@ function copyCardToDraft(card: CardEntry) {
     skipNextHistoryRef.current = true;
     setCardsByColumn(previous.snapshot.cardsByColumn);
     setHistory((current) => current.slice(0, -1));
-    setMobileUndoNotice(`Undid ${previous.label}`);
-    if (mobileUndoNoticeTimeoutRef.current) {
+    showMobileUndoNotice(`Undid ${previous.label}`);
+    queuePersistBoardState();
+  }
+
+  function showMobileUndoNotice(notice: string | null) {
+    if (mobileUndoNoticeTimeoutRef.current !== null) {
       window.clearTimeout(mobileUndoNoticeTimeoutRef.current);
     }
-    mobileUndoNoticeTimeoutRef.current = window.setTimeout(() => {
-      setMobileUndoNotice(null);
-      mobileUndoNoticeTimeoutRef.current = null;
-    }, 1800);
-    queuePersistBoardState();
+    setMobileUndoNotice(notice);
+    mobileUndoNoticeTimeoutRef.current = notice === null
+      ? null
+      : window.setTimeout(() => showMobileUndoNotice(null), 4000);
   }
 
   async function openBoardHistory() {
@@ -8118,7 +8158,7 @@ function copyCardToDraft(card: CardEntry) {
     setCardsByColumn(nextBoard.cardsByColumn);
     setIsBoardHistoryOpen(false);
     setPendingBoardHistoryAction(null);
-    setMobileUndoNotice(notice);
+    showMobileUndoNotice(notice);
     queuePersistBoardState({
       boards: nextBoards,
       activeBoardId,
@@ -9531,6 +9571,23 @@ function copyCardToDraft(card: CardEntry) {
         isDarkMode ? "bg-transparent text-slate-100" : "bg-transparent text-slate-950",
       )}
     >
+      <div
+        className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[300] flex justify-center px-3"
+        role="status"
+      >
+        {mobileUndoNotice ? (
+          <button
+            className={clsx(
+              "pointer-events-auto max-w-[min(92vw,34rem)] wrap-anywhere rounded-full px-4 py-2 text-center text-sm font-semibold",
+              isDarkMode ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-white",
+            )}
+            onClick={() => showMobileUndoNotice(null)}
+            type="button"
+          >
+            {mobileUndoNotice}
+          </button>
+        ) : null}
+      </div>
       <main
         className={clsx(
           "mx-auto flex h-dvh min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-4 sm:min-h-dvh sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8",
@@ -10011,7 +10068,11 @@ function copyCardToDraft(card: CardEntry) {
                             </button>
 
                             {isMobileQuickAddPanelOpen ? (
-                              <form className={mobileActionPopoverClassName} onSubmit={handleDraftSubmit}>
+                              <form
+                                className={mobileActionPopoverClassName}
+                                onPasteCapture={(event) => handleArtworkPasteEvent("draft", event)}
+                                onSubmit={handleDraftSubmit}
+                              >
                                 <div className="max-h-[min(68vh,560px)] overflow-y-auto p-3">
                                   <div className="mb-3 flex items-center justify-between gap-3 px-1">
                                     <div>
@@ -10151,8 +10212,9 @@ function copyCardToDraft(card: CardEntry) {
                                                     ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
                                                 )}
-                                                onClick={() => {
-                                                  void pasteArtworkFromClipboard("draft", artworkField.field);
+                                                onClick={(event) => {
+                                                  const input = event.currentTarget.parentElement?.querySelector("input") ?? null;
+                                                  void pasteArtworkFromClipboard("draft", artworkField.field, input);
                                                 }}
                                                 type="button"
                                                 aria-label={`Paste ${artworkField.label}`}
@@ -10980,7 +11042,7 @@ function copyCardToDraft(card: CardEntry) {
           <section
             ref={columnMenuBoundaryRef}
             className={clsx(
-              "sorta-board-surface relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-(--sorta-radius-32) border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.12)] backdrop-blur -mt-[30px] sm:-mt-[2vh] sm:p-4",
+              "sorta-board-surface relative z-0 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-visible rounded-(--sorta-radius-32) border p-3 shadow-(--sorta-shadow-board) backdrop-blur -mt-[30px] sm:-mt-[2vh] sm:p-4",
               isDarkMode
                 ? "border-white/10 bg-white/5"
                 : "border-white/70 bg-white/60",
@@ -11193,9 +11255,8 @@ function copyCardToDraft(card: CardEntry) {
                       >
                         <RotateCcw className="h-4 w-4" />
                         <HoverTooltip
-                          forceVisible={Boolean(mobileUndoNotice)}
                           isDarkMode={isDarkMode}
-                          label={mobileUndoNotice ?? "Undo"}
+                          label="Undo"
                           placement="bottom"
                           scope="mobile-undo"
                         />
@@ -12205,9 +12266,10 @@ function copyCardToDraft(card: CardEntry) {
           onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
           artworkPasteError={artworkPasteError?.target === "edit" ? artworkPasteError.message : null}
-          onPasteArtwork={(field) => {
-            void pasteArtworkFromClipboard("edit", field);
+          onPasteArtwork={(field, input) => {
+            void pasteArtworkFromClipboard("edit", field, input);
           }}
+          onPasteImage={(event) => handleArtworkPasteEvent("edit", event)}
           onReleaseYearChange={(value) =>
             setEditingCardDraft((current) =>
               current
@@ -12334,9 +12396,10 @@ function copyCardToDraft(card: CardEntry) {
           onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}
           artworkPasteError={artworkPasteError?.target === "draft" ? artworkPasteError.message : null}
-          onPasteArtwork={(field) => {
-            void pasteArtworkFromClipboard("draft", field);
+          onPasteArtwork={(field, input) => {
+            void pasteArtworkFromClipboard("draft", field, input);
           }}
+          onPasteImage={(event) => handleArtworkPasteEvent("draft", event)}
           onReleaseYearChange={(value) =>
             setDraft((current) => ({
               ...current,
@@ -17003,7 +17066,7 @@ function TierListRow({
         ref={setNodeRef}
         data-column-id={column.id}
         className={clsx(
-          "min-w-0 rounded-r-[28px] rounded-l-none border p-3 shadow-[0_24px_44px_rgba(15,23,42,0.12)]",
+          "min-w-0 rounded-r-[28px] rounded-l-none border p-3 shadow-(--sorta-shadow-board)",
           isDarkMode ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-(--sorta-paper) text-slate-950",
           isOver && (isDarkMode ? "border-white/80" : "border-slate-950"),
         )}
@@ -17777,17 +17840,7 @@ function CardTile({
     "bg-white text-slate-950";
   const collapsedTitleClass = "text-slate-950";
   const collapsedSeriesClass = "text-slate-700";
-  const noArtworkSurfaceStyle = isDarkMode
-    ? {
-        backgroundColor: "#0f172a",
-        backgroundImage:
-          "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.08), transparent 34%), radial-gradient(circle at 78% 18%, rgba(255,255,255,0.05), transparent 28%), linear-gradient(135deg, rgba(148,163,184,0.12), rgba(15,23,42,0.02) 42%, rgba(148,163,184,0.09))",
-      }
-    : {
-        backgroundColor: "#fff7f0",
-        backgroundImage:
-          "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.9), transparent 32%), radial-gradient(circle at 82% 16%, rgba(251,191,36,0.18), transparent 26%), linear-gradient(135deg, rgba(255,255,255,0.96), rgba(255,247,240,0.98) 38%, rgba(254,215,170,0.34))",
-      };
+  const noArtworkSurfaceStyle = { backgroundColor: isDarkMode ? "#0f172a" : "#fff7f0" };
 
   useEffect(() => {
     if (!collapseCards || !showCollapsedActions) {
