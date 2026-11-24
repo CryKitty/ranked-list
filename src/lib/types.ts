@@ -126,6 +126,7 @@ export type SavedBoard = BoardSnapshot & {
   isPublic?: boolean;
   publicSlug?: string | null;
   lastPublishedAt?: string | null;
+  defaultSelectedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

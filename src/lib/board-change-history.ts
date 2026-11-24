@@ -267,7 +267,10 @@ export async function loadBoardChangeHistory(
     throw error;
   }
 
-  const rows = (data ?? []) as SnapshotRow[];
+  return buildBoardChangeHistory((data ?? []) as SnapshotRow[], limit);
+}
+
+export function buildBoardChangeHistory(rows: SnapshotRow[], limit = BOARD_CHANGE_HISTORY_LIMIT): BoardChangeRecord[] {
   return rows
     .slice(0, -1)
     .flatMap((row, index) => {

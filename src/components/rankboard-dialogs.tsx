@@ -1279,7 +1279,7 @@ export function WelcomeDialog({
     },
     {
       title: "Save and share",
-      description: "Log in to save your board to your account and share your favorite rankings with friends.",
+      description: "Sign in with Google to sync your boards across devices.",
     },
   ];
 
@@ -1305,7 +1305,7 @@ export function WelcomeDialog({
               Welcome to Sorta
             </h2>
             <p className={clsx("mt-3 text-sm leading-6 sm:text-base", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-              Build ranking boards in minutes, then log in when you want to save them and share them with friends.
+              Build ranking boards and sign in with Google to sync them across devices.
             </p>
           </div>
         </div>
@@ -1363,7 +1363,7 @@ export function WelcomeDialog({
             type="button"
           >
             <LogIn className="h-4 w-4" />
-            Log In to Save
+            Sign in with Google
           </button>
         </div>
       </div>
@@ -1485,7 +1485,7 @@ export function BoardSetupDialog({
               )}
             >
               <p className="leading-6">
-                Log in to save this board to your account and sync it across devices.
+                Sign in with Google to sync your locally saved boards across devices.
               </p>
               <button
                 className={clsx(
@@ -1496,7 +1496,7 @@ export function BoardSetupDialog({
                 onClick={onLogin}
                 type="button"
               >
-                Log In
+                Sign in with Google
               </button>
             </div>
           ) : null}

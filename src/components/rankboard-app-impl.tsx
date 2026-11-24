@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createContext, Fragment, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
   AutoScrollActivator,
@@ -82,6 +82,8 @@ import { BoardHistoryDialog } from "@/components/board-history-dialog";
 import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { driveRequest, signInWithGoogle, useDriveSync } from "@/lib/drive-client";
+import { preserveLocalDriveArtwork } from "@/lib/drive-format";
 import { optimizeImageFile } from "@/lib/image-processing";
 import { getArtworkDisplayUrl, getArtworkProxyUrl, isTrelloHostedArtworkUrl } from "@/lib/artwork-url";
 import {
@@ -1842,12 +1844,12 @@ function getSaveStatusTitle(
 
   if (saveState === "saved-local") {
     return localOnly
-      ? `Saved on this device only. Log in to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
+      ? `Saved on this device only. Sign in with Google to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
       : `Saved on this device. Sync to the server is still pending. Last saved ${formatLastSavedAt(lastSavedAt)}`;
   }
 
   return localOnly
-    ? `Saved on this device only. Log in to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
+    ? `Saved on this device only. Sign in with Google to sync across devices. Last saved ${formatLastSavedAt(lastSavedAt)}`
     : `Synced with the server. Last saved ${formatLastSavedAt(lastSavedAt)}`;
 }
 
@@ -2037,8 +2039,11 @@ function SaveStatusButton({
   );
 }
 
+const DriveArtworkContext = createContext(false);
+
 export function RankboardApp() {
-  const supabase = getSupabaseBrowserClient();
+  // Keep the Supabase editor integration dormant while Drive handles account sync.
+  const supabase = getSupabaseBrowserClient(false);
   const authEnabled = Boolean(supabase);
   const defaultBoard = createEmptyBoard("Sorta");
   const [boards, setBoards] = useState<SavedBoard[]>([defaultBoard]);
@@ -2613,6 +2618,54 @@ export function RankboardApp() {
       { touchUpdatedAt: true },
     );
   }, []);
+
+  const importDriveBoards = useCallback((remoteBoards: SavedBoard[]) => {
+    const localBoards = latestBoardsRef.current;
+    const activeId = latestActiveBoardIdRef.current;
+    const localById = new Map(localBoards.map((board) => [board.id, board]));
+    const imports = new Map<string, SavedBoard>();
+    for (const board of remoteBoards) {
+      const local = localById.get(board.id);
+      if (!local || Date.parse(board.updatedAt) > Date.parse(local.updatedAt)) {
+        imports.set(board.id, normalizeSavedBoard(board));
+      }
+    }
+    if (!imports.size) return;
+
+    const starter = localBoards.length === 1 ? localBoards[0] : null;
+    const replaceStarter = starter && !imports.has(starter.id) && !starter.isPublic
+      && starter.createdAt === starter.updatedAt && isEphemeralStarterBoard(starter);
+    const merged = replaceStarter ? [] : localBoards.map((board) => imports.get(board.id) ?? board);
+    for (const [id, board] of imports) {
+      if (!localById.has(id)) merged.push(board);
+    }
+    latestBoardsRef.current = merged;
+    setBoards(merged);
+
+    const active = replaceStarter
+      ? merged.reduce((preferred, board) =>
+          (Date.parse(board.defaultSelectedAt ?? "") || 0) > (Date.parse(preferred.defaultSelectedAt ?? "") || 0)
+            ? board : preferred,
+        )
+      : imports.get(activeId);
+    if (active) {
+      skipNextHistoryRef.current = true;
+      if (replaceStarter) {
+        latestActiveBoardIdRef.current = active.id;
+        setActiveBoardId(active.id);
+        setIsCreateBoardModalOpen(false);
+      }
+      latestColumnsRef.current = active.columns;
+      latestCardsByColumnRef.current = active.cardsByColumn;
+      setColumns(active.columns);
+      setCardsByColumn(active.cardsByColumn);
+      setHistory([]);
+    }
+  }, []);
+
+  const drive = useDriveSync(boards, hasLoadedPersistedState, importDriveBoards);
+  const displayedSaveState = drive.error ? "error" : drive.syncing ? "saving" :
+    drive.signedIn && drive.lastSyncAt ? "saved" : saveState;
 
   const queuePersistBoardState = useCallback((options?: PersistBoardStateOptions) => {
     pendingPersistOptionsRef.current = options ?? null;
@@ -4355,6 +4408,11 @@ export function RankboardApp() {
   }, [isHeaderSeriesMenuOpen]);
 
   async function handleOAuthLogin(provider: "google" | "apple") {
+    if (drive.enabled && provider === "google") {
+      signInWithGoogle();
+      return;
+    }
+
     if (!supabase) {
       return;
     }
@@ -4392,6 +4450,14 @@ export function RankboardApp() {
   }
 
   async function handleSignOut() {
+    if (drive.signedIn) {
+      await drive.sync();
+      await drive.signOut();
+      setIsActionsMenuOpen(false);
+      setIsMobileActionsOpen(false);
+      return;
+    }
+
     isSigningOutRef.current = true;
     await persistBoardState();
     await supabase?.auth.signOut();
@@ -8013,16 +8079,26 @@ function copyCardToDraft(card: CardEntry) {
     setIsBoardHistoryOpen(true);
     setBoardChangeHistoryError(null);
 
-    if (!supabase || !currentUser) {
+    if (!drive.signedIn && (!supabase || !currentUser)) {
       setBoardChangeHistory([]);
-      setBoardChangeHistoryError("Log in to view synced board history.");
+      setBoardChangeHistoryError(drive.enabled
+        ? "Sign in with Google to view Drive board history."
+        : "Board history requires Google Drive sync.");
       return;
     }
 
     setIsBoardChangeHistoryLoading(true);
     try {
-      const entries = await loadBoardChangeHistory(supabase, currentUser.id, activeBoardId);
-      setBoardChangeHistory(entries);
+      if (drive.signedIn) {
+        const entries = await driveRequest<BoardChangeRecord[]>("history?boardId=" + encodeURIComponent(activeBoardId));
+        setBoardChangeHistory(entries.map((entry) => ({
+          ...entry,
+          before: normalizeSavedBoard(entry.before),
+          after: normalizeSavedBoard(entry.after),
+        })));
+      } else if (supabase && currentUser) {
+        setBoardChangeHistory(await loadBoardChangeHistory(supabase, currentUser.id, activeBoardId));
+      }
     } catch (error) {
       setBoardChangeHistoryError(error instanceof Error ? error.message : "Board history could not be loaded.");
     } finally {
@@ -8031,7 +8107,8 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   async function syncAndOpenBoardHistory() {
-    requestImmediateServerSync();
+    if (drive.signedIn) await drive.sync();
+    else requestImmediateServerSync();
     await openBoardHistory();
   }
 
@@ -8061,7 +8138,7 @@ function copyCardToDraft(card: CardEntry) {
     });
   }
 
-  function confirmBoardHistoryAction() {
+  async function confirmBoardHistoryAction() {
     if (!pendingBoardHistoryAction) {
       return;
     }
@@ -8085,7 +8162,22 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    const result = undoBoardChange(currentBoard, pendingBoardHistoryAction.change);
+    let comparableBoard = currentBoard;
+    if (drive.signedIn) {
+      try {
+        comparableBoard = await drive.prepareSnapshot(currentBoard, { uploadArtwork: false });
+      } catch (error) {
+        setPendingBoardHistoryAction(null);
+        setBoardChangeHistoryError(error instanceof Error ? error.message : "Board changes could not be compared.");
+        return;
+      }
+      if (activeBoardId !== latestActiveBoardIdRef.current) return;
+    }
+    const result = undoBoardChange(comparableBoard, pendingBoardHistoryAction.change);
+    // Preserve local artwork that matches the Drive reference for unchanged cards.
+    if (comparableBoard !== currentBoard) {
+      preserveLocalDriveArtwork(currentBoard, comparableBoard, result.board);
+    }
     commitBoardHistoryState(
       result.board,
       result.conflicts > 0
@@ -9443,7 +9535,7 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  return (
+  const content = (
     <div
       className={clsx(
         "h-[var(--app-height)] overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-[var(--app-height)] sm:overflow-visible",
@@ -9768,7 +9860,7 @@ function copyCardToDraft(card: CardEntry) {
                         {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                         {isDarkMode ? "Lumos" : "Nox"}
                       </button>
-                      {currentUser ? (
+                      {drive.signedIn ? (
                         <button
                           className={clsx(
                             "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
@@ -9780,9 +9872,9 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <LogOut className="h-4 w-4" />
-                          Log Out
+                          Disconnect Google Drive
                         </button>
-                      ) : authEnabled ? (
+                      ) : drive.enabled ? (
                         <button
                           className={clsx(
                             "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
@@ -9798,7 +9890,7 @@ function copyCardToDraft(card: CardEntry) {
                           type="button"
                         >
                           <LogOut className="h-4 w-4" />
-                          Log In
+                          Sign in with Google
                         </button>
                       ) : null}
                     </div>
@@ -10863,16 +10955,16 @@ function copyCardToDraft(card: CardEntry) {
                               {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                               {isDarkMode ? "Lumos" : "Nox"}
                             </button>
-                            {currentUser ? (
+                            {drive.signedIn ? (
                               <button
                                 className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
                                 onClick={handleSignOut}
                                 type="button"
                               >
                                 <LogOut className="h-4 w-4" />
-                                Log Out
+                                Disconnect Google Drive
                               </button>
-                            ) : authEnabled ? (
+                            ) : drive.enabled ? (
                               <button
                                 className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition disabled:opacity-50", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
                                 disabled={isAuthLoading}
@@ -10884,7 +10976,7 @@ function copyCardToDraft(card: CardEntry) {
                                 type="button"
                               >
                                 <LogIn className="h-4 w-4" />
-                                Log In
+                                Sign in with Google
                               </button>
                             ) : null}
                             </div>
@@ -11130,12 +11222,12 @@ function copyCardToDraft(card: CardEntry) {
                       isDarkMode={isDarkMode}
                       isPersisting={isPersisting}
                       isMobileViewport={isMobileViewport}
-                      lastSavedAt={lastSavedAt}
+                      lastSavedAt={drive.signedIn ? drive.lastSyncAt ?? lastSavedAt : lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
                       onSyncAndOpenHistory={() => void syncAndOpenBoardHistory()}
-                      requiresLogin={authEnabled && !currentUser}
-                      saveErrorMessage={saveErrorMessage}
-                      saveState={saveState}
+                      requiresLogin={drive.enabled && !drive.signedIn}
+                      saveErrorMessage={drive.error ?? saveErrorMessage}
+                      saveState={displayedSaveState}
                     />
                   </div>
                   <div className="hidden shrink-0 items-center gap-2 lg:flex">
@@ -11405,7 +11497,7 @@ function copyCardToDraft(card: CardEntry) {
                             {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                             {isDarkMode ? "Lumos" : "Nox"}
                           </button>
-                          {currentUser ? (
+                          {drive.signedIn ? (
                             <button
                               className={clsx(
                                 "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
@@ -11415,9 +11507,9 @@ function copyCardToDraft(card: CardEntry) {
                               type="button"
                             >
                               <LogOut className="h-4 w-4" />
-                              {currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.email || "Log Out"}
+                              Disconnect Google Drive
                             </button>
-                          ) : authEnabled ? (
+                          ) : drive.enabled ? (
                             <button
                               className={clsx(
                                 "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition",
@@ -11431,7 +11523,7 @@ function copyCardToDraft(card: CardEntry) {
                               type="button"
                             >
                               <LogOut className="h-4 w-4" />
-                              Log In
+                              Sign in with Google
                             </button>
                           ) : null}
                         </div>
@@ -11442,12 +11534,12 @@ function copyCardToDraft(card: CardEntry) {
                       isDarkMode={isDarkMode}
                       isPersisting={isPersisting}
                       isMobileViewport={isMobileViewport}
-                      lastSavedAt={lastSavedAt}
+                      lastSavedAt={drive.signedIn ? drive.lastSyncAt ?? lastSavedAt : lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
                       onSyncAndOpenHistory={() => void syncAndOpenBoardHistory()}
-                      requiresLogin={authEnabled && !currentUser}
-                      saveErrorMessage={saveErrorMessage}
-                      saveState={saveState}
+                      requiresLogin={drive.enabled && !drive.signedIn}
+                      saveErrorMessage={drive.error ?? saveErrorMessage}
+                      saveState={displayedSaveState}
                     />
                   </div>
                 </div>
@@ -13397,10 +13489,10 @@ function copyCardToDraft(card: CardEntry) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    Log in to save
+                    Sync with Google Drive
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    To save this board to your account and sync it across devices, you&apos;ll need to log in first.
+                    Sign in with Google to sync your locally saved boards across devices.
                   </p>
                 </div>
                 <button
@@ -13429,7 +13521,7 @@ function copyCardToDraft(card: CardEntry) {
                   type="button"
                 >
                   <LogIn className="h-4 w-4" />
-                  Log In
+                  Sign in with Google
                 </button>
                 <button
                   className={clsx(
@@ -13453,7 +13545,7 @@ function copyCardToDraft(card: CardEntry) {
           boardLayout="board"
           fieldDefinitions={normalizeFieldDefinitions(newBoardSettings.fieldDefinitions, newBoardTitle || "New Board", newBoardSettings)}
           defaultDateFieldFormat={DEFAULT_DATE_FIELD_FORMAT}
-          showLoginHint={authEnabled && !currentUser}
+          showLoginHint={drive.enabled && !drive.signedIn}
           isLoginDisabled={isAuthLoading}
           onClose={() => {
             setIsCreateBoardModalOpen(false);
@@ -15216,6 +15308,7 @@ function copyCardToDraft(card: CardEntry) {
           isLoading={isBoardChangeHistoryLoading}
           isOpen={isBoardHistoryOpen}
           onClose={() => setIsBoardHistoryOpen(false)}
+          onSignIn={drive.enabled && !drive.signedIn ? signInWithGoogle : undefined}
           onRestore={(change) => setPendingBoardHistoryAction({ mode: "restore", change })}
           onUndo={(change) => setPendingBoardHistoryAction({ mode: "undo", change })}
         />
@@ -15272,6 +15365,7 @@ function copyCardToDraft(card: CardEntry) {
       </main>
     </div>
   );
+  return <DriveArtworkContext.Provider value={drive.signedIn}>{content}</DriveArtworkContext.Provider>;
 }
 
 function AddColumnButton({
@@ -17633,8 +17727,9 @@ function CardTile({
       : mobileArtworkVariant === "tier-list"
         ? card.mobileTierListImageUrl?.trim() || card.imageUrl?.trim() || ""
         : card.imageUrl?.trim() || "";
-  const hasArtwork = showArtwork && Boolean(selectedImageUrl);
-  const imageSource = hasArtwork ? getArtworkDisplayUrl(selectedImageUrl) : "";
+  const allowDriveArtwork = useContext(DriveArtworkContext);
+  const imageSource = showArtwork ? getArtworkDisplayUrl(selectedImageUrl, allowDriveArtwork) : "";
+  const hasArtwork = Boolean(imageSource);
   const isPortraitOverlay = !compactImageOnly && !hideTextOverlay && cardAspectRatio === "portrait";
   const shouldPrioritizeImage =
     !isDragging && (rankBadge?.value ?? secondaryRankBadge?.value ?? Number.POSITIVE_INFINITY) <= 2;
