@@ -34,3 +34,69 @@ export function readStoredPreferredBoardId(userId?: string | null) {
     return null;
   }
 }
+
+const BOARD_DATABASE = "sorta-local-boards";
+const BOARD_STORE = "snapshots";
+
+function openBoardDatabase() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(BOARD_DATABASE, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(BOARD_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+let pendingBoardWrite: Promise<void> = Promise.resolve();
+
+export async function readLocalBoardState(): Promise<string | null> {
+  await pendingBoardWrite;
+  try {
+    const cached = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (cached !== null) return cached;
+  } catch {
+    // The browser may allow IndexedDB even when localStorage is unavailable.
+  }
+
+  const db = await openBoardDatabase();
+  try {
+    return await new Promise<string | null>((resolve, reject) => {
+      const request = db.transaction(BOARD_STORE).objectStore(BOARD_STORE).get(LOCAL_STORAGE_KEY);
+      request.onsuccess = () => resolve(request.result ?? null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export function writeLocalBoardState(serialized: string) {
+  const write = pendingBoardWrite.then(async () => {
+    try {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, serialized);
+      return;
+    } catch {
+      // Inline artwork can exceed the localStorage quota. Save the entire board
+      // and its image bytes together before clearing the older copy.
+    }
+
+    const db = await openBoardDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(BOARD_STORE, "readwrite");
+        transaction.oncomplete = () => resolve();
+        transaction.onabort = () => reject(transaction.error);
+        transaction.objectStore(BOARD_STORE).put(serialized, LOCAL_STORAGE_KEY);
+      });
+    } finally {
+      db.close();
+    }
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // localStorage may be disabled.
+    }
+  });
+  pendingBoardWrite = write.catch(() => {});
+  return write;
+}

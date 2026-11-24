@@ -83,14 +83,13 @@ function ArtworkFieldInput({
   menuPlacement?: "down" | "up";
   isUploadingArtwork: boolean;
   onChange: (value: string) => void;
-  onPaste: (input: HTMLInputElement | null) => void;
+  onPaste: () => void;
   onOpenImageSearch: () => void;
   onOpenGifSearch: () => void;
   onOpenUploadPicker: () => void;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -112,7 +111,6 @@ function ArtworkFieldInput({
       <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{label}</span>
       <div className="relative">
         <input
-          ref={inputRef}
           name={name}
           className={clsx(
             "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
@@ -140,7 +138,7 @@ function ArtworkFieldInput({
               ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
               : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
           )}
-          onClick={() => onPaste(inputRef.current)}
+          onClick={onPaste}
           type="button"
           aria-label={`Paste ${label}`}
         >
@@ -324,6 +322,7 @@ export function EditCardDialog({
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
+  artworkPasteError,
   onPasteArtwork,
   editArtworkInputRef,
   onArtworkFileSelection,
@@ -375,7 +374,8 @@ export function EditCardDialog({
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
-  onPasteArtwork: (field: ArtworkFieldKind, input: HTMLInputElement | null) => void;
+  artworkPasteError: string | null;
+  onPasteArtwork: (field: ArtworkFieldKind) => void;
   editArtworkInputRef: RefObject<HTMLInputElement | null>;
   onArtworkFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
   onNotesChange: (value: string) => void;
@@ -507,7 +507,7 @@ export function EditCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
-                onPaste={(input) => onPasteArtwork("landscape", input)}
+                onPaste={() => onPasteArtwork("landscape")}
                 value={editingCardDraft.imageUrl}
               />
               <ArtworkFieldInput
@@ -520,9 +520,12 @@ export function EditCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
-                onPaste={(input) => onPasteArtwork("portrait", input)}
+                onPaste={() => onPasteArtwork("portrait")}
                 value={editingCardDraft.mobileTierListImageUrl}
               />
+              {artworkPasteError ? (
+                <p className="text-sm sm:col-span-2" role="alert">{artworkPasteError}</p>
+              ) : null}
               <input ref={editArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
             </div>
           ) : null}
@@ -681,8 +684,6 @@ export function AddCardDialog({
   newColumnOption,
   allowCreateNewColumn = true,
   defaultDateFieldFormat,
-  addArtworkInputRef,
-  onArtworkFileSelection,
   onClose,
   onSubmit,
   onTitleChange,
@@ -693,6 +694,7 @@ export function AddCardDialog({
   onOpenImageSearch,
   onOpenGifSearch,
   onOpenUploadPicker,
+  artworkPasteError,
   onPasteArtwork,
   onNotesChange,
   onCustomFieldChange,
@@ -728,8 +730,6 @@ export function AddCardDialog({
   newColumnOption: string;
   allowCreateNewColumn?: boolean;
   defaultDateFieldFormat: NonNullable<BoardFieldDefinition["dateFormat"]>;
-  addArtworkInputRef: RefObject<HTMLInputElement | null>;
-  onArtworkFileSelection: (event: ChangeEvent<HTMLInputElement>) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTitleChange: (value: string) => void;
@@ -740,7 +740,8 @@ export function AddCardDialog({
   onOpenImageSearch: (field: ArtworkFieldKind) => void;
   onOpenGifSearch: (field: ArtworkFieldKind) => void;
   onOpenUploadPicker: (field: ArtworkFieldKind) => void;
-  onPasteArtwork: (field: ArtworkFieldKind, input: HTMLInputElement | null) => void;
+  artworkPasteError: string | null;
+  onPasteArtwork: (field: ArtworkFieldKind) => void;
   onNotesChange: (value: string) => void;
   onCustomFieldChange: (fieldId: string, value: string, type: BoardFieldDefinition["type"], dateFormat?: BoardFieldDefinition["dateFormat"]) => void;
   onColumnIdChange: (value: string) => void;
@@ -858,7 +859,7 @@ export function AddCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("landscape")}
                 onOpenImageSearch={() => onOpenImageSearch("landscape")}
                 onOpenUploadPicker={() => onOpenUploadPicker("landscape")}
-                onPaste={(input) => onPasteArtwork("landscape", input)}
+                onPaste={() => onPasteArtwork("landscape")}
                 value={draft.imageUrl}
               />
               <ArtworkFieldInput
@@ -871,10 +872,12 @@ export function AddCardDialog({
                 onOpenGifSearch={() => onOpenGifSearch("portrait")}
                 onOpenImageSearch={() => onOpenImageSearch("portrait")}
                 onOpenUploadPicker={() => onOpenUploadPicker("portrait")}
-                onPaste={(input) => onPasteArtwork("portrait", input)}
+                onPaste={() => onPasteArtwork("portrait")}
                 value={draft.mobileTierListImageUrl}
               />
-              <input ref={addArtworkInputRef} accept="image/*,.gif" className="hidden" onChange={onArtworkFileSelection} type="file" />
+              {artworkPasteError ? (
+                <p className="text-sm sm:col-span-2" role="alert">{artworkPasteError}</p>
+              ) : null}
             </div>
           ) : null}
 
@@ -1002,6 +1005,7 @@ export function AddCardDialog({
                 "rounded-2xl px-4 py-3 text-sm font-semibold transition",
                 isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
               )}
+              disabled={isUploadingArtwork}
               type="submit"
             >
               {`Add ${boardSingular}`}

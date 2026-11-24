@@ -30,6 +30,7 @@ export function useDriveSync(
   boards: SavedBoard[],
   localReady: boolean,
   importBoards: (boards: SavedBoard[]) => void,
+  isDisposableStarter: (board: SavedBoard) => boolean,
 ) {
   const [session, setSession] = useState<DriveSession>({ enabled: false, signedIn: false });
   const [ready, setReady] = useState(false);
@@ -158,7 +159,9 @@ export function useDriveSync(
         }
         for (const board of latestBoards.current) {
           const version = Date.parse(board.updatedAt);
-          if ((versions.current.get(board.id) ?? -Infinity) >= version) continue;
+          const remoteVersion = versions.current.get(board.id);
+          if (remoteVersion === undefined && isDisposableStarter(board)) continue;
+          if ((remoteVersion ?? -Infinity) >= version) continue;
           const snapshot = await prepareSnapshot(board, { signal });
           await driveRequest("boards", {
             method: "POST",
@@ -183,14 +186,18 @@ export function useDriveSync(
     } finally {
       if (pending.current === write) pending.current = null;
     }
-  }, [prepareSnapshot, pull, ready, reportError, session.signedIn]);
+  }, [isDisposableStarter, prepareSnapshot, pull, ready, reportError, session.signedIn]);
 
   useEffect(() => {
     if (!ready || !session.signedIn ||
-        !boards.some((board) => (versions.current.get(board.id) ?? -Infinity) < Date.parse(board.updatedAt))) return;
+        !boards.some((board) => {
+          const remoteVersion = versions.current.get(board.id);
+          return (remoteVersion !== undefined || !isDisposableStarter(board))
+            && (remoteVersion ?? -Infinity) < Date.parse(board.updatedAt);
+        })) return;
     const timer = window.setTimeout(() => { void sync(); }, 1000);
     return () => window.clearTimeout(timer);
-  }, [boards, ready, session.signedIn, sync]);
+  }, [boards, isDisposableStarter, ready, session.signedIn, sync]);
 
   useEffect(() => {
     if (!session.signedIn) return;

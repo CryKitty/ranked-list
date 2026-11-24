@@ -53,7 +53,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: visualThemeInitScript }} />
       </head>
-      <body className="min-h-full flex flex-col bg-slate-950">{children}</body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }
