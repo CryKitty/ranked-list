@@ -149,7 +149,117 @@ import {
   syncNormalizedBoards,
   uploadArtworkToStorage,
 } from "@/lib/normalized-board-store";
-import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, SaveState, SavedBoard, ShareTierFilter, TierListRowDefinition, TierListViewState } from "@/lib/types";
+import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, QuizPair, QuizRating, SaveState, SavedBoard, ShareTierFilter, TierListRowDefinition, TierListViewState } from "@/lib/types";
+
+const QUIZ_SETTLED_MATCHES = 12;
+const QUIZ_PLACEMENT_MATCHES = 8;
+const DEFAULT_QUIZ_RATING: QuizRating = { rating: 1000, matches: 0 };
+
+function chooseQuizPair(
+  ratings: PairwiseQuizState["ratings"],
+  lastPair: QuizPair | null,
+  focusEntryId: string | null,
+): QuizPair {
+  const entries = Object.entries(ratings);
+  const focused = focusEntryId && ratings[focusEntryId].matches < QUIZ_SETTLED_MATCHES
+    ? focusEntryId
+    : null;
+  const newcomer = entries
+    .filter(([, stats]) => stats.provisional && stats.matches < QUIZ_PLACEMENT_MATCHES)
+    .sort(([, a], [, b]) => a.matches - b.matches)[0]?.[0];
+  const priority = focused ?? newcomer;
+  const canPlay = (a: string, b: string) =>
+    entries.length === 2 ||
+    !lastPair ||
+    !((lastPair[0] === a && lastPair[1] === b) || (lastPair[0] === b && lastPair[1] === a));
+
+  if (priority) {
+    const stats = ratings[priority];
+    const opponents = entries.filter(([id]) => id !== priority);
+    const experienced = opponents
+      .filter(([, opponent]) => opponent.matches > 0 && !opponent.provisional)
+      .sort(([, a], [, b]) => a.rating - b.rating);
+    const percentile = [0.25, 0.5, 0.75][stats.matches];
+    const target = stats.provisional && percentile !== undefined && experienced.length
+      ? experienced[Math.round(percentile * (experienced.length - 1))][1].rating
+      : stats.rating;
+    const available = opponents.filter(([id]) => canPlay(priority, id));
+    const established = stats.provisional
+      ? available.filter(([, opponent]) => opponent.matches > 0 && !opponent.provisional)
+      : [];
+    const pool = established.length ? established : available;
+    pool.sort(([, a], [, b]) =>
+      Math.abs(a.rating - target) - Math.abs(b.rating - target) || a.matches - b.matches);
+    return [priority, pool[0][0]];
+  }
+
+  // Compare match counts from least to most played, then break ties by rating distance.
+  let bestPair: QuizPair = [entries[0][0], entries[1][0]];
+  let bestFewest = Infinity;
+  let bestMost = Infinity;
+  let bestDistance = Infinity;
+  for (const [index, [aId, a]] of entries.entries()) {
+    for (let other = index + 1; other < entries.length; other += 1) {
+      const [bId, b] = entries[other];
+      if (!canPlay(aId, bId)) continue;
+
+      const fewest = Math.min(a.matches, b.matches);
+      const most = Math.max(a.matches, b.matches);
+      const distance = Math.abs(a.rating - b.rating);
+      if (fewest < bestFewest ||
+          (fewest === bestFewest && (most < bestMost ||
+            (most === bestMost && distance < bestDistance)))) {
+        bestPair = [aId, bId];
+        bestFewest = fewest;
+        bestMost = most;
+        bestDistance = distance;
+      }
+    }
+  }
+  return bestPair;
+}
+
+function playQuizDuel(state: PairwiseQuizState, score: 0 | 0.5 | 1): PairwiseQuizState {
+  const [aId, bId] = state.pair;
+  const a = state.ratings[aId];
+  const b = state.ratings[bId];
+  const expected = 1 / (1 + 10 ** ((b.rating - a.rating) / 400));
+  const change = 32 * (score - expected);
+  const ratings = {
+    ...state.ratings,
+    [aId]: {
+      rating: a.rating + change,
+      matches: a.matches + 1,
+      provisional: a.provisional && a.matches + 1 < QUIZ_PLACEMENT_MATCHES,
+    },
+    [bId]: {
+      rating: b.rating - change,
+      matches: b.matches + 1,
+      provisional: b.provisional && b.matches + 1 < QUIZ_PLACEMENT_MATCHES,
+    },
+  };
+  return {
+    ...state,
+    ratings,
+    pair: chooseQuizPair(ratings, state.pair, state.focusEntryId),
+    lastPair: state.pair,
+    history: [...state.history, { pair: state.pair, lastPair: state.lastPair, before: [a, b] }],
+  };
+}
+
+function undoQuizDuel(state: PairwiseQuizState): PairwiseQuizState {
+  const step = state.history.at(-1);
+  if (!step) return state;
+
+  const [aId, bId] = step.pair;
+  return {
+    ...state,
+    pair: step.pair,
+    lastPair: step.lastPair,
+    ratings: { ...state.ratings, [aId]: step.before[0], [bId]: step.before[1] },
+    history: state.history.slice(0, -1),
+  };
+}
 
 type ArtworkFieldKind = "landscape" | "portrait";
 
@@ -2419,9 +2529,13 @@ export function RankboardApp() {
     openColumnColumnsMenuId !== null ||
     openColumnMaintenanceMenuId !== null;
   const moveCardPreview = getMoveCardPreview(moveCardState);
-  const pairwiseQuizProgressMetrics = pairwiseQuizState
-    ? getPairwiseQuizProgressMetrics(pairwiseQuizState)
-    : null;
+  const quizCards = pairwiseQuizState
+    ? cardsByColumn[pairwiseQuizState.columnId] ?? []
+    : [];
+  const quizSettledCount = pairwiseQuizState
+    ? quizCards.filter(({ entryId }) =>
+        (pairwiseQuizState.ratings[entryId]?.matches ?? 0) >= QUIZ_SETTLED_MATCHES).length
+    : 0;
   const hasOpenModal =
     (Boolean(addCardTarget) && !isMobileQuickAddPanelOpen) ||
     Boolean(editingCardId && editingCardDraft) ||
@@ -7546,111 +7660,43 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMirrorMenuId(null);
   }
 
-  function buildNextPairwiseQuizState(
-    columnId: string,
-    columnTitle: string,
-    sortedCards: CardEntry[],
-    remainingCards: CardEntry[],
-    comparisons: number,
-  ) {
-    if (remainingCards.length === 0) {
-      return null;
-    }
+  function buildPairwiseQuizState(columnId: string, focusEntryId: string | null = null): PairwiseQuizState | null {
+    const column = columns.find((item) => item.id === columnId);
+    const cards = cardsByColumn[columnId] ?? [];
+    if (!column || cards.length < 2) return null;
 
-    const [candidateCard, ...nextRemainingCards] = remainingCards;
+    const saved = activeBoardSettings.quizRatingsByColumn?.[columnId];
+    const hasRatedCards = cards.some(({ entryId }) => (saved?.ratings[entryId]?.matches ?? 0) > 0);
+    const ratings = Object.fromEntries(cards.map(({ entryId }) => {
+      const stats = saved?.ratings[entryId] ?? DEFAULT_QUIZ_RATING;
+      return [entryId, hasRatedCards && stats.matches === 0 ? { ...stats, provisional: true } : stats];
+    }));
+    const lastPair = saved?.lastPair ?? null;
 
     return {
+      engine: "elo",
       columnId,
-      columnTitle,
-      mode: "column",
-      focusEntryId: null,
-      sortedCards,
-      remainingCards: nextRemainingCards,
-      candidateCard,
-      low: 0,
-      high: sortedCards.length,
-      compareIndex: Math.floor(sortedCards.length / 2),
-      comparisons,
+      columnTitle: column.title,
+      mode: focusEntryId ? "card" : "column",
+      focusEntryId,
+      ratings,
+      lastPair,
+      pair: chooseQuizPair(ratings, lastPair, focusEntryId),
       history: [],
-    } satisfies PairwiseQuizState;
-  }
-
-  function estimateBinaryInsertionComparisons(rangeLength: number) {
-    return Math.max(0, Math.ceil(Math.log2(Math.max(rangeLength, 0) + 1)));
-  }
-
-  function getPairwiseQuizProgressMetrics(state: PairwiseQuizState) {
-    const currentCandidateRemainingComparisons = state.candidateCard
-      ? estimateBinaryInsertionComparisons(state.high - state.low)
-      : 0;
-    const futureRemainingComparisons = Array.from(
-      { length: state.remainingCards.length },
-      (_, index) =>
-        estimateBinaryInsertionComparisons(
-          state.sortedCards.length + 1 + index,
-        ),
-    ).reduce((sum, value) => sum + value, 0);
-    const totalEstimatedComparisons =
-      state.comparisons + currentCandidateRemainingComparisons + futureRemainingComparisons;
-    const progressRatio =
-      totalEstimatedComparisons > 0 ? state.comparisons / totalEstimatedComparisons : 1;
-
-    return {
-      completedComparisons: state.comparisons,
-      totalEstimatedComparisons,
-      remainingEstimatedComparisons:
-        currentCandidateRemainingComparisons + futureRemainingComparisons,
-      progressRatio,
     };
   }
 
   function buildCardPlacementQuizState(card: CardEntry) {
     const columnId = findColumnIdForEntry(card.entryId);
-
-    if (!columnId) {
-      return null;
-    }
-
-    const column = columns.find((item) => item.id === columnId);
-    const comparisonCards = (cardsByColumn[columnId] ?? []).filter(
-      (columnCard) => columnCard.entryId !== card.entryId,
-    );
-
-    if (!column || comparisonCards.length === 0) {
-      return null;
-    }
-
-    return {
-      columnId,
-      columnTitle: column.title,
-      mode: "card",
-      focusEntryId: card.entryId,
-      sortedCards: comparisonCards,
-      remainingCards: [],
-      candidateCard: card,
-      low: 0,
-      high: comparisonCards.length,
-      compareIndex: Math.floor(comparisonCards.length / 2),
-      comparisons: 0,
-      history: [],
-    } satisfies PairwiseQuizState;
+    return columnId ? buildPairwiseQuizState(columnId, card.entryId) : null;
   }
 
-  function clonePairwiseQuizState(progress: PairwiseQuizProgress): PairwiseQuizState {
-    return {
-      ...progress,
-      mode: progress.mode ?? "column",
-      focusEntryId: progress.focusEntryId ?? null,
-      sortedCards: [...progress.sortedCards],
-      remainingCards: [...progress.remainingCards],
-      candidateCard: progress.candidateCard ? { ...progress.candidateCard } : null,
-      history: progress.history.map((step) => ({
-        ...step,
-        sortedCards: [...step.sortedCards],
-        remainingCards: [...step.remainingCards],
-        candidateCard: step.candidateCard ? { ...step.candidateCard } : null,
-      })),
-    };
+  function isCurrentQuizProgress(progress: PairwiseQuizProgress | null, columnId: string) {
+    const cards = latestCardsByColumnRef.current[columnId] ?? [];
+    return progress?.engine === "elo" &&
+      progress.columnId === columnId &&
+      Object.keys(progress.ratings).length === cards.length &&
+      cards.every(({ entryId }) => Object.hasOwn(progress.ratings, entryId));
   }
 
   function readStoredPairwiseQuizProgress(columnId: string) {
@@ -7707,7 +7753,7 @@ function copyCardToDraft(card: CardEntry) {
           columnId,
         );
 
-        if (remoteProgress) {
+        if (isCurrentQuizProgress(remoteProgress, columnId)) {
           return remoteProgress;
         }
       } catch (error) {
@@ -7715,7 +7761,8 @@ function copyCardToDraft(card: CardEntry) {
       }
     }
 
-    return readStoredPairwiseQuizProgress(columnId);
+    const localProgress = readStoredPairwiseQuizProgress(columnId);
+    return isCurrentQuizProgress(localProgress, columnId) ? localProgress : null;
   }
 
   async function persistPairwiseQuizProgress(columnId: string, nextProgress: PairwiseQuizProgress | null) {
@@ -7738,14 +7785,7 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    const [firstCard, ...restCards] = cards;
-    const nextState = buildNextPairwiseQuizState(
-      column.id,
-      column.title,
-      [firstCard],
-      restCards,
-      0,
-    );
+    const nextState = buildPairwiseQuizState(columnId);
 
     void persistPairwiseQuizProgress(columnId, null);
     setPairwiseQuizReview(null);
@@ -7780,7 +7820,6 @@ function copyCardToDraft(card: CardEntry) {
         columnTitle: column.title,
         startMode: "column",
         focusEntryId: savedProgress.focusEntryId ?? null,
-        focusCardTitle: savedProgress.candidateCard?.title ?? null,
         progress: savedProgress,
       });
       setPairwiseQuizReview(null);
@@ -7797,7 +7836,7 @@ function copyCardToDraft(card: CardEntry) {
     }
 
     setPairwiseQuizReview(null);
-    setPairwiseQuizState(clonePairwiseQuizState(pendingPairwiseQuizResume.progress));
+    setPairwiseQuizState(pendingPairwiseQuizResume.progress);
     setPendingPairwiseQuizResume(null);
   }
 
@@ -7806,23 +7845,11 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    const nextProgress = {
-      ...pairwiseQuizState,
-      sortedCards: [...pairwiseQuizState.sortedCards],
-      remainingCards: [...pairwiseQuizState.remainingCards],
-      candidateCard: pairwiseQuizState.candidateCard ? { ...pairwiseQuizState.candidateCard } : null,
-      history: pairwiseQuizState.history.map((step) => ({
-        ...step,
-        sortedCards: [...step.sortedCards],
-        remainingCards: [...step.remainingCards],
-        candidateCard: step.candidateCard ? { ...step.candidateCard } : null,
-      })),
-    } satisfies PairwiseQuizProgress;
-
     try {
       setIsSavingPairwiseQuiz(true);
-      await persistPairwiseQuizProgress(pairwiseQuizState.columnId, nextProgress);
+      await persistPairwiseQuizProgress(pairwiseQuizState.columnId, pairwiseQuizState);
       setPairwiseQuizSavedNotice("Quiz progress saved.");
+      setPairwiseQuizReview(null);
       setPairwiseQuizState(null);
       window.setTimeout(() => {
         setPairwiseQuizSavedNotice((current) => (current === "Quiz progress saved." ? null : current));
@@ -7838,91 +7865,23 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  function resolvePairwiseChoice(choice: "candidate" | "comparison") {
-    setPairwiseQuizState((current) => {
-      if (!current || !current.candidateCard) {
-        return current;
-      }
-
-      const comparisonCard = current.sortedCards[current.compareIndex];
-
-      if (!comparisonCard) {
-        return current;
-      }
-
-      const nextLow = choice === "candidate" ? current.low : current.compareIndex + 1;
-      const nextHigh = choice === "candidate" ? current.compareIndex : current.high;
-      const nextComparisons = current.comparisons + 1;
-      const nextHistory = [
-        ...current.history,
-        {
-          sortedCards: [...current.sortedCards],
-          remainingCards: [...current.remainingCards],
-          candidateCard: current.candidateCard,
-          low: current.low,
-          high: current.high,
-          compareIndex: current.compareIndex,
-          comparisons: current.comparisons,
-        },
-      ];
-
-      if (nextLow >= nextHigh) {
-        const nextSortedCards = [...current.sortedCards];
-        nextSortedCards.splice(nextLow, 0, current.candidateCard);
-        const nextQuizState = buildNextPairwiseQuizState(
-          current.columnId,
-          current.columnTitle,
-          nextSortedCards,
-          current.remainingCards,
-          nextComparisons,
-        );
-
-        if (!nextQuizState) {
-          setPairwiseQuizReview({
-            columnId: current.columnId,
-            columnTitle: current.columnTitle,
-            mode: current.mode ?? "column",
-            focusEntryId: current.focusEntryId ?? null,
-            rankedCards: nextSortedCards,
-            comparisons: nextComparisons,
-          });
-          return null;
-        }
-
-        return {
-          ...nextQuizState,
-          history: nextHistory,
-        };
-      }
-
-      return {
-        ...current,
-        low: nextLow,
-        high: nextHigh,
-        compareIndex: Math.floor((nextLow + nextHigh) / 2),
-        comparisons: nextComparisons,
-        history: nextHistory,
-      };
-    });
+  function resolvePairwiseChoice(score: 0 | 0.5 | 1) {
+    setPairwiseQuizState((current) => current ? playQuizDuel(current, score) : current);
   }
 
   function undoPairwiseChoice() {
-    setPairwiseQuizState((current) => {
-      if (!current || current.history.length === 0) {
-        return current;
-      }
+    setPairwiseQuizState((current) => current ? undoQuizDuel(current) : current);
+  }
 
-      const previousStep = current.history[current.history.length - 1];
+  function reviewPairwiseQuiz() {
+    if (!pairwiseQuizState) return;
 
-      if (!previousStep) {
-        return current;
-      }
-
-      return {
-        ...current,
-        ...previousStep,
-        history: current.history.slice(0, -1),
-      };
+    const { columnId, ratings } = pairwiseQuizState;
+    const cards = latestCardsByColumnRef.current[columnId] ?? [];
+    setPairwiseQuizReview({
+      rankedCards: [...cards].sort((a, b) =>
+        (ratings[b.entryId] ?? DEFAULT_QUIZ_RATING).rating -
+        (ratings[a.entryId] ?? DEFAULT_QUIZ_RATING).rating),
     });
   }
 
@@ -7950,25 +7909,48 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function savePairwiseQuizReview() {
-    if (!pairwiseQuizReview) {
-      return;
-    }
+    if (!pairwiseQuizReview || !pairwiseQuizState) return;
 
-    const nextCardsByColumn = {
-      ...latestCardsByColumnRef.current,
-      [pairwiseQuizReview.columnId]: pairwiseQuizReview.rankedCards,
-    };
+    const { columnId, ratings, lastPair } = pairwiseQuizState;
+    const currentCards = latestCardsByColumnRef.current[columnId];
+    if (!currentCards) return;
 
+    const cardsById = new Map(currentCards.map((card) => [card.entryId, card]));
+    const rankedCards = pairwiseQuizReview.rankedCards.flatMap(({ entryId }) => {
+      const card = cardsById.get(entryId);
+      cardsById.delete(entryId);
+      return card ? [card] : [];
+    });
+    const nextCards = [...rankedCards, ...cardsById.values()];
+    const nextCardsByColumn = { ...latestCardsByColumnRef.current, [columnId]: nextCards };
+    const nextBoards = latestBoardsRef.current.map((board) =>
+      board.id === activeBoardId
+        ? {
+            ...board,
+            updatedAt: new Date().toISOString(),
+            settings: {
+              ...board.settings,
+              quizRatingsByColumn: {
+                ...board.settings.quizRatingsByColumn,
+                [columnId]: {
+                  ratings: Object.fromEntries(nextCards.map(({ entryId }) =>
+                    [entryId, ratings[entryId] ?? DEFAULT_QUIZ_RATING])),
+                  lastPair,
+                },
+              },
+            },
+          }
+        : board,
+    );
+
+    latestBoardsRef.current = nextBoards;
     latestCardsByColumnRef.current = nextCardsByColumn;
+    setBoards(nextBoards);
     setCardsByColumn(nextCardsByColumn);
-    void persistPairwiseQuizProgress(pairwiseQuizReview.columnId, null);
+    void persistPairwiseQuizProgress(columnId, null);
     setPairwiseQuizReview(null);
     setPairwiseQuizState(null);
-    queuePersistBoardState({
-      boards: latestBoardsRef.current,
-      activeBoardId,
-      cardsByColumn: nextCardsByColumn,
-    });
+    queuePersistBoardState({ boards: nextBoards, activeBoardId, cardsByColumn: nextCardsByColumn });
   }
 
   async function startPairwiseCardPlacementQuiz(card: CardEntry) {
@@ -13340,7 +13322,7 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
-        {pairwiseQuizState && pairwiseQuizState.candidateCard ? (
+        {pairwiseQuizState && !pairwiseQuizReview ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
             onClick={() => setPairwiseQuizState(null)}
@@ -13359,7 +13341,7 @@ function copyCardToDraft(card: CardEntry) {
               </h2>
 
               <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 md:mt-6 md:grid md:grid-cols-2 md:content-start md:justify-items-center md:gap-4 md:overflow-y-auto md:px-2 md:pt-2 md:pr-1">
-                {[pairwiseQuizState.candidateCard, pairwiseQuizState.sortedCards[pairwiseQuizState.compareIndex]].map((card, index) =>
+                {pairwiseQuizState.pair.map((entryId) => quizCards.find((card) => card.entryId === entryId)).map((card, index) =>
                   card ? (
                     <button
                       key={`${card.entryId}-${index}`}
@@ -13369,7 +13351,7 @@ function copyCardToDraft(card: CardEntry) {
                           ? "text-white hover:border-white/60"
                           : "text-slate-950 hover:border-slate-300",
                       )}
-                      onClick={() => resolvePairwiseChoice(index === 0 ? "candidate" : "comparison")}
+                      onClick={() => resolvePairwiseChoice(index === 0 ? 1 : 0)}
                       type="button"
                     >
                       <CardTile
@@ -13390,6 +13372,17 @@ function copyCardToDraft(card: CardEntry) {
                 )}
               </div>
 
+              <button
+                className={clsx(
+                  "mt-2 shrink-0 self-center rounded-full border px-3 py-1 text-xs font-semibold transition",
+                  isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950",
+                )}
+                onClick={() => resolvePairwiseChoice(0.5)}
+                type="button"
+              >
+                Too close to call
+              </button>
+
               <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm sm:mt-6 sm:pt-6">
                 <div className="min-w-[180px] flex-1">
                   <div className="flex items-center justify-between gap-3">
@@ -13397,16 +13390,14 @@ function copyCardToDraft(card: CardEntry) {
                       Progress
                     </span>
                     <span className={clsx("text-sm font-semibold", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      {pairwiseQuizProgressMetrics
-                        ? `${pairwiseQuizProgressMetrics.completedComparisons} of about ${Math.max(pairwiseQuizProgressMetrics.totalEstimatedComparisons, 1)} comparisons`
-                        : "Starting quiz..."}
+                      {pairwiseQuizState.history.length} duels · {quizSettledCount} of {quizCards.length} cards settled
                     </span>
                   </div>
                   <div className={clsx("mt-2 h-2 overflow-hidden rounded-full", isDarkMode ? "bg-white/10" : "bg-slate-200")}>
                     <div
                       className={clsx("h-full rounded-full transition-all", isDarkMode ? "bg-white" : "bg-slate-950")}
                       style={{
-                        width: `${(pairwiseQuizProgressMetrics?.progressRatio ?? 0) * 100}%`,
+                        width: `${quizCards.length ? (quizSettledCount / quizCards.length) * 100 : 0}%`,
                       }}
                     />
                   </div>
@@ -13433,13 +13424,10 @@ function copyCardToDraft(card: CardEntry) {
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
-                    disabled={isSavingPairwiseQuiz}
-                    onClick={() => {
-                      void savePairwiseQuizForLater();
-                    }}
+                    onClick={reviewPairwiseQuiz}
                     type="button"
                   >
-                    {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
+                    Review &amp; Save
                   </button>
                   <button
                     className={clsx(
@@ -13460,7 +13448,7 @@ function copyCardToDraft(card: CardEntry) {
           </div>
         ) : null}
 
-        {pairwiseQuizReview ? (
+        {pairwiseQuizReview && pairwiseQuizState ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
             onClick={() => setPairwiseQuizReview(null)}
@@ -13477,12 +13465,10 @@ function copyCardToDraft(card: CardEntry) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className={clsx("text-3xl font-black", isDarkMode ? "text-white" : "text-slate-950")}>
-                    {pairwiseQuizReview.mode === "card" ? "Review placement" : "Review results"}
+                    {pairwiseQuizState.mode === "card" ? "Review placement" : "Review results"}
                   </h2>
                   <p className={clsx("mt-2 text-sm leading-6", isDarkMode ? "text-slate-300" : "text-slate-600")}>
-                    {pairwiseQuizReview.mode === "card"
-                      ? `This card placement took ${pairwiseQuizReview.comparisons} comparisons. Tweak the order if you want, then save or cancel.`
-                      : `The quiz finished in ${pairwiseQuizReview.comparisons} comparisons. Tweak the order if you want, then save or cancel.`}
+                    Tweak the order if you want, then save the ranking.
                   </p>
                 </div>
                 <button
@@ -13525,6 +13511,11 @@ function copyCardToDraft(card: CardEntry) {
                       <h3 className={clsx("truncate text-lg font-bold", isDarkMode ? "text-white" : "text-slate-950")}>
                         {card.title}
                       </h3>
+                      <p className="text-sm">
+                        Elo {Math.round((pairwiseQuizState.ratings[card.entryId] ?? DEFAULT_QUIZ_RATING).rating)}
+                        {" · "}{pairwiseQuizState.ratings[card.entryId]?.matches ?? 0}{" "}
+                        {pairwiseQuizState.ratings[card.entryId]?.matches === 1 ? "match" : "matches"}
+                      </p>
                       {card.series ? (
                         <p className={clsx("truncate text-sm", isDarkMode ? "text-slate-300" : "text-slate-600")}>
                           {card.series}
@@ -13576,6 +13567,17 @@ function copyCardToDraft(card: CardEntry) {
                 <button
                   className={clsx(
                     "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                    isDarkMode ? "border-white/10 hover:border-white/40" : "border-slate-200 hover:border-slate-950",
+                  )}
+                  disabled={isSavingPairwiseQuiz}
+                  onClick={() => void savePairwiseQuizForLater()}
+                  type="button"
+                >
+                  {isSavingPairwiseQuiz ? "Saving..." : "Save & Continue Later"}
+                </button>
+                <button
+                  className={clsx(
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
                     isDarkMode
                       ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
@@ -13583,7 +13585,7 @@ function copyCardToDraft(card: CardEntry) {
                   onClick={() => setPairwiseQuizReview(null)}
                   type="button"
                 >
-                  Cancel
+                  Back to Quiz
                 </button>
               </div>
             </div>

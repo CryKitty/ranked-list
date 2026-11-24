@@ -24,26 +24,32 @@ export type TierListViewState = {
   entryIdsByRow: Record<string, string[]>;
 };
 
+export type QuizRating = {
+  rating: number;
+  matches: number;
+  provisional?: boolean;
+};
+
+export type QuizPair = [string, string];
+
+export type ColumnQuizRatings = {
+  ratings: Record<string, QuizRating>;
+  lastPair: QuizPair | null;
+};
+
 export type PairwiseQuizProgress = {
+  engine: "elo";
   columnId: string;
   columnTitle: string;
-  mode?: "column" | "card";
-  focusEntryId?: string | null;
-  sortedCards: CardEntry[];
-  remainingCards: CardEntry[];
-  candidateCard: CardEntry | null;
-  low: number;
-  high: number;
-  compareIndex: number;
-  comparisons: number;
+  mode: "column" | "card";
+  focusEntryId: string | null;
+  ratings: Record<string, QuizRating>;
+  pair: QuizPair;
+  lastPair: QuizPair | null;
   history: Array<{
-    sortedCards: CardEntry[];
-    remainingCards: CardEntry[];
-    candidateCard: CardEntry | null;
-    low: number;
-    high: number;
-    compareIndex: number;
-    comparisons: number;
+    pair: QuizPair;
+    lastPair: QuizPair | null;
+    before: [QuizRating, QuizRating];
   }>;
 };
 
@@ -107,6 +113,7 @@ export type BoardSettings = {
   restoreCollapseCardsOnBoard?: boolean;
   restoreTierHighlightsOnBoard?: boolean;
   publicShare?: BoardShareSettings;
+  quizRatingsByColumn?: Record<string, ColumnQuizRatings>;
   pairwiseQuizProgressByColumn?: Record<string, PairwiseQuizProgress>;
   showSeriesOnCards: boolean;
   collapseCards: boolean;
