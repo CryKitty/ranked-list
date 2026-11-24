@@ -18,7 +18,7 @@ export async function loadLegacyDriveShare(slug: string) {
     const origin = URL.parse(scheme + "//" + host)?.origin;
     const config = origin && driveConfig(origin);
     if (!config) continue;
-    const session = readDriveSession(config, value);
+    const session = await readDriveSession(config, value);
     if (!session || session.email?.toLowerCase() !== owner) continue;
     try {
       const token = await driveAccessToken(config, session);
