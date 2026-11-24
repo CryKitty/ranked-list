@@ -108,10 +108,11 @@ async function listSnapshots(token: string, folder: string) {
   });
 }
 
-async function readSnapshot(token: string, file: DriveFile, boardId: string) {
+async function readSnapshot(token: string, file: DriveFile, boardId: string): Promise<SavedBoard | null> {
   const response = await download(token, file);
   const bytes = Buffer.from(await response.arrayBuffer());
   const board: unknown = JSON.parse(gunzipSync(bytes, { maxOutputLength: MAX_SNAPSHOT_BYTES }).toString("utf8"));
+  if (board === null) return null;
   if (!isDriveBoard(board) || board.id !== boardId) throw new Error("Invalid Drive board snapshot.");
   return board;
 }
@@ -122,7 +123,12 @@ export async function readNewestDriveBoards(token: string, folder: string) {
   for (const { file, boardId } of await listSnapshots(token, folder)) {
     if (seen.has(boardId)) continue;
     seen.add(boardId);
-    boards.push(await readSnapshot(token, file, boardId));
+    try {
+      const board = await readSnapshot(token, file, boardId);
+      if (board !== null) boards.push(board);
+    } catch (error) {
+      console.error("Failed to read newest Drive board snapshot.", { boardId, fileId: file.id, error });
+    }
   }
   return boards;
 }
@@ -131,7 +137,9 @@ export async function readDriveBoardHistory(token: string, folder: string, board
   const files = (await listSnapshots(token, folder)).filter((snapshot) => snapshot.boardId === boardId).slice(0, 101);
   const rows = [];
   for (const { file } of files) {
-    rows.push({ id: file.id, created_at: file.createdTime, snapshot: await readSnapshot(token, file, boardId) });
+    const snapshot = await readSnapshot(token, file, boardId);
+    if (snapshot === null) continue;
+    rows.push({ id: file.id, created_at: file.createdTime, snapshot });
   }
   return rows;
 }
