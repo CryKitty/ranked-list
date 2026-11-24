@@ -1,3 +1,5 @@
+import { driveImageReference } from "@/lib/drive-format";
+
 const supabaseHostname = (() => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 
@@ -31,12 +33,15 @@ export function isTrelloHostedArtworkUrl(input: string) {
   }
 }
 
-export function getArtworkDisplayUrl(input: string) {
+export function getArtworkDisplayUrl(input: string, allowDrive = true) {
   const value = input.trim();
 
   if (!value) {
     return "";
   }
+
+  const driveImage = driveImageReference.exec(value);
+  if (driveImage) return allowDrive ? `/api/drive/image?hash=${driveImage[1]}` : "";
 
   if (
     value.startsWith("data:") ||

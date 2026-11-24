@@ -19,6 +19,7 @@ export function BoardHistoryDialog({
   isLoading,
   isOpen,
   onClose,
+  onSignIn,
   onRestore,
   onUndo,
 }: {
@@ -28,6 +29,7 @@ export function BoardHistoryDialog({
   isLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
+  onSignIn?: () => void;
   onRestore: (change: BoardChangeRecord) => void;
   onUndo: (change: BoardChangeRecord) => void;
 }) {
@@ -62,7 +64,14 @@ export function BoardHistoryDialog({
           ) : error ? (
             <div className="flex items-start gap-3 rounded-2xl bg-rose-500/10 p-4 text-sm text-rose-600">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-              <span>{error}</span>
+              <div>
+                <p>{error}</p>
+                {onSignIn ? (
+                  <button className="mt-2 font-semibold underline" onClick={onSignIn} type="button">
+                    Sign in with Google
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : entries.length === 0 ? (
             <div className={clsx("py-16 text-center text-sm", isDarkMode ? "text-slate-400" : "text-slate-500")}>
