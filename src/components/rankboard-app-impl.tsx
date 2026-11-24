@@ -79,7 +79,7 @@ import {
 } from "@/components/rankboard-fields";
 import { VisualThemeControl } from "@/components/visual-theme-control";
 import { BoardHistoryDialog } from "@/components/board-history-dialog";
-import { AddCardDialog, ArtworkPasteDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
+import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { driveRequest, signInWithGoogle, useDriveSync } from "@/lib/drive-client";
@@ -2208,10 +2208,6 @@ export function RankboardApp() {
   const [isPersisting, setIsPersisting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
-  const [artworkPasteSheet, setArtworkPasteSheet] = useState<{
-    target: "draft" | "edit";
-    field: ArtworkFieldKind;
-  } | null>(null);
   const mobileQuickAddLandscapeArtworkRef = useRef<HTMLInputElement>(null);
   const mobileQuickAddPortraitArtworkRef = useRef<HTMLInputElement>(null);
   const [artworkPasteError, setArtworkPasteError] = useState<{
@@ -6784,16 +6780,23 @@ function copyCardToDraft(card: CardEntry) {
     target: "draft" | "edit",
     field: ArtworkFieldKind,
     file: File,
+    showError = true,
   ) {
     setArtworkPasteError(null);
     try {
       const optimized = await optimizeImageFile(file);
       applyDraftArtwork(target, field, await blobToDataUrl(optimized.file));
+      return true;
     } catch (error) {
-      setArtworkPasteError({
-        target,
-        message: error instanceof Error ? error.message : "Clipboard artwork could not be processed.",
-      });
+      if (showError) {
+        setArtworkPasteError({
+          target,
+          message: error instanceof Error ? error.message : "Clipboard artwork could not be processed.",
+        });
+      } else {
+        console.debug("Clipboard image processing failed", error);
+      }
+      return false;
     }
   }
 
@@ -6841,35 +6844,51 @@ function copyCardToDraft(card: CardEntry) {
 
     setArtworkPasteError(null);
     try {
+      const clipboard = navigator.clipboard;
+      let items: ClipboardItems | undefined;
       try {
-        const clipboard = navigator.clipboard;
-        const text = (await clipboard?.readText?.().catch(() => ""))?.trim();
-        if (text) {
-          applyDraftArtwork(target, field, text);
-          return;
-        }
+        items = await clipboard?.read?.();
+      } catch (error) {
+        console.debug("Clipboard item read failed", error);
+      }
 
-        const items = await clipboard?.read?.().catch(() => []) ?? [];
-        for (const item of items) {
-          if (!item.types.includes("text/plain")) continue;
-          const value = await item.getType("text/plain").then((blob) => blob.text()).catch(() => "");
-          if (value.trim()) {
-            applyDraftArtwork(target, field, value.trim());
-            return;
+      if (items) {
+        for (const flavor of ["image/", "text/uri-list", "text/plain"]) {
+          for (const item of items) {
+            const types = item.types.filter((type) => flavor === "image/" ? type.startsWith(flavor) : type === flavor);
+            for (const type of types) {
+              try {
+                const blob = await item.getType(type);
+                if (flavor === "image/") {
+                  const file = new File([blob], "clipboard-image", { type });
+                  if (await applyPastedArtworkImage(target, field, file, false)) return;
+                  continue;
+                }
+
+                const text = (await blob.text()).trim();
+                const value = flavor === "text/uri-list"
+                  ? text.split(/\r\n|[\r\n]/).map((line) => line.trim()).find((line) => line && !line.startsWith("#"))
+                  : text;
+                if (value) {
+                  applyDraftArtwork(target, field, value);
+                  return;
+                }
+              } catch (error) {
+                console.debug("Clipboard flavor read failed", type, error);
+              }
+            }
           }
         }
-
-        for (const item of items) {
-          const imageType = item.types.find((type) => type.startsWith("image/"));
-          if (!imageType) continue;
-          const image = await item.getType(imageType).catch(() => null);
-          if (image) {
-            void applyPastedArtworkImage(target, field, new File([image], "clipboard-image", { type: imageType }));
+      } else {
+        try {
+          const text = (await clipboard?.readText?.())?.trim();
+          if (text) {
+            applyDraftArtwork(target, field, text);
             return;
           }
+        } catch (error) {
+          console.debug("Clipboard text read failed", error);
         }
-      } catch {
-        // Try native paste with the artwork input still focused and selected.
       }
 
       let pasted = false;
@@ -6886,7 +6905,7 @@ function copyCardToDraft(card: CardEntry) {
           document.removeEventListener("paste", handleNativePaste, true);
         }
       }
-      if (!pasted) setArtworkPasteSheet({ target, field });
+      if (!pasted) setArtworkPasteError({ target, message: "Couldn't paste from the clipboard." });
     } finally {
       if (input) {
         window.setTimeout(() => {
@@ -12238,20 +12257,6 @@ function copyCardToDraft(card: CardEntry) {
               </div>
             </div>
           </div>
-        ) : null}
-
-        {artworkPasteSheet ? (
-          <ArtworkPasteDialog
-            isDarkMode={isDarkMode}
-            onClose={() => setArtworkPasteSheet(null)}
-            onPaste={(event) => {
-              if (handleArtworkPasteEvent(artworkPasteSheet.target, event, artworkPasteSheet.field)) {
-                setArtworkPasteSheet(null);
-              } else {
-                event.preventDefault();
-              }
-            }}
-          />
         ) : null}
 
         <EditCardDialog
