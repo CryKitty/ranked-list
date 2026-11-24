@@ -190,6 +190,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
 
     const root = document.documentElement;
     const visualViewport = window.visualViewport;
+    const widthQuery = window.matchMedia("(min-width: 640px)");
 
     const syncAppHeight = () => {
       const nextHeight = visualViewport?.height ?? window.innerHeight;
@@ -198,25 +199,21 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
 
     syncAppHeight();
 
-    if (!isMobileViewport) {
-      return () => {
-        root.style.setProperty("--app-height", "100dvh");
-      };
-    }
-
     visualViewport?.addEventListener("resize", syncAppHeight);
     visualViewport?.addEventListener("scroll", syncAppHeight);
     window.addEventListener("resize", syncAppHeight);
     window.addEventListener("orientationchange", syncAppHeight);
+    widthQuery.addEventListener("change", syncAppHeight);
 
     return () => {
       visualViewport?.removeEventListener("resize", syncAppHeight);
       visualViewport?.removeEventListener("scroll", syncAppHeight);
       window.removeEventListener("resize", syncAppHeight);
       window.removeEventListener("orientationchange", syncAppHeight);
+      widthQuery.removeEventListener("change", syncAppHeight);
       root.style.setProperty("--app-height", "100dvh");
     };
-  }, [isMobileViewport]);
+  }, []);
 
   function copyBoardTemplate() {
     const sharedBoardCopy = buildSharedBoardCopy(board);
@@ -309,11 +306,11 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
   return (
     <div
       className={clsx(
-        "h-[var(--app-height)] overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-[var(--app-height)] sm:overflow-visible",
+        "h-dvh overflow-hidden pt-[env(safe-area-inset-top)] transition-colors sm:h-auto sm:min-h-dvh sm:overflow-visible",
         boardBackgroundClass,
       )}
     >
-      <main className="mx-auto flex h-[var(--app-height)] min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-3 sm:min-h-[var(--app-height)] sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
+      <main className="mx-auto flex h-dvh min-h-0 w-full max-w-[1700px] flex-col gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+0.1rem)] pt-3 sm:min-h-dvh sm:gap-6 sm:overflow-visible sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+0.25rem)] sm:pt-6 lg:px-8">
         <header className={clsx("rounded-(--sorta-radius-28) border p-3 shadow-[0_24px_60px_rgba(19,27,68,0.24)] backdrop-blur sm:p-4", headerClass)}>
           <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:text-left">
             <div className="flex min-w-0 items-center justify-center gap-3 sm:max-w-[min(100%,48rem)]">

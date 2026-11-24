@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { driveImageFields } from "@/lib/drive-format";
+import { optimizeImageFile } from "@/lib/image-processing";
 import type { SavedBoard } from "@/lib/types";
 
 class DriveRequestError extends Error {
@@ -131,7 +132,15 @@ export function useDriveSync(
       // Both URL schemes resolve entirely in the browser.
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error("A local board image could not be read.");
-      const bytes = await response.arrayBuffer();
+      let contentType = response.headers.get("content-type") ?? "";
+      const mimeType = contentType.split(";")[0].trim().toLowerCase();
+      let image = await response.blob();
+      if (mimeType.startsWith("image/") && !["image/webp", "image/gif", "image/svg+xml"].includes(mimeType)) {
+        const optimized = await optimizeImageFile(new File([image], "artwork", { type: mimeType }));
+        image = optimized.file;
+        contentType = optimized.contentType;
+      }
+      const bytes = await image.arrayBuffer();
       const digest = await crypto.subtle.digest("SHA-256", bytes);
       const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
       if (uploadArtwork && !uploadedArtwork.current.has(hash)) {
@@ -139,7 +148,7 @@ export function useDriveSync(
         if (!upload) {
           upload = driveRequest("image", {
             method: "POST",
-            headers: { "Content-Type": response.headers.get("content-type") ?? "" },
+            headers: { "Content-Type": contentType },
             body: bytes,
             signal,
           }).then(() => {
