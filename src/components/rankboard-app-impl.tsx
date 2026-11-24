@@ -2638,9 +2638,15 @@ export function RankboardApp() {
     );
   }, []);
 
-  const importDriveBoards = useCallback((remoteBoards: SavedBoard[]) => {
-    const localBoards = latestBoardsRef.current;
+  const importDriveBoards = useCallback((remoteBoards: SavedBoard[], preserveActiveEdits: boolean) => {
     const activeId = latestActiveBoardIdRef.current;
+    const storedBoards = latestBoardsRef.current;
+    const activeBoard = storedBoards.find((board) => board.id === activeId);
+    const hasActiveEdits = preserveActiveEdits && activeBoard && (
+      JSON.stringify(activeBoard.columns) !== JSON.stringify(latestColumnsRef.current) ||
+      JSON.stringify(activeBoard.cardsByColumn) !== JSON.stringify(latestCardsByColumnRef.current)
+    );
+    const localBoards = hasActiveEdits ? buildEffectiveBoardsSnapshot() : storedBoards;
     const localById = new Map(localBoards.map((board) => [board.id, board]));
     const remoteIds = new Set<string>();
     const imports = new Map<string, SavedBoard>();
@@ -2670,7 +2676,7 @@ export function RankboardApp() {
     for (const [id, board] of imports) {
       if (!localById.has(id)) merged.push(board);
     }
-    if (!imports.size && merged.every((board, index) => board === localBoards[index])) return;
+    if (!imports.size && merged.every((board, index) => board === storedBoards[index])) return storedBoards;
     latestBoardsRef.current = merged;
     setBoards(merged);
 
@@ -2697,7 +2703,8 @@ export function RankboardApp() {
       setCardsByColumn(active.cardsByColumn);
       setHistory([]);
     }
-  }, []);
+    return merged;
+  }, [buildEffectiveBoardsSnapshot]);
 
   const drive = useDriveSync(boards, hasLoadedPersistedState, importDriveBoards, isDisposableDriveStarter);
   const displayedSaveState = drive.error ? "error" : drive.syncing ? "saving" :
@@ -8177,7 +8184,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function syncBoardNow() {
-    if (drive.signedIn) void drive.sync();
+    if (drive.signedIn) void drive.syncFull();
     else requestImmediateServerSync();
   }
 

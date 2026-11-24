@@ -54,7 +54,7 @@ type DriveSession = { enabled: boolean; signedIn: boolean };
 export function useDriveSync(
   boards: SavedBoard[],
   localReady: boolean,
-  importBoards: (boards: SavedBoard[]) => void,
+  importBoards: (boards: SavedBoard[], preserveActiveEdits: boolean) => SavedBoard[],
   isDisposableStarter: (board: SavedBoard) => boolean,
 ) {
   const [session, setSession] = useState<DriveSession>({ enabled: false, signedIn: false });
@@ -99,11 +99,11 @@ export function useDriveSync(
     return () => controller.abort();
   }, []);
 
-  const pull = useCallback(async (signal: AbortSignal) => {
+  const pull = useCallback(async (signal: AbortSignal, preserveActiveEdits = false) => {
     const remote = await driveRequest<SavedBoard[]>("boards", { signal });
     if (signal.aborted) return;
     versions.current = new Map(remote.map((board) => [board.id, Date.parse(board.updatedAt)]));
-    importBoards(remote);
+    latestBoards.current = importBoards(remote, preserveActiveEdits);
     setReady(true);
     setLastSyncAt(new Date().toISOString());
   }, [importBoards]);
@@ -115,11 +115,17 @@ export function useDriveSync(
     setReady(false);
     setError(null);
     setSyncing(true);
-    void pull(controller.signal).catch((cause: unknown) => {
-      if (!controller.signal.aborted) reportError(cause);
-    }).finally(() => {
-      if (!controller.signal.aborted) setSyncing(false);
+    const initialPull = pull(controller.signal).then(
+      () => !controller.signal.aborted,
+      (cause: unknown) => {
+        if (!controller.signal.aborted) reportError(cause);
+        return false;
+      },
+    ).finally(() => {
+      if (pending.current === initialPull) pending.current = null;
+      if (connection.current === controller) setSyncing(false);
     });
+    pending.current = initialPull;
     return () => controller.abort();
   }, [localReady, session.signedIn, pull, reportError]);
 
@@ -201,10 +207,13 @@ export function useDriveSync(
     return { ...board, cardsByColumn };
   }, []);
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (full = false) => {
     const signal = connection.current?.signal;
     if (!session.signedIn || !signal || signal.aborted) return false;
-    if (pending.current) await pending.current;
+    if (pending.current) {
+      if (full || !ready) return pending.current;
+      await pending.current;
+    }
     if (signal.aborted) return false;
     // Multiple callers may have been waiting on the previous batch.
     if (pending.current) return pending.current;
@@ -213,9 +222,10 @@ export function useDriveSync(
       setSyncing(true);
       setError(null);
       try {
-        if (!ready) {
-          await pull(signal);
-          return !signal.aborted;
+        if (full || !ready) {
+          await pull(signal, full);
+          if (signal.aborted) return false;
+          if (!full) return true;
         }
         for (const board of latestBoards.current) {
           const version = Date.parse(board.updatedAt);
@@ -237,7 +247,7 @@ export function useDriveSync(
         if (!signal.aborted) reportError(cause);
         return false;
       } finally {
-        setSyncing(false);
+        if (connection.current?.signal === signal) setSyncing(false);
       }
     })();
     pending.current = write;
@@ -280,5 +290,5 @@ export function useDriveSync(
     }
   }
 
-  return { ...session, error, lastSyncAt, syncing, sync, signOut, prepareSnapshot };
+  return { ...session, error, lastSyncAt, syncing, sync, syncFull: () => sync(true), signOut, prepareSnapshot };
 }
