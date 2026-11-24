@@ -395,9 +395,10 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                       const { displayTitle, displaySeries } = getDisplayCardText(card.title, card.series, showSeriesOnCards);
                       const isPortraitTierCard = isMobileViewport || board.settings?.tierListCardAspectRatio === "portrait";
                       const hideTextOverlay = false;
-                      const artworkUrl = isMobileViewport || isPortraitTierCard
-                        ? card.mobileTierListImageUrl || card.imageUrl
-                        : card.imageUrl;
+                      const artworkUrl = getArtworkDisplayUrl(
+                        (isMobileViewport || isPortraitTierCard ? card.mobileTierListImageUrl?.trim() : "") ||
+                        card.imageUrl || "",
+                      );
 
                       return (
                         <article
@@ -407,7 +408,7 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                           <div className={clsx("relative bg-slate-900", isMobileViewport ? "aspect-[3/4]" : board.settings?.tierListCardAspectRatio === "landscape" ? "aspect-video" : board.settings?.tierListCardAspectRatio === "portrait" ? "aspect-[3/4]" : "aspect-square")}>
                             {artworkUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(artworkUrl)} />
+                              <img alt="" className="absolute inset-0 h-full w-full object-cover" src={artworkUrl} />
                             ) : null}
                             {!hideTextOverlay ? (
                               <div className={clsx("absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent", isPortraitTierCard ? "h-[78%]" : "h-[70%]")} />
@@ -476,15 +477,17 @@ export function SharedBoardView({ board }: { board: SavedBoard }) {
                               ? "border-white/10"
                               : "border-slate-300";
 
+                    const artworkUrl = getArtworkDisplayUrl(card.imageUrl || "");
+
                     return (
                       <article
                         key={card.entryId}
                         className={clsx("mx-1 shrink-0 overflow-hidden rounded-(--sorta-radius-28) border bg-slate-900 sm:mx-0", tierBorderClass)}
                       >
                         <div className="relative aspect-video bg-slate-900">
-                          {card.imageUrl ? (
+                          {artworkUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img alt="" className="absolute inset-0 h-full w-full object-cover" src={getArtworkDisplayUrl(card.imageUrl)} />
+                            <img alt="" className="absolute inset-0 h-full w-full object-cover" src={artworkUrl} />
                           ) : null}
                           <div className="absolute inset-x-0 bottom-0 h-[64%] bg-gradient-to-t from-slate-950 via-slate-950/32 to-transparent" />
                           {!column.dontRank && (column.sortMode ?? "manual") === "manual" ? (

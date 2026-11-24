@@ -133,7 +133,8 @@ import {
   getPairwiseQuizProgressStorageKey,
   getUserBoardCacheKey,
   LOCAL_BACKUP_STORAGE_KEY,
-  LOCAL_STORAGE_KEY,
+  readLocalBoardState,
+  writeLocalBoardState,
   readStoredPreferredBoardId,
   SHARED_BOARD_TEMPLATE_STORAGE_KEY,
   THEME_STORAGE_KEY,
@@ -1055,13 +1056,13 @@ function readBoardsFromBackupRow(data: {
   return null;
 }
 
-function readLocalBoardsSnapshot() {
+async function readLocalBoardsSnapshot() {
   if (typeof window === "undefined") {
     return null;
   }
 
   try {
-    const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    const storedValue = await readLocalBoardState();
 
     if (!storedValue) {
       return null;
@@ -1127,17 +1128,16 @@ function buildImageSearchUrl(
     return null;
   }
 
-  // Bing Images, not Google: on iOS every google.com/search link is claimed
-  // by the Google app via universal links, so artwork lookups kept getting
-  // hijacked out of Safari. Bing's image search is not app-claimed and opens
-  // in the browser as expected.
-  const query = [trimmedTitle, trimmedSupplementalQuery].filter(Boolean).join(" ");
-  const url = new URL("https://www.bing.com/images/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set(
-    "qft",
-    artworkField === "portrait" ? "+filterui:aspect-tall" : "+filterui:aspect-wide",
-  );
+  const url = new URL("https://www.google.com/search");
+  url.searchParams.set("as_st", "y");
+  url.searchParams.set("as_epq", trimmedTitle);
+  if (trimmedSupplementalQuery) {
+    url.searchParams.set("as_q", trimmedSupplementalQuery);
+  }
+  url.searchParams.set("tbm", "isch");
+  url.searchParams.set("udm", "2");
+  url.searchParams.set("imgar", artworkField === "portrait" ? "t" : "w");
+  url.searchParams.set("tbs", artworkField === "portrait" ? "iar:t" : "iar:w");
 
   return url.toString();
 }
@@ -1245,6 +1245,13 @@ function isStarterBoard(
 
 function isEphemeralStarterBoard(board: SavedBoard) {
   return board.title === "Sorta" && isStarterBoard(board.columns, board.cardsByColumn);
+}
+
+function isDisposableDriveStarter(board: SavedBoard) {
+  const column = board.columns[0];
+  return !board.importedFromDrive && !board.isPublic && isEphemeralStarterBoard(board)
+    && normalizeBoardLayout(board.settings.boardLayout) === "board"
+    && column.type === "ranked" && !column.description?.trim() && !column.mirrorsEntireBoard;
 }
 
 function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> & { settings?: Partial<BoardSettings> })) {
@@ -2197,6 +2204,10 @@ export function RankboardApp() {
   const [isPersisting, setIsPersisting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+  const [artworkPasteError, setArtworkPasteError] = useState<{
+    target: "draft" | "edit";
+    message: string;
+  } | null>(null);
   const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
   const [persistRequestId, setPersistRequestId] = useState(0);
   const [isAddFieldSettingsOpen, setIsAddFieldSettingsOpen] = useState(false);
@@ -2215,8 +2226,6 @@ export function RankboardApp() {
   const mobileActionsHeightUnlockTimeoutRef = useRef<number | null>(null);
   const isMobileActionsOpenRef = useRef(false);
   const mobileQuickAddTitleInputRef = useRef<HTMLInputElement | null>(null);
-  const mobileQuickAddLandscapeArtworkInputRef = useRef<HTMLInputElement | null>(null);
-  const mobileQuickAddPortraitArtworkInputRef = useRef<HTMLInputElement | null>(null);
   const boardLaneRef = useRef<HTMLDivElement | null>(null);
   const pendingBoardDragRef = useRef<{
     entryId: string;
@@ -2498,8 +2507,8 @@ export function RankboardApp() {
     usedBoardIcons.add(iconKey);
   }
 
-  const resetToSignedOutBoard = useCallback(() => {
-    const localSnapshot = readLocalBoardsSnapshot();
+  const resetToSignedOutBoard = useCallback(async () => {
+    const localSnapshot = await readLocalBoardsSnapshot();
     const signedOutBoards = localSnapshot?.boards ?? [createEmptyBoard("Sorta")];
     const signedOutActiveBoardId =
       localSnapshot?.activeBoardId && signedOutBoards.some((board) => board.id === localSnapshot.activeBoardId)
@@ -2623,30 +2632,45 @@ export function RankboardApp() {
     const localBoards = latestBoardsRef.current;
     const activeId = latestActiveBoardIdRef.current;
     const localById = new Map(localBoards.map((board) => [board.id, board]));
+    const remoteIds = new Set(remoteBoards.map((board) => board.id));
     const imports = new Map<string, SavedBoard>();
     for (const board of remoteBoards) {
       const local = localById.get(board.id);
       if (!local || Date.parse(board.updatedAt) > Date.parse(local.updatedAt)) {
-        imports.set(board.id, normalizeSavedBoard(board));
+        imports.set(board.id, normalizeSavedBoard({ ...board, importedFromDrive: true }));
       }
     }
-    if (!imports.size) return;
 
-    const starter = localBoards.length === 1 ? localBoards[0] : null;
-    const replaceStarter = starter && !imports.has(starter.id) && !starter.isPublic
-      && starter.createdAt === starter.updatedAt && isEphemeralStarterBoard(starter);
-    const merged = replaceStarter ? [] : localBoards.map((board) => imports.get(board.id) ?? board);
+    const starter = localById.get(activeId);
+    const replaceStarter = imports.size > 0 && starter && !remoteIds.has(activeId)
+      && isDisposableDriveStarter({
+        ...starter,
+        columns: latestColumnsRef.current,
+        cardsByColumn: latestCardsByColumnRef.current,
+      });
+    const merged = localBoards
+      .filter((board) => !replaceStarter || board.id !== activeId)
+      .map((board) => imports.get(board.id) ?? (
+        remoteIds.has(board.id) && !board.importedFromDrive
+          ? { ...board, importedFromDrive: true }
+          : board
+      ));
     for (const [id, board] of imports) {
       if (!localById.has(id)) merged.push(board);
     }
+    if (!imports.size && merged.every((board, index) => board === localBoards[index])) return;
     latestBoardsRef.current = merged;
     setBoards(merged);
 
+    const selectionTime = (board: SavedBoard) => {
+      const selectedAt = Date.parse(board.defaultSelectedAt ?? "");
+      return Number.isFinite(selectedAt) ? selectedAt : -Infinity;
+    };
     const active = replaceStarter
-      ? merged.reduce((preferred, board) =>
-          (Date.parse(board.defaultSelectedAt ?? "") || 0) > (Date.parse(preferred.defaultSelectedAt ?? "") || 0)
-            ? board : preferred,
-        )
+      ? [...imports.values()].sort((left, right) =>
+          (selectionTime(right) - selectionTime(left)) ||
+          (Date.parse(right.updatedAt) - Date.parse(left.updatedAt)),
+        )[0]
       : imports.get(activeId);
     if (active) {
       skipNextHistoryRef.current = true;
@@ -2663,7 +2687,7 @@ export function RankboardApp() {
     }
   }, []);
 
-  const drive = useDriveSync(boards, hasLoadedPersistedState, importDriveBoards);
+  const drive = useDriveSync(boards, hasLoadedPersistedState, importDriveBoards, isDisposableDriveStarter);
   const displayedSaveState = drive.error ? "error" : drive.syncing ? "saving" :
     drive.signedIn && drive.lastSyncAt ? "saved" : saveState;
 
@@ -2871,63 +2895,66 @@ export function RankboardApp() {
       return;
     }
 
-    try {
-      const storedValue = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    let cancelled = false;
+    async function loadBoardState() {
+      try {
+        const storedValue = await readLocalBoardState();
 
-      if (!storedValue) {
-        setHasLoadedPersistedState(true);
-        return;
-      }
+        if (cancelled) return;
+        if (!storedValue) return;
 
-      const parsedState = JSON.parse(storedValue) as
-        | {
-            version?: number;
-            activeBoardId?: string;
-            boards?: SavedBoard[];
-          }
-        | {
-            columns?: ColumnDefinition[];
-            cardsByColumn?: Record<string, CardEntry[]>;
+        const parsedState = JSON.parse(storedValue) as
+          | {
+              version?: number;
+              activeBoardId?: string;
+              boards?: SavedBoard[];
+            }
+          | {
+              columns?: ColumnDefinition[];
+              cardsByColumn?: Record<string, CardEntry[]>;
+            };
+
+        if ("boards" in parsedState && Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
+          const nextBoards = parsedState.boards.map((board) => normalizeSavedBoard(board));
+          const preferredBoardId = readStoredPreferredBoardId();
+          const nextActiveBoardId =
+            preferredBoardId && nextBoards.some((board) => board.id === preferredBoardId)
+              ? preferredBoardId
+              : parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
+                ? parsedState.activeBoardId
+              : nextBoards[0].id;
+          const nextActiveBoard =
+            nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
+
+          skipNextHistoryRef.current = true;
+          setBoards(nextBoards);
+          setActiveBoardId(nextActiveBoardId);
+          setColumns(nextActiveBoard.columns);
+          setCardsByColumn(nextActiveBoard.cardsByColumn);
+        } else {
+          const legacyColumns = "columns" in parsedState ? parsedState.columns : undefined;
+          const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
+          const starterSnapshot = createStarterBoardSnapshot();
+          const migratedBoard: SavedBoard = {
+            ...createEmptyBoard("Sorta"),
+            columns: legacyColumns ?? starterSnapshot.columns,
+            cardsByColumn: legacyCards ?? starterSnapshot.cardsByColumn,
           };
 
-      if ("boards" in parsedState && Array.isArray(parsedState.boards) && parsedState.boards.length > 0) {
-        const nextBoards = parsedState.boards.map((board) => normalizeSavedBoard(board));
-        const preferredBoardId = readStoredPreferredBoardId();
-        const nextActiveBoardId =
-          preferredBoardId && nextBoards.some((board) => board.id === preferredBoardId)
-            ? preferredBoardId
-            : parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
-              ? parsedState.activeBoardId
-            : nextBoards[0].id;
-        const nextActiveBoard =
-          nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
-
-        skipNextHistoryRef.current = true;
-        setBoards(nextBoards);
-        setActiveBoardId(nextActiveBoardId);
-        setColumns(nextActiveBoard.columns);
-        setCardsByColumn(nextActiveBoard.cardsByColumn);
-      } else {
-        const legacyColumns = "columns" in parsedState ? parsedState.columns : undefined;
-        const legacyCards = "cardsByColumn" in parsedState ? parsedState.cardsByColumn : undefined;
-        const starterSnapshot = createStarterBoardSnapshot();
-        const migratedBoard: SavedBoard = {
-          ...createEmptyBoard("Sorta"),
-          columns: legacyColumns ?? starterSnapshot.columns,
-          cardsByColumn: legacyCards ?? starterSnapshot.cardsByColumn,
-        };
-
-        skipNextHistoryRef.current = true;
-        setBoards([migratedBoard]);
-        setActiveBoardId(migratedBoard.id);
-        setColumns(migratedBoard.columns);
-        setCardsByColumn(migratedBoard.cardsByColumn);
+          skipNextHistoryRef.current = true;
+          setBoards([migratedBoard]);
+          setActiveBoardId(migratedBoard.id);
+          setColumns(migratedBoard.columns);
+          setCardsByColumn(migratedBoard.cardsByColumn);
+        }
+      } catch {
+        // Ignore bad local data and fall back to demo content.
+      } finally {
+        if (!cancelled) setHasLoadedPersistedState(true);
       }
-    } catch {
-      // Ignore bad local data and fall back to demo content.
-    } finally {
-      setHasLoadedPersistedState(true);
     }
+    void loadBoardState();
+    return () => { cancelled = true; };
   }, [authEnabled]);
 
   useEffect(() => {
@@ -3024,39 +3051,35 @@ export function RankboardApp() {
       boards: effectiveBoards,
     });
 
-    try {
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
-
-      if (currentUser) {
-        window.localStorage.setItem(getUserBoardCacheKey(currentUser.id), serializedState);
-      }
-    } catch {
-      // Local storage can be smaller than a large board. Remote persistence and
-      // in-memory state should keep moving instead of crashing the app.
-      try {
-        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
-        if (currentUser) {
-          window.localStorage.removeItem(getUserBoardCacheKey(currentUser.id));
+    let cancelled = false;
+    void writeLocalBoardState(serializedState).then(
+      () => {
+        if (cancelled) return;
+        setLastSavedAt(new Date().toISOString());
+        setSaveState((current) =>
+          !currentUser || current === "idle" ? "saved-local" : current,
+        );
+      },
+      (error: unknown) => {
+        console.error("Local board save failed.", error);
+        if (!cancelled) {
+          setSaveErrorMessage("Board could not be saved in this browser.");
+          setSaveState("error");
         }
+      },
+    );
+
+    if (currentUser) {
+      try {
+        window.localStorage.setItem(getUserBoardCacheKey(currentUser.id), serializedState);
       } catch {
-        // Ignore cache cleanup failures too.
+        // The main local snapshot remains available via IndexedDB.
       }
     }
 
     writeLocalBackupSnapshot(buildBackupSnapshot(effectiveBoards, activeBoardId));
-    if (authEnabled && currentUser) {
-      if (saveState === "idle" || saveState === "saved-local") {
-        setLastSavedAt(new Date().toISOString());
-        setSaveState("saved-local");
-      }
-      return;
-    }
-
-    if (!authEnabled || !currentUser) {
-      setLastSavedAt(new Date().toISOString());
-      setSaveState("saved-local");
-    }
-  }, [activeBoardId, authEnabled, boards, cardsByColumn, columns, currentUser, hasLoadedPersistedState, hasLoadedRemoteState, isAuthLoading, saveState, writeLocalBackupSnapshot]);
+    return () => { cancelled = true; };
+  }, [activeBoardId, authEnabled, boards, cardsByColumn, columns, currentUser, hasLoadedPersistedState, hasLoadedRemoteState, writeLocalBackupSnapshot]);
 
   useEffect(() => {
     if (!hasLoadedPersistedState) {
@@ -3299,7 +3322,7 @@ export function RankboardApp() {
       }
     }
 
-    resetToSignedOutBoard();
+    void resetToSignedOutBoard();
   }, [authEnabled, currentUser, hasLoadedPersistedState, isAuthLoading, resetToSignedOutBoard]);
 
   useEffect(() => {
@@ -3392,7 +3415,7 @@ export function RankboardApp() {
             activeBoardId: nextBoard.id,
             boards: nextBoardsSnapshot,
           });
-          window.localStorage.setItem(LOCAL_STORAGE_KEY, serializedState);
+          void writeLocalBoardState(serializedState).catch(() => {});
           if (currentUser) {
             window.localStorage.setItem(getUserBoardCacheKey(currentUser.id), serializedState);
           }
@@ -4462,7 +4485,7 @@ export function RankboardApp() {
     await persistBoardState();
     await supabase?.auth.signOut();
     setCurrentUser(null);
-    resetToSignedOutBoard();
+    await resetToSignedOutBoard();
     setIsActionsMenuOpen(false);
     setIsMobileActionsOpen(false);
   }
@@ -5884,7 +5907,7 @@ export function RankboardApp() {
   function handleDraftSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!addCardTarget) {
+    if (!addCardTarget || isUploadingArtwork) {
       return;
     }
 
@@ -6073,6 +6096,7 @@ export function RankboardApp() {
   }
 
   function openAddGameModal(columnId: string, insertIndex: number) {
+    setArtworkPasteError(null);
     const isTierListTarget =
       activeBoardLayout === "tier-list" &&
       normalizedTierListView.rows.some((row) => row.id === columnId);
@@ -6104,6 +6128,7 @@ export function RankboardApp() {
   }
 
   function closeAddGameModal() {
+    setArtworkPasteError(null);
     setIsMobileQuickAddPanelOpen(false);
     setMobileQuickAddArtworkMenuField(null);
     setAddCardTarget(null);
@@ -6196,6 +6221,7 @@ export function RankboardApp() {
   }
 
   function openMobileQuickAddPanel() {
+    setArtworkPasteError(null);
     const focusedColumnId =
       getFocusedAddDestinationId() ||
       mobileFocusedColumnId ||
@@ -6744,65 +6770,44 @@ function copyCardToDraft(card: CardEntry) {
     );
   }
 
-  async function pasteArtworkFromClipboard(
-    target: "draft" | "edit",
-    field: ArtworkFieldKind,
-    input?: HTMLInputElement | null,
-  ) {
-    const previousInputMode = input?.inputMode ?? "";
-
-    if (input) {
-      input.inputMode = "none";
-      input.focus({ preventScroll: true });
-      input.select();
-    }
-
+  async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
     try {
-      if (navigator.clipboard?.readText) {
-        const pastedValue = (await navigator.clipboard.readText()).trim();
-        if (pastedValue) {
-          applyPastedArtworkValue(target, field, pastedValue);
+      const clipboard = navigator.clipboard;
+      // Request all clipboard types during the tap so Safari can grant access once.
+      const contents = clipboard?.read
+        ? clipboard.read()
+        : clipboard?.readText?.();
+      setArtworkPasteError(null);
+      const pasted = await contents;
+
+      if (typeof pasted === "string" && pasted.trim()) {
+        applyPastedArtworkValue(target, field, pasted);
+        return;
+      }
+
+      if (Array.isArray(pasted)) {
+        for (const item of pasted) {
+          if (!item.types.includes("text/plain")) continue;
+          const text = await (await item.getType("text/plain")).text();
+          if (text.trim()) {
+            applyPastedArtworkValue(target, field, text);
+            return;
+          }
+        }
+
+        for (const item of pasted) {
+          const imageType = item.types.find((type) => type.startsWith("image/"));
+          if (!imageType) continue;
+          const image = await item.getType(imageType);
+          const optimized = await optimizeImageFile(new File([image], "clipboard-image", { type: imageType }));
+          applyPastedArtworkValue(target, field, await blobToDataUrl(optimized.file));
           return;
         }
       }
 
-      if (navigator.clipboard?.read) {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const item of clipboardItems) {
-          if (!item.types.includes("text/plain")) {
-            continue;
-          }
-
-          const textBlob = await item.getType("text/plain");
-          const pastedValue = (await textBlob.text()).trim();
-          if (pastedValue) {
-            applyPastedArtworkValue(target, field, pastedValue);
-            return;
-          }
-        }
-      }
-
-      const pasted = document.execCommand?.("paste");
-      if (pasted) {
-        return;
-      }
-
-      setSaveState("error");
-      setSaveErrorMessage("Tap and hold the artwork field, then choose Paste.");
-    } catch (error) {
-      console.error(error);
-      const pasted = document.execCommand?.("paste");
-      if (!pasted) {
-        setSaveState("error");
-        setSaveErrorMessage("Clipboard contents could not be pasted.");
-      }
-    } finally {
-      if (input) {
-        window.setTimeout(() => {
-          input.blur();
-          input.inputMode = previousInputMode;
-        }, 0);
-      }
+      setArtworkPasteError({ target, message: "Tap and hold the artwork field, then choose Paste." });
+    } catch {
+      setArtworkPasteError({ target, message: "Clipboard contents could not be pasted." });
     }
   }
 
@@ -6831,7 +6836,7 @@ function copyCardToDraft(card: CardEntry) {
       let nextImageUrl = "";
       let nextStoragePath: string | undefined;
 
-      if (supabase && currentUser) {
+      if (!drive.signedIn && supabase && currentUser) {
         const uploaded = await uploadArtworkToStorage(
           supabase,
           currentUser.id,
@@ -6841,14 +6846,14 @@ function copyCardToDraft(card: CardEntry) {
         nextImageUrl = uploaded.publicUrl;
         nextStoragePath = uploaded.path;
       } else {
-        nextImageUrl = await blobToDataUrl(optimized.file);
+        nextImageUrl = await blobToDataUrl(optimized.file.slice(0, optimized.file.size, optimized.contentType));
       }
 
       if (target === "draft") {
         setDraft((current) => ({
           ...current,
           imageUrl: artworkField === "landscape" ? nextImageUrl : current.imageUrl,
-          imageStoragePath: nextStoragePath,
+          imageStoragePath: artworkField === "landscape" ? nextStoragePath : current.imageStoragePath,
           mobileTierListImageUrl:
             artworkField === "portrait" ? nextImageUrl : current.mobileTierListImageUrl,
         }));
@@ -6858,7 +6863,7 @@ function copyCardToDraft(card: CardEntry) {
             ? {
                 ...current,
                 imageUrl: artworkField === "landscape" ? nextImageUrl : current.imageUrl,
-                imageStoragePath: nextStoragePath,
+                imageStoragePath: artworkField === "landscape" ? nextStoragePath : current.imageStoragePath,
                 mobileTierListImageUrl:
                   artworkField === "portrait" ? nextImageUrl : current.mobileTierListImageUrl,
               }
@@ -6886,6 +6891,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function startEditingCard(card: CardEntry) {
+    setArtworkPasteError(null);
     setEditingCardId(card.entryId);
     setEditingCardItemId(card.itemId);
     setEditingCardDraft(createCardDraft(card));
@@ -6893,6 +6899,7 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function cancelEditingCard() {
+    setArtworkPasteError(null);
     setEditingCardId(null);
     setEditingCardItemId(null);
     setEditingCardDraft(null);
@@ -8728,7 +8735,7 @@ function copyCardToDraft(card: CardEntry) {
 
     const activeBoard = boards.find((board) => board.id === activeBoardId) ?? null;
     if (!activeBoard || isEphemeralStarterBoard(activeBoard)) {
-      resetToSignedOutBoard();
+      void resetToSignedOutBoard();
     }
   }, [activeBoardId, boards, resetToSignedOutBoard]);
 
@@ -10136,11 +10143,6 @@ function copyCardToDraft(card: CardEntry) {
                                             <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{artworkField.label}</span>
                                             <div className="relative">
                                               <input
-                                                ref={
-                                                  artworkField.field === "landscape"
-                                                    ? mobileQuickAddLandscapeArtworkInputRef
-                                                    : mobileQuickAddPortraitArtworkInputRef
-                                                }
                                                 name={artworkField.field === "landscape" ? "imageUrl" : "mobileTierListImageUrl"}
                                                 className={clsx(
                                                   "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
@@ -10168,11 +10170,7 @@ function copyCardToDraft(card: CardEntry) {
                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
                                                 )}
                                                 onClick={() => {
-                                                  const input =
-                                                    artworkField.field === "landscape"
-                                                      ? mobileQuickAddLandscapeArtworkInputRef.current
-                                                      : mobileQuickAddPortraitArtworkInputRef.current;
-                                                  void pasteArtworkFromClipboard("draft", artworkField.field, input);
+                                                  void pasteArtworkFromClipboard("draft", artworkField.field);
                                                 }}
                                                 type="button"
                                                 aria-label={`Paste ${artworkField.label}`}
@@ -10400,12 +10398,16 @@ function copyCardToDraft(card: CardEntry) {
                                   </div>
                                 </div>
 
+                                {artworkPasteError?.target === "draft" ? (
+                                  <p className="px-3 pb-2 text-sm" role="alert">{artworkPasteError.message}</p>
+                                ) : null}
                                 <div className={clsx("flex items-center gap-2 border-t p-3", isDarkMode ? "border-white/10" : "border-slate-200")}>
                                   <button
                                     className={clsx(
                                       "flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition",
                                       isDarkMode ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800",
                                     )}
+                                    disabled={isUploadingArtwork}
                                     type="submit"
                                   >
                                     {`Add ${boardVocabulary.singular}`}
@@ -12220,8 +12222,9 @@ function copyCardToDraft(card: CardEntry) {
           onOpenGifSearch={(field) => autofillEditingCardImageForField(field, "gif")}
           onOpenImageSearch={(field) => autofillEditingCardImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("edit", field)}
-          onPasteArtwork={(field, input) => {
-            void pasteArtworkFromClipboard("edit", field, input);
+          artworkPasteError={artworkPasteError?.target === "edit" ? artworkPasteError.message : null}
+          onPasteArtwork={(field) => {
+            void pasteArtworkFromClipboard("edit", field);
           }}
           onReleaseYearChange={(value) =>
             setEditingCardDraft((current) =>
@@ -12259,9 +12262,15 @@ function copyCardToDraft(card: CardEntry) {
           normalizeDateFieldInput={normalizeDateFieldInput}
         />
 
+        <input
+          accept="image/*,.gif"
+          className="hidden"
+          onChange={(event) => { void handleArtworkFileSelection("draft", event); }}
+          ref={addArtworkInputRef}
+          type="file"
+        />
         <AddCardDialog
           activeBoardFieldDefinitions={activeBoardFieldDefinitions}
-          addArtworkInputRef={addArtworkInputRef}
           addCardTargetColumnId={addCardTarget?.tierRowId ?? addCardTarget?.columnId ?? columns[0]?.id ?? ""}
           allSeries={allSeries}
           boardSingular={boardVocabulary.singular}
@@ -12276,9 +12285,6 @@ function copyCardToDraft(card: CardEntry) {
           isUploadingArtwork={isUploadingArtwork}
           newColumnOption={NEW_COLUMN_OPTION}
           notesFieldLabel={notesFieldLabel}
-          onArtworkFileSelection={(event) => {
-            void handleArtworkFileSelection("draft", event);
-          }}
           onClose={closeAddGameModal}
           onColumnIdChange={(value) => {
             if (activeBoardLayout === "tier-list" && addCardTarget) {
@@ -12345,8 +12351,9 @@ function copyCardToDraft(card: CardEntry) {
           onOpenGifSearch={(field) => handleAutofillDraftImageForField(field, "gif")}
           onOpenImageSearch={(field) => handleAutofillDraftImageForField(field, "image")}
           onOpenUploadPicker={(field) => openArtworkUploadPicker("draft", field)}
-          onPasteArtwork={(field, input) => {
-            void pasteArtworkFromClipboard("draft", field, input);
+          artworkPasteError={artworkPasteError?.target === "draft" ? artworkPasteError.message : null}
+          onPasteArtwork={(field) => {
+            void pasteArtworkFromClipboard("draft", field);
           }}
           onReleaseYearChange={(value) =>
             setDraft((current) => ({
@@ -15755,10 +15762,10 @@ function BoardColumn({
       : null;
     return matchesTierFilter(originalRank, activeTierFilter);
   });
-  const renderedCards =
-    isCardDragging && activeDragEntryId
-      ? tierFilteredCards.filter((card) => card.entryId !== activeDragEntryId)
-      : tierFilteredCards;
+  const draggedCardIndex = isCardDragging
+    ? tierFilteredCards.findIndex((card) => card.entryId === activeDragEntryId)
+    : -1;
+  const visibleCardCount = tierFilteredCards.length - (draggedCardIndex >= 0 ? 1 : 0);
 
   useEffect(() => {
     const node = columnScrollRef.current;
@@ -16565,11 +16572,11 @@ function BoardColumn({
                 activeBoardInsertTarget.insertIndex === 0
               }
               insertIndex={0}
-              alwaysVisible={renderedCards.length === 0}
+              alwaysVisible={visibleCardCount === 0}
               hideAction={
                 suppressAddCardAffordances ||
                 (!isCardDragging &&
-                  (renderedCards.length === 0 ||
+                  (visibleCardCount === 0 ||
                     isMenuOpen ||
                     isSortMenuOpen ||
                     isFilterMenuOpen ||
@@ -16585,73 +16592,82 @@ function BoardColumn({
               onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: 0 })}
               onClick={() => onAddCard(column.id, 0)}
             />
-            {renderedCards.map((card, index) => (
-              <div
-                key={card.entryId}
-                className={clsx(
-                  "flex flex-col",
-                  collapseCards ? "gap-0" : "gap-1.5 sm:gap-3",
-                )}
-              >
-                <DraggableCard
-                  card={card}
-                  columnId={column.id}
-                  sourceIndex={index}
-                  collapseCards={collapseCards}
-                  isDarkMode={isDarkMode}
-                  showSeries={showSeriesOnCards}
-                  showArtwork={showArtworkOnCards}
-                  showTierHighlights={showTierHighlights}
-                  frontFieldDefinitions={frontFieldDefinitions}
-                  rankBadge={
-                    isRankedColumn(column)
-                      ? {
-                          value: index + 1,
-                        }
-                      : null
-                  }
-                  onEdit={() => onEditCard(card)}
-                  onStartDrag={onStartBoardCardDrag}
-                  suppressClickUntil={suppressBoardCardClickUntil}
-                  mobileArtworkVariant={isMobileViewport ? "board" : undefined}
-                />
-                <AddCardRow
-                  columnId={column.id}
-                  isDarkMode={isDarkMode}
-                  isDragMode={isCardDragging}
-                  isGapSuppressed={isDragGapSuppressed}
-                  collapseCards={collapseCards}
-                  visualTargetOnly
-                  forceActive={
-                    activeBoardInsertTarget?.columnId === column.id &&
-                    activeBoardInsertTarget.insertIndex === index + 1
-                  }
-                  insertIndex={index + 1}
-                  alwaysVisible={index === renderedCards.length - 1}
-                  hideAction={
-                    suppressAddCardAffordances ||
-                    (!isCardDragging &&
-                      (isMenuOpen ||
-                        isSortMenuOpen ||
-                        isFilterMenuOpen ||
-                        isMirrorMenuOpen ||
-                        isMaintenanceMenuOpen))
-                  }
-                  isMobileViewport={isMobileViewport}
-                  mobileArmed={
-                    revealedMobileAddCardTarget?.columnId === column.id &&
-                    revealedMobileAddCardTarget.insertIndex === index + 1
-                  }
-                  interactive={!disableAddAffordances && !suppressAddCardAffordances}
-                  onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: index + 1 })}
-                  onClick={() => onAddCard(column.id, index + 1)}
-                />
-              </div>
-            ))}
+            {tierFilteredCards.map((card, cardIndex) => {
+              const isDragSource = cardIndex === draggedCardIndex;
+              const index = draggedCardIndex >= 0 && cardIndex > draggedCardIndex ? cardIndex - 1 : cardIndex;
+              return (
+                <div
+                  key={card.entryId}
+                  className={clsx(
+                    "flex flex-col",
+                    collapseCards ? "gap-0" : "gap-1.5 sm:gap-3",
+                    // Keep the captured pointer's node mounted while the overlay moves.
+                    isDragSource && "pointer-events-none absolute opacity-0",
+                  )}
+                  aria-hidden={isDragSource || undefined}
+                >
+                  <DraggableCard
+                    card={card}
+                    columnId={column.id}
+                    sourceIndex={index}
+                    collapseCards={collapseCards}
+                    isDarkMode={isDarkMode}
+                    showSeries={showSeriesOnCards}
+                    showArtwork={showArtworkOnCards}
+                    showTierHighlights={showTierHighlights}
+                    frontFieldDefinitions={frontFieldDefinitions}
+                    rankBadge={
+                      isRankedColumn(column)
+                        ? {
+                            value: index + 1,
+                          }
+                        : null
+                    }
+                    onEdit={() => onEditCard(card)}
+                    onStartDrag={onStartBoardCardDrag}
+                    suppressClickUntil={suppressBoardCardClickUntil}
+                    mobileArtworkVariant={isMobileViewport ? "board" : undefined}
+                  />
+                  {!isDragSource ? (
+                    <AddCardRow
+                      columnId={column.id}
+                      isDarkMode={isDarkMode}
+                      isDragMode={isCardDragging}
+                      isGapSuppressed={isDragGapSuppressed}
+                      collapseCards={collapseCards}
+                      visualTargetOnly
+                      forceActive={
+                        activeBoardInsertTarget?.columnId === column.id &&
+                        activeBoardInsertTarget.insertIndex === index + 1
+                      }
+                      insertIndex={index + 1}
+                      alwaysVisible={index === visibleCardCount - 1}
+                      hideAction={
+                        suppressAddCardAffordances ||
+                        (!isCardDragging &&
+                          (isMenuOpen ||
+                            isSortMenuOpen ||
+                            isFilterMenuOpen ||
+                            isMirrorMenuOpen ||
+                            isMaintenanceMenuOpen))
+                      }
+                      isMobileViewport={isMobileViewport}
+                      mobileArmed={
+                        revealedMobileAddCardTarget?.columnId === column.id &&
+                        revealedMobileAddCardTarget.insertIndex === index + 1
+                      }
+                      interactive={!disableAddAffordances && !suppressAddCardAffordances}
+                      onArm={() => onRevealMobileAddCardTarget({ columnId: column.id, insertIndex: index + 1 })}
+                      onClick={() => onAddCard(column.id, index + 1)}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
           </>
         )}
 
-        {renderedCards.length === 0 ? (
+        {visibleCardCount === 0 ? (
           <button
             className={clsx(
               "group flex flex-1 items-center justify-center rounded-[26px] border border-dashed p-6 text-center text-sm leading-6 transition",
@@ -17729,7 +17745,8 @@ function CardTile({
         : card.imageUrl?.trim() || "";
   const allowDriveArtwork = useContext(DriveArtworkContext);
   const imageSource = showArtwork ? getArtworkDisplayUrl(selectedImageUrl, allowDriveArtwork) : "";
-  const hasArtwork = Boolean(imageSource);
+  const [failedImageSource, setFailedImageSource] = useState("");
+  const hasArtwork = Boolean(imageSource) && failedImageSource !== imageSource;
   const isPortraitOverlay = !compactImageOnly && !hideTextOverlay && cardAspectRatio === "portrait";
   const shouldPrioritizeImage =
     !isDragging && (rankBadge?.value ?? secondaryRankBadge?.value ?? Number.POSITIVE_INFINITY) <= 2;
@@ -17970,7 +17987,7 @@ function CardTile({
               fetchPriority={shouldPrioritizeImage ? "high" : "auto"}
               loading={shouldPrioritizeImage ? "eager" : "lazy"}
               onLoad={() => setLoadedImageSource(imageSource)}
-              onError={() => setLoadedImageSource(imageSource)}
+              onError={() => setFailedImageSource(imageSource)}
               src={imageSource}
             />
             <div

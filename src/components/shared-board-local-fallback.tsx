@@ -1,22 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
 import { SharedBoardView } from "@/components/shared-board-view";
-import { LOCAL_STORAGE_KEY } from "@/lib/rankboard-storage";
+import { readLocalBoardState } from "@/lib/rankboard-storage";
 import type { SavedBoard } from "@/lib/types";
-
-function subscribe() {
-  return () => {};
-}
-
-function readLocalSnapshot() {
-  try {
-    return window.localStorage.getItem(LOCAL_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
 
 function readLocalSharedBoard(rawState: string | null, slug: string) {
   try {
@@ -32,8 +20,15 @@ function readLocalSharedBoard(rawState: string | null, slug: string) {
 }
 
 export function SharedBoardLocalFallback({ slug }: { slug: string }) {
-  // React compares snapshots by identity. Parse only after reading the stable string.
-  const rawState = useSyncExternalStore(subscribe, readLocalSnapshot, () => undefined);
+  const [rawState, setRawState] = useState<string | null>();
+  useEffect(() => {
+    let cancelled = false;
+    void readLocalBoardState().then(
+      (snapshot) => { if (!cancelled) setRawState(snapshot); },
+      () => { if (!cancelled) setRawState(null); },
+    );
+    return () => { cancelled = true; };
+  }, []);
 
   if (rawState === undefined) {
     return <div className="min-h-screen bg-slate-950 p-8 text-white">Loading shared board...</div>;
