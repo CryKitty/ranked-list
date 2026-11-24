@@ -79,7 +79,7 @@ import {
 } from "@/components/rankboard-fields";
 import { VisualThemeControl } from "@/components/visual-theme-control";
 import { BoardHistoryDialog } from "@/components/board-history-dialog";
-import { AddCardDialog, BoardSetupDialog, EditCardDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
+import { AddCardDialog, BoardSetupDialog, EditCardDialog, ArtworkPasteDialog, SeriesInput, ShareBoardDialog, WelcomeDialog } from "@/components/rankboard-dialogs";
 import { parseTrelloBoardExport } from "@/lib/trello-import";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { driveRequest, signInWithGoogle, useDriveSync } from "@/lib/drive-client";
@@ -1244,14 +1244,18 @@ function isStarterBoard(
 }
 
 function isEphemeralStarterBoard(board: SavedBoard) {
-  return board.title === "Sorta" && isStarterBoard(board.columns, board.cardsByColumn);
+  return (board.title === "Sorta" || board.title === "New Board") && isStarterBoard(board.columns, board.cardsByColumn);
+}
+
+function isDisposableLocalStarter(board: SavedBoard) {
+  const column = board.columns[0];
+  return !board.isPublic && isEphemeralStarterBoard(board)
+    && normalizeBoardLayout(board.settings.boardLayout) === "board"
+    && column.type === "ranked" && !column.description?.trim() && !column.mirrorsEntireBoard;
 }
 
 function isDisposableDriveStarter(board: SavedBoard) {
-  const column = board.columns[0];
-  return !board.importedFromDrive && !board.isPublic && isEphemeralStarterBoard(board)
-    && normalizeBoardLayout(board.settings.boardLayout) === "board"
-    && column.type === "ranked" && !column.description?.trim() && !column.mirrorsEntireBoard;
+  return !board.importedFromDrive && isDisposableLocalStarter(board);
 }
 
 function normalizeSavedBoard(board: SavedBoard | (Omit<SavedBoard, "settings"> & { settings?: Partial<BoardSettings> })) {
@@ -1966,7 +1970,7 @@ function SaveStatusButton({
   isMobileViewport = false,
   requiresLogin = false,
   onRequireLogin,
-  onSyncAndOpenHistory,
+  onSync,
 }: {
   isDarkMode: boolean;
   isPersisting: boolean;
@@ -1977,7 +1981,7 @@ function SaveStatusButton({
   isMobileViewport?: boolean;
   requiresLogin?: boolean;
   onRequireLogin?: () => void;
-  onSyncAndOpenHistory?: () => void;
+  onSync?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
@@ -1988,7 +1992,7 @@ function SaveStatusButton({
       : `${getSaveStatusLabel(saveState)}. Last saved ${formatLastSavedAt(lastSavedAt)}`;
   const actionLabel = requiresLogin
     ? tooltipLabel
-    : `${tooltipLabel}. Sync now and view board history.`;
+    : `${tooltipLabel}. Sync now.`;
 
   useEffect(() => {
     if (!isMobileViewport || !isTooltipOpen) {
@@ -2022,7 +2026,7 @@ function SaveStatusButton({
             return;
           }
           setIsTooltipOpen(false);
-          onSyncAndOpenHistory?.();
+          onSync?.();
         }}
         onBlur={() => {
           if (isMobileViewport) {
@@ -2204,6 +2208,12 @@ export function RankboardApp() {
   const [isPersisting, setIsPersisting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+  const [artworkPasteSheet, setArtworkPasteSheet] = useState<{
+    target: "draft" | "edit";
+    field: ArtworkFieldKind;
+  } | null>(null);
+  const mobileQuickAddLandscapeArtworkRef = useRef<HTMLInputElement>(null);
+  const mobileQuickAddPortraitArtworkRef = useRef<HTMLInputElement>(null);
   const [artworkPasteError, setArtworkPasteError] = useState<{
     target: "draft" | "edit";
     message: string;
@@ -2927,14 +2937,14 @@ export function RankboardApp() {
               : nextBoards[0].id;
           const storedActiveBoard =
             nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
-          const retainedBoards = nextBoards.filter((board) => !isDisposableDriveStarter(board));
-          const replacement = isDisposableDriveStarter(storedActiveBoard)
+          const retainedBoards = nextBoards.filter((board) => !isDisposableLocalStarter(board));
+          const replacement = isDisposableLocalStarter(storedActiveBoard)
             ? [...retainedBoards].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0]
             : undefined;
           const nextActiveBoard = replacement ?? storedActiveBoard;
 
           skipNextHistoryRef.current = true;
-          setBoards(retainedBoards.length > 0 ? retainedBoards : nextBoards);
+          setBoards(retainedBoards.length > 0 ? retainedBoards : [storedActiveBoard]);
           setActiveBoardId(nextActiveBoard.id);
           setColumns(nextActiveBoard.columns);
           setCardsByColumn(nextActiveBoard.cardsByColumn);
@@ -3919,7 +3929,7 @@ export function RankboardApp() {
       return;
     }
 
-    if (boards.length === 1 && activeBoardTitle === "Sorta" && isStarterBoard(columns, cardsByColumn)) {
+    if (boards.length === 1 && (activeBoardTitle === "Sorta" || activeBoardTitle === "New Board") && isStarterBoard(columns, cardsByColumn)) {
       hasAutoOpenedBoardSetupRef.current = true;
       setNewBoardTitle("");
       setNewBoardSettings(getDefaultBoardSettings("New Board"));
@@ -6780,21 +6790,33 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  function handleArtworkPasteEvent(target: "draft" | "edit", event: React.ClipboardEvent) {
-    const { files, items } = event.clipboardData;
+  function handleArtworkPasteEvent(
+    target: "draft" | "edit",
+    event: React.ClipboardEvent | ClipboardEvent,
+    artworkField?: ArtworkFieldKind,
+  ) {
+    const data = event.clipboardData;
+    if (!data) return false;
+    const { files, items } = data;
     const file = Array.from(files).find((file) => file.type.startsWith("image/"))
       ?? Array.from(items)
         .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
         .map((item) => item.getAsFile())
         .find((file) => file !== null);
-    if (!file) return;
+    const text = artworkField ? data.getData("text/plain").trim() : "";
+    if (!file && !text) return false;
 
     event.preventDefault();
     event.stopPropagation();
-    const field = event.target instanceof HTMLInputElement && event.target.name === "mobileTierListImageUrl"
+    const field = artworkField ?? (event.target instanceof HTMLInputElement && event.target.name === "mobileTierListImageUrl"
       ? "portrait"
-      : "landscape";
-    void applyPastedArtworkImage(target, field, file);
+      : "landscape");
+    if (file) {
+      void applyPastedArtworkImage(target, field, file);
+    } else {
+      applyDraftArtwork(target, field, text);
+    }
+    return true;
   }
 
   async function pasteArtworkFromClipboard(
@@ -6844,17 +6866,20 @@ function copyCardToDraft(card: CardEntry) {
       }
 
       let pasted = false;
-      try {
-        pasted = Boolean(input && document.execCommand?.("paste"));
-      } catch {
-        // Native paste can be blocked by the browser.
+      if (input) {
+        const handleNativePaste = (event: ClipboardEvent) => {
+          if (event.target === input) pasted = handleArtworkPasteEvent(target, event, field);
+        };
+        document.addEventListener("paste", handleNativePaste, true);
+        try {
+          document.execCommand?.("paste");
+        } catch {
+          // Native paste can be blocked by the browser.
+        } finally {
+          document.removeEventListener("paste", handleNativePaste, true);
+        }
       }
-      if (!pasted) {
-        setArtworkPasteError({
-          target,
-          message: "Clipboard could not be read here. Paste into the artwork field instead.",
-        });
-      }
+      if (!pasted) setArtworkPasteSheet({ target, field });
     } finally {
       if (input) {
         window.setTimeout(() => {
@@ -8151,8 +8176,7 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  function syncAndOpenBoardHistory() {
-    void openBoardHistory();
+  function syncBoardNow() {
     if (drive.signedIn) void drive.sync();
     else requestImmediateServerSync();
   }
@@ -9923,6 +9947,14 @@ function copyCardToDraft(card: CardEntry) {
                         {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                         {isDarkMode ? "Lumos" : "Nox"}
                       </button>
+                      <button
+                        className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                        onClick={() => void openBoardHistory()}
+                        type="button"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        Board history
+                      </button>
                       {drive.signedIn ? (
                         <button
                           className={clsx(
@@ -10203,6 +10235,7 @@ function copyCardToDraft(card: CardEntry) {
                                             <span className={clsx("text-sm font-medium", isDarkMode ? "text-slate-200" : "text-slate-700")}>{artworkField.label}</span>
                                             <div className="relative">
                                               <input
+                                                ref={artworkField.field === "landscape" ? mobileQuickAddLandscapeArtworkRef : mobileQuickAddPortraitArtworkRef}
                                                 name={artworkField.field === "landscape" ? "imageUrl" : "mobileTierListImageUrl"}
                                                 className={clsx(
                                                   "w-full rounded-2xl border px-4 py-3 pr-24 outline-none transition",
@@ -10229,9 +10262,11 @@ function copyCardToDraft(card: CardEntry) {
                                                     ? "border-white/10 bg-slate-900 text-slate-200 hover:border-white/35 hover:bg-slate-800"
                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white",
                                                 )}
-                                                onClick={(event) => {
-                                                  const input = event.currentTarget.parentElement?.querySelector("input") ?? null;
-                                                  void pasteArtworkFromClipboard("draft", artworkField.field, input);
+                                                onClick={() => {
+                                                  const inputRef = artworkField.field === "landscape"
+                                                    ? mobileQuickAddLandscapeArtworkRef
+                                                    : mobileQuickAddPortraitArtworkRef;
+                                                  void pasteArtworkFromClipboard("draft", artworkField.field, inputRef.current);
                                                 }}
                                                 type="button"
                                                 aria-label={`Paste ${artworkField.label}`}
@@ -11018,6 +11053,14 @@ function copyCardToDraft(card: CardEntry) {
                               {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                               {isDarkMode ? "Lumos" : "Nox"}
                             </button>
+                            <button
+                              className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                              onClick={() => void openBoardHistory()}
+                              type="button"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              Board history
+                            </button>
                             {drive.signedIn ? (
                               <button
                                 className={clsx("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
@@ -11288,7 +11331,7 @@ function copyCardToDraft(card: CardEntry) {
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={drive.signedIn ? drive.lastSyncAt ?? lastSavedAt : lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
-                      onSyncAndOpenHistory={() => void syncAndOpenBoardHistory()}
+                      onSync={() => void syncBoardNow()}
                       requiresLogin={drive.enabled && !drive.signedIn}
                       saveErrorMessage={drive.error ?? saveErrorMessage}
                       saveState={displayedSaveState}
@@ -11562,6 +11605,14 @@ function copyCardToDraft(card: CardEntry) {
                             {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                             {isDarkMode ? "Lumos" : "Nox"}
                           </button>
+                          <button
+                            className={clsx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition", isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100")}
+                            onClick={() => void openBoardHistory()}
+                            type="button"
+                          >
+                            <BookOpen className="h-4 w-4" />
+                            Board history
+                          </button>
                           {drive.signedIn ? (
                             <button
                               className={clsx(
@@ -11601,7 +11652,7 @@ function copyCardToDraft(card: CardEntry) {
                       isMobileViewport={isMobileViewport}
                       lastSavedAt={drive.signedIn ? drive.lastSyncAt ?? lastSavedAt : lastSavedAt}
                       onRequireLogin={() => setIsSaveLoginModalOpen(true)}
-                      onSyncAndOpenHistory={() => void syncAndOpenBoardHistory()}
+                      onSync={() => void syncBoardNow()}
                       requiresLogin={drive.enabled && !drive.signedIn}
                       saveErrorMessage={drive.error ?? saveErrorMessage}
                       saveState={displayedSaveState}
@@ -12180,6 +12231,20 @@ function copyCardToDraft(card: CardEntry) {
               </div>
             </div>
           </div>
+        ) : null}
+
+        {artworkPasteSheet ? (
+          <ArtworkPasteDialog
+            isDarkMode={isDarkMode}
+            onClose={() => setArtworkPasteSheet(null)}
+            onPaste={(event) => {
+              if (handleArtworkPasteEvent(artworkPasteSheet.target, event, artworkPasteSheet.field)) {
+                setArtworkPasteSheet(null);
+              } else {
+                event.preventDefault();
+              }
+            }}
+          />
         ) : null}
 
         <EditCardDialog
