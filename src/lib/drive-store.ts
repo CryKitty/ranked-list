@@ -134,12 +134,16 @@ export async function readNewestDriveBoards(token: string, folder: string) {
 }
 
 export async function readDriveBoardHistory(token: string, folder: string, boardId: string) {
-  const files = (await listSnapshots(token, folder)).filter((snapshot) => snapshot.boardId === boardId).slice(0, 101);
+  const files = (await listSnapshots(token, folder))
+    .filter((snapshot) => snapshot.boardId === boardId)
+    .slice(0, 20);
   const rows = [];
-  for (const { file } of files) {
-    const snapshot = await readSnapshot(token, file, boardId);
-    if (snapshot === null) continue;
-    rows.push({ id: file.id, created_at: file.createdTime, snapshot });
+  for (let offset = 0; offset < files.length; offset += 5) {
+    const batch = await Promise.all(files.slice(offset, offset + 5).map(async ({ file }) => {
+      const snapshot = await readSnapshot(token, file, boardId);
+      return snapshot === null ? null : { id: file.id, created_at: file.createdTime, snapshot };
+    }));
+    rows.push(...batch.filter((row) => row !== null));
   }
   return rows;
 }

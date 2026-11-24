@@ -101,10 +101,17 @@ html {
 
 html {
   background-color: var(--background);
+}
+
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-image: var(--sorta-canvas);
   background-repeat: no-repeat;
   background-size: 100% 100%;
-  background-attachment: fixed;
 }
 
 body {
