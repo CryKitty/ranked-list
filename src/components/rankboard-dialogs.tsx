@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, FormEvent, RefObject } from "react";
 import clsx from "clsx";
 import {
@@ -61,6 +61,66 @@ type ColumnOption = {
   title: string;
   mirrorsEntireBoard?: boolean;
 };
+
+export function ArtworkPasteDialog({
+  isDarkMode,
+  onClose,
+  onPaste,
+}: {
+  isDarkMode: boolean;
+  onClose: () => void;
+  onPaste: (event: ClipboardEvent<HTMLDivElement>) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const pasteZoneRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
+    pasteZoneRef.current?.focus({ preventScroll: true });
+    return () => dialog.close();
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="artwork-paste-prompt"
+      className={clsx(
+        "m-auto w-[calc(100%-2rem)] max-w-xs rounded-3xl border p-4 shadow-xl backdrop:bg-slate-950/60",
+        isDarkMode ? "border-white/10 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-950",
+      )}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <p id="artwork-paste-prompt" className="mb-2 text-sm font-semibold">Paste here</p>
+      <div
+        ref={pasteZoneRef}
+        aria-labelledby="artwork-paste-prompt"
+        className={clsx(
+          "min-h-14 rounded-xl border px-3 py-2 focus:outline-2 focus:outline-offset-2",
+          isDarkMode ? "border-white/20 bg-slate-950" : "border-slate-300 bg-slate-50",
+        )}
+        contentEditable
+        onPaste={onPaste}
+        role="textbox"
+      />
+      <button
+        className={clsx(
+          "mt-4 rounded-xl px-3 py-2 text-sm font-semibold",
+          isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100",
+        )}
+        onClick={onClose}
+        type="button"
+      >
+        Cancel
+      </button>
+    </dialog>
+  );
+}
 
 function ArtworkFieldInput({
   isDarkMode,
