@@ -2923,12 +2923,17 @@ export function RankboardApp() {
               : parsedState.activeBoardId && nextBoards.some((board) => board.id === parsedState.activeBoardId)
                 ? parsedState.activeBoardId
               : nextBoards[0].id;
-          const nextActiveBoard =
+          const storedActiveBoard =
             nextBoards.find((board) => board.id === nextActiveBoardId) ?? nextBoards[0];
+          const replacement = isDisposableDriveStarter(storedActiveBoard)
+            ? nextBoards.filter((board) => !isDisposableDriveStarter(board))
+                .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0]
+            : undefined;
+          const nextActiveBoard = replacement ?? storedActiveBoard;
 
           skipNextHistoryRef.current = true;
-          setBoards(nextBoards);
-          setActiveBoardId(nextActiveBoardId);
+          setBoards(replacement ? nextBoards.filter((board) => board.id !== storedActiveBoard.id) : nextBoards);
+          setActiveBoardId(nextActiveBoard.id);
           setColumns(nextActiveBoard.columns);
           setCardsByColumn(nextActiveBoard.cardsByColumn);
         } else {
@@ -5914,9 +5919,9 @@ export function RankboardApp() {
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? draft.title).trim() || `Untitled ${boardVocabulary.singular}`;
     const series = String(formData.get("series") ?? draft.series).trim();
-    const imageUrl = String(formData.get("imageUrl") ?? draft.imageUrl).trim();
+    const imageUrl = draft.imageUrl.trim();
     const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? draft.mobileBoardImageUrl).trim();
-    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? draft.mobileTierListImageUrl).trim();
+    const mobileTierListImageUrl = draft.mobileTierListImageUrl.trim();
     const notes = String(formData.get("notes") ?? draft.notes).trim();
     const releaseYear = String(formData.get("releaseYear") ?? draft.releaseYear).trim();
     const columnId = String(formData.get("columnId") ?? draft.columnId).trim();
@@ -6740,74 +6745,71 @@ function copyCardToDraft(card: CardEntry) {
     editArtworkInputRef.current?.click();
   }
 
-  function applyPastedArtworkValue(target: "draft" | "edit", field: ArtworkFieldKind, value: string) {
-    const pastedValue = value.trim();
-    if (!pastedValue) {
-      return;
-    }
+  function applyDraftArtwork(
+    target: "draft" | "edit",
+    field: ArtworkFieldKind,
+    value: string,
+    storagePath?: string,
+  ) {
+    const artwork = field === "landscape"
+      ? { imageUrl: value, imageStoragePath: storagePath }
+      : { mobileTierListImageUrl: value };
 
     if (target === "draft") {
       setDraftDuplicateAction(null);
-      setDraft((current) => ({
-        ...current,
-        imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
-        imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
-        mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
-      }));
-      return;
+      setDraft((current) => ({ ...current, ...artwork }));
+    } else {
+      setEditingDuplicateAction(null);
+      setEditingCardDraft((current) => current ? { ...current, ...artwork } : current);
     }
-
-    setEditingDuplicateAction(null);
-    setEditingCardDraft((current) =>
-      current
-        ? {
-            ...current,
-            imageUrl: field === "landscape" ? pastedValue : current.imageUrl,
-            imageStoragePath: field === "landscape" ? undefined : current.imageStoragePath,
-            mobileTierListImageUrl: field === "portrait" ? pastedValue : current.mobileTierListImageUrl,
-          }
-        : current,
-    );
   }
 
   async function pasteArtworkFromClipboard(target: "draft" | "edit", field: ArtworkFieldKind) {
-    try {
+    setArtworkPasteError(null);
+    async function readArtwork() {
       const clipboard = navigator.clipboard;
-      // Request all clipboard types during the tap so Safari can grant access once.
-      const contents = clipboard?.read
-        ? clipboard.read()
-        : clipboard?.readText?.();
-      setArtworkPasteError(null);
-      const pasted = await contents;
-
-      if (typeof pasted === "string" && pasted.trim()) {
-        applyPastedArtworkValue(target, field, pasted);
-        return;
-      }
-
-      if (Array.isArray(pasted)) {
-        for (const item of pasted) {
+      const items = await clipboard?.read?.().catch(() => []);
+      if (items) {
+        for (const item of items) {
           if (!item.types.includes("text/plain")) continue;
-          const text = await (await item.getType("text/plain")).text();
-          if (text.trim()) {
-            applyPastedArtworkValue(target, field, text);
-            return;
+          const value = await item.getType("text/plain").then((blob) => blob.text()).catch(() => "");
+          if (value.trim()) return value.trim();
+        }
+
+        const imageItem = items.find((item) => item.types.some((type) => type.startsWith("image/")));
+        const imageType = imageItem?.types.find((type) => type.startsWith("image/"));
+        if (imageItem && imageType) {
+          try {
+            const image = await imageItem.getType(imageType);
+            const optimized = await optimizeImageFile(new File([image], "clipboard-image", { type: imageType }));
+            return await blobToDataUrl(optimized.file);
+          } catch (error) {
+            const text = await clipboard.readText?.().catch(() => "");
+            if (text?.trim()) return text.trim();
+            throw error;
           }
         }
-
-        for (const item of pasted) {
-          const imageType = item.types.find((type) => type.startsWith("image/"));
-          if (!imageType) continue;
-          const image = await item.getType(imageType);
-          const optimized = await optimizeImageFile(new File([image], "clipboard-image", { type: imageType }));
-          applyPastedArtworkValue(target, field, await blobToDataUrl(optimized.file));
-          return;
-        }
       }
 
-      setArtworkPasteError({ target, message: "Tap and hold the artwork field, then choose Paste." });
+      const text = await clipboard?.readText?.().catch(() => "");
+      return text?.trim();
+    }
+
+    let timeoutId: number | undefined;
+    try {
+      const timeout = new Promise<undefined>((resolve) => {
+        timeoutId = window.setTimeout(resolve, 2500);
+      });
+      const value = await Promise.race([readArtwork(), timeout]);
+      if (value) {
+        applyDraftArtwork(target, field, value);
+      } else {
+        setArtworkPasteError({ target, message: "Tap and hold the artwork field, then choose Paste." });
+      }
     } catch {
-      setArtworkPasteError({ target, message: "Clipboard contents could not be pasted." });
+      setArtworkPasteError({ target, message: "Clipboard artwork could not be pasted. Tap and hold the artwork field, then choose Paste." });
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 
@@ -6828,7 +6830,7 @@ function copyCardToDraft(card: CardEntry) {
         : "landscape";
 
     setIsUploadingArtwork(true);
-    setSaveErrorMessage(null);
+    setArtworkPasteError(null);
     let uploadSucceeded = false;
 
     try {
@@ -6849,33 +6851,14 @@ function copyCardToDraft(card: CardEntry) {
         nextImageUrl = await blobToDataUrl(optimized.file.slice(0, optimized.file.size, optimized.contentType));
       }
 
-      if (target === "draft") {
-        setDraft((current) => ({
-          ...current,
-          imageUrl: artworkField === "landscape" ? nextImageUrl : current.imageUrl,
-          imageStoragePath: artworkField === "landscape" ? nextStoragePath : current.imageStoragePath,
-          mobileTierListImageUrl:
-            artworkField === "portrait" ? nextImageUrl : current.mobileTierListImageUrl,
-        }));
-      } else {
-        setEditingCardDraft((current) =>
-          current
-            ? {
-                ...current,
-                imageUrl: artworkField === "landscape" ? nextImageUrl : current.imageUrl,
-                imageStoragePath: artworkField === "landscape" ? nextStoragePath : current.imageStoragePath,
-                mobileTierListImageUrl:
-                  artworkField === "portrait" ? nextImageUrl : current.mobileTierListImageUrl,
-              }
-            : current,
-        );
-      }
-
+      applyDraftArtwork(target, artworkField, nextImageUrl, nextStoragePath);
       uploadSucceeded = true;
     } catch (error) {
       console.error(error);
-      setSaveState("error");
-      setSaveErrorMessage(error instanceof Error ? error.message : "Artwork could not be uploaded.");
+      setArtworkPasteError({
+        target,
+        message: error instanceof Error ? error.message : "Artwork could not be uploaded.",
+      });
     } finally {
       artworkUploadFieldRef.current = null;
       setIsUploadingArtwork(false);
@@ -6922,9 +6905,9 @@ function copyCardToDraft(card: CardEntry) {
 
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get("title") ?? editingCardDraft.title).trim() || `Untitled ${boardVocabulary.singular}`;
-    const imageUrl = String(formData.get("imageUrl") ?? editingCardDraft.imageUrl).trim();
+    const imageUrl = editingCardDraft.imageUrl.trim();
     const mobileBoardImageUrl = String(formData.get("mobileBoardImageUrl") ?? editingCardDraft.mobileBoardImageUrl).trim();
-    const mobileTierListImageUrl = String(formData.get("mobileTierListImageUrl") ?? editingCardDraft.mobileTierListImageUrl).trim();
+    const mobileTierListImageUrl = editingCardDraft.mobileTierListImageUrl.trim();
     const imageStoragePath = editingCardDraft.imageStoragePath;
     const series = String(formData.get("series") ?? editingCardDraft.series).trim();
     const releaseYear = String(formData.get("releaseYear") ?? editingCardDraft.releaseYear).trim();
@@ -8113,10 +8096,10 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  async function syncAndOpenBoardHistory() {
-    if (drive.signedIn) await drive.sync();
+  function syncAndOpenBoardHistory() {
+    void openBoardHistory();
+    if (drive.signedIn) void drive.sync();
     else requestImmediateServerSync();
-    await openBoardHistory();
   }
 
   function commitBoardHistoryState(nextBoard: SavedBoard, notice: string) {

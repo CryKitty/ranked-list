@@ -20,7 +20,31 @@ export async function driveRequest<T>(action: string, options?: RequestInit): Pr
   return response.json();
 }
 
+const UPLOADED_ARTWORK_KEY = "sorta-uploaded-artwork-v1";
+
+function readUploadedArtwork(): Set<string> {
+  try {
+    const hashes: unknown = JSON.parse(window.localStorage.getItem(UPLOADED_ARTWORK_KEY) ?? "[]");
+    if (Array.isArray(hashes)) {
+      return new Set(hashes.filter((hash): hash is string => typeof hash === "string" && /^[a-f0-9]{64}$/.test(hash)));
+    }
+  } catch {
+    // Sync can proceed with an in-memory cache if browser storage is unavailable.
+  }
+  return new Set();
+}
+
+function clearUploadedArtwork() {
+  try {
+    window.localStorage.removeItem(UPLOADED_ARTWORK_KEY);
+  } catch {
+    // Browser storage may be unavailable.
+  }
+}
+
 export function signInWithGoogle() {
+  // A new sign-in can target a different Drive account.
+  clearUploadedArtwork();
   window.location.assign("/api/drive/login");
 }
 
@@ -54,11 +78,13 @@ export function useDriveSync(
       setSession({ enabled: true, signedIn: false });
       setReady(false);
       uploadedArtwork.current.clear();
+      clearUploadedArtwork();
     }
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
+    uploadedArtwork.current = readUploadedArtwork();
     const url = new URL(window.location.href);
     if (url.searchParams.get("drive") === "sign-in-failed") {
       setError("Google sign-in could not complete. Try connecting again.");
@@ -100,43 +126,68 @@ export function useDriveSync(
     board: SavedBoard,
     { signal, uploadArtwork = true }: { signal?: AbortSignal; uploadArtwork?: boolean } = {},
   ) => {
-    const imageReferences = new Map<string, Promise<string>>();
-    function resolveArtwork(url: string) {
-      const saved = imageReferences.get(url);
-      if (saved) return saved;
-      const reference = (async () => {
-        const response = await fetch(url, { signal });
-        if (!response.ok) throw new Error("A local board image could not be read.");
-        const bytes = await response.arrayBuffer();
-        const digest = await crypto.subtle.digest("SHA-256", bytes);
-        const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-        if (uploadArtwork && !uploadedArtwork.current.has(hash)) {
-          await driveRequest("image", {
+    const uploadsByHash = new Map<string, Promise<unknown>>();
+    async function resolveArtwork(url: string) {
+      // Both URL schemes resolve entirely in the browser.
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error("A local board image could not be read.");
+      const bytes = await response.arrayBuffer();
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      if (uploadArtwork && !uploadedArtwork.current.has(hash)) {
+        let upload = uploadsByHash.get(hash);
+        if (!upload) {
+          upload = driveRequest("image", {
             method: "POST",
             headers: { "Content-Type": response.headers.get("content-type") ?? "" },
             body: bytes,
             signal,
+          }).then(() => {
+            if (signal?.aborted) return;
+            uploadedArtwork.current.add(hash);
+            try {
+              const hashes = readUploadedArtwork();
+              hashes.add(hash);
+              window.localStorage.setItem(UPLOADED_ARTWORK_KEY, JSON.stringify([...hashes]));
+            } catch {
+              // Keep the in-memory hash if browser storage is unavailable or full.
+            }
           });
-          uploadedArtwork.current.add(hash);
+          uploadsByHash.set(hash, upload);
         }
-        return "sorta-image:" + hash;
-      })();
-      imageReferences.set(url, reference);
-      return reference;
+        await upload;
+      }
+      return "sorta-image:" + hash;
     }
 
     const cardsByColumn: SavedBoard["cardsByColumn"] = Object.create(null);
+    const artworkTargets = new Map<string, Array<{
+      card: SavedBoard["cardsByColumn"][string][number];
+      field: typeof driveImageFields[number];
+    }>>();
     for (const [columnId, cards] of Object.entries(board.cardsByColumn)) {
-      const prepared = [];
-      for (const card of cards) {
+      cardsByColumn[columnId] = cards.map((card) => {
         const next = { ...card };
         for (const field of driveImageFields) {
           const url = card[field]?.trim();
-          if (url && /^(data:|blob:)/i.test(url)) next[field] = await resolveArtwork(url);
+          if (!url || !/^(data:|blob:)/i.test(url)) continue;
+          const targets = artworkTargets.get(url) ?? [];
+          targets.push({ card: next, field });
+          artworkTargets.set(url, targets);
         }
-        prepared.push(next);
+        return next;
+      });
+    }
+
+    const artwork = [...artworkTargets];
+    for (let offset = 0; offset < artwork.length; offset += 4) {
+      const results = await Promise.allSettled(artwork.slice(offset, offset + 4).map(async ([url, targets]) => {
+        const reference = await resolveArtwork(url);
+        for (const { card, field } of targets) card[field] = reference;
+      }));
+      for (const result of results) {
+        if (result.status === "rejected") throw result.reason;
       }
-      cardsByColumn[columnId] = prepared;
     }
     return { ...board, cardsByColumn };
   }, []);
@@ -214,6 +265,7 @@ export function useDriveSync(
       setReady(false);
       setError(null);
       uploadedArtwork.current.clear();
+      clearUploadedArtwork();
     } catch (cause) {
       reportError(cause);
     }
