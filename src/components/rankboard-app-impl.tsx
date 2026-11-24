@@ -11656,7 +11656,7 @@ function copyCardToDraft(card: CardEntry) {
                 <div
                   ref={boardLaneRef}
                   className={clsx(
-                    "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)]",
+                    "scrollbar-hidden relative z-10 flex w-full min-w-0 max-w-full items-start overflow-x-auto overflow-y-hidden pb-[calc(env(safe-area-inset-bottom)+0.1rem)] max-sm:[[data-theme=polished]_&]:pb-0",
                     isMobileViewport
                       ? clsx("gap-4 px-0 max-sm:min-h-0 max-sm:flex-1", isCardDragging ? "snap-none" : "snap-x snap-mandatory")
                       : "snap-x snap-mandatory gap-2 px-6 sm:px-0 sm:snap-none",
