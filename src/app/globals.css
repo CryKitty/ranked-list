@@ -15,10 +15,12 @@
   --sorta-control-track: rgb(15 23 42 / 7%);
   --sorta-control-selected: white;
   --sorta-control-focus: #2563eb;
+  --sorta-shadow-board: 0 1px 3px rgb(15 23 42 / 9%);
   --app-height: 100dvh;
 }
 
 html.dark {
+  --sorta-shadow-board: 0 1px 3px rgb(0 0 0 / 22%);
   --background: #020617;
   --sorta-control-track: rgb(255 255 255 / 9%);
   --sorta-control-selected: rgb(255 255 255 / 16%);
@@ -38,7 +40,7 @@ html[data-theme="polished"] {
   --radius-2xl: 10px;
   --radius-3xl: 14px;
   --sorta-shadow-dialog: 0 1px 3px rgb(22 42 29 / 12%), 0 20px 56px rgb(22 42 29 / 22%);
-  --sorta-shadow-board: 0 1px 3px rgb(22 42 29 / 9%), 0 10px 36px rgb(22 42 29 / 11%);
+  --sorta-shadow-board: 0 1px 3px rgb(22 42 29 / 9%);
   --sorta-board-surface: rgb(248 251 255 / 77%);
   --sorta-board-gap: 1.25rem;
   --sorta-column-title-fill: var(--sorta-paper);
@@ -67,7 +69,7 @@ html[data-theme="polished"].dark {
   --background: #0c1b34;
   --foreground: #e4edf8;
   --sorta-shadow-dialog: 0 1px 3px rgb(0 0 0 / 24%), 0 20px 56px rgb(0 0 0 / 48%);
-  --sorta-shadow-board: 0 1px 3px rgb(0 0 0 / 22%), 0 10px 36px rgb(0 0 0 / 32%);
+  --sorta-shadow-board: 0 1px 3px rgb(0 0 0 / 22%);
   --sorta-board-surface: rgb(186 213 255 / 6%);
   --sorta-column-title-fill: #172b47;
   --sorta-column-title-border: #344e72;
@@ -149,9 +151,8 @@ h3 {
 }
 
 [data-theme="polished"] .sorta-board-surface {
-  border-color: transparent;
+  border-color: var(--sorta-column-title-border);
   background: var(--sorta-board-surface);
-  box-shadow: var(--sorta-shadow-board);
 }
 
 [data-theme="polished"] .sorta-column-title-frame {
