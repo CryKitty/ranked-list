@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: Context) {
   const { action } = await params;
   const { origin, searchParams } = request.nextUrl;
   const config = driveConfig(origin);
-  const session = config && readDriveSession(config, request.cookies.get(SESSION_COOKIE)?.value);
+  const session = config && await readDriveSession(config, request.cookies.get(SESSION_COOKIE)?.value);
 
   if (action === "session") return json({ enabled: !!config, signedIn: !!session });
   if (!config) return error("Google Drive sync is unavailable.", 404);
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest, { params }: Context) {
   if (!config || request.headers.get("origin") !== config.origin) return error("Drive origin is not allowed.", 403);
 
   if (action === "logout") return clearDriveSession(json({ signedIn: false }), config);
-  const session = readDriveSession(config, request.cookies.get(SESSION_COOKIE)?.value);
+  const session = await readDriveSession(config, request.cookies.get(SESSION_COOKIE)?.value);
   if (!session) return error("Sign in with Google to connect Drive.", 401);
 
   try {

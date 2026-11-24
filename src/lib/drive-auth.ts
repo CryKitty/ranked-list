@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 const SESSION_AGE = 30 * 24 * 60 * 60;
@@ -20,7 +20,7 @@ export function driveConfig(origin: string) {
   return {
     clientId,
     clientSecret,
-    key: createHash("sha256").update(cookieSecret).digest(),
+    cookieSecret,
     origin,
     secure,
     redirectUri: origin + "/api/drive/callback",
@@ -29,22 +29,36 @@ export function driveConfig(origin: string) {
 
 type Config = NonNullable<ReturnType<typeof driveConfig>>;
 
-function seal(config: Config, purpose: string, payload: object) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", config.key, iv);
-  cipher.setAAD(Buffer.from(purpose + config.origin));
-  const encrypted = Buffer.concat([cipher.update(JSON.stringify(payload)), cipher.final()]);
-  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString("base64url");
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const IV_BYTES = 12;
+
+async function cookieKey(config: Config) {
+  const key = await globalThis.crypto.subtle.digest("SHA-256", encoder.encode(config.cookieSecret));
+  return globalThis.crypto.subtle.importKey("raw", key, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-function unseal<T>(config: Config, purpose: string, value?: string): T | null {
+async function seal(config: Config, purpose: string, payload: object) {
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const encrypted = await globalThis.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: encoder.encode(purpose + config.origin) },
+    await cookieKey(config),
+    encoder.encode(JSON.stringify(payload)),
+  );
+  // Web Crypto appends the authentication tag to the ciphertext.
+  return Buffer.concat([iv, new Uint8Array(encrypted)]).toString("base64url");
+}
+
+async function unseal<T>(config: Config, purpose: string, value?: string): Promise<T | null> {
   if (!value) return null;
   try {
-    const bytes = Buffer.from(value, "base64url");
-    const decipher = createDecipheriv("aes-256-gcm", config.key, bytes.subarray(0, 12));
-    decipher.setAAD(Buffer.from(purpose + config.origin));
-    decipher.setAuthTag(bytes.subarray(12, 28));
-    return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString());
+    const bytes = Uint8Array.from(Buffer.from(value, "base64url"));
+    const decrypted = await globalThis.crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: bytes.subarray(0, IV_BYTES), additionalData: encoder.encode(purpose + config.origin) },
+      await cookieKey(config),
+      bytes.subarray(IV_BYTES),
+    );
+    return JSON.parse(decoder.decode(decrypted));
   } catch {
     return null;
   }
@@ -65,7 +79,7 @@ export function clearDriveSession(response: NextResponse, config: Config) {
   return setCookie(response, config, SESSION_COOKIE, "", 0);
 }
 
-export function beginDriveLogin(config: Config) {
+export async function beginDriveLogin(config: Config) {
   const state = randomBytes(32).toString("base64url");
   const verifier = randomBytes(32).toString("base64url");
   const endpoint = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -81,7 +95,7 @@ export function beginDriveLogin(config: Config) {
     code_challenge_method: "S256",
   }).toString();
   return setCookie(NextResponse.redirect(endpoint), config, STATE_COOKIE,
-    seal(config, STATE_COOKIE, { state, verifier, expiresAt: Date.now() + 600_000 }), 600);
+    await seal(config, STATE_COOKIE, { state, verifier, expiresAt: Date.now() + 600_000 }), 600);
 }
 
 type Tokens = { access_token: string; expires_in: number; refresh_token?: string };
@@ -110,7 +124,7 @@ function tokenAccess(tokens: Tokens): Access {
 }
 
 export async function finishDriveLogin(config: Config, query: URLSearchParams, cookie?: string) {
-  const pending = unseal<{ state: string; verifier: string; expiresAt: number }>(config, STATE_COOKIE, cookie);
+  const pending = await unseal<{ state: string; verifier: string; expiresAt: number }>(config, STATE_COOKIE, cookie);
   const code = query.get("code");
   let session: Session | undefined;
   if (code && pending && pending.expiresAt > Date.now() && pending.state === query.get("state")) {
@@ -141,12 +155,12 @@ export async function finishDriveLogin(config: Config, query: URLSearchParams, c
   const response = NextResponse.redirect(new URL(session ? "/" : "/?drive=sign-in-failed", config.origin));
   setCookie(response, config, STATE_COOKIE, "", 0);
   return session
-    ? setCookie(response, config, SESSION_COOKIE, seal(config, SESSION_COOKIE, session), SESSION_AGE)
+    ? setCookie(response, config, SESSION_COOKIE, await seal(config, SESSION_COOKIE, session), SESSION_AGE)
     : response;
 }
 
-export function readDriveSession(config: Config, value?: string) {
-  const session = unseal<Session>(config, SESSION_COOKIE, value);
+export async function readDriveSession(config: Config, value?: string) {
+  const session = await unseal<Session>(config, SESSION_COOKIE, value);
   return session && session.sessionExpiresAt > Date.now() ? session : null;
 }
 
