@@ -219,7 +219,13 @@ function chooseQuizPair(
   return bestPair;
 }
 
-function playQuizDuel(state: PairwiseQuizState, score: 0 | 0.5 | 1): PairwiseQuizState {
+function isQuizSettled(ratings: PairwiseQuizState["ratings"], focusEntryId: string | null) {
+  return focusEntryId
+    ? (ratings[focusEntryId]?.matches ?? 0) >= QUIZ_SETTLED_MATCHES
+    : Object.values(ratings).every(({ matches }) => matches >= QUIZ_SETTLED_MATCHES);
+}
+
+function playQuizDuel(state: PairwiseQuizState, score: 0 | 0.5 | 1, keepDueling: boolean): PairwiseQuizState {
   const [aId, bId] = state.pair;
   const a = state.ratings[aId];
   const b = state.ratings[bId];
@@ -241,7 +247,9 @@ function playQuizDuel(state: PairwiseQuizState, score: 0 | 0.5 | 1): PairwiseQui
   return {
     ...state,
     ratings,
-    pair: chooseQuizPair(ratings, state.pair, state.focusEntryId),
+    pair: !keepDueling && isQuizSettled(ratings, state.focusEntryId)
+      ? state.pair
+      : chooseQuizPair(ratings, state.pair, state.focusEntryId),
     lastPair: state.pair,
     history: [...state.history, { pair: state.pair, lastPair: state.lastPair, before: [a, b] }],
   };
@@ -2303,6 +2311,7 @@ export function RankboardApp() {
   const [isResetTierListConfirmOpen, setIsResetTierListConfirmOpen] = useState(false);
   const [tierRowOptionsState, setTierRowOptionsState] = useState<TierRowOptionsState | null>(null);
   const [pairwiseQuizState, setPairwiseQuizState] = useState<PairwiseQuizState | null>(null);
+  const [keepQuizDueling, setKeepQuizDueling] = useState(false);
   const [pairwiseQuizReview, setPairwiseQuizReview] = useState<PairwiseQuizReview | null>(null);
   const [pendingPairwiseQuizResume, setPendingPairwiseQuizResume] = useState<PendingPairwiseQuizResume | null>(null);
   const [pairwiseQuizSavedNotice, setPairwiseQuizSavedNotice] = useState<string | null>(null);
@@ -7777,19 +7786,11 @@ function copyCardToDraft(card: CardEntry) {
     }
   }
 
-  function startPairwiseQuizFromScratch(columnId: string) {
-    const column = columns.find((item) => item.id === columnId);
-    const cards = cardsByColumn[columnId] ?? [];
-
-    if (!column || cards.length < 2) {
-      return;
-    }
-
-    const nextState = buildPairwiseQuizState(columnId);
+  function startPairwiseQuizFromScratch(columnId: string, nextState = buildPairwiseQuizState(columnId)) {
+    if (!nextState) return;
 
     void persistPairwiseQuizProgress(columnId, null);
-    setPairwiseQuizReview(null);
-    setPairwiseQuizState(nextState);
+    showPairwiseQuiz(nextState);
     setPendingPairwiseQuizResume(null);
     setOpenColumnMenuId(null);
     setOpenColumnSortMenuId(null);
@@ -7813,6 +7814,17 @@ function copyCardToDraft(card: CardEntry) {
     setOpenColumnMaintenanceMenuId(null);
 
     const savedProgress = await loadSavedPairwiseQuizProgress(columnId);
+    const nextState = buildPairwiseQuizState(columnId);
+    if (savedProgress && isQuizSettled(savedProgress.ratings, null)) {
+      setPendingPairwiseQuizResume(null);
+      showPairwiseQuiz({ ...savedProgress, mode: "column", focusEntryId: null });
+      return;
+    }
+    if (nextState && isQuizSettled(nextState.ratings, null)) {
+      setPendingPairwiseQuizResume(null);
+      showPairwiseQuiz(nextState);
+      return;
+    }
 
     if (savedProgress) {
       setPendingPairwiseQuizResume({
@@ -7827,7 +7839,7 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    startPairwiseQuizFromScratch(columnId);
+    startPairwiseQuizFromScratch(columnId, nextState);
   }
 
   function continueSavedPairwiseQuiz() {
@@ -7835,8 +7847,7 @@ function copyCardToDraft(card: CardEntry) {
       return;
     }
 
-    setPairwiseQuizReview(null);
-    setPairwiseQuizState(pendingPairwiseQuizResume.progress);
+    showPairwiseQuiz(pendingPairwiseQuizResume.progress);
     setPendingPairwiseQuizResume(null);
   }
 
@@ -7866,17 +7877,49 @@ function copyCardToDraft(card: CardEntry) {
   }
 
   function resolvePairwiseChoice(score: 0 | 0.5 | 1) {
-    setPairwiseQuizState((current) => current ? playQuizDuel(current, score) : current);
+    if (!pairwiseQuizState || pairwiseQuizReview) return;
+
+    const nextState = playQuizDuel(pairwiseQuizState, score, keepQuizDueling);
+    setPairwiseQuizState(nextState);
+    if (!keepQuizDueling && isQuizSettled(nextState.ratings, nextState.focusEntryId)) {
+      reviewPairwiseQuiz(nextState);
+    }
   }
 
   function undoPairwiseChoice() {
     setPairwiseQuizState((current) => current ? undoQuizDuel(current) : current);
   }
 
-  function reviewPairwiseQuiz() {
+  function showPairwiseQuiz(state: PairwiseQuizState | null) {
+    setKeepQuizDueling(false);
+    setPairwiseQuizState(state);
+    if (state && isQuizSettled(state.ratings, state.focusEntryId)) {
+      reviewPairwiseQuiz(state);
+    } else {
+      setPairwiseQuizReview(null);
+    }
+  }
+
+  function keepDueling() {
     if (!pairwiseQuizState) return;
 
-    const { columnId, ratings } = pairwiseQuizState;
+    if (!keepQuizDueling && isQuizSettled(pairwiseQuizState.ratings, pairwiseQuizState.focusEntryId)) {
+      const { ratings, lastPair, focusEntryId } = pairwiseQuizState;
+      setPairwiseQuizState({ ...pairwiseQuizState, pair: chooseQuizPair(ratings, lastPair, focusEntryId) });
+    }
+    setKeepQuizDueling(true);
+    setPairwiseQuizReview(null);
+  }
+
+  function dismissPairwiseQuizReview() {
+    if (pairwiseQuizState && !keepQuizDueling && isQuizSettled(pairwiseQuizState.ratings, pairwiseQuizState.focusEntryId)) {
+      setPairwiseQuizState(null);
+    }
+    setPairwiseQuizReview(null);
+  }
+
+  function reviewPairwiseQuiz(state: PairwiseQuizState) {
+    const { columnId, ratings } = state;
     const cards = latestCardsByColumnRef.current[columnId] ?? [];
     setPairwiseQuizReview({
       rankedCards: [...cards].sort((a, b) =>
@@ -7971,6 +8014,16 @@ function copyCardToDraft(card: CardEntry) {
     const savedProgress = await loadSavedPairwiseQuizProgress(nextState.columnId);
 
     if (savedProgress?.mode === "card" && savedProgress.focusEntryId === card.entryId) {
+      if (isQuizSettled(savedProgress.ratings, card.entryId)) {
+        setPendingPairwiseQuizResume(null);
+        showPairwiseQuiz(savedProgress);
+        return;
+      }
+      if (isQuizSettled(nextState.ratings, card.entryId)) {
+        setPendingPairwiseQuizResume(null);
+        showPairwiseQuiz(nextState);
+        return;
+      }
       setPendingPairwiseQuizResume({
         columnId: nextState.columnId,
         columnTitle: nextState.columnTitle,
@@ -7985,7 +8038,7 @@ function copyCardToDraft(card: CardEntry) {
 
     void persistPairwiseQuizProgress(nextState.columnId, null);
     setPendingPairwiseQuizResume(null);
-    setPairwiseQuizState(nextState);
+    showPairwiseQuiz(nextState);
   }
 
   function exportActiveBoardAsJson() {
@@ -13293,8 +13346,7 @@ function copyCardToDraft(card: CardEntry) {
                       if (card) {
                         void persistPairwiseQuizProgress(pendingPairwiseQuizResume.columnId, null);
                         setPendingPairwiseQuizResume(null);
-                        setPairwiseQuizReview(null);
-                        setPairwiseQuizState(buildCardPlacementQuizState(card));
+                        showPairwiseQuiz(buildCardPlacementQuizState(card));
                         return;
                       }
                     }
@@ -13424,7 +13476,7 @@ function copyCardToDraft(card: CardEntry) {
                         ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
                     )}
-                    onClick={reviewPairwiseQuiz}
+                    onClick={() => reviewPairwiseQuiz(pairwiseQuizState)}
                     type="button"
                   >
                     Review &amp; Save
@@ -13451,7 +13503,7 @@ function copyCardToDraft(card: CardEntry) {
         {pairwiseQuizReview && pairwiseQuizState ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            onClick={() => setPairwiseQuizReview(null)}
+            onClick={dismissPairwiseQuizReview}
           >
             <div
               className={clsx(
@@ -13478,7 +13530,8 @@ function copyCardToDraft(card: CardEntry) {
                       ? "bg-white/10 text-slate-200 hover:bg-white/15"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200",
                   )}
-                  onClick={() => setPairwiseQuizReview(null)}
+                  aria-label="Close review"
+                  onClick={dismissPairwiseQuizReview}
                   type="button"
                 >
                   <X className="h-5 w-5" />
@@ -13577,15 +13630,13 @@ function copyCardToDraft(card: CardEntry) {
                 </button>
                 <button
                   className={clsx(
-                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                    isDarkMode
-                      ? "border-white/10 bg-slate-950 text-slate-200 hover:border-white/40"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-950",
+                    "px-2 py-2 text-sm font-semibold underline-offset-4 hover:underline",
+                    isDarkMode ? "text-slate-300" : "text-slate-600",
                   )}
-                  onClick={() => setPairwiseQuizReview(null)}
+                  onClick={keepDueling}
                   type="button"
                 >
-                  Back to Quiz
+                  Keep dueling
                 </button>
               </div>
             </div>
