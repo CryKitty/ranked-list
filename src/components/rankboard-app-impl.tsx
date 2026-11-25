@@ -151,14 +151,24 @@ import {
 } from "@/lib/normalized-board-store";
 import { BoardFieldDefinition, BoardLayout, BoardSettings, BoardSnapshot, CardEntry, CardFieldType, ColumnSortMode, ColumnDefinition, DateFieldFormat, PairwiseQuizProgress, QuizPair, QuizRating, SaveState, SavedBoard, ShareTierFilter, TierListRowDefinition, TierListViewState } from "@/lib/types";
 
-const QUIZ_SETTLED_MATCHES = 12;
+const QUIZ_SETTLED_MATCHES = 10;
 const QUIZ_PLACEMENT_MATCHES = 8;
+const QUIZ_RECENT_DUELS = 6;
 const DEFAULT_QUIZ_RATING: QuizRating = { rating: 1000, matches: 0 };
+
+function quizPairKey(a: string, b: string) {
+  return JSON.stringify(a < b ? [a, b] : [b, a]);
+}
+
+function getRecentQuizPairs(history: PairwiseQuizState["history"]) {
+  return new Set(history.slice(-QUIZ_RECENT_DUELS).map(({ pair: [a, b] }) => quizPairKey(a, b)));
+}
 
 function chooseQuizPair(
   ratings: PairwiseQuizState["ratings"],
   lastPair: QuizPair | null,
   focusEntryId: string | null,
+  recentPairs?: ReadonlySet<string>,
 ): QuizPair {
   const entries = Object.entries(ratings);
   const focused = focusEntryId && ratings[focusEntryId].matches < QUIZ_SETTLED_MATCHES
@@ -168,10 +178,11 @@ function chooseQuizPair(
     .filter(([, stats]) => stats.provisional && stats.matches < QUIZ_PLACEMENT_MATCHES)
     .sort(([, a], [, b]) => a.matches - b.matches)[0]?.[0];
   const priority = focused ?? newcomer;
-  const canPlay = (a: string, b: string) =>
-    entries.length === 2 ||
-    !lastPair ||
-    !((lastPair[0] === a && lastPair[1] === b) || (lastPair[0] === b && lastPair[1] === a));
+  const lastPairKey = lastPair ? quizPairKey(...lastPair) : null;
+  const canPlay = (a: string, b: string) => {
+    const key = quizPairKey(a, b);
+    return (entries.length === 2 || key !== lastPairKey) && !recentPairs?.has(key);
+  };
 
   if (priority) {
     const stats = ratings[priority];
@@ -190,11 +201,11 @@ function chooseQuizPair(
     const pool = established.length ? established : available;
     pool.sort(([, a], [, b]) =>
       Math.abs(a.rating - target) - Math.abs(b.rating - target) || a.matches - b.matches);
-    return [priority, pool[0][0]];
+    if (pool.length) return [priority, pool[0][0]];
   }
 
   // Compare match counts from least to most played, then break ties by rating distance.
-  let bestPair: QuizPair = [entries[0][0], entries[1][0]];
+  let bestPair: QuizPair | null = null;
   let bestFewest = Infinity;
   let bestMost = Infinity;
   let bestDistance = Infinity;
@@ -216,7 +227,24 @@ function chooseQuizPair(
       }
     }
   }
-  return bestPair;
+  // If every eligible pair is recent, relax the window and retain the immediate-repeat rule.
+  return bestPair ?? chooseQuizPair(ratings, lastPair, focusEntryId);
+}
+
+function getQuizProgress(cards: Pick<CardEntry, "entryId">[], ratings: PairwiseQuizState["ratings"]) {
+  let settled = 0;
+  let completedMatches = 0;
+  for (const { entryId } of cards) {
+    const matches = ratings[entryId]?.matches ?? 0;
+    if (matches >= QUIZ_SETTLED_MATCHES) settled += 1;
+    completedMatches += Math.min(matches, QUIZ_SETTLED_MATCHES);
+  }
+  const requiredMatches = QUIZ_SETTLED_MATCHES * cards.length;
+  return {
+    settled,
+    fraction: requiredMatches ? completedMatches / requiredMatches : 0,
+    duelsLeft: Math.ceil((requiredMatches - completedMatches) / 2),
+  };
 }
 
 function isQuizSettled(ratings: PairwiseQuizState["ratings"], focusEntryId: string | null) {
@@ -244,14 +272,15 @@ function playQuizDuel(state: PairwiseQuizState, score: 0 | 0.5 | 1, keepDueling:
       provisional: b.provisional && b.matches + 1 < QUIZ_PLACEMENT_MATCHES,
     },
   };
+  const history = [...state.history, { pair: state.pair, lastPair: state.lastPair, before: [a, b] }] satisfies PairwiseQuizState["history"];
   return {
     ...state,
     ratings,
     pair: !keepDueling && isQuizSettled(ratings, state.focusEntryId)
       ? state.pair
-      : chooseQuizPair(ratings, state.pair, state.focusEntryId),
+      : chooseQuizPair(ratings, state.pair, state.focusEntryId, getRecentQuizPairs(history)),
     lastPair: state.pair,
-    history: [...state.history, { pair: state.pair, lastPair: state.lastPair, before: [a, b] }],
+    history,
   };
 }
 
@@ -2541,10 +2570,7 @@ export function RankboardApp() {
   const quizCards = pairwiseQuizState
     ? cardsByColumn[pairwiseQuizState.columnId] ?? []
     : [];
-  const quizSettledCount = pairwiseQuizState
-    ? quizCards.filter(({ entryId }) =>
-        (pairwiseQuizState.ratings[entryId]?.matches ?? 0) >= QUIZ_SETTLED_MATCHES).length
-    : 0;
+  const quizProgress = getQuizProgress(quizCards, pairwiseQuizState?.ratings ?? {});
   const hasOpenModal =
     (Boolean(addCardTarget) && !isMobileQuickAddPanelOpen) ||
     Boolean(editingCardId && editingCardDraft) ||
@@ -7904,8 +7930,11 @@ function copyCardToDraft(card: CardEntry) {
     if (!pairwiseQuizState) return;
 
     if (!keepQuizDueling && isQuizSettled(pairwiseQuizState.ratings, pairwiseQuizState.focusEntryId)) {
-      const { ratings, lastPair, focusEntryId } = pairwiseQuizState;
-      setPairwiseQuizState({ ...pairwiseQuizState, pair: chooseQuizPair(ratings, lastPair, focusEntryId) });
+      const { ratings, lastPair, focusEntryId, history } = pairwiseQuizState;
+      setPairwiseQuizState({
+        ...pairwiseQuizState,
+        pair: chooseQuizPair(ratings, lastPair, focusEntryId, getRecentQuizPairs(history)),
+      });
     }
     setKeepQuizDueling(true);
     setPairwiseQuizReview(null);
@@ -13442,14 +13471,15 @@ function copyCardToDraft(card: CardEntry) {
                       Progress
                     </span>
                     <span className={clsx("text-sm font-semibold", isDarkMode ? "text-slate-200" : "text-slate-700")}>
-                      {pairwiseQuizState.history.length} duels · {quizSettledCount} of {quizCards.length} cards settled
+                      {pairwiseQuizState.history.length} duels · {quizProgress.settled} of {quizCards.length} cards settled
+                      {quizProgress.duelsLeft > 0 && ` · about ${quizProgress.duelsLeft} duels left`}
                     </span>
                   </div>
                   <div className={clsx("mt-2 h-2 overflow-hidden rounded-full", isDarkMode ? "bg-white/10" : "bg-slate-200")}>
                     <div
                       className={clsx("h-full rounded-full transition-all", isDarkMode ? "bg-white" : "bg-slate-950")}
                       style={{
-                        width: `${quizCards.length ? (quizSettledCount / quizCards.length) * 100 : 0}%`,
+                        width: `${quizProgress.fraction * 100}%`,
                       }}
                     />
                   </div>
