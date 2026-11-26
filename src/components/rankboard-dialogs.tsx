@@ -27,7 +27,6 @@ import {
   FieldSettingsPanel,
   HoverLabelIconButton,
 } from "@/components/rankboard-fields";
-import { getArtworkDisplayUrl } from "@/lib/artwork-url";
 import type { BoardFieldDefinition, BoardLayout, ColumnDefinition } from "@/lib/types";
 
 type ArtworkFieldKind = "landscape" | "portrait";
@@ -90,7 +89,6 @@ function ArtworkFieldInput({
   onOpenUploadPicker: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const previewUrl = getArtworkDisplayUrl(value);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -184,10 +182,6 @@ function ArtworkFieldInput({
           </div>
         ) : null}
       </div>
-      {previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img alt={`${label} preview`} className="h-24 max-w-full rounded-lg object-contain object-left" src={previewUrl} />
-      ) : null}
     </div>
   );
 }
